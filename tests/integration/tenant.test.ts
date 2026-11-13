@@ -289,6 +289,102 @@ describe('relações', () => {
   })
 })
 
+describe('filtros e ordenação não entram em plataforma', () => {
+  test('o ataque de descobrir o hash por where com startsWith lança', async () => {
+    await expect(
+      tenantDb(a.id).membership.findMany({ where: { user: { passwordHash: { startsWith: 'x' } } } }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+  test('where em OR, NOT, AND (objeto ou lista), some, every, none, is e isNot lança', async () => {
+    const db = tenantDb(a.id)
+    const casos: Array<() => Promise<unknown>> = [
+      () => db.membership.findMany({ where: { OR: [{ role: 'OWNER' }, { user: { name: 'x' } }] } }),
+      () => db.membership.findMany({ where: { NOT: { user: { name: 'x' } } } }),
+      () => db.membership.findMany({ where: { NOT: [{ user: { is: { name: 'x' } } }] } }),
+      () => db.membership.findMany({ where: { AND: { user: { isNot: { name: 'x' } } } } }),
+      () => db.membership.findMany({ where: { AND: [{ OR: [{ NOT: { user: { name: 'x' } } }] }] } }),
+      () => db.business.findMany({ where: { sessions: { some: {} } } }),
+      () => db.business.findMany({ where: { sessions: { every: {} } } }),
+      () => db.business.findMany({ where: { sessions: { none: {} } } }),
+      () => db.business.findMany({ where: { memberships: { some: { user: { passwordHash: { startsWith: 'x' } } } } } }),
+      () => db.membership.count({ where: { user: { name: 'x' } } }),
+      () => db.membership.updateMany({ where: { user: { name: 'x' } }, data: { active: false } }),
+      () => db.membership.deleteMany({ where: { user: { name: 'x' } } }),
+      () => db.membership.aggregate({ _count: true, where: { user: { name: 'x' } } }),
+      () => db.membership.groupBy({ by: ['role'], where: { user: { name: 'x' } } }),
+    ]
+    for (const [i, caso] of casos.entries()) {
+      await expect(caso(), `caso ${i}`).rejects.toThrow(TenantViolationError)
+    }
+  })
+  test('orderBy por campo de relação ou _count de relação de plataforma lança', async () => {
+    const db = tenantDb(a.id)
+    await expect(db.membership.findMany({ orderBy: { user: { name: 'asc' } } })).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.findMany({ orderBy: [{ createdAt: 'desc' }, { user: { passwordHash: 'asc' } }] }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(db.business.findMany({ orderBy: { sessions: { _count: 'asc' } } })).rejects.toThrow(TenantViolationError)
+    await expect(db.business.findMany({ orderBy: { _count: { sessions: 'asc' } } as never })).rejects.toThrow(
+      TenantViolationError,
+    )
+  })
+  test('having e distinct que citem relação de plataforma lançam', async () => {
+    const db = tenantDb(a.id)
+    await expect(
+      db.membership.groupBy({ by: ['role'], having: { user: { name: 'x' } } as never }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(db.membership.findMany({ distinct: ['user'] as never })).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.groupBy({ by: ['user'] as never, orderBy: { role: 'asc' } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.findMany({ cursor: { id: ma.id, user: { name: 'x' } } as never }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+  test('where e orderBy dentro de include e select, em qualquer nível, lançam', async () => {
+    const db = tenantDb(a.id)
+    await expect(
+      db.membership.findMany({ include: { business: { where: { sessions: { some: {} } } } } as never }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.business.findMany({ include: { memberships: { where: { user: { name: 'x' } } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.business.findMany({ select: { memberships: { select: { id: true }, orderBy: { user: { name: 'asc' } } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.business.findMany({
+        select: { memberships: { include: { business: { select: { memberships: { where: { user: { name: 'x' } } } } } } } },
+      }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.business.findMany({ select: { _count: { select: { memberships: { where: { user: { name: 'x' } } } } } } }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+  test('filtros e ordenação legítimos continuam funcionando', async () => {
+    const db = tenantDb(a.id)
+    expect((await db.membership.findMany({ where: { role: 'OWNER' } })).map((m) => m.id)).toEqual([ma.id])
+    expect(await db.membership.findMany({ where: { business: { status: 'ACTIVE' } } })).toHaveLength(1)
+    expect(await db.membership.findMany({ orderBy: { createdAt: 'desc' } })).toHaveLength(1)
+    expect(
+      await db.business.findMany({ where: { memberships: { some: { role: 'OWNER' } } }, orderBy: { memberships: { _count: 'desc' } } }),
+    ).toHaveLength(1)
+    expect(
+      await db.business.findMany({
+        where: { OR: [{ status: 'ACTIVE' }, { NOT: { name: 'x' } }] },
+        include: { memberships: { where: { active: true }, orderBy: [{ business: { name: 'asc' } }] } },
+        orderBy: [{ name: 'asc' }],
+        distinct: ['status'],
+      }),
+    ).toHaveLength(1)
+    expect(
+      await db.business.findMany({
+        select: { _count: { select: { memberships: { where: { active: true } } } } },
+      }),
+    ).toHaveLength(1)
+  })
+})
+
 describe('relações entre contas (FK composta)', () => {
   const colunas = ['logoUploadId', 'symbolUploadId', 'faviconUploadId', 'loginImageUploadId'] as const
 
@@ -347,5 +443,13 @@ describe('metadados de relação', () => {
       lerMetadados({ models: { A: { fields: [{ name: 'r', kind: 'object', type: 'Z' }] } } }),
     ).toThrow(TenantViolationError)
     expect(() => lerMetadados({})).toThrow(TenantViolationError)
+  })
+  test('kind desconhecido falha fechado; os kinds do Prisma são aceitos', () => {
+    expect(() => lerMetadados({ models: { A: { fields: [{ name: 'x', kind: 'composite' }] } } })).toThrow(
+      TenantViolationError,
+    )
+    for (const kind of ['scalar', 'enum', 'unsupported']) {
+      expect(lerMetadados({ models: { A: { fields: [{ name: 'x', kind }] } } }).get('A')).toHaveLength(1)
+    }
   })
 })
