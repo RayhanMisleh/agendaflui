@@ -1,6 +1,6 @@
 import type { Tone } from '@/ui/components'
 
-export type ScenarioKind = 'pet' | 'barber'
+export type ScenarioKind = 'pet' | 'barbearia'
 
 export type Appointment = {
   id: string
@@ -77,8 +77,8 @@ export const SCENARIOS: Record<ScenarioKind, Scenario> = {
       { id: 's4', label: 'Corte de unhas', cents: 3000 },
     ],
   },
-  barber: {
-    kind: 'barber',
+  barbearia: {
+    kind: 'barbearia',
     clientWord: { one: 'Cliente', many: 'Clientes' },
     dateLabel: 'Sexta-feira, 13 de novembro',
     user: { name: 'Wellington Cruz', roleLabel: 'Dono' },

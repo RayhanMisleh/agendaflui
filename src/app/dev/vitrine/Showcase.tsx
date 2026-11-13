@@ -28,7 +28,7 @@ const PRESETS: Preset[] = [
     label: 'Barbearia',
     name: 'Navalha Real',
     brand: { primary: '#3A2A20', accent: '#C9A227', material: 'LEATHER', paper: 'WHITE', fontPair: 'CLASSIC' },
-    scenario: 'barber',
+    scenario: 'barbearia',
   },
   { label: 'AgendaFlui', name: 'AgendaFlui', brand: AGENDAFLUI_BRAND, scenario: 'pet' },
 ]
