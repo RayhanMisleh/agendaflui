@@ -1,5 +1,8 @@
 import { getStorage } from '@/server/storage/storage'
 
+// Só imagens raster saem daqui: qualquer outro tipo gravado (HTML, SVG...) seria conteúdo ativo na origem do painel.
+const TIPOS_SERVIDOS = new Set(['image/webp', 'image/png', 'image/jpeg'])
+
 const CABECALHOS_404 = { 'X-Content-Type-Options': 'nosniff' }
 
 function naoEncontrado(): Response {
@@ -21,7 +24,7 @@ async function servir(ctx: { params: Promise<{ key: string[] }> }, comCorpo: boo
   } catch {
     return naoEncontrado()
   }
-  if (!arquivo) return naoEncontrado()
+  if (!arquivo || !TIPOS_SERVIDOS.has(arquivo.contentType)) return naoEncontrado()
   return new Response(comCorpo ? new Uint8Array(arquivo.data) : null, {
     status: 200,
     headers: {
@@ -29,6 +32,7 @@ async function servir(ctx: { params: Promise<{ key: string[] }> }, comCorpo: boo
       'Content-Length': String(arquivo.data.length),
       'Cache-Control': 'public, max-age=31536000, immutable',
       'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
     },
   })
 }
