@@ -134,11 +134,11 @@
 
   @media (min-width: 1024px) {
     .vt-page {
-      padding: 2rem 2rem 5rem;
+      padding: 2rem 1.5rem 5rem;
     }
     .vt-grid {
-      grid-template-columns: 19rem minmax(0, 1fr);
-      gap: 2rem;
+      grid-template-columns: 17rem minmax(0, 1fr);
+      gap: 1.5rem;
     }
   }
 

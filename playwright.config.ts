@@ -1,13 +1,15 @@
 import { defineConfig } from '@playwright/test'
 
 // O navegador resolve *.localhost sozinho; a prontidão do servidor usa só a porta
-// (o Node pode não resolver dev.localhost no macOS).
+// (o Node pode não resolver dev.localhost no macOS). O host vem de DEV_HOST, como em src/proxy.ts.
+const devHost = process.env.DEV_HOST || 'dev.localhost:3000'
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
   reporter: 'list',
   use: {
-    baseURL: 'http://dev.localhost:3000',
+    baseURL: `http://${devHost}`,
     trace: 'retain-on-failure',
   },
   projects: [

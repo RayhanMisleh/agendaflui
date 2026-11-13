@@ -118,8 +118,15 @@
     min-width: 0;
   }
 
-  /* Capa: o material e a cor vêm de .af-cover / .af-material-metal (materials.css). */
-  .af-shell__cover {
+  /* Capa: o material e a cor vêm de .af-cover / .af-material-metal (materials.css).
+     No celular a capa é a barra do topo (.af-shell__top) e a coluna some do fluxo (display: contents). */
+  .af-shell__plate {
+    display: none;
+  }
+  .af-shell__rail {
+    display: contents;
+  }
+  .af-shell__top {
     --stitch-radius: 6px;
     order: 1;
     z-index: 3;
@@ -488,16 +495,48 @@
     .af-shell--embedded .af-shell__frame {
       grid-template-rows: auto;
     }
-    .af-shell__cover {
+    .af-shell__plate {
+      display: block;
       grid-column: 1;
       grid-row: 1;
-      justify-content: space-between;
-      gap: 0;
-      padding: 1.75rem 1.25rem 1.5rem;
-      border-radius: 0;
+      z-index: 3;
+      --stitch-radius: 6px;
     }
-    .af-shell--embedded .af-shell__cover {
+    .af-shell--embedded .af-shell__plate {
       border-radius: 14px 0 0 14px;
+    }
+    /* A coluna fica colada ao topo da tela (dentro dos limites da moldura) e rola o menu por dentro. */
+    .af-shell__rail {
+      display: flex;
+      flex-direction: column;
+      grid-column: 1;
+      grid-row: 1;
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      align-self: start;
+      width: calc(var(--cover-w) + var(--tab-out));
+      height: 100dvh;
+      max-height: 100%;
+      padding: 1.75rem 0 1.5rem;
+      pointer-events: none;
+    }
+    .af-shell__rail > * {
+      pointer-events: auto;
+    }
+    /* Neste layout a capa é a chapa; a barra do topo vira só o lugar da marca (sem material próprio). */
+    .af-shell__top {
+      flex: none;
+      order: 1;
+      z-index: auto;
+      gap: 0;
+      margin-right: var(--tab-out);
+      padding: 0 1.25rem;
+      background: none !important;
+      box-shadow: none !important;
+    }
+    .af-shell__top::after {
+      display: none;
     }
     .af-shell__brand {
       align-items: flex-end;
@@ -511,6 +550,10 @@
     }
     .af-shell__user {
       display: block;
+      flex: none;
+      order: 3;
+      margin: 1rem var(--tab-out) 0 0;
+      padding: 0 1.25rem;
     }
     .af-brand--lg .af-brand__name {
       font-size: 1.75rem;
@@ -525,13 +568,15 @@
     }
 
     .af-shell__nav {
-      grid-column: 1;
-      grid-row: 1;
-      z-index: 4;
       position: static;
-      align-self: start;
-      margin: 8.5rem calc(-1 * var(--tab-out)) 0 0.875rem;
-      padding: 0;
+      order: 2;
+      flex: 1 1 auto;
+      min-height: 0;
+      margin: 1.5rem 0 0 0.875rem;
+      padding: 4px 0 8px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
       background: none;
       box-shadow: none;
     }

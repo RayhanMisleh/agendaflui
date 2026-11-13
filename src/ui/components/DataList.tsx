@@ -7,6 +7,14 @@ export type DataColumn<T> = {
   header: ReactNode
   cell: (row: T) => ReactNode
   primary?: boolean
+  /** Célula e cabeçalho numa linha só (telefone, data, valor). */
+  nowrap?: boolean
+  /** Alinhamento na tabela; `end` para números. */
+  align?: 'start' | 'end'
+}
+
+function colClass(c: { nowrap?: boolean; align?: 'start' | 'end' }): string | undefined {
+  return cx(c.nowrap && 'af-col--nowrap', c.align === 'end' && 'af-col--end') || undefined
 }
 
 function hitProps(onActivate: () => void) {
@@ -24,7 +32,8 @@ function hitProps(onActivate: () => void) {
 }
 
 /**
- * Tabela em papel pautado a partir de 768 px; abaixo disso, lista de cartões com a coluna `primary` como título.
+ * Tabela em papel pautado quando o CONTÊINER da lista tem ao menos 36rem (576 px); abaixo disso, lista de cartões
+ * com a coluna `primary` como título. Quem decide é a largura da folha, não a da tela.
  * As duas versões ficam no HTML e o CSS alterna entre elas.
  */
 export function DataList<T>({
@@ -56,7 +65,7 @@ export function DataList<T>({
         <thead>
           <tr>
             {columns.map((c) => (
-              <th key={c.key} scope="col">
+              <th key={c.key} scope="col" className={colClass(c)}>
                 {c.header}
               </th>
             ))}
@@ -66,7 +75,7 @@ export function DataList<T>({
           {rows.map((row) => (
             <tr key={rowKey(row)} data-clickable={onRowClick ? '' : undefined}>
               {columns.map((c, i) => (
-                <td key={c.key} className={onRowClick && i === primaryIdx ? 'af-cell-hit' : undefined}>
+                <td key={c.key} className={cx(colClass(c), onRowClick && i === primaryIdx && 'af-cell-hit') || undefined}>
                   {onRowClick && i === primaryIdx ? (
                     <div className="af-row-hit" {...hitProps(() => onRowClick(row))}>
                       {c.cell(row)}

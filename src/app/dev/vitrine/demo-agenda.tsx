@@ -238,9 +238,9 @@ function ClientList({ scenario }: { scenario: Scenario }) {
         </span>
       ),
     },
-    { key: 'tel', header: 'Telefone', cell: (r) => r.phone },
-    { key: 'visita', header: 'Última visita', cell: (r) => r.lastVisit },
-    { key: 'pontos', header: 'Pontos', cell: (r) => r.points },
+    { key: 'tel', header: 'Telefone', nowrap: true, cell: (r) => r.phone },
+    { key: 'visita', header: 'Última visita', nowrap: true, cell: (r) => r.lastVisit },
+    { key: 'pontos', header: 'Pontos', nowrap: true, align: 'end', cell: (r) => r.points },
   ]
   const toast = useToast()
   return (
@@ -363,8 +363,8 @@ function Keys() {
 export function DemoAgenda({ scenario }: { scenario: Scenario }) {
   return (
     <div className="vt-demo">
-      <Counters key={scenario.kind} scenario={scenario} />
-      <DayPlanner scenario={scenario} />
+      <Counters key={`numeros-${scenario.kind}`} scenario={scenario} />
+      <DayPlanner key={`agenda-${scenario.kind}`} scenario={scenario} />
       <ClientList scenario={scenario} />
       <QuickSignup scenario={scenario} />
       <Keys />

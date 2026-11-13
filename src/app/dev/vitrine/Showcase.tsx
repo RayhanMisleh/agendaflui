@@ -55,10 +55,10 @@ const PAPERS: Array<[PaperTone, string]> = [
   ['CREAM', 'Creme'],
   ['GRAY', 'Cinza'],
 ]
-const FONTS: Array<[FontPair, string]> = [
-  ['CLASSIC', 'Clássico, com serifa de livro-caixa'],
-  ['MODERN', 'Moderno, sem serifa'],
-  ['FRIENDLY', 'Amigável, de cantos redondos'],
+const FONTS: Array<[FontPair, string, string]> = [
+  ['CLASSIC', 'Clássico', 'Títulos com serifa de livro-caixa.'],
+  ['MODERN', 'Moderno', 'Títulos sem serifa, de traço limpo.'],
+  ['FRIENDLY', 'Amigável', 'Títulos de cantos redondos.'],
 ]
 
 function parseHex(raw: string): string | null {
@@ -169,7 +169,7 @@ export function Showcase() {
                 ))}
               </Select>
             </Field>
-            <Field label="Par de fontes">
+            <Field label="Par de fontes" hint={FONTS.find(([v]) => v === brand.fontPair)?.[2]}>
               <Select value={brand.fontPair} onChange={(e) => setBrand({ ...brand, fontPair: e.target.value as FontPair })}>
                 {FONTS.map(([v, l]) => (
                   <option key={v} value={v}>

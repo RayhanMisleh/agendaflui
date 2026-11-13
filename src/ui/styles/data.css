@@ -118,6 +118,7 @@
 
   /* ---- Lista de dados ---- */
   .af-datalist {
+    container: af-datalist / inline-size;
     font-family: var(--font-ui, system-ui, sans-serif);
     color: var(--ink);
   }
@@ -186,7 +187,15 @@
     font-weight: 500;
   }
 
-  @media (min-width: 768px) {
+  /* Tabela só quando a folha comporta quatro colunas reais sem quebrar valores (estimado em ~545 px pelas larguras das colunas, com folga até 576 px). */
+  @container af-datalist (min-width: 36rem) {
+    .af-col--nowrap {
+      white-space: nowrap;
+    }
+    .af-datalist__table th.af-col--end,
+    .af-datalist__table td.af-col--end {
+      text-align: right;
+    }
     .af-datalist__cards {
       display: none;
     }

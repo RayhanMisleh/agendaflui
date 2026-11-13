@@ -59,22 +59,27 @@ export function ShellFrame(p: ShellFrameProps) {
         </div>
       ) : null}
       <div className="af-shell__frame">
-        <header className={cx('af-shell__cover af-stitched', coverClass)}>
-          <div className="af-shell__brand">
-            {p.brand.symbolUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- o símbolo vem do armazenamento da conta
-              <img src={p.brand.symbolUrl} alt="" className="af-shell__symbol" />
-            ) : null}
-            <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" />
-          </div>
-          <p className="af-shell__bartitle af-engraved" aria-hidden="true">
-            {p.title}
-          </p>
+        {/* Chapa do material: só no computador, ocupa a altura toda atrás da coluna. */}
+        <div className={cx('af-shell__plate af-stitched', coverClass)} aria-hidden="true" />
+        {/* Coluna: marca no topo, menu no meio (cresce e rola sozinho), usuário na base. Fica colada à tela. */}
+        <div className="af-shell__rail">
+          <header className={cx('af-shell__top af-stitched', coverClass)}>
+            <div className="af-shell__brand">
+              {p.brand.symbolUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- o símbolo vem do armazenamento da conta
+                <img src={p.brand.symbolUrl} alt="" className="af-shell__symbol" />
+              ) : null}
+              <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" />
+            </div>
+            <p className="af-shell__bartitle af-engraved" aria-hidden="true">
+              {p.title}
+            </p>
+          </header>
+          <ShellNav items={navNodes} userPlate={<UserPlate user={p.user} />} />
           <div className="af-shell__user">
             <UserPlate user={p.user} />
           </div>
-        </header>
-        <ShellNav items={navNodes} userPlate={<UserPlate user={p.user} />} />
+        </div>
         <Main
           id={contentId}
           tabIndex={-1}
