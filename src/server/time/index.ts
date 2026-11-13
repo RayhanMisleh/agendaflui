@@ -158,3 +158,15 @@ export function formatTime(instant: Date, tz: string): string {
 export function formatDateTime(instant: Date, tz: string): string {
   return `${formatDate(instant, tz)} ${formatTime(instant, tz)}`
 }
+
+/** Instante a partir de milissegundos desde 1970 (UTC). Recusa valor que não seja número finito. */
+export function fromEpochMs(ms: number): Date {
+  if (!Number.isFinite(ms)) throw new RangeError('Milissegundos inválidos.')
+  return new Date(ms)
+}
+
+/** Texto ISO 8601 em UTC (`2026-11-14T03:30:00.000Z`), para gravar ou trafegar um instante. */
+export function toIsoInstant(instant: Date): string {
+  if (!Number.isFinite(instant.getTime())) throw new RangeError('Instante inválido.')
+  return instant.toISOString()
+}

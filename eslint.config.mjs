@@ -3,25 +3,53 @@ import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 
 const metodosDeDataProibidos =
-  '/^(getHours|getMinutes|getDay|getDate|getMonth|getFullYear|setHours|toLocaleString|toLocaleDateString|toLocaleTimeString)$/'
+  '/^(getHours|getMinutes|getDay|getDate|getMonth|getFullYear|setHours|toLocaleString|toLocaleDateString|toLocaleTimeString|toISOString|getTimezoneOffset|getUTC[A-Za-z]*)$/'
+
+// `new Date(<arg>)` só passa com argumento claramente numérico: literal que começa com dígito,
+// `Date.now()`, ou conta que não seja soma (`ms * 60`), ou soma que começa em `Date.now()` ou em literal
+// numérico (`Date.now() + 1000`). Qualquer outra coisa (texto, variável, chamada, spread) é recusada:
+// para um número vindo de variável, use `fromEpochMs(ms)` de src/server/time/.
+const dataComArgumentoNaoNumerico =
+  "NewExpression[callee.name='Date'][arguments.0]" +
+  ":not([arguments.0.type='Literal'][arguments.0.raw=/^[0-9]/])" +
+  ":not([arguments.0.type='CallExpression'][arguments.0.callee.object.name='Date'][arguments.0.callee.property.name='now'])" +
+  ":not([arguments.0.type='BinaryExpression'][arguments.0.operator!='+'])" +
+  ":not([arguments.0.type='BinaryExpression'][arguments.0.left.type='CallExpression'][arguments.0.left.callee.object.name='Date'][arguments.0.left.callee.property.name='now'])" +
+  ":not([arguments.0.type='BinaryExpression'][arguments.0.left.type='Literal'][arguments.0.left.raw=/^[0-9]/])"
 
 const regrasDeData = [
   'error',
   {
-    selector: "NewExpression[callee.name='Date'][arguments.0.type='Literal'][arguments.0.value=/./]",
-    message: 'Não crie Date a partir de texto. Use src/server/time/.',
+    selector: dataComArgumentoNaoNumerico,
+    message: 'Não crie Date a partir de texto nem de variável. Use src/server/time/ (fromEpochMs para milissegundos).',
   },
   {
-    selector: "NewExpression[callee.name='Date'][arguments.0.type='TemplateLiteral']",
-    message: 'Não crie Date a partir de texto. Use src/server/time/.',
+    selector: "CallExpression[callee.object.name='Date'][callee.property.name=/^(parse|UTC)$/]",
+    message: 'Não use Date.parse nem Date.UTC. Use src/server/time/.',
   },
   {
-    selector: "CallExpression[callee.object.name='Date'][callee.property.name='parse']",
-    message: 'Não use Date.parse. Use src/server/time/.',
+    selector: "MemberExpression[object.name='Intl'][property.name='DateTimeFormat']",
+    message: 'Não use Intl.DateTimeFormat direto. Use src/server/time/.',
   },
   {
     selector: `MemberExpression[property.name=${metodosDeDataProibidos}]`,
+    message: 'Não leia nem altere partes da data com o fuso do servidor. Use src/server/time/ (toIsoInstant para serializar).',
+  },
+  {
+    selector: `MemberExpression[computed=true][property.value=${metodosDeDataProibidos}]`,
     message: 'Não leia nem altere partes da data com o fuso do servidor. Use src/server/time/.',
+  },
+  {
+    selector: `ObjectPattern > Property[key.name=${metodosDeDataProibidos}]`,
+    message: 'Não desestruture métodos de data. Use src/server/time/.',
+  },
+  {
+    selector: `ObjectPattern > Property[key.value=${metodosDeDataProibidos}]`,
+    message: 'Não desestruture métodos de data. Use src/server/time/.',
+  },
+  {
+    selector: "VariableDeclarator[init.name='Date'] > ObjectPattern",
+    message: 'Não desestruture métodos de Date. Use src/server/time/.',
   },
 ]
 

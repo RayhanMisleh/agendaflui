@@ -5,6 +5,7 @@ import {
   formatDate,
   formatDateTime,
   formatTime,
+  fromEpochMs,
   isLocalDate,
   isLocalTime,
   isValidTimeZone,
@@ -12,6 +13,7 @@ import {
   localParts,
   minutesBetween,
   toInstant,
+  toIsoInstant,
   todayIn,
   weekdayOf,
 } from '@/server/time'
@@ -158,5 +160,28 @@ describe('casos adicionais', () => {
   test('dia local atravessa o dia com salto de Nova York (23 horas)', () => {
     const r = localDayRange('2026-03-08', 'America/New_York')
     expect(minutesBetween(r.start, r.end)).toBe(23 * 60)
+  })
+})
+
+describe('instante e milissegundos', () => {
+  test('fromEpochMs cria o instante e recusa valor que não é número finito', () => {
+    expect(toIsoInstant(fromEpochMs(0))).toBe('1970-01-01T00:00:00.000Z')
+    expect(toIsoInstant(fromEpochMs(1_794_540_600_000))).toBe('2026-11-13T03:30:00.000Z')
+    expect(() => fromEpochMs(Number.NaN)).toThrow(RangeError)
+    expect(() => fromEpochMs(Number.POSITIVE_INFINITY)).toThrow(RangeError)
+  })
+  test('toIsoInstant serializa em UTC e recusa instante inválido', () => {
+    expect(toIsoInstant(new Date(Date.UTC(2026, 10, 14, 3, 30)))).toBe('2026-11-14T03:30:00.000Z')
+    expect(() => toIsoInstant(new Date(Number.NaN))).toThrow(RangeError)
+  })
+})
+
+describe('fuso da conta decide o dia', () => {
+  const instante = new Date('2026-11-14T03:30:00.000Z')
+  test('às 03:30 UTC de 14/11, Manaus ainda está em 13/11 e São Paulo já em 14/11', () => {
+    expect(todayIn('America/Manaus', instante)).toBe('2026-11-13')
+    expect(todayIn('America/Sao_Paulo', instante)).toBe('2026-11-14')
+    expect(formatDate(instante, 'America/Manaus')).toBe('13/11/2026')
+    expect(formatDate(instante, 'America/Sao_Paulo')).toBe('14/11/2026')
   })
 })
