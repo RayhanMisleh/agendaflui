@@ -50,3 +50,63 @@ test('texto de estado da lâmpada e rótulo do medidor não usam opacity', () =>
   expect(decl(fb, '.af-lamp__state')).not.toMatch(/opacity/)
   expect(decl(fb, '.af-gauge__label')).not.toMatch(/opacity/)
 })
+
+describe('correção 2: textura, halo e hover', () => {
+  const files = ['base.css', 'materials.css', 'controls.css', 'surfaces.css', 'feedback.css', 'data.css']
+
+  /** Remove o conteúdo de todos os `@media (hover: hover) { ... }` (casando chaves). */
+  function withoutHoverMedia(css: string): string {
+    let out = ''
+    let i = 0
+    const marker = '@media (hover: hover)'
+    for (;;) {
+      const at = css.indexOf(marker, i)
+      if (at < 0) return out + css.slice(i)
+      out += css.slice(i, at)
+      let depth = 0
+      let j = css.indexOf('{', at)
+      for (; j < css.length; j++) {
+        if (css[j] === '{') depth++
+        else if (css[j] === '}' && --depth === 0) break
+      }
+      i = j + 1
+    }
+  }
+
+  test.each(files)('%s: todo :hover fica dentro de @media (hover: hover)', (f) => {
+    expect(withoutHoverMedia(read(f))).not.toMatch(/:hover/)
+  })
+
+  test('--fx sem cor relativa cai para transparent, não para preto', () => {
+    expect(read('materials.css')).toMatch(/--fx:\s*transparent;/)
+    expect(read('materials.css')).not.toMatch(/--fx:\s*#000;/)
+  })
+
+  test.each(['tex-grain', 'tex-leather', 'tex-wood', 'tex-metal'])(
+    '--%s limita o alfa da textura a 0,25',
+    (name) => {
+      const css = read('materials.css')
+      const m = new RegExp(`--${name}:\\s*url\\("data:image/svg\\+xml,([^"]+)"\\)`).exec(css)
+      expect(m, name).not.toBeNull()
+      const svg = decodeURIComponent(m![1]!)
+      const table = /<feFuncA type='table' tableValues='([^']+)'/.exec(svg)
+      expect(table, `${name} precisa de feFuncA table`).not.toBeNull()
+      const max = Math.max(...table![1]!.trim().split(/\s+/).map(Number))
+      expect(max).toBeLessThanOrEqual(0.25)
+    },
+  )
+
+  test('utilitário .af-on-cover-text faz halo com --fx', () => {
+    expect(decl(read('base.css'), '.af-on-cover-text')).toMatch(/text-shadow:[^;]*var\(--fx\)/)
+  })
+
+  test('texto secundário sobre capa usa o halo', () => {
+    const fb = read('feedback.css')
+    for (const sel of ['.af-lamp__state', '.af-gauge__label']) {
+      const hit = blocks(fb).some(
+        (b) => b.selector.includes(sel) && b.selector.includes('.af-cover') && /text-shadow:[^;]*var\(--fx\)/.test(b.body),
+      )
+      expect(hit, sel).toBe(true)
+    }
+  })
+})

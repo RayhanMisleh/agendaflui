@@ -148,8 +148,10 @@
   .af-card--clickable {
     cursor: pointer;
   }
-  .af-card--clickable:hover {
-    background-color: var(--paper-sunk);
+  @media (hover: hover) {
+    .af-card--clickable:hover {
+      background-color: var(--paper-sunk);
+    }
   }
   .af-card--clickable:active {
     transform: translate(1px, 2px);
@@ -232,12 +234,16 @@
     .af-datalist__table tr[data-clickable] {
       position: relative;
     }
-    .af-datalist__table tr[data-clickable]:hover td {
-      background: var(--paper-sunk);
-      box-shadow: inset 0 1px 2px -1px rgb(var(--shadow-rgb) / 0.2);
+    @media (hover: hover) {
+      .af-datalist__table tr[data-clickable]:hover td {
+        background: var(--paper-sunk);
+        box-shadow: inset 0 1px 2px -1px rgb(var(--shadow-rgb) / 0.2);
+      }
     }
-    .af-datalist__table tr[data-clickable]:hover td:first-child {
-      box-shadow: inset 4px 0 0 var(--accent-ink);
+    @media (hover: hover) {
+      .af-datalist__table tr[data-clickable]:hover td:first-child {
+        box-shadow: inset 4px 0 0 var(--accent-ink);
+      }
     }
     /* O gatilho da linha cobre a linha inteira; controles dentro das outras células continuam clicáveis. */
     .af-row-hit {

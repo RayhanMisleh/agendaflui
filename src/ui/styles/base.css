@@ -137,6 +137,19 @@
       0 -1px 0 rgb(0 0 0 / 0.55),
       0 1px 0 rgb(255 255 255 / 0.16);
   }
+  /* Texto pequeno sobre capa: halo na cor --fx (inverso do texto) afasta a textura das letras sem mudar a cor. */
+  .af-on-cover-text {
+    text-shadow:
+      0 0 1px var(--fx),
+      0 0 1px var(--fx),
+      0 0 2px var(--fx),
+      0 0 2px var(--fx),
+      0 0 3px var(--fx),
+      0 0 5px var(--fx);
+  }
+  .af-dialog .af-on-cover-text {
+    text-shadow: none;
+  }
   .af-dialog .af-engraved {
     text-shadow: 0 1px 0 rgb(255 255 255 / 0.75);
   }

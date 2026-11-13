@@ -107,8 +107,20 @@
   :where(.af-cover, .af-material-metal) .af-lamp__state {
     color: var(--on-cover-soft);
   }
+  :where(.af-cover, .af-material-metal) :is(.af-lamp__state, .af-lamp__label, .af-gauge__label) {
+    text-shadow:
+      0 0 1px var(--fx),
+      0 0 1px var(--fx),
+      0 0 2px var(--fx),
+      0 0 2px var(--fx),
+      0 0 3px var(--fx),
+      0 0 5px var(--fx);
+  }
   .af-dialog .af-lamp__state {
     color: var(--ink-soft);
+  }
+  .af-dialog :is(.af-lamp__state, .af-lamp__label, .af-gauge__label) {
+    text-shadow: none;
   }
 
   /* ---- Medidor ---- */
@@ -242,8 +254,10 @@
     cursor: pointer;
     border-radius: 0 3px 0 0;
   }
-  .af-toast__close:hover {
-    color: var(--ink);
+  @media (hover: hover) {
+    .af-toast__close:hover {
+      color: var(--ink);
+    }
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-toast {
