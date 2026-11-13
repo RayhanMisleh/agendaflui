@@ -150,6 +150,12 @@ pagamentos, frete), `vouchers` (parceiros e vouchers), `settings`.
   um cliente Prisma estendido que injeta `business_id` em toda leitura, escrita, alteração e
   exclusão. O cliente Prisma "cru" só é importável dentro de `server/db/` e do módulo
   `platform` (regra de lint).
+- Dentro de `tenantDb` cada modelo tem uma de quatro classes: **da conta** (filtrado por
+  `business_id`), **da conta com dono opcional** (arquivos e auditoria; sempre filtrado pela
+  conta quando acessado por aqui), **a própria conta** (`businesses`, só leitura e alteração
+  do próprio registro) e **da plataforma** (admins, usuários, sessões: bloqueados). Consultas
+  que entram num modelo da plataforma por relação e escritas aninhadas são recusadas; SQL
+  cru também. Modelo novo sem classe falha fechado.
 - Chaves estrangeiras compostas com `business_id` nas relações principais, para o próprio
   banco recusar ligar um agendamento da conta A a um cliente da conta B.
 - Teste automático que percorre todos os modelos do schema e falha se algum modelo de
