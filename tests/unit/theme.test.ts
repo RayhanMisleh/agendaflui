@@ -59,6 +59,16 @@ test.each(COLORS)('texto secundário na capa tem 4.5 com %s', (primary) => {
   const t = deriveTheme({ ...base, primary })
   expect(contrastRatio(t.vars['--on-cover-soft'], t.vars['--cover'])).toBeGreaterThanOrEqual(4.5)
 })
+test.each(['#0E4F5C', '#3A2A20', '#2F6B4F'])('texto secundário na capa tem folga de 5,5 com %s', (primary) => {
+  const t = deriveTheme({ ...base, primary })
+  expect(contrastRatio(t.vars['--on-cover-soft'], t.vars['--cover'])).toBeGreaterThanOrEqual(5.5)
+})
+test('o tema padrão em base.css bate com o derivado da marca', async () => {
+  const { readFileSync } = await import('node:fs')
+  const css = readFileSync('src/ui/styles/base.css', 'utf8')
+  const t = deriveTheme({ ...base, primary: '#0E4F5C' })
+  expect(css).toContain(`--on-cover-soft: ${t.vars['--on-cover-soft']};`)
+})
 test('tinta e tinta suave se leem sobre o papel rebaixado', () => {
   for (const paper of PAPERS) {
     const t = deriveTheme({ ...base, primary: '#0E4F5C', paper })

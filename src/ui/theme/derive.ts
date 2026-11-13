@@ -35,6 +35,8 @@ export const PAPER: Record<PaperTone, string> = {
 const WHITE = '#FFFFFF'
 const INK = '#1B1A17'
 const MIN_TEXT = 4.5
+// Folga do texto secundário sobre a capa: 5,5 quando a capa deixa; nunca abaixo de 4,5 (o `--on-cover` já tem).
+const SOFT_ON_COVER = 5.5
 const STEP = 2
 
 /** Texto (branco ou tinta) sobre `bg`, o que der mais contraste. */
@@ -96,7 +98,7 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
     '--cover-lo': shiftLightness(cover.color, -8),
     '--cover-deep': shiftLightness(cover.color, -18),
     '--on-cover': cover.on,
-    '--on-cover-soft': softenTo(cover.on, cover.color, [cover.color], MIN_TEXT),
+    '--on-cover-soft': softenTo(cover.on, cover.color, [cover.color], SOFT_ON_COVER),
     '--accent': accent.color,
     '--accent-hi': shiftLightness(accent.color, 8),
     '--accent-lo': shiftLightness(accent.color, -8),
