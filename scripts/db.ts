@@ -12,13 +12,31 @@ export const TEST_DB = { dataDir: '.local/pg-test', port: 54330, database: 'agen
 export type StartDbOptions = { dataDir: string; port: number; database: string }
 export type RunningDb = { url: string; stop(): Promise<void> }
 
+/** Falha ao iniciar o Postgres embutido, carregando o log que ele emitiu antes de fechar. */
+export class DbStartError extends Error {
+  constructor(
+    message: string,
+    readonly log: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options)
+    this.name = 'DbStartError'
+  }
+}
+
+const PORTA_OCUPADA = /address already in use|could not bind|EADDRINUSE|endere[çc]o j[áa] em uso/i
+
 export function describeStartFailure(err: unknown, port: number): string {
   const code = typeof err === 'object' && err !== null ? (err as { code?: unknown }).code : undefined
-  const texto = err instanceof Error ? err.message : String(err)
-  if (code === 'EADDRINUSE' || /address already in use|EADDRINUSE/i.test(texto)) {
+  const mensagem = err instanceof Error ? err.message : typeof err === 'string' ? err : ''
+  const log = err instanceof DbStartError ? err.log : ''
+  if (code === 'EADDRINUSE' || PORTA_OCUPADA.test(`${mensagem}\n${log}`)) {
     return `A porta ${port} já está em uso. Feche o outro banco ou programa que a usa e tente de novo.`
   }
-  return `Não foi possível iniciar o banco local (${texto}). Se o problema continuar, rode npm run db:reset para recriar o banco local vazio.`
+  const detalhe = (log.trim() || mensagem.trim()).split('\n').filter(Boolean).slice(-3).join(' ')
+  return detalhe
+    ? `Não foi possível iniciar o banco local: ${detalhe}. Confira se há outro banco rodando; como último recurso, rode npm run db:reset para recriar o banco local vazio.`
+    : 'Não foi possível iniciar o banco local. Confira se há outro banco rodando; como último recurso, rode npm run db:reset para recriar o banco local vazio.'
 }
 
 /** Apaga postmaster.pid quando o processo dono dele já morreu. Retorna true se apagou. */
@@ -40,6 +58,10 @@ export function removeStalePidFile(dataDir: string): boolean {
 
 export async function startDb(opts: StartDbOptions): Promise<RunningDb> {
   const dataDir = resolve(opts.dataDir)
+  const linhas: string[] = []
+  const registrar = (entrada: unknown) => {
+    linhas.push(entrada instanceof Error ? entrada.message : String(entrada))
+  }
   const pg = new EmbeddedPostgres({
     databaseDir: dataDir,
     port: opts.port,
@@ -48,8 +70,8 @@ export async function startDb(opts: StartDbOptions): Promise<RunningDb> {
     persistent: true,
     // O servidor trabalha sempre em UTC; a conversão para o fuso do cliente é da camada src/server/time.
     postgresFlags: ['-c', 'timezone=UTC', '-c', 'log_timezone=UTC'],
-    onLog: () => {},
-    onError: () => {},
+    onLog: registrar,
+    onError: registrar,
   })
 
   try {
@@ -65,7 +87,8 @@ export async function startDb(opts: StartDbOptions): Promise<RunningDb> {
       await client.end()
     }
   } catch (err) {
-    throw new Error(describeStartFailure(err, opts.port), { cause: err })
+    const falha = err instanceof DbStartError ? err : new DbStartError(err instanceof Error ? err.message : '', linhas.join('\n'), { cause: err })
+    throw new Error(describeStartFailure(falha, opts.port), { cause: err })
   }
 
   return {
