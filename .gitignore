@@ -1,0 +1,13 @@
+_legacy
+.superpowers
+node_modules
+.next
+.local
+.env
+.env.local
+src/server/db/generated
+test-results
+playwright-report
+.DS_Store
+*.tsbuildinfo
+next-env.d.ts
