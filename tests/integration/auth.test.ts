@@ -85,6 +85,14 @@ test('quem tem duas contas escolhe; conta suspensa não aparece', async () => {
   expect(ctx).toMatchObject({ businessId: b2.id, timeZone: b2.timezone, actor: { kind: 'member', role: 'OWNER' } })
   expect((await getMemberSession(token))?.activeBusinessId).toBe(b2.id)
 })
+test('o contexto da conta traz o fuso gravado nela, não o padrão', async () => {
+  const u = await makeUser({ password: SENHA })
+  const b = await makeBusiness({ timezone: 'America/Manaus' })
+  await makeMembership(b.id, u.id, 'OWNER')
+  const { token } = await loginUser({ email: u.email, password: SENHA })
+  const ctx = await getTenantContext(token)
+  expect(ctx?.timeZone).toBe('America/Manaus')
+})
 test('convite pendente (sem senha) não entra', async () => {
   const u = await makeUser({ password: null })
   await expect(loginUser({ email: u.email, password: 'qualquer-coisa' })).rejects.toMatchObject({ code: 'invalid_credentials' })

@@ -170,3 +170,8 @@ export function toIsoInstant(instant: Date): string {
   if (!Number.isFinite(instant.getTime())) throw new RangeError('Instante inválido.')
   return instant.toISOString()
 }
+
+/** Dia de hoje no fuso da conta: data de calendário (`2026-11-13`) e texto para a tela (`13/11/2026`). */
+export function todayLine(instant: Date, tz: string): { iso: string; label: string } {
+  return { iso: todayIn(tz, instant), label: formatDate(instant, tz) }
+}

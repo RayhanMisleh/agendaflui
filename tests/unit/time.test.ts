@@ -15,6 +15,7 @@ import {
   toInstant,
   toIsoInstant,
   todayIn,
+  todayLine,
   weekdayOf,
 } from '@/server/time'
 
@@ -185,3 +186,15 @@ describe('fuso da conta decide o dia', () => {
     expect(formatDate(instante, 'America/Sao_Paulo')).toBe('14/11/2026')
   })
 })
+
+describe('linha "Hoje é" da página inicial', () => {
+  const instante = new Date('2026-11-14T03:30:00.000Z')
+  test('usa o dia do fuso da conta, na data de calendário e no texto', () => {
+    expect(todayLine(instante, 'America/Manaus')).toEqual({ iso: '2026-11-13', label: '13/11/2026' })
+    expect(todayLine(instante, 'America/Sao_Paulo')).toEqual({ iso: '2026-11-14', label: '14/11/2026' })
+  })
+  test('fuso inválido lança', () => {
+    expect(() => todayLine(instante, 'Marte/Olimpo')).toThrow()
+  })
+})
+

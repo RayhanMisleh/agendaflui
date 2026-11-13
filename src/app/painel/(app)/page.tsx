@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { roleLabel } from '@/server/auth/role-labels'
 import { tenantDb } from '@/server/db/tenant'
-import { formatDate, todayIn } from '@/server/time'
+import { todayLine } from '@/server/time'
 import { EmptyState } from '@/ui/components'
 import { PainelFrame } from './PainelFrame'
 
@@ -10,8 +10,7 @@ export const metadata: Metadata = { title: 'Início | AgendaFlui' }
 
 export default async function InicioPage() {
   const ctx = await requireTenant('view_dashboard')
-  const agora = new Date()
-  const hoje = todayIn(ctx.timeZone, agora)
+  const hoje = todayLine(new Date(), ctx.timeZone)
   const nome = ctx.actor.kind === 'member' || ctx.actor.kind === 'impersonator' ? ctx.actor.name : ''
   const primeiroNome = nome.split(' ')[0] ?? ''
   const termos = await tenantDb(ctx.businessId).businessSettings.findFirst({ select: { termProfessionalSingular: true } })
@@ -22,7 +21,7 @@ export default async function InicioPage() {
       <div className="af-home">
         <h2 className="af-home__hello">Olá, {primeiroNome}</h2>
         <p className="af-home__meta">
-          Hoje é <time dateTime={hoje}>{formatDate(agora, ctx.timeZone)}</time>. Você entra como {papel}.
+          Hoje é <time dateTime={hoje.iso}>{hoje.label}</time>. Você entra como {papel}.
         </p>
         <EmptyState
           title="A agenda chega na próxima etapa"
