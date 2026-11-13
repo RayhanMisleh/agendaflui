@@ -8,6 +8,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    globalSetup: ['./tests/setup/global-db.ts'],
     include: ['tests/unit/**/*.test.ts?(x)', 'tests/integration/**/*.test.ts'],
     exclude: ['**/node_modules/**', '_legacy/**', '.local/**'],
   },

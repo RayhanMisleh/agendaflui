@@ -12,7 +12,11 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "db:start": "tsx scripts/db.ts start",
+    "db:migrate": "prisma migrate deploy",
+    "db:reset": "tsx scripts/db.ts reset",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",
