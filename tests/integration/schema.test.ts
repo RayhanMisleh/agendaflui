@@ -13,6 +13,7 @@ const TABELA_DO_MODELO: Record<string, string> = {
   BusinessSettings: 'business_settings',
   Upload: 'uploads',
   AuditLog: 'audit_logs',
+  Business: 'businesses',
 }
 
 beforeEach(async () => {
@@ -55,6 +56,42 @@ describe('classificação dos modelos', () => {
       `
       expect(linhas[0]?.is_nullable, nome).toBe('NO')
     }
+  })
+})
+
+describe('relações entre tabelas de conta', () => {
+  test('toda FK entre tabelas de conta fica dentro da mesma conta (FK composta com business_id)', async () => {
+    const tabelasDeConta = new Set(
+      [...TENANT_MODELS, ...TENANT_OPTIONAL_MODELS, ...SELF_MODELS].map((m) => TABELA_DO_MODELO[m]),
+    )
+    const fks = await prisma.$queryRaw<
+      { nome: string; origem: string; destino: string; colunas: string[]; colunas_destino: string[] }[]
+    >`
+      select c.conname as nome, src.relname as origem, dst.relname as destino,
+        array(select a.attname::text from unnest(c.conkey) k join pg_attribute a
+          on a.attrelid = c.conrelid and a.attnum = k) as colunas,
+        array(select a.attname::text from unnest(c.confkey) k join pg_attribute a
+          on a.attrelid = c.confrelid and a.attnum = k) as colunas_destino
+      from pg_constraint c
+      join pg_class src on src.oid = c.conrelid
+      join pg_class dst on dst.oid = c.confrelid
+      join pg_namespace n on n.oid = src.relnamespace
+      where c.contype = 'f' and n.nspname = 'public'
+    `
+    const faltando: string[] = []
+    for (const fk of fks) {
+      if (!tabelasDeConta.has(fk.origem) || !tabelasDeConta.has(fk.destino)) continue
+      const paraBusinesses =
+        fk.destino === 'businesses' && fk.colunas.length === 1 && fk.colunas[0] === 'business_id'
+      if (paraBusinesses) continue
+      const composta = fks.some(
+        (o) => o.origem === fk.origem && o.destino === fk.destino && o.colunas.includes('business_id') && fk.colunas.every((c) => o.colunas.includes(c)) && o.colunas.length > 1,
+      )
+      if (!composta) {
+        faltando.push(`${fk.origem} (${fk.colunas.join(', ')}) -> ${fk.destino}: falta FK composta com business_id`)
+      }
+    }
+    expect(faltando).toEqual([])
   })
 })
 

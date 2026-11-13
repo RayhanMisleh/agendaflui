@@ -10,14 +10,14 @@ export class TenantViolationError extends Error {
 }
 
 // O que `tenantDb` garante:
-// - modelos tenant e tenant-opcionais: toda leitura, alteração e exclusão filtra por
-//   `businessId = conta`; todo create grava a conta; trocar a conta de um registro é recusado;
-// - `Business`: só existe o próprio registro (sem create, delete, upsert);
-// - modelos de plataforma (usuários, sessões, admins): qualquer operação é recusada;
-// - `include`/`select` (em todos os níveis e em `_count`) que entram por relação num modelo de
-//   plataforma são recusados;
+// - filtro por conta nas operações diretas: modelos tenant e tenant-opcionais filtram por
+//   `businessId = conta` e gravam a conta no create; `Business` só existe como o próprio registro;
+// - modelos de plataforma (usuários, sessões, admins) são bloqueados, inclusive por relação
+//   em `include`/`select`/`_count`;
 // - escrita aninhada (campo de relação em `data`) é recusada: use chaves escalares;
-// - SQL cru é bloqueado e as operações dentro de `$transaction` continuam filtradas.
+// - SQL cru é bloqueado e as operações dentro de `$transaction` continuam filtradas;
+// - relações entre tabelas de conta ficam na mesma conta, porque o banco exige FK composta com
+//   `business_id` (teste estrutural em schema.test.ts).
 // O que NÃO garante: filtros de relação dentro de `where` não são percorridos, então um
 // `where: { user: { memberships: { some: ... } } }` pode revelar a existência de vínculo em
 // outra conta. O resultado continua só com linhas da própria conta.
@@ -56,20 +56,32 @@ function em(lista: readonly string[], modelo: string): boolean {
 // Metadados de relação do cliente gerado (campo interno `_runtimeDataModel`, gerado do schema).
 // Se o formato mudar, falha fechado em vez de deixar passar.
 let camposPorModelo: Map<string, Campo[]> | undefined
-function campos(modelo: string): Campo[] {
-  if (!camposPorModelo) {
-    const bruto = (prisma as unknown as { _runtimeDataModel?: { models?: unknown } })._runtimeDataModel
-    if (!ehObjeto(bruto) || !ehObjeto(bruto.models)) {
-      throw new TenantViolationError('Metadados de relação do Prisma indisponíveis.')
-    }
-    const mapa = new Map<string, Campo[]>()
-    for (const [nome, definicao] of Object.entries(bruto.models)) {
-      const lista = ehObjeto(definicao) ? definicao['fields'] : undefined
-      if (!Array.isArray(lista)) throw new TenantViolationError('Metadados de relação do Prisma inválidos.')
-      mapa.set(nome, lista as Campo[])
-    }
-    camposPorModelo = mapa
+
+/** Valida o formato dos metadados; qualquer dúvida falha fechado. */
+export function lerMetadados(bruto: unknown): Map<string, Campo[]> {
+  if (!ehObjeto(bruto) || !ehObjeto(bruto['models'])) {
+    throw new TenantViolationError('Metadados de relação do Prisma indisponíveis.')
   }
+  const modelos = bruto['models']
+  const mapa = new Map<string, Campo[]>()
+  for (const [nome, definicao] of Object.entries(modelos)) {
+    const lista = ehObjeto(definicao) ? definicao['fields'] : undefined
+    if (!Array.isArray(lista)) throw new TenantViolationError('Metadados de relação do Prisma inválidos.')
+    for (const campo of lista) {
+      if (!ehObjeto(campo) || typeof campo['name'] !== 'string' || typeof campo['kind'] !== 'string') {
+        throw new TenantViolationError(`${nome}: campo sem name ou kind nos metadados do Prisma.`)
+      }
+      if (campo['kind'] === 'object' && (typeof campo['type'] !== 'string' || !(campo['type'] in modelos))) {
+        throw new TenantViolationError(`${nome}.${campo['name']}: relação sem modelo-alvo conhecido.`)
+      }
+    }
+    mapa.set(nome, lista as Campo[])
+  }
+  return mapa
+}
+
+function campos(modelo: string): Campo[] {
+  camposPorModelo ??= lerMetadados((prisma as unknown as { _runtimeDataModel?: unknown })._runtimeDataModel)
   const lista = camposPorModelo.get(modelo)
   if (!lista) throw new TenantViolationError(`${modelo}: modelo desconhecido.`)
   return lista

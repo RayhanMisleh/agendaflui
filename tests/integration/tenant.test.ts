@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Business, Membership, User } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
-import { escoparOperacao, tenantDb, TenantViolationError } from '@/server/db/tenant'
+import { escoparOperacao, lerMetadados, tenantDb, TenantViolationError } from '@/server/db/tenant'
 import { resetDb } from '../setup/db'
 import { makeAuditLog, makeBusiness, makeMembership, makeUpload, makeUser } from '../setup/factories'
 
@@ -286,5 +286,66 @@ describe('relações', () => {
     expect(await prisma.membership.count()).toBe(2)
     const m = await db.membership.create({ data: { role: 'MANAGER', userId: u.id } as never })
     expect(m.businessId).toBe(a.id)
+  })
+})
+
+describe('relações entre contas (FK composta)', () => {
+  const colunas = ['logoUploadId', 'symbolUploadId', 'faviconUploadId', 'loginImageUploadId'] as const
+
+  test('marca não aceita upload de outra conta nem da plataforma, mas aceita da própria', async () => {
+    const ub1 = await makeUpload(b.id)
+    const up1 = await makeUpload(null)
+    const ua1 = await makeUpload(a.id)
+    const antes = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: a.id } })
+    for (const coluna of colunas) {
+      for (const alheio of [ub1, up1]) {
+        await expect(
+          tenantDb(a.id).businessBranding.update({ where: { businessId: a.id }, data: { [coluna]: alheio.id } }),
+          coluna,
+        ).rejects.toThrow()
+      }
+    }
+    expect(await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: a.id } })).toEqual(antes)
+    const ok = await tenantDb(a.id).businessBranding.update({
+      where: { businessId: a.id },
+      data: { logoUploadId: ua1.id },
+    })
+    expect(ok.logoUploadId).toBe(ua1.id)
+  })
+
+  test('ataque em dois passos não devolve dados de B', async () => {
+    const ub1 = await makeUpload(b.id)
+    await expect(
+      tenantDb(a.id).businessBranding.update({ where: { businessId: a.id }, data: { logoUploadId: ub1.id } }),
+    ).rejects.toThrow()
+    const r = await tenantDb(a.id).businessBranding.findMany({
+      include: { logo: { include: { business: { include: { memberships: true, settings: true } } } } },
+    })
+    expect(r).toHaveLength(1)
+    expect(r[0]?.logo).toBeNull()
+  })
+
+  test('apagar o upload que é logo anula logoUploadId e mantém a marca', async () => {
+    const ua1 = await makeUpload(a.id)
+    await prisma.businessBranding.update({ where: { businessId: a.id }, data: { logoUploadId: ua1.id } })
+    await prisma.upload.delete({ where: { id: ua1.id } })
+    const marca = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: a.id } })
+    expect(marca.logoUploadId).toBeNull()
+    expect(marca.businessId).toBe(a.id)
+  })
+})
+
+describe('metadados de relação', () => {
+  const valido = { models: { A: { fields: [{ name: 'x', kind: 'scalar' }, { name: 'r', kind: 'object', type: 'A' }] } } }
+  test('formato válido é aceito', () => {
+    expect(lerMetadados(valido).get('A')).toHaveLength(2)
+  })
+  test('campo sem kind, sem name ou relação com alvo desconhecido falham fechado', () => {
+    expect(() => lerMetadados({ models: { A: { fields: [{ name: 'x' }] } } })).toThrow(TenantViolationError)
+    expect(() => lerMetadados({ models: { A: { fields: [{ kind: 'scalar' }] } } })).toThrow(TenantViolationError)
+    expect(() =>
+      lerMetadados({ models: { A: { fields: [{ name: 'r', kind: 'object', type: 'Z' }] } } }),
+    ).toThrow(TenantViolationError)
+    expect(() => lerMetadados({})).toThrow(TenantViolationError)
   })
 })

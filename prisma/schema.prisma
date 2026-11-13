@@ -284,6 +284,7 @@ model Upload {
   brandingLoginImages BusinessBranding[] @relation("BrandingLoginImage")
   userAvatars         User[]             @relation("UserAvatar")
 
+  @@unique([businessId, id])
   @@index([businessId])
   @@map("uploads")
 }
