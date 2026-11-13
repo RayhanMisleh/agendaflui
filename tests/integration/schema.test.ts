@@ -3,17 +3,16 @@ import { Prisma } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import { PLATFORM_MODELS, SELF_MODELS, TENANT_MODELS, TENANT_OPTIONAL_MODELS } from '@/server/db/models'
 import { resetDb } from '../setup/db'
+import { verificarFks } from '../setup/fks'
 
-// O cliente do Prisma 7 não expõe o DMMF em tempo de execução (só nomes de modelo e de campo),
-// então a obrigatoriedade de business_id é lida do próprio banco.
-const TABELA_DO_MODELO: Record<string, string> = {
-  Membership: 'memberships',
-  BusinessBranding: 'business_branding',
-  BusinessModules: 'business_modules',
-  BusinessSettings: 'business_settings',
-  Upload: 'uploads',
-  AuditLog: 'audit_logs',
-  Business: 'businesses',
+// O nome da tabela de cada modelo vem dos metadados do Prisma (`dbName`); modelo sem mapeamento
+// derruba o teste dizendo qual é, em vez de ser pulado.
+function tabelaDoModelo(nome: string): string {
+  const modelos = (prisma as unknown as { _runtimeDataModel?: { models?: Record<string, { dbName?: string | null }> } })
+    ._runtimeDataModel?.models
+  const tabela = modelos?.[nome]?.dbName
+  if (!tabela) throw new Error(`Modelo ${nome} sem nome de tabela (@@map) nos metadados do Prisma.`)
+  return tabela
 }
 
 beforeEach(async () => {
@@ -36,7 +35,7 @@ describe('classificação dos modelos', () => {
       expect(campos?.['businessId'], nome).toBeDefined()
       const linhas = await prisma.$queryRaw<{ is_nullable: string }[]>`
         select is_nullable from information_schema.columns
-        where table_schema = 'public' and table_name = ${TABELA_DO_MODELO[nome]} and column_name = 'business_id'
+        where table_schema = 'public' and table_name = ${tabelaDoModelo(nome)} and column_name = 'business_id'
       `
       expect(linhas[0]?.is_nullable, nome).toBe('YES')
     }
@@ -48,8 +47,7 @@ describe('classificação dos modelos', () => {
         `${nome}ScalarFieldEnum`
       ]
       expect(campos?.['businessId'], nome).toBeDefined()
-      const tabela = TABELA_DO_MODELO[nome]
-      expect(tabela, nome).toBeDefined()
+      const tabela = tabelaDoModelo(nome)
       const linhas = await prisma.$queryRaw<{ is_nullable: string }[]>`
         select is_nullable from information_schema.columns
         where table_schema = 'public' and table_name = ${tabela} and column_name = 'business_id'
@@ -61,41 +59,79 @@ describe('classificação dos modelos', () => {
 
 describe('relações entre tabelas de conta', () => {
   test('toda FK entre tabelas de conta fica dentro da mesma conta (FK composta com business_id)', async () => {
-    const tabelasDeConta = new Set(
-      [...TENANT_MODELS, ...TENANT_OPTIONAL_MODELS, ...SELF_MODELS].map((m) => TABELA_DO_MODELO[m]),
-    )
-    const fks = await prisma.$queryRaw<
-      { nome: string; origem: string; destino: string; colunas: string[]; colunas_destino: string[] }[]
-    >`
-      select c.conname as nome, src.relname as origem, dst.relname as destino,
-        array(select a.attname::text from unnest(c.conkey) k join pg_attribute a
-          on a.attrelid = c.conrelid and a.attnum = k) as colunas,
-        array(select a.attname::text from unnest(c.confkey) k join pg_attribute a
-          on a.attrelid = c.confrelid and a.attnum = k) as colunas_destino
-      from pg_constraint c
-      join pg_class src on src.oid = c.conrelid
-      join pg_class dst on dst.oid = c.confrelid
-      join pg_namespace n on n.oid = src.relnamespace
-      where c.contype = 'f' and n.nspname = 'public'
-    `
-    const faltando: string[] = []
-    for (const fk of fks) {
-      if (!tabelasDeConta.has(fk.origem) || !tabelasDeConta.has(fk.destino)) continue
-      const paraBusinesses =
-        fk.destino === 'businesses' && fk.colunas.length === 1 && fk.colunas[0] === 'business_id'
-      if (paraBusinesses) continue
-      const composta = fks.some(
-        (o) => o.origem === fk.origem && o.destino === fk.destino && o.colunas.includes('business_id') && fk.colunas.every((c) => o.colunas.includes(c)) && o.colunas.length > 1,
-      )
-      if (!composta) {
-        faltando.push(`${fk.origem} (${fk.colunas.join(', ')}) -> ${fk.destino}: falta FK composta com business_id`)
-      }
-    }
-    expect(faltando).toEqual([])
+    const tabelasDeConta = [...TENANT_MODELS, ...TENANT_OPTIONAL_MODELS, ...SELF_MODELS].map(tabelaDoModelo)
+    expect(tabelasDeConta).toHaveLength(new Set(tabelasDeConta).size)
+    expect(await verificarFks(prisma, tabelasDeConta)).toEqual([])
+  })
+
+  test('modelo sem nome de tabela nos metadados derruba o teste nomeando o modelo', () => {
+    expect(() => tabelaDoModelo('ModeloQueNaoExiste')).toThrow(/ModeloQueNaoExiste/)
+  })
+})
+
+describe('a verificação de FK acusa o que está errado', () => {
+  class Desfazer extends Error {}
+  const ddl = `
+    create table t_a (id uuid primary key, business_id uuid not null, unique (business_id, id), unique (id, business_id));
+    create table t_b (id uuid primary key, business_id uuid not null, a_id uuid);
+    create table t_c (id uuid primary key, business_id uuid not null, a_id uuid);
+    create table t_d (id uuid primary key, business_id uuid not null, a_id uuid);
+    create table t_e (id uuid primary key, business_id uuid not null, a_id uuid);
+    alter table t_b add foreign key (a_id) references t_a (id);
+    alter table t_c add foreign key (business_id, a_id) references t_a (id, business_id);
+    alter table t_d add foreign key (business_id, a_id) references t_a (business_id, id) on update cascade;
+    alter table t_e add foreign key (business_id, a_id) references t_a (business_id, id) on update no action;
+  `
+  async function emTransacaoDescartada<T>(corpo: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    let resultado: T | undefined
+    await prisma
+      .$transaction(async (tx) => {
+        for (const comando of ddl.split(';').map((c) => c.trim()).filter(Boolean)) await tx.$executeRawUnsafe(comando)
+        resultado = await corpo(tx)
+        throw new Desfazer()
+      })
+      .catch((e: unknown) => {
+        if (!(e instanceof Desfazer)) throw e
+      })
+    return resultado as T
+  }
+
+  test('FK simples entre duas tabelas com business_id é acusada', async () => {
+    const r = await emTransacaoDescartada((tx) => verificarFks(tx, ['t_a', 't_b']))
+    expect(r).toEqual(['t_b (a_id) -> t_a: falta FK composta com business_id'])
+  })
+
+  test('FK composta com o mapeamento trocado é acusada', async () => {
+    const r = await emTransacaoDescartada((tx) => verificarFks(tx, ['t_a', 't_c']))
+    expect(r).toEqual(['t_c (business_id, a_id) -> t_a: falta FK composta com business_id'])
+  })
+
+  test('FK composta com ON UPDATE CASCADE é acusada; com NO ACTION passa', async () => {
+    expect(await emTransacaoDescartada((tx) => verificarFks(tx, ['t_a', 't_d']))).toEqual([
+      't_d (business_id, a_id) -> t_a: FK composta com business_id não pode usar ON UPDATE CASCADE',
+    ])
+    expect(await emTransacaoDescartada((tx) => verificarFks(tx, ['t_a', 't_e']))).toEqual([])
+  })
+
+  test('tabela fora da lista não é conferida', async () => {
+    expect(await emTransacaoDescartada((tx) => verificarFks(tx, ['t_a']))).toEqual([])
   })
 })
 
 describe('restrições no banco', () => {
+  test('upload que é logo de uma marca não muda de conta e a marca fica onde está', async () => {
+    const a = await prisma.business.create({ data: { slug: 'conta-a', name: 'A' } })
+    const b = await prisma.business.create({ data: { slug: 'conta-b', name: 'B' } })
+    const up = await prisma.upload.create({
+      data: { businessId: a.id, path: 'a/l.png', mimeType: 'image/png', sizeBytes: 1, width: 1, height: 1, createdByType: 'SYSTEM' },
+    })
+    await prisma.businessBranding.create({ data: { businessId: a.id, displayName: 'A', logoUploadId: up.id } })
+    await expect(prisma.upload.update({ where: { id: up.id }, data: { businessId: b.id } })).rejects.toThrow()
+    expect((await prisma.upload.findUniqueOrThrow({ where: { id: up.id } })).businessId).toBe(a.id)
+    const marca = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: a.id } })
+    expect(marca.logoUploadId).toBe(up.id)
+  })
+
   test('slug inválido é recusado pelo banco', async () => {
     await expect(prisma.business.create({ data: { slug: 'Loja Errada', name: 'x' } })).rejects.toThrow()
   })
