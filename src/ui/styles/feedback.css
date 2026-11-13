@@ -102,7 +102,13 @@
   }
   .af-lamp__state {
     font-size: var(--text-sm);
-    opacity: 0.86;
+    color: var(--ink-soft);
+  }
+  :where(.af-cover, .af-material-metal) .af-lamp__state {
+    color: var(--on-cover-soft);
+  }
+  .af-dialog .af-lamp__state {
+    color: var(--ink-soft);
   }
 
   /* ---- Medidor ---- */
@@ -141,7 +147,13 @@
   }
   .af-gauge__label {
     font-size: var(--text-sm);
-    opacity: 0.9;
+    color: var(--ink-soft);
+  }
+  :where(.af-cover, .af-material-metal) .af-gauge__label {
+    color: var(--on-cover-soft);
+  }
+  .af-dialog .af-gauge__label {
+    color: var(--ink-soft);
   }
 
   /* ---- Bilhete (Toast) ---- */
@@ -204,7 +216,7 @@
     width: 3rem;
     color: #fff;
     background: var(--tone);
-    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(0 0 0 / 0.14));
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.22) 0, rgb(255 255 255 / 0) 12%, rgb(0 0 0 / 0) 88%, rgb(0 0 0 / 0.16) 100%);
     border-radius: 7px 0 0 2px;
     border-right: 3px dotted rgb(255 255 255 / 0.75);
   }

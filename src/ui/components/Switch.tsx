@@ -33,9 +33,10 @@ export function Switch({
         className="af-switch__btn"
         onClick={() => onCheckedChange(!checked)}
       >
-        <span className="af-switch__track" aria-hidden="true">
-          <span className="af-switch__mark af-switch__mark--off" />
-          <span className="af-switch__mark af-switch__mark--on" />
+        <span className="af-switch__track" aria-hidden="true" data-state={checked ? 'on' : 'off'}>
+          {/* Só o símbolo do estado atual aparece, no lado que a alavanca deixa livre. */}
+          <span className="af-switch__mark af-switch__mark--off" data-mark="off" hidden={checked} />
+          <span className="af-switch__mark af-switch__mark--on" data-mark="on" hidden={!checked} />
           <span className="af-switch__knob" />
         </span>
       </button>
