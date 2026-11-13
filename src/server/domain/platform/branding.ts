@@ -1,3 +1,4 @@
+import 'server-only'
 import { prisma } from '@/server/db/client'
 import type { Prisma } from '@/server/db/generated/client'
 import { uploadUrl } from '@/server/storage/images'

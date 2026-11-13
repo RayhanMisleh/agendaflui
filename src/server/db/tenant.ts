@@ -1,3 +1,4 @@
+import 'server-only'
 import { prisma } from './client'
 import { PLATFORM_MODELS, SELF_MODELS, TENANT_MODELS, TENANT_OPTIONAL_MODELS } from './models'
 import { alvoDaRelacao, ehObjeto, lerMetadados, percorrerArgumentos, TenantViolationError } from './tenant-walk'

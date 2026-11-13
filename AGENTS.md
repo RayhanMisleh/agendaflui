@@ -18,7 +18,8 @@ Spec: `docs/superpowers/specs/2026-11-13-agendaflui-design.md`. Textos de interf
 ## Hosts
 
 Três hosts, todos vindos de variáveis de ambiente (nunca fixos no código):
-`DEV_HOST` (ferramentas de desenvolvimento), `PAINEL_HOST` (painel do cliente) e `API_HOST` (API).
+`DEV_HOST` (painel da plataforma, usado por nós, os admins), `PAINEL_HOST` (painel do negócio, usado
+por donos e equipes) e `API_HOST` (API do aplicativo).
 
 ## Regras
 
@@ -26,6 +27,9 @@ Três hosts, todos vindos de variáveis de ambiente (nunca fixos no código):
 - Dados de conta só por `tenantDb`; o cliente Prisma cru (`@/server/db/client`) fica restrito às pastas liberadas no ESLint.
 - Data e hora só por `src/server/time/`. Leia a spec antes de mexer em agenda ou fuso.
 - Sem `any` e sem `@ts-ignore`.
+- Tabela nova: classifique o modelo em `src/server/db/models.ts`. Se for de conta, ela tem coluna
+  `business_id` e FK composta com `business_id` para as outras tabelas de conta; o teste estrutural
+  (`tests/integration/schema.test.ts`) confere.
 
 ## Verificação
 

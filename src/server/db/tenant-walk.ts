@@ -1,3 +1,4 @@
+import 'server-only'
 import { prisma } from './client'
 import { PLATFORM_MODELS } from './models'
 

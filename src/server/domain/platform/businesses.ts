@@ -1,3 +1,4 @@
+import 'server-only'
 import { prisma } from '@/server/db/client'
 import type { BusinessStatus } from '@/server/db/generated/client'
 

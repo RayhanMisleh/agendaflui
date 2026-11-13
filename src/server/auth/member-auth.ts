@@ -1,3 +1,4 @@
+import 'server-only'
 import { prisma } from '@/server/db/client'
 import type { MembershipRole } from '@/server/db/generated/client'
 import { addMinutes } from '@/server/time'

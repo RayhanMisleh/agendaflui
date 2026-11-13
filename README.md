@@ -37,7 +37,7 @@ A vitrine de componentes fica em `dev.localhost:3000/vitrine`.
 |---|---|
 | `npm run dev` | Banco, migrações, dados de demonstração e Next |
 | `npm run db:start` | Só o banco local |
-| `npm run db:migrate` | Aplica as migrações |
+| `npm run db:migrate` | Aplica as migrações (o banco precisa estar no ar: `npm run db:start`) |
 | `npm run db:seed` | Cria os dados de demonstração (pode repetir sem duplicar) |
 | `npm run db:reset` | Apaga o banco local e recria vazio |
 | `npm run admin:create` | Cria um administrador da plataforma |
@@ -48,7 +48,7 @@ A vitrine de componentes fica em `dev.localhost:3000/vitrine`.
 
 ## Pastas
 
-- `src/app/` rotas: `dev/` (painel dev), `painel/` (painel do negócio), `api/`
+- `src/app/` rotas: `dev/` (painel dev), `painel/` (painel do negócio), `api/`, `arquivos/` (imagens enviadas)
 - `src/server/` regra de negócio, dados, acesso e horários (`time/`)
 - `src/ui/` design system, molduras e temas
 - `prisma/` esquema, migrações e seed
