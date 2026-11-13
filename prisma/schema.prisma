@@ -237,9 +237,9 @@ model Session {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user           User?          @relation(fields: [userId], references: [id])
-  impersonator   PlatformAdmin? @relation(fields: [impersonatorAdminId], references: [id])
-  activeBusiness Business?      @relation(fields: [activeBusinessId], references: [id])
+  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonator   PlatformAdmin? @relation(fields: [impersonatorAdminId], references: [id], onDelete: Cascade)
+  activeBusiness Business?      @relation(fields: [activeBusinessId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([impersonatorAdminId])
@@ -276,7 +276,7 @@ model Upload {
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  business Business? @relation(fields: [businessId], references: [id])
+  business Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   brandingLogos       BusinessBranding[] @relation("BrandingLogo")
   brandingSymbols     BusinessBranding[] @relation("BrandingSymbol")

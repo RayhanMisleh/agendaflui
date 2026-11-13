@@ -134,4 +134,57 @@ describe('restrições no banco', () => {
     const depois = await prisma.auditLog.findUniqueOrThrow({ where: { id: log.id } })
     expect(depois.businessId).toBeNull()
   })
+
+  test('apagar um usuário com sessão remove a sessão', async () => {
+    const user = await prisma.user.create({ data: { name: 'A', email: 'a@x.com' } })
+    const s = await prisma.session.create({
+      data: { tokenHash: 'c1', userId: user.id, expiresAt: new Date(Date.now() + 1000) },
+    })
+    await prisma.user.delete({ where: { id: user.id } })
+    expect(await prisma.session.findUnique({ where: { id: s.id } })).toBeNull()
+  })
+
+  test('apagar um admin com sessão de impersonação remove a sessão', async () => {
+    const admin = await prisma.platformAdmin.create({
+      data: { name: 'Adm', email: 'adm@x.com', passwordHash: 'h' },
+    })
+    const s = await prisma.session.create({
+      data: { tokenHash: 'c2', impersonatorAdminId: admin.id, expiresAt: new Date(Date.now() + 1000) },
+    })
+    await prisma.platformAdmin.delete({ where: { id: admin.id } })
+    expect(await prisma.session.findUnique({ where: { id: s.id } })).toBeNull()
+  })
+
+  test('apagar a conta ativa de uma sessão mantém a sessão com conta nula', async () => {
+    const b = await prisma.business.create({ data: { slug: 'loja-ativa', name: 'Loja' } })
+    const user = await prisma.user.create({ data: { name: 'A', email: 'a@x.com' } })
+    const s = await prisma.session.create({
+      data: {
+        tokenHash: 'c3',
+        userId: user.id,
+        activeBusinessId: b.id,
+        expiresAt: new Date(Date.now() + 1000),
+      },
+    })
+    await prisma.business.delete({ where: { id: b.id } })
+    const depois = await prisma.session.findUniqueOrThrow({ where: { id: s.id } })
+    expect(depois.activeBusinessId).toBeNull()
+  })
+
+  test('apagar uma conta remove os uploads dela', async () => {
+    const b = await prisma.business.create({ data: { slug: 'loja-upl', name: 'Loja' } })
+    const u = await prisma.upload.create({
+      data: {
+        businessId: b.id,
+        path: 'a/b.png',
+        mimeType: 'image/png',
+        sizeBytes: 1,
+        width: 1,
+        height: 1,
+        createdByType: 'SYSTEM',
+      },
+    })
+    await prisma.business.delete({ where: { id: b.id } })
+    expect(await prisma.upload.findUnique({ where: { id: u.id } })).toBeNull()
+  })
 })

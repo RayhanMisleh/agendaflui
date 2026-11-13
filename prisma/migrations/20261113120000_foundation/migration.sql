@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "business_status" AS ENUM ('ACTIVE', 'SUSPENDED', 'ARCHIVED');
 
@@ -305,10 +302,10 @@ ALTER TABLE "memberships" ADD CONSTRAINT "memberships_business_id_fkey" FOREIGN 
 ALTER TABLE "memberships" ADD CONSTRAINT "memberships_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "sessions" ADD CONSTRAINT "sessions_impersonator_admin_id_fkey" FOREIGN KEY ("impersonator_admin_id") REFERENCES "platform_admins"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "sessions" ADD CONSTRAINT "sessions_impersonator_admin_id_fkey" FOREIGN KEY ("impersonator_admin_id") REFERENCES "platform_admins"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_active_business_id_fkey" FOREIGN KEY ("active_business_id") REFERENCES "businesses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -317,11 +314,10 @@ ALTER TABLE "sessions" ADD CONSTRAINT "sessions_active_business_id_fkey" FOREIGN
 ALTER TABLE "user_tokens" ADD CONSTRAINT "user_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "uploads" ADD CONSTRAINT "uploads_business_id_fkey" FOREIGN KEY ("business_id") REFERENCES "businesses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "uploads" ADD CONSTRAINT "uploads_business_id_fkey" FOREIGN KEY ("business_id") REFERENCES "businesses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_business_id_fkey" FOREIGN KEY ("business_id") REFERENCES "businesses"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
 
 -- Restrições que o Prisma não expressa.
 ALTER TABLE "businesses"
