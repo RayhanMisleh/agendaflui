@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:tz": "TZ=UTC vitest run tests/unit/time.test.ts && TZ=Asia/Tokyo vitest run tests/unit/time.test.ts && TZ=America/Sao_Paulo vitest run tests/unit/time.test.ts",
     "db:start": "tsx scripts/db.ts start",
     "db:migrate": "prisma migrate deploy",
     "db:reset": "tsx scripts/db.ts reset",
