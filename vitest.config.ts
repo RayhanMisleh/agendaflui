@@ -10,6 +10,7 @@ export default defineConfig({
     globals: true,
     // Os testes de integração compartilham um único banco e o resetDb esvazia tudo.
     fileParallelism: false,
+    setupFiles: ['./tests/setup/dom.ts'],
     globalSetup: ['./tests/setup/global-db.ts'],
     include: ['tests/unit/**/*.test.ts?(x)', 'tests/integration/**/*.test.ts'],
     exclude: ['**/node_modules/**', '_legacy/**', '.local/**'],

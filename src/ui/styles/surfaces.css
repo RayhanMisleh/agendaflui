@@ -1,0 +1,299 @@
+/* Superfícies: folha de papel, folha-diálogo, moldura de avatar, página em branco. */
+@layer components {
+  /* ---- Papel ---- */
+  .af-paper {
+    position: relative;
+    isolation: isolate;
+    padding: 1.25rem;
+    color: var(--ink);
+    font-family: var(--font-ui, system-ui, sans-serif);
+    background-color: var(--paper);
+    background-image: var(--tex-fiber);
+    background-size: 200px 200px;
+    border: 1px solid var(--paper-edge);
+    border-radius: var(--r-sheet);
+  }
+  .af-paper--r0 {
+    box-shadow: inset 1px 1px 0 rgb(255 255 255 / 0.8);
+  }
+  .af-paper--r1 {
+    box-shadow:
+      inset 1px 1px 0 rgb(255 255 255 / 0.85),
+      inset -1px -1px 0 rgb(var(--shadow-rgb) / 0.05),
+      1px 1px 0 rgb(var(--shadow-rgb) / 0.3),
+      2px 3px 5px -1px rgb(var(--shadow-rgb) / 0.22),
+      7px 12px 22px -8px rgb(var(--shadow-rgb) / 0.3);
+  }
+  /* Ficha: folhas empilhadas por baixo, cada uma deslocada para a direita e para baixo. */
+  .af-paper--r2 {
+    border-radius: var(--r-sheet) var(--r-sheet) var(--r-sheet) var(--r-sheet);
+    box-shadow:
+      inset 1px 1px 0 #fff,
+      inset -1px -1px 0 rgb(var(--shadow-rgb) / 0.06),
+      1px 1px 0 rgb(var(--shadow-rgb) / 0.3),
+      3px 3px 0 -1px var(--paper),
+      3px 3px 0 0 var(--paper-edge),
+      6px 6px 0 -1px var(--paper-sunk),
+      6px 6px 0 0 color-mix(in srgb, var(--paper-edge) 85%, #000),
+      4px 8px 8px -2px rgb(var(--shadow-rgb) / 0.3),
+      14px 22px 34px -10px rgb(var(--shadow-rgb) / 0.42);
+  }
+  /* Pauta de livro-caixa: linhas a cada 2rem e margem vermelha. */
+  .af-paper--lined {
+    padding: 0.25rem 1.25rem 1rem 3.75rem;
+    line-height: 2rem;
+    background-image:
+      linear-gradient(90deg, transparent 2.9rem, color-mix(in srgb, var(--bad) 38%, transparent) 2.9rem calc(2.9rem + 1px), transparent calc(2.9rem + 1px)),
+      repeating-linear-gradient(180deg, transparent 0 calc(2rem - 1px), var(--paper-line) calc(2rem - 1px) 2rem),
+      var(--tex-fiber);
+    background-size: auto, auto, 200px 200px;
+    background-position: 0 0, 0 0.25rem, 0 0;
+  }
+
+  /* ---- Diálogo / folha ---- */
+  .af-dialog {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-ui, system-ui, sans-serif);
+    overflow: visible;
+    max-width: none;
+    max-height: none;
+  }
+  .af-dialog:not([open]) {
+    display: none;
+  }
+  .af-dialog:focus {
+    outline: none;
+  }
+  .af-dialog::backdrop {
+    background: rgb(26 20 14 / 0.58);
+    backdrop-filter: blur(2px);
+  }
+  .af-dialog__sheet {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    max-height: min(88dvh, 52rem);
+    overflow: hidden;
+    background-color: var(--paper);
+    background-image: var(--tex-fiber);
+    background-size: 200px 200px;
+    border: 1px solid var(--paper-edge);
+    box-shadow:
+      inset 1px 1px 0 #fff,
+      1px 1px 0 rgb(var(--shadow-rgb) / 0.35),
+      4px 8px 10px -2px rgb(var(--shadow-rgb) / 0.35),
+      18px 30px 56px -12px rgb(var(--shadow-rgb) / 0.55);
+  }
+  .af-dialog__grip {
+    display: none;
+  }
+  .af-dialog__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    flex: none;
+    padding: 1rem 0.75rem 0.75rem 1.5rem;
+    border-bottom: 3px double var(--paper-edge);
+  }
+  .af-dialog__title {
+    margin: 0;
+    font: 600 var(--text-xl) / var(--leading-tight) var(--font-display);
+    text-wrap: balance;
+  }
+  .af-dialog__close {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--tap);
+    height: var(--tap);
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: var(--r-key);
+    background: none;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .af-dialog__close:hover {
+    color: var(--ink);
+    background: var(--paper-sunk);
+    box-shadow: inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.25);
+  }
+  .af-dialog__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 1.25rem 1.5rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    line-height: var(--leading-body);
+  }
+  .af-dialog__foot {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    flex: none;
+    padding: 1rem 1.5rem calc(1rem + env(safe-area-inset-bottom));
+    background-color: var(--paper-sunk);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.9),
+      inset 0 3px 6px -3px rgb(var(--shadow-rgb) / 0.2);
+    border-top: 1px solid var(--paper-edge);
+  }
+
+  /* Celular: folha que sobe da base. */
+  @media (max-width: 639.98px) {
+    .af-dialog {
+      position: fixed;
+      inset: auto 0 0 0;
+      width: 100%;
+      margin: 0;
+    }
+    .af-dialog__sheet {
+      max-height: 92dvh;
+      border-radius: 16px 16px 0 0;
+      border-bottom: 0;
+    }
+    .af-dialog__grip {
+      display: block;
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      width: 40px;
+      height: 5px;
+      translate: -50% 0;
+      border-radius: 3px;
+      background: var(--paper-sunk);
+      box-shadow:
+        inset 0 1px 2px rgb(var(--shadow-rgb) / 0.45),
+        0 1px 0 rgb(255 255 255 / 0.9);
+    }
+    .af-dialog__head {
+      padding-top: 1.5rem;
+    }
+    .af-dialog__foot > * {
+      flex: 1 1 auto;
+    }
+  }
+  @media (min-width: 640px) {
+    .af-dialog {
+      margin: auto;
+      width: min(34rem, calc(100vw - 2rem));
+    }
+    .af-dialog__sheet {
+      border-radius: var(--r-sheet);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-dialog[open] .af-dialog__sheet {
+      animation: af-sheet-rise 280ms var(--ease-key) both;
+    }
+    .af-dialog[open]::backdrop {
+      animation: af-fade 200ms ease-out both;
+    }
+  }
+  @keyframes af-sheet-rise {
+    from {
+      transform: translateY(2.5rem) rotate(-0.4deg);
+      opacity: 0;
+    }
+  }
+  @keyframes af-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* ---- Avatar: foto em moldura redonda, com passe-partout de papel ---- */
+  .af-avatar {
+    --size: 44px;
+    position: relative;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--size);
+    height: var(--size);
+    overflow: hidden;
+    border-radius: 50%;
+    background-color: var(--paper-sunk);
+    border: 3px solid var(--paper);
+    box-shadow:
+      0 0 0 1px color-mix(in srgb, var(--paper-edge) 70%, #000),
+      inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.35),
+      1px 2px 3px rgb(var(--shadow-rgb) / 0.35),
+      3px 6px 10px -3px rgb(var(--shadow-rgb) / 0.35);
+    color: var(--ink-soft);
+    font-family: var(--font-display);
+  }
+  .af-avatar--sm {
+    --size: 32px;
+    border-width: 2px;
+    font-size: 0.75rem;
+  }
+  .af-avatar--md {
+    font-size: var(--text-sm);
+  }
+  .af-avatar--lg {
+    --size: 64px;
+    font-size: var(--text-lg);
+  }
+  .af-avatar__initials {
+    font-weight: 700;
+    line-height: 1;
+  }
+  .af-avatar__photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    box-shadow: inset 1px 2px 3px rgb(0 0 0 / 0.3);
+  }
+
+  /* ---- Página em branco com a ponta dobrada ---- */
+  .af-empty {
+    filter: drop-shadow(1px 2px 1px rgb(var(--shadow-rgb) / 0.28)) drop-shadow(6px 10px 12px rgb(var(--shadow-rgb) / 0.16));
+    color: var(--ink);
+    font-family: var(--font-ui, system-ui, sans-serif);
+  }
+  .af-empty__sheet {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2.5rem 1.5rem 2.25rem;
+    text-align: center;
+    background-color: var(--paper);
+    background-image: var(--tex-fiber);
+    background-size: 200px 200px;
+    clip-path: polygon(0 0, calc(100% - 32px) 0, 100% 32px, 100% 100%, 0 100%);
+  }
+  .af-empty__sheet::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(to bottom left, transparent 50%, var(--paper-sunk) 50%, var(--paper-edge) 100%);
+  }
+  .af-empty__title {
+    margin: 0;
+    max-width: 22ch;
+    font: 600 var(--text-lg) / var(--leading-tight) var(--font-display);
+    text-wrap: balance;
+  }
+  .af-empty__text {
+    margin: 0.5rem 0 0;
+    max-width: 38ch;
+    color: var(--ink-soft);
+    line-height: var(--leading-body);
+    text-wrap: pretty;
+  }
+  .af-empty__action {
+    margin-top: 1.25rem;
+  }
+}

@@ -1,0 +1,508 @@
+/* Controles: tecla, campo (rebaixo), chave, caixa a caneta, divisórias. */
+@layer components {
+  /* ---- Tecla (Button) ---- */
+  .af-button {
+    --wall: 3px;
+    --wall-color: color-mix(in srgb, var(--accent-lo) 55%, #000);
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    padding: 0;
+    border: 1px solid var(--wall-color);
+    border-radius: var(--r-key);
+    font: 600 var(--text-md) / 1 var(--font-ui, system-ui, sans-serif);
+    color: var(--on-accent);
+    background-color: var(--accent);
+    background-image: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.2) 0,
+      rgb(255 255 255 / 0.04) 46%,
+      rgb(0 0 0 / 0.1) 100%
+    );
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.55),
+      inset 1px 0 0 rgb(255 255 255 / 0.22),
+      inset -1px 0 0 rgb(0 0 0 / 0.1),
+      0 var(--wall) 0 var(--wall-color),
+      1px calc(var(--wall) + 2px) 4px rgb(var(--shadow-rgb) / 0.35),
+      3px calc(var(--wall) + 8px) 14px -4px rgb(var(--shadow-rgb) / 0.35);
+    margin-bottom: var(--wall);
+  }
+  .af-button__face {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0 1.125rem;
+    line-height: 1.15;
+    text-wrap: balance;
+  }
+  .af-button__icon,
+  .af-button__spinner {
+    display: inline-flex;
+    flex: none;
+  }
+  .af-button--sm {
+    min-height: var(--tap);
+    font-size: var(--text-sm);
+  }
+  .af-button--sm .af-button__face {
+    padding: 0 0.875rem;
+  }
+  .af-button--lg {
+    min-height: 3.25rem;
+    font-size: var(--text-lg);
+    --wall: 4px;
+  }
+  .af-button--lg .af-button__face {
+    padding: 0 1.75rem;
+  }
+
+  .af-button--secondary {
+    --wall-color: color-mix(in srgb, var(--paper-edge) 70%, #000);
+    color: var(--ink);
+    background-color: var(--paper);
+    background-image: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.9) 0,
+      rgb(255 255 255 / 0.2) 45%,
+      rgb(var(--shadow-rgb) / 0.07) 100%
+    );
+    border-color: color-mix(in srgb, var(--paper-edge) 60%, #000);
+  }
+  .af-button--danger {
+    --wall-color: color-mix(in srgb, var(--bad) 55%, #000);
+    color: #fff;
+    background-color: var(--bad);
+  }
+  .af-button--ghost {
+    --wall: 0px;
+    color: inherit;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    margin-bottom: 0;
+  }
+
+  .af-button:hover:not(:disabled) {
+    background-image: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.32) 0,
+      rgb(255 255 255 / 0.1) 46%,
+      rgb(0 0 0 / 0.06) 100%
+    );
+  }
+  .af-button--ghost:hover:not(:disabled) {
+    background: rgb(var(--shadow-rgb) / 0.08);
+    box-shadow: inset 1px 1px 2px rgb(var(--shadow-rgb) / 0.2);
+  }
+  :where(.af-cover, .af-material-metal) .af-button--ghost:hover:not(:disabled) {
+    background: rgb(0 0 0 / 0.18);
+    box-shadow:
+      inset 1px 1px 3px rgb(0 0 0 / 0.4),
+      1px 1px 0 rgb(255 255 255 / 0.12);
+  }
+
+  /* A tecla afunda 2 px e a parede inferior encolhe. */
+  .af-button:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 2px 3px rgb(0 0 0 / 0.22),
+      inset 0 1px 0 rgb(255 255 255 / 0.18),
+      0 calc(var(--wall) - 2px) 0 var(--wall-color),
+      0 calc(var(--wall) - 1px) 2px rgb(var(--shadow-rgb) / 0.25);
+  }
+  .af-button--ghost:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: inset 1px 2px 4px rgb(var(--shadow-rgb) / 0.3);
+  }
+
+  /* Desabilitada: tecla chapada, sem parede, tracejado fino. Não depende só da cor. */
+  .af-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.62;
+    filter: saturate(0.35);
+    transform: translateY(2px);
+    box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.2);
+    border-style: dashed;
+  }
+  .af-button[aria-busy='true']:disabled {
+    cursor: progress;
+    border-style: solid;
+  }
+
+  /* ---- Campo (Field) ---- */
+  .af-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    font-family: var(--font-ui, system-ui, sans-serif);
+    color: var(--ink);
+  }
+  .af-field__label {
+    font-size: var(--text-sm);
+    font-weight: 650;
+    line-height: var(--leading-tight);
+  }
+  .af-field__hint {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    color: var(--ink-soft);
+  }
+  .af-field__error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.375rem;
+    margin: 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--bad);
+  }
+  .af-field__error svg {
+    flex: none;
+    margin-top: 1px;
+  }
+
+  /* ---- Rebaixo (Input, Textarea, Select) ---- */
+  .af-input {
+    width: 100%;
+    min-height: var(--tap);
+    padding: 0.5rem 0.75rem;
+    font: 400 var(--text-md) / 1.4 var(--font-ui, system-ui, sans-serif);
+    color: var(--ink);
+    background-color: var(--paper-sunk);
+    border: 1px solid color-mix(in srgb, var(--paper-edge) 70%, #000);
+    border-radius: var(--r-slot);
+    box-shadow:
+      inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.3),
+      inset 3px 4px 8px -3px rgb(var(--shadow-rgb) / 0.2),
+      1px 1px 0 rgb(255 255 255 / 0.85);
+    appearance: none;
+  }
+  .af-input::placeholder {
+    color: var(--ink-soft);
+    opacity: 1;
+  }
+  .af-input:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--paper-edge) 40%, #000);
+  }
+  .af-input:focus {
+    background-color: var(--paper);
+    border-color: var(--accent-ink);
+  }
+  .af-input:disabled {
+    cursor: not-allowed;
+    color: var(--ink-soft);
+    background-image: repeating-linear-gradient(
+      135deg,
+      transparent 0 5px,
+      rgb(var(--shadow-rgb) / 0.07) 5px 6px
+    );
+  }
+  /* Inválido: borda grossa, barra à esquerda e ícone/mensagem no Field. */
+  .af-input[aria-invalid='true'] {
+    border-color: var(--bad);
+    box-shadow:
+      inset 4px 0 0 var(--bad),
+      inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.3),
+      1px 1px 0 rgb(255 255 255 / 0.85);
+    padding-left: calc(0.75rem + 2px);
+  }
+  .af-textarea {
+    min-height: 6rem;
+    resize: vertical;
+  }
+  .af-select {
+    padding-right: 2.5rem;
+    background-image: var(--tex-chevron);
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    cursor: pointer;
+  }
+  .af-select:disabled {
+    background-image: var(--tex-chevron), repeating-linear-gradient(135deg, transparent 0 5px, rgb(var(--shadow-rgb) / 0.07) 5px 6px);
+  }
+  @media (min-width: 768px) {
+    .af-input {
+      font-size: 0.9375rem;
+    }
+  }
+
+  /* ---- Chave física (Switch) ---- */
+  .af-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: var(--tap);
+    font-family: var(--font-ui, system-ui, sans-serif);
+    color: inherit;
+  }
+  .af-switch__btn {
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: var(--tap);
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .af-switch__track {
+    position: relative;
+    width: 56px;
+    height: 30px;
+    border-radius: 8px;
+    background-color: var(--paper-sunk);
+    background-image: linear-gradient(180deg, rgb(var(--shadow-rgb) / 0.16), rgb(var(--shadow-rgb) / 0) 55%);
+    box-shadow:
+      inset 1px 2px 4px rgb(var(--shadow-rgb) / 0.5),
+      inset 0 0 0 1px rgb(var(--shadow-rgb) / 0.25),
+      1px 1px 0 rgb(255 255 255 / 0.85);
+  }
+  .af-switch__btn[aria-checked='true'] .af-switch__track {
+    background-color: var(--accent);
+    background-image: linear-gradient(180deg, rgb(0 0 0 / 0.28), rgb(0 0 0 / 0) 60%);
+  }
+  /* Símbolos gravados nas pontas: O (desligado) à esquerda, I (ligado) à direita. */
+  .af-switch__mark {
+    position: absolute;
+    top: 50%;
+    translate: 0 -50%;
+    color: var(--ink-soft);
+  }
+  .af-switch__mark--off {
+    left: 9px;
+    width: 10px;
+    height: 10px;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+  }
+  .af-switch__mark--on {
+    right: 12px;
+    width: 2px;
+    height: 12px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+  .af-switch__btn[aria-checked='true'] .af-switch__mark {
+    color: var(--on-accent);
+  }
+  .af-switch__knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    background-color: #e9e7e2;
+    background-image:
+      repeating-linear-gradient(90deg, rgb(0 0 0 / 0.14) 0 1px, rgb(255 255 255 / 0.55) 1px 2px, transparent 2px 4px),
+      linear-gradient(135deg, #fff 0, #d9d6cf 55%, #aeaba4 100%);
+    background-size: 12px 14px, auto;
+    background-repeat: no-repeat;
+    background-position: center, 0 0;
+    box-shadow:
+      inset 1px 1px 0 rgb(255 255 255 / 0.95),
+      inset -1px -1px 0 rgb(0 0 0 / 0.2),
+      1px 1px 0 rgb(0 0 0 / 0.45),
+      3px 3px 5px rgb(var(--shadow-rgb) / 0.45);
+  }
+  .af-switch__btn[aria-checked='true'] .af-switch__knob {
+    transform: translateX(26px);
+    box-shadow:
+      inset 1px 1px 0 rgb(255 255 255 / 0.95),
+      inset -1px -1px 0 rgb(0 0 0 / 0.2),
+      1px 1px 0 rgb(0 0 0 / 0.45),
+      -1px 3px 5px rgb(var(--shadow-rgb) / 0.45);
+  }
+  .af-switch__btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .af-switch__btn:disabled .af-switch__knob {
+    background-image: linear-gradient(135deg, #f1efea, #c9c6bf);
+  }
+  .af-switch__label {
+    font-size: var(--text-md);
+    line-height: 1.3;
+    cursor: pointer;
+  }
+
+  /* ---- Caixa marcada a caneta (Checkbox) ---- */
+  .af-checkbox {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: var(--tap);
+    font-family: var(--font-ui, system-ui, sans-serif);
+    color: inherit;
+    cursor: pointer;
+  }
+  .af-checkbox__input {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    translate: 0 -50%;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .af-checkbox__box {
+    position: relative;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    background-color: var(--paper-sunk);
+    border: 1px solid color-mix(in srgb, var(--paper-edge) 60%, #000);
+    box-shadow:
+      inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.3),
+      1px 1px 0 rgb(255 255 255 / 0.85);
+  }
+  .af-checkbox__box::after {
+    content: '';
+    position: absolute;
+    left: -3px;
+    top: -9px;
+    width: 34px;
+    height: 34px;
+    background-color: var(--accent-ink);
+    mask: var(--tex-pen) center / contain no-repeat;
+    -webkit-mask: var(--tex-pen) center / contain no-repeat;
+    transform: scale(0);
+    transform-origin: 20% 80%;
+    filter: drop-shadow(0 1px 0 rgb(255 255 255 / 0.5));
+  }
+  .af-checkbox__input:checked + .af-checkbox__box::after {
+    transform: scale(1);
+  }
+  .af-checkbox__input:focus-visible + .af-checkbox__box {
+    outline: 3px solid var(--accent-ink);
+    outline-offset: 3px;
+  }
+  .af-checkbox__input:disabled ~ * {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .af-checkbox__input:disabled + .af-checkbox__box {
+    border-style: dashed;
+  }
+  .af-checkbox__label {
+    line-height: 1.3;
+  }
+
+  /* ---- Divisórias de fichário (Tabs) ---- */
+  .af-tabs {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    padding: 0 0.75rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--paper-edge) 70%, #000);
+    font-family: var(--font-ui, system-ui, sans-serif);
+  }
+  .af-tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    min-height: var(--tap);
+    margin-top: 6px;
+    margin-bottom: -1px;
+    padding: 0 1.125rem;
+    border: 1px solid color-mix(in srgb, var(--paper-edge) 70%, #000);
+    border-bottom: 0;
+    border-radius: var(--r-tab);
+    font-size: var(--text-sm);
+    font-weight: 500;
+    text-decoration: none;
+    color: var(--ink-soft);
+    background-color: var(--paper-sunk);
+    background-image: linear-gradient(180deg, rgb(255 255 255 / 0.55), rgb(var(--shadow-rgb) / 0.07));
+    cursor: pointer;
+    box-shadow:
+      inset 1px 1px 0 rgb(255 255 255 / 0.8),
+      -1px 0 2px -1px rgb(var(--shadow-rgb) / 0.25);
+  }
+  .af-tab:hover {
+    color: var(--ink);
+    background-image: linear-gradient(180deg, #fff, rgb(var(--shadow-rgb) / 0.03));
+  }
+  /* A ativa sobe, ganha a cor do papel e cobre a linha de baixo: encosta no papel. */
+  .af-tab--active,
+  .af-tab--active:hover {
+    z-index: 1;
+    margin-top: 0;
+    min-height: 3rem;
+    padding-bottom: 1px;
+    font-weight: 700;
+    color: var(--ink);
+    background-color: var(--paper);
+    background-image: none;
+    box-shadow:
+      inset 1px 1px 0 #fff,
+      -1px -1px 3px -1px rgb(var(--shadow-rgb) / 0.3),
+      2px -2px 4px -2px rgb(var(--shadow-rgb) / 0.18);
+  }
+  .af-tab--active::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 0;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--accent-ink);
+  }
+  .af-tab__label {
+    white-space: nowrap;
+  }
+
+  /* ---- Movimento (só em resposta a ação) ---- */
+  @media (prefers-reduced-motion: no-preference) {
+    .af-button {
+      transition:
+        transform 70ms ease-out,
+        box-shadow 70ms ease-out,
+        background-image 120ms;
+    }
+    .af-button__spinner {
+      animation: af-spin 0.9s linear infinite;
+    }
+    .af-switch__knob {
+      transition:
+        transform 190ms var(--ease-key),
+        box-shadow 190ms;
+    }
+    .af-switch__track {
+      transition: background-color 160ms;
+    }
+    .af-checkbox__box::after {
+      transition: transform 160ms var(--ease-key);
+    }
+    .af-input {
+      transition:
+        border-color 120ms,
+        background-color 120ms;
+    }
+  }
+  @keyframes af-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}
