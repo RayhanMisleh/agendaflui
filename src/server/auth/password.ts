@@ -1,0 +1,20 @@
+import { hash, verify } from '@node-rs/argon2'
+import { z } from 'zod'
+
+export const passwordSchema = z
+  .string()
+  .min(10, 'A senha precisa ter pelo menos 10 caracteres.')
+  .max(200, 'A senha pode ter no máximo 200 caracteres.')
+
+// Variante argon2id e custo: padrões recomendados pela biblioteca.
+export function hashPassword(plain: string): Promise<string> {
+  return hash(plain)
+}
+
+export async function verifyPassword(hashed: string, plain: string): Promise<boolean> {
+  try {
+    return await verify(hashed, plain)
+  } catch {
+    return false
+  }
+}

@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { AuditLog, Business, Membership, MembershipRole, Prisma, Upload, User } from '@/server/db/generated/client'
+import { hashPassword } from '@/server/auth/password'
+import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 
 let contador = 0
@@ -24,10 +26,37 @@ export async function makeBusiness(overrides: Partial<Prisma.BusinessUncheckedCr
   })
 }
 
-export async function makeUser(overrides: Partial<Prisma.UserUncheckedCreateInput> = {}): Promise<User> {
+type MakeUserInput = Omit<Prisma.UserUncheckedCreateInput, 'passwordHash' | 'name' | 'email'> & {
+  name?: string
+  email?: string
+  /** Texto puro (vira hash). `null` = convite pendente, sem senha. */
+  password?: string | null
+}
+
+export async function makeUser(overrides: MakeUserInput = {}): Promise<User> {
   const id = sufixo()
+  const { password = 'senha-bem-longa', ...rest } = overrides
   return prisma.user.create({
-    data: { name: `Usuário ${id}`, email: `usuario-${id}@exemplo.test`, passwordHash: null, ...overrides },
+    data: {
+      name: `Usuário ${id}`,
+      email: `usuario-${id}@exemplo.test`,
+      passwordHash: password === null ? null : await hashPassword(password),
+      ...rest,
+    },
+  })
+}
+
+export async function makePlatformAdmin(
+  o: { email?: string; password?: string; name?: string; active?: boolean } = {},
+): Promise<PlatformAdmin> {
+  const id = sufixo()
+  return prisma.platformAdmin.create({
+    data: {
+      name: o.name ?? `Admin ${id}`,
+      email: o.email ?? `admin-${id}@exemplo.test`,
+      passwordHash: await hashPassword(o.password ?? 'senha-bem-longa'),
+      active: o.active ?? true,
+    },
   })
 }
 
