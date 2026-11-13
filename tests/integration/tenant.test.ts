@@ -3,7 +3,7 @@ import type { Business, Membership, User } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import { escoparOperacao, tenantDb, TenantViolationError } from '@/server/db/tenant'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeMembership, makeUser } from '../setup/factories'
+import { makeAuditLog, makeBusiness, makeMembership, makeUpload, makeUser } from '../setup/factories'
 
 let a: Business, b: Business, ua: User, ub: User, ma: Membership, mb: Membership
 beforeEach(async () => {
@@ -114,10 +114,6 @@ test('businessId inválido é recusado', () => {
   expect(() => tenantDb('')).toThrow()
   expect(() => tenantDb('não-é-uuid')).toThrow()
 })
-test('modelos globais passam sem alteração', async () => {
-  expect(await tenantDb(a.id).business.count()).toBe(2)
-  expect(await tenantDb(a.id).user.count()).toBe(2)
-})
 test('operação desconhecida em modelo tenant falha fechada', () => {
   expect(() => escoparOperacao('Membership', 'operacaoNova', {}, a.id)).toThrow(TenantViolationError)
 })
@@ -146,9 +142,149 @@ test('$transaction em lote continua filtrada pela conta', async () => {
   expect(lista).toHaveLength(1)
   expect(total).toBe(1)
 })
+test('modelo não classificado falha fechado', () => {
+  expect(() => escoparOperacao('ModeloNovo', 'findMany', {}, a.id)).toThrow(TenantViolationError)
+})
+
+describe('Business (a própria conta)', () => {
+  test('leituras só enxergam a conta A', async () => {
+    const db = tenantDb(a.id)
+    expect((await db.business.findMany()).map((x) => x.id)).toEqual([a.id])
+    expect(await db.business.findUnique({ where: { id: b.id } })).toBeNull()
+    expect(await db.business.count()).toBe(1)
+  })
+  test('update de outra conta rejeita e nada muda; da própria funciona', async () => {
+    await expect(tenantDb(a.id).business.update({ where: { id: b.id }, data: { name: 'x' } })).rejects.toThrow()
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).name).toBe(b.name)
+    await tenantDb(a.id).business.update({ where: { id: a.id }, data: { name: 'Nova' } })
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: a.id } })).name).toBe('Nova')
+    expect((await tenantDb(a.id).business.updateMany({ data: { city: 'X' } })).count).toBe(1)
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).city).toBeNull()
+  })
+  test('delete, deleteMany, create e upsert lançam violação', async () => {
+    const db = tenantDb(a.id)
+    await expect(db.business.delete({ where: { id: b.id } })).rejects.toThrow(TenantViolationError)
+    await expect(db.business.deleteMany({})).rejects.toThrow(TenantViolationError)
+    await expect(db.business.create({ data: { slug: 'nova-conta', name: 'x' } })).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.business.upsert({ where: { id: a.id }, create: { slug: 'nova-conta', name: 'x' }, update: {} }),
+    ).rejects.toThrow(TenantViolationError)
+    expect(await prisma.business.count()).toBe(2)
+  })
+  test('trocar o id em update lança', async () => {
+    await expect(
+      tenantDb(a.id).business.update({ where: { id: a.id }, data: { id: b.id } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      tenantDb(a.id).business.update({ where: { id: a.id }, data: { id: { set: b.id } } as never }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+  test('ataque: escrita aninhada na marca de outra conta lança e nada muda', async () => {
+    await expect(
+      tenantDb(a.id).business.update({
+        where: { id: b.id },
+        data: { branding: { update: { displayName: 'HACK' } } },
+      }),
+    ).rejects.toThrow(TenantViolationError)
+    expect((await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: b.id } })).displayName).not.toBe('HACK')
+  })
+})
+
+describe('Upload e AuditLog (business_id anulável)', () => {
+  let ua1: Awaited<ReturnType<typeof makeUpload>>
+  let ub1: Awaited<ReturnType<typeof makeUpload>>
+  let up1: Awaited<ReturnType<typeof makeUpload>>
+  let la1: Awaited<ReturnType<typeof makeAuditLog>>
+  let lb1: Awaited<ReturnType<typeof makeAuditLog>>
+  let lp1: Awaited<ReturnType<typeof makeAuditLog>>
+  beforeEach(async () => {
+    ;[ua1, ub1, up1] = [await makeUpload(a.id), await makeUpload(b.id), await makeUpload(null)]
+    ;[la1, lb1, lp1] = [await makeAuditLog(a.id), await makeAuditLog(b.id), await makeAuditLog(null)]
+  })
+  test('findMany só devolve a conta A', async () => {
+    expect((await tenantDb(a.id).upload.findMany()).map((x) => x.id)).toEqual([ua1.id])
+    expect((await tenantDb(a.id).auditLog.findMany()).map((x) => x.id)).toEqual([la1.id])
+  })
+  test('create grava a conta A', async () => {
+    const u = await tenantDb(a.id).upload.create({
+      data: { path: 'x.png', mimeType: 'image/png', sizeBytes: 1, width: 1, height: 1, createdByType: 'SYSTEM' } as never,
+    })
+    expect(u.businessId).toBe(a.id)
+    const l = await tenantDb(a.id).auditLog.create({
+      data: { actorType: 'SYSTEM', actorName: 's', action: 'x' } as never,
+    })
+    expect(l.businessId).toBe(a.id)
+  })
+  test('update e delete de registro de B ou da plataforma rejeitam', async () => {
+    const db = tenantDb(a.id)
+    for (const id of [ub1.id, up1.id]) {
+      await expect(db.upload.update({ where: { id }, data: { width: 9 } })).rejects.toThrow()
+      await expect(db.upload.delete({ where: { id } })).rejects.toThrow()
+    }
+    for (const id of [lb1.id, lp1.id]) {
+      await expect(db.auditLog.update({ where: { id }, data: { action: 'x' } })).rejects.toThrow()
+      await expect(db.auditLog.delete({ where: { id } })).rejects.toThrow()
+    }
+    expect(await prisma.upload.count()).toBe(3)
+    expect(await prisma.auditLog.count()).toBe(3)
+    expect((await prisma.upload.findUniqueOrThrow({ where: { id: up1.id } })).width).toBe(1)
+  })
+  test('update não tira o registro da conta', async () => {
+    await expect(
+      tenantDb(a.id).upload.update({ where: { id: ua1.id }, data: { businessId: null } }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+})
+
+describe('modelos de plataforma', () => {
+  test('user, session e platformAdmin são recusados', async () => {
+    const db = tenantDb(a.id)
+    await expect(db.user.findMany()).rejects.toThrow(TenantViolationError)
+    await expect(db.session.findMany()).rejects.toThrow(TenantViolationError)
+    await expect(db.platformAdmin.findMany()).rejects.toThrow(TenantViolationError)
+    await expect(db.userToken.count()).rejects.toThrow(TenantViolationError)
+  })
+})
+
 describe('relações', () => {
-  test('include de relação só traz a própria conta', async () => {
+  test('include de business e de business → branding só trazem a própria conta', async () => {
     const r = await tenantDb(a.id).membership.findMany({ include: { business: true } })
     expect(r.map((m) => m.business.id)).toEqual([a.id])
+    const r2 = await tenantDb(a.id).membership.findMany({ include: { business: { include: { branding: true } } } })
+    expect(r2.map((m) => m.business.branding?.businessId)).toEqual([a.id])
+  })
+  test('entrar em modelo de plataforma por include ou select lança', async () => {
+    const db = tenantDb(a.id)
+    await expect(db.membership.findMany({ include: { user: true } })).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.findMany({ select: { id: true, user: { select: { name: true } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.findMany({ include: { user: { include: { memberships: true } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.findMany({ include: { business: { include: { sessions: true } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.business.findMany({ include: { _count: { select: { sessions: true } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(db.business.findMany({ include: { _count: true } })).rejects.toThrow(TenantViolationError)
+  })
+  test('_count de relação permitida funciona', async () => {
+    const r = await tenantDb(a.id).business.findMany({ include: { _count: { select: { memberships: true } } } })
+    expect(r[0]?._count.memberships).toBe(1)
+  })
+  test('escrita aninhada lança; chave escalar funciona', async () => {
+    const u = await makeUser()
+    const db = tenantDb(a.id)
+    await expect(
+      db.membership.create({ data: { role: 'MANAGER', user: { connect: { id: u.id } } } as never }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      db.membership.update({ where: { id: ma.id }, data: { user: { update: { name: 'HACK' } } } }),
+    ).rejects.toThrow(TenantViolationError)
+    expect(await prisma.membership.count()).toBe(2)
+    const m = await db.membership.create({ data: { role: 'MANAGER', userId: u.id } as never })
+    expect(m.businessId).toBe(a.id)
   })
 })

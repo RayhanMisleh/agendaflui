@@ -1,19 +1,18 @@
-/** Modelos com `business_id` obrigatório: todo acesso é filtrado pela conta. */
-export const TENANT_MODELS: readonly string[] = [
-  'Membership',
-  'BusinessBranding',
-  'BusinessModules',
-  'BusinessSettings',
-]
+import type { Prisma } from './generated/client'
 
-/** Modelos sem dono de conta, ou que atravessam contas. */
-export const GLOBAL_MODELS: readonly string[] = [
-  'PlatformAdmin',
-  'PlatformSession',
-  'Business',
-  'User',
-  'Session',
-  'UserToken',
-  'Upload',
-  'AuditLog',
-]
+type Modelos = readonly Prisma.ModelName[]
+
+/** `business_id` obrigatório: todo acesso é filtrado pela conta. */
+export const TENANT_MODELS: Modelos = ['Membership', 'BusinessBranding', 'BusinessModules', 'BusinessSettings']
+
+/**
+ * `business_id` anulável. Dentro de `tenantDb` valem as mesmas regras dos modelos tenant;
+ * linhas com `business_id` nulo (da plataforma) não são visíveis nem alteráveis.
+ */
+export const TENANT_OPTIONAL_MODELS: Modelos = ['Upload', 'AuditLog']
+
+/** O próprio registro da conta: dentro de `tenantDb` só existe `id = conta`. */
+export const SELF_MODELS: Modelos = ['Business']
+
+/** Sem dono de conta ou entre contas: qualquer acesso por `tenantDb` é recusado. */
+export const PLATFORM_MODELS: Modelos = ['PlatformAdmin', 'PlatformSession', 'User', 'Session', 'UserToken']

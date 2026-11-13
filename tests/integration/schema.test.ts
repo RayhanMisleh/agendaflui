@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { Prisma } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
-import { GLOBAL_MODELS, TENANT_MODELS } from '@/server/db/models'
+import { PLATFORM_MODELS, SELF_MODELS, TENANT_MODELS, TENANT_OPTIONAL_MODELS } from '@/server/db/models'
 import { resetDb } from '../setup/db'
 
 // O cliente do Prisma 7 não expõe o DMMF em tempo de execução (só nomes de modelo e de campo),
@@ -11,6 +11,8 @@ const TABELA_DO_MODELO: Record<string, string> = {
   BusinessBranding: 'business_branding',
   BusinessModules: 'business_modules',
   BusinessSettings: 'business_settings',
+  Upload: 'uploads',
+  AuditLog: 'audit_logs',
 }
 
 beforeEach(async () => {
@@ -18,9 +20,25 @@ beforeEach(async () => {
 })
 
 describe('classificação dos modelos', () => {
-  test('todo modelo está classificado como tenant ou global, sem repetição', () => {
+  test('todo modelo está em exatamente uma das quatro listas', () => {
     const todos = Object.values(Prisma.ModelName).sort()
-    expect([...TENANT_MODELS, ...GLOBAL_MODELS].sort()).toEqual(todos)
+    expect(
+      [...TENANT_MODELS, ...TENANT_OPTIONAL_MODELS, ...SELF_MODELS, ...PLATFORM_MODELS].sort(),
+    ).toEqual(todos)
+  })
+
+  test('todo modelo tenant-opcional tem business_id anulável', async () => {
+    for (const nome of TENANT_OPTIONAL_MODELS) {
+      const campos = (Prisma as unknown as Record<string, Record<string, string>>)[
+        `${nome}ScalarFieldEnum`
+      ]
+      expect(campos?.['businessId'], nome).toBeDefined()
+      const linhas = await prisma.$queryRaw<{ is_nullable: string }[]>`
+        select is_nullable from information_schema.columns
+        where table_schema = 'public' and table_name = ${TABELA_DO_MODELO[nome]} and column_name = 'business_id'
+      `
+      expect(linhas[0]?.is_nullable, nome).toBe('YES')
+    }
   })
 
   test('todo modelo tenant tem business_id obrigatório', async () => {

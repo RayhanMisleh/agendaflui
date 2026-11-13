@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Business, Membership, MembershipRole, Prisma, User } from '@/server/db/generated/client'
+import type { AuditLog, Business, Membership, MembershipRole, Prisma, Upload, User } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 
 let contador = 0
@@ -37,4 +37,24 @@ export async function makeMembership(
   role: MembershipRole,
 ): Promise<Membership> {
   return prisma.membership.create({ data: { businessId, userId, role } })
+}
+
+export async function makeUpload(businessId: string | null): Promise<Upload> {
+  return prisma.upload.create({
+    data: {
+      businessId,
+      path: `uploads/${sufixo()}.png`,
+      mimeType: 'image/png',
+      sizeBytes: 1,
+      width: 1,
+      height: 1,
+      createdByType: 'SYSTEM',
+    },
+  })
+}
+
+export async function makeAuditLog(businessId: string | null): Promise<AuditLog> {
+  return prisma.auditLog.create({
+    data: { businessId, actorType: 'SYSTEM', actorName: 'sistema', action: `teste-${sufixo()}` },
+  })
 }
