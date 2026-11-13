@@ -10,12 +10,23 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 O bloco acima é gerenciado pelo `next dev`; o conteúdo abaixo é do projeto.
 
-# Sans Company
+# AgendaFlui
 
-Antes de editar qualquer código neste repositório e no app (`../app`, repo app-o-chef-e-voce), ou o banco
-compartilhado, leia [`docs/README.md`](docs/README.md) — é o índice da documentação do
-projeto, escrito para orientar tanto humanos quanto IAs fazendo mudanças aqui.
+Sistema de agendamento multi-conta (Next.js 16, TypeScript estrito, Prisma 7, PostgreSQL).
+Spec: `docs/superpowers/specs/2026-11-13-agendaflui-design.md`. Textos de interface em pt-BR.
 
-Se a tarefa envolver datas, horários, fuso horário, agenda ou disponibilidade de horários,
-leia [`docs/TIMEZONE.md`](docs/TIMEZONE.md) **antes** de escrever qualquer código — esse é o
-assunto que já causou o maior incidente de produção deste projeto.
+## Hosts
+
+Três hosts, todos vindos de variáveis de ambiente (nunca fixos no código):
+`DEV_HOST` (ferramentas de desenvolvimento), `PAINEL_HOST` (painel do cliente) e `API_HOST` (API).
+
+## Regras
+
+- Regra de negócio só em `src/server/`.
+- Dados de conta só por `tenantDb`; o cliente Prisma cru (`@/server/db/client`) fica restrito às pastas liberadas no ESLint.
+- Data e hora só por `src/server/time/`. Leia a spec antes de mexer em agenda ou fuso.
+- Sem `any` e sem `@ts-ignore`.
+
+## Verificação
+
+`npm run typecheck && npm run lint && npm test && npm run build`
