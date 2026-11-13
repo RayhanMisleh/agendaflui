@@ -47,7 +47,7 @@ export default defineConfig([
         {
           patterns: [
             {
-              group: ['@/server/db/client', '**/server/db/client'],
+              group: ['@/server/db/client', '**/db/client', '**/db/client.*', '**/server/db/client', '**/server/db/client.*'],
               message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
             },
           ],

@@ -12,16 +12,10 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
-    "test:tz": "TZ=Pacific/Kiritimati vitest run tests/unit && TZ=America/Sao_Paulo vitest run tests/unit",
-    "test:e2e": "playwright test",
-    "db:start": "tsx scripts/db-start.ts",
-    "db:migrate": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
-    "db:reset": "tsx scripts/db-reset.ts",
-    "admin:create": "tsx scripts/admin-create.ts"
+    "test": "vitest run"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.2.2",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "lucide-react": "^1.72.0",
@@ -29,9 +23,12 @@
     "pg": "^8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "sharp": "^0.35.5",
+    "temporal-polyfill": "^1.0.8",
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.0",
     "@tailwindcss/postcss": "^4.3.5",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
