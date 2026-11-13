@@ -1,4 +1,5 @@
 export { BrandMark } from './BrandMark'
 export { DevShell } from './DevShell'
+export { EntryScreen } from './EntryScreen'
 export type { NavItem } from './nav'
 export { PainelShell } from './PainelShell'

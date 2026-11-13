@@ -1,5 +1,12 @@
 import { defineConfig } from '@playwright/test'
 
+// Os testes leem as credenciais de demonstração do .env (sem .env, valem as variáveis do ambiente).
+try {
+  process.loadEnvFile()
+} catch {
+  // Sem .env.
+}
+
 // O navegador resolve *.localhost sozinho; a prontidão do servidor usa só a porta
 // (o Node pode não resolver dev.localhost no macOS). O host vem de DEV_HOST, como em src/proxy.ts.
 const devHost = process.env.DEV_HOST || 'dev.localhost:3000'
