@@ -1,6 +1,6 @@
 import { AuthError } from '@/server/auth/actor'
 import { ApiAuthError } from '@/server/domain/platform/api-keys'
-import { DomainError, z, type DomainErrorCode } from '@/server/domain/errors'
+import { DomainError, z, zodFields, type DomainErrorCode } from '@/server/domain/errors'
 import { toJson } from './serialize'
 
 /** Corpo acima do teto: 413. */
@@ -51,22 +51,6 @@ export function buildResponse(status: number, body: unknown, requestId: string, 
   return new Response(JSON.stringify(body), { status, headers })
 }
 
-function fieldsOf(error: z.ZodError): Record<string, string> {
-  const fields: Record<string, string> = {}
-  for (const issue of error.issues) {
-    if (issue.code === 'unrecognized_keys') {
-      for (const key of issue.keys) {
-        const caminho = [...issue.path, key].map(String).join('.')
-        if (!(caminho in fields)) fields[caminho] = 'Campo não reconhecido. Remova-o da requisição.'
-      }
-      continue
-    }
-    const caminho = issue.path.map(String).join('.') || '_'
-    if (!(caminho in fields)) fields[caminho] = issue.message
-  }
-  return fields
-}
-
 function errorBody(code: string, message: string, extra: Omit<ErrorBody['error'], 'code' | 'message'> = {}): ErrorBody {
   return { error: { code, ...extra, message } }
 }
@@ -88,9 +72,21 @@ function logInternal(err: unknown, request: Request, requestId: string, route: s
   )
 }
 
-/** Único lugar que transforma um erro em resposta da API. Erro desconhecido vira 500 genérico e é registrado no log. */
+const MENSAGEM_INTERNA = 'Algo deu errado do nosso lado. Tente de novo em instantes.'
+
+/** Único lugar que transforma um erro em resposta da API. Erro desconhecido vira 500 genérico e é registrado no log; nunca lança. */
 export function errorResponse(err: unknown, request: Request, meta: ErrorMeta = {}): Response {
   const requestId = meta.requestId ?? crypto.randomUUID()
+  try {
+    return mapError(err, request, requestId, meta.route ?? '-')
+  } catch (falha) {
+    // Falhou ao montar a resposta (por exemplo, `details` que não serializa): registra e responde o 500 padrão.
+    logInternal(falha, request, requestId, meta.route ?? '-')
+    return buildResponse(500, errorBody('internal', MENSAGEM_INTERNA), requestId)
+  }
+}
+
+function mapError(err: unknown, request: Request, requestId: string, route: string): Response {
   if (err instanceof DomainError) {
     const body = errorBody(err.code, err.message, {
       ...(err.reason !== undefined ? { reason: err.reason } : {}),
@@ -119,8 +115,8 @@ export function errorResponse(err: unknown, request: Request, meta: ErrorMeta = 
     return buildResponse(413, errorBody('validation', err.message, { reason: 'body_too_large' }), requestId)
   }
   if (err instanceof z.ZodError) {
-    return buildResponse(422, errorBody('validation', 'Confira os campos informados e tente de novo.', { fields: fieldsOf(err) }), requestId)
+    return buildResponse(422, errorBody('validation', 'Confira os campos informados e tente de novo.', { fields: zodFields(err, { perUnknownKey: true }) }), requestId)
   }
-  logInternal(err, request, requestId, meta.route ?? '-')
-  return buildResponse(500, errorBody('internal', 'Algo deu errado do nosso lado. Tente de novo em instantes.'), requestId)
+  logInternal(err, request, requestId, route)
+  return buildResponse(500, errorBody('internal', MENSAGEM_INTERNA), requestId)
 }

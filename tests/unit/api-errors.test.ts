@@ -107,3 +107,18 @@ describe('errorResponse', () => {
     }
   })
 })
+
+describe('errorResponse nunca lança', () => {
+  test('details que não serializa: 500 internal padrão com X-Request-Id, e o motivo vai para o log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const res = errorResponse(new DomainError('conflict', 'Conflito.', { details: { mapa: new Map() } }), req, { requestId: 'req-9' })
+      expect(res.status).toBe(500)
+      expect(res.headers.get('x-request-id')).toBe('req-9')
+      expect(apiError(await res.json()).code).toBe('internal')
+      expect(log.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain('req-9')
+    } finally {
+      log.mockRestore()
+    }
+  })
+})

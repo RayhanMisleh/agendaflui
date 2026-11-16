@@ -45,6 +45,7 @@ function convert(value: unknown, path: string, seen: Set<object>): unknown {
     }
     const out: Record<string, unknown> = {}
     for (const [chave, item] of Object.entries(value)) {
+      if (chave === '__proto__') throw new Error(`Não é possível serializar a chave "__proto__" em "${path}".`)
       if (item === undefined) continue
       out[chave] = convert(item, path === '' ? chave : `${path}.${chave}`, seen)
     }

@@ -8,6 +8,7 @@ import { hitRateLimit, LIMITS, limitKey, type LimitRule } from '@/server/auth/ra
 import { DomainError, z } from '@/server/domain/errors'
 import { ApiAuthError, resolveAppKey, type ResolvedKey } from '@/server/domain/platform/api-keys'
 import { env } from '@/server/env'
+import { checkWireContract } from './contract'
 import { corsHeaders, isSyntacticOrigin, originAllowed, preflightHeaders } from './cors'
 import { ApiRateLimitError, BodyTooLargeError, buildResponse, errorResponse } from './errors'
 import { registerRoute, type AnyRouteDef } from './registry'
@@ -26,45 +27,60 @@ import { toJson } from './serialize'
 
 export type RouteAuth = 'none' | 'key' | 'customer' | 'staff'
 
-export type RouteDef<P, Q, B, R> = {
+/**
+ * O que o handler recebe de `ctx` e `key`, por tipo de autenticação. É o ÚNICO lugar a mudar quando a rota `key`
+ * ganhar um contexto de visitante (Tarefa 9): troque o `null` dela.
+ */
+export type AuthArgs<A extends RouteAuth> = A extends 'customer' | 'staff'
+  ? { ctx: TenantContext; key: ResolvedKey }
+  : A extends 'key'
+    ? { ctx: null; key: ResolvedKey }
+    : { ctx: null; key: null }
+
+/**
+ * O que o handler pode devolver para uma resposta de formato `R`: o próprio `R`, mais `Date` onde o fio diz texto
+ * e `bigint` onde diz número (o `toJson` converte). Literais e uniões de texto continuam exatos.
+ */
+export type Serializable<R> = R extends string
+  ? string extends R
+    ? R | Date
+    : R
+  : R extends number
+    ? number extends R
+      ? R | bigint
+      : R
+    : R extends readonly (infer U)[]
+      ? Serializable<U>[]
+      : R extends object
+        ? { [K in keyof R]: Serializable<R[K]> }
+        : R
+
+export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   /** Caminho público, com parâmetros entre chaves: `/v1/appointments/{id}`. */
   path: string
-  auth: RouteAuth
+  auth: A
   summary: string
   tag: string
   params?: z.ZodType<P>
   query?: z.ZodType<Q>
   body?: z.ZodType<B>
-  /** Esquema da resposta de sucesso: documentação e teste de contrato (conferido fora de produção). */
+  /**
+   * Esquema da resposta de sucesso no FORMATO DE FIO (o JSON que sai): instantes como `isoInstant`, números como
+   * `z.number()`, nunca `z.date()` nem `z.bigint()`. Fora de produção a resposta é conferida de forma estrita
+   * (tipo errado ou campo a mais em qualquer nível vira erro de programação). Vira JSON Schema no OpenAPI.
+   */
   response: z.ZodType<R>
   status?: 200 | 201 | 202 | 204
   /** Limite da rota, além do limite geral por chave e IP. */
   limit?: LimitRule
-  handler: (c: {
-    ctx: TenantContext | null
-    key: ResolvedKey | null
-    params: P
-    query: Q
-    body: B
-    request: Request
-    now: Date
-  }) => Promise<R>
+  handler: (c: AuthArgs<A> & { params: P; query: Q; body: B; request: Request; now: Date }) => Promise<Serializable<R>>
 }
 
 export type RouteHandler = (request: Request, seg: { params: Promise<Record<string, string | string[]>> }) => Promise<Response>
 
 export const MAX_BODY_BYTES = 100 * 1024
 const MAX_USER_AGENT = 300
-
-/** Tira o nome do arquivo que chamou `defineRoute`, para distinguir recarga do mesmo arquivo de rota duplicada em outro. */
-function callerSource(): string | null {
-  for (const linha of (new Error().stack ?? '').split('\n').slice(1)) {
-    const m = /\(?((?:file:\/\/)?[^()\s]+?):\d+:\d+\)?\s*$/.exec(linha)
-    if (m?.[1] && !m[1].includes('define-route')) return m[1]
-  }
-  return null
-}
 
 function strictRoot<T>(schema: z.ZodType<T> | undefined): z.ZodType<T> | undefined {
   return schema instanceof z.ZodObject ? (schema.strict() as unknown as z.ZodType<T>) : schema
@@ -150,7 +166,11 @@ export async function preflight(request: Request): Promise<Response> {
   const requestId = crypto.randomUUID()
   const origin = request.headers.get('origin')
   if (origin === null) return buildResponse(204, null, requestId)
-  if (!isSyntacticOrigin(origin)) return errorResponse(origemNegada(), request, { requestId, route: '(pré-voo)' })
+  if (!isSyntacticOrigin(origin)) {
+    const negada = errorResponse(origemNegada(), request, { requestId, route: '(pré-voo)' })
+    negada.headers.set('vary', 'Origin')
+    return negada
+  }
   return buildResponse(204, null, requestId, preflightHeaders(origin))
 }
 
@@ -180,6 +200,14 @@ async function authenticate(
   })
 }
 
+/** Conta uma tentativa com chave inválida por IP (só depois de constatar que a chave é inválida). Sem IP, não conta. */
+async function countInvalidKey(request: Request, now: Date): Promise<void> {
+  const ip = clientIp(request.headers, env.TRUSTED_PROXY_HOPS)
+  if (ip === null) return
+  const r = await hitRateLimit(limitKey('api-chave-invalida', ipLimitKeyPart(ip)), LIMITS.invalidKeyIp, now)
+  if (!r.allowed) throw new ApiRateLimitError(r.retryAfterSec)
+}
+
 async function enforceLimits(def: AnyRouteDef, request: Request, key: ResolvedKey, now: Date): Promise<void> {
   const ip = clientIp(request.headers, env.TRUSTED_PROXY_HOPS)
   const quem = `${key.apiKeyId}:${ip === null ? 'sem-ip' : ipLimitKeyPart(ip)}`
@@ -195,12 +223,13 @@ async function enforceLimits(def: AnyRouteDef, request: Request, key: ResolvedKe
  * Cria o handler de uma rota: chave de app, CORS, limites, token, validação, domínio, serialização e erros padronizados,
  * nessa ordem. A rota fica registrada para o documento OpenAPI.
  */
-export function defineRoute<P, Q, B, R>(def: RouteDef<P, Q, B, R>): RouteHandler {
+export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P, Q, B, R>): RouteHandler {
   const any = def as unknown as AnyRouteDef
-  registerRoute(any, callerSource())
+  registerRoute(any)
   const bodySchema = strictRoot(def.body)
   const querySchema = strictRoot(def.query)
   const status = def.status ?? 200
+  const handle = def.handler as unknown as (c: Record<string, unknown>) => Promise<unknown>
 
   return async (request, seg) => {
     const requestId = crypto.randomUUID()
@@ -212,6 +241,8 @@ export function defineRoute<P, Q, B, R>(def: RouteDef<P, Q, B, R>): RouteHandler
     try {
       const now = new Date()
       const origin = request.headers.get('origin')
+      // A resposta depende da origem mesmo quando a origem é recusada.
+      if (origin !== null) cors = { vary: 'Origin' }
       let key: ResolvedKey | null = null
       if (def.auth === 'none') {
         // Sem chave não há o que conferir: só origem bem formada recebe CORS (health e openapi não expõem dado de conta).
@@ -220,7 +251,12 @@ export function defineRoute<P, Q, B, R>(def: RouteDef<P, Q, B, R>): RouteHandler
           cors = corsHeaders(origin)
         }
       } else {
-        key = await resolveAppKey({ key: request.headers.get('x-app-key'), businessSlug: request.headers.get('x-business'), now })
+        try {
+          key = await resolveAppKey({ key: request.headers.get('x-app-key'), businessSlug: request.headers.get('x-business'), now })
+        } catch (e) {
+          if (e instanceof ApiAuthError && e.reason === 'invalid_app_key') await countInvalidKey(request, now)
+          throw e
+        }
         if (origin !== null) {
           if (!originAllowed(origin, key.allowedOrigins)) throw origemNegada()
           cors = corsHeaders(origin)
@@ -235,19 +271,25 @@ export function defineRoute<P, Q, B, R>(def: RouteDef<P, Q, B, R>): RouteHandler
       const ctx = key === null ? null : await authenticate(any, request, key, now, info)
 
       const params = def.params ? await def.params.parseAsync(await seg?.params) : (undefined as P)
-      const query = querySchema ? await querySchema.parseAsync(queryOf(request)) : (undefined as Q)
-      const body = bodySchema ? await bodySchema.parseAsync(await readJsonBody(request)) : (undefined as B)
-
-      const result = await def.handler({ ctx, key, params, query, body, request, now })
-
-      if (env.NODE_ENV !== 'production') {
-        const conferido = await def.response.safeParseAsync(result)
-        if (!conferido.success) {
-          const problemas = conferido.error.issues.map((i) => `${i.path.join('.') || '_'}: ${i.message}`).join('; ')
-          throw new Error(`A resposta de ${def.method} ${def.path} não segue o esquema "response" (${problemas}).`)
+      const consulta = queryOf(request)
+      if (!querySchema) {
+        const nomes = Object.keys(consulta)
+        if (nomes.length > 0) {
+          const fields = Object.fromEntries(nomes.map((n) => [n, 'Parâmetro de consulta não reconhecido. Remova-o da requisição.']))
+          throw new DomainError('validation', 'Confira os campos informados e tente de novo.', { fields })
         }
       }
-      return finish(buildResponse(status, status === 204 ? null : toJson(result), requestId))
+      const query = querySchema ? await querySchema.parseAsync(consulta) : (undefined as Q)
+      const body = bodySchema ? await bodySchema.parseAsync(await readJsonBody(request)) : (undefined as B)
+
+      const result = await handle({ ctx, key, params, query, body, request, now })
+      if (status === 204) return finish(buildResponse(204, null, requestId))
+      const json = toJson(result)
+      if (env.NODE_ENV !== 'production') {
+        const problema = await checkWireContract(def.response, json)
+        if (problema !== null) throw new Error(`A resposta de ${def.method} ${def.path} não segue o esquema "response": ${problema}.`)
+      }
+      return finish(buildResponse(status, json, requestId))
     } catch (err) {
       return finish(errorResponse(err, request, { requestId, route: def.path }))
     }

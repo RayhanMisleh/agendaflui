@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { GET as healthGet } from '@/app/api/v1/health/route'
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { registerRoute, registeredRoutes } from '@/server/api/registry'
+import { isoInstant, uuid } from '@/server/api/wire'
 import { signAccessToken } from '@/server/auth/api-tokens'
 import type { Business, Customer } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
@@ -11,7 +12,13 @@ import { apiError, apiRequest, callRoute, customerToken, jsonObject, makeAppKey,
 import { resetDb } from '../../setup/db'
 import { makeBusiness, makeCustomer, makeMembership, makeUser } from '../../setup/factories'
 
-const objetoQualquer = z.object({}).passthrough()
+// A API roda atrás de um proxy confiável nestes testes: o IP vem do último endereço de X-Forwarded-For.
+vi.hoisted(() => {
+  process.env.TRUSTED_PROXY_HOPS = '1'
+})
+
+let chamadas = 0
+const vazio = z.object({})
 
 const publica = defineRoute({
   method: 'GET',
@@ -20,7 +27,10 @@ const publica = defineRoute({
   summary: 'Rota pública',
   tag: 'teste',
   response: z.object({ ok: z.literal(true), temChave: z.boolean(), temContexto: z.boolean() }),
-  handler: async ({ ctx, key }) => ({ ok: true as const, temChave: key !== null, temContexto: ctx !== null }),
+  handler: async ({ ctx, key }) => {
+    chamadas += 1
+    return { ok: true as const, temChave: key !== null, temContexto: ctx !== null }
+  },
 })
 
 const porChave = defineRoute({
@@ -31,7 +41,7 @@ const porChave = defineRoute({
   tag: 'teste',
   response: z.object({ businessId: z.string(), slug: z.string(), timeZone: z.string(), ctxNulo: z.boolean() }),
   handler: async ({ ctx, key }) => {
-    if (!key) throw new Error('sem chave')
+    chamadas += 1
     return { businessId: key.businessId, slug: key.businessSlug, timeZone: key.timeZone, ctxNulo: ctx === null }
   },
 })
@@ -44,7 +54,7 @@ const doCliente = defineRoute({
   tag: 'teste',
   response: z.object({ canal: z.string(), ator: z.string(), clienteId: z.string().nullable(), businessId: z.string() }),
   handler: async ({ ctx }) => {
-    if (!ctx) throw new Error('sem contexto')
+    chamadas += 1
     return {
       canal: ctx.channel,
       ator: ctx.actor.kind,
@@ -62,7 +72,7 @@ const daEquipe = defineRoute({
   tag: 'teste',
   response: z.object({ canal: z.string(), papel: z.string().nullable(), membershipId: z.string().nullable() }),
   handler: async ({ ctx }) => {
-    if (!ctx) throw new Error('sem contexto')
+    chamadas += 1
     return {
       canal: ctx.channel,
       papel: ctx.actor.kind === 'member' ? ctx.actor.role : null,
@@ -78,8 +88,11 @@ const eco = defineRoute({
   summary: 'Devolve o corpo',
   tag: 'teste',
   body: z.object({ nome: z.string().min(1), qtd: z.number().int(), extra: z.strictObject({ a: z.number().optional() }).optional() }),
-  response: objetoQualquer,
-  handler: async ({ body }) => ({ ...body }),
+  response: z.object({ nome: z.string(), qtd: z.number(), extra: z.object({ a: z.number().optional() }).optional() }),
+  handler: async ({ body }) => {
+    chamadas += 1
+    return { ...body }
+  },
 })
 
 const comParametros = defineRoute({
@@ -90,7 +103,7 @@ const comParametros = defineRoute({
   tag: 'teste',
   params: z.object({ id: z.uuid() }),
   query: z.object({ n: z.coerce.number().int().min(1).default(1), tags: z.union([z.string(), z.array(z.string())]).optional() }),
-  response: objetoQualquer,
+  response: z.object({ id: uuid, n: z.number(), tags: z.union([z.string(), z.array(z.string())]).nullable() }),
   handler: async ({ params, query }) => ({ id: params.id, n: query.n, tags: query.tags ?? null }),
 })
 
@@ -100,7 +113,7 @@ const explode = defineRoute({
   auth: 'key',
   summary: 'Erro inesperado',
   tag: 'teste',
-  response: objetoQualquer,
+  response: vazio,
   handler: async () => {
     throw new Error('detalhe-interno-secreto')
   },
@@ -112,7 +125,7 @@ const conflito = defineRoute({
   auth: 'key',
   summary: 'Erro de domínio',
   tag: 'teste',
-  response: objetoQualquer,
+  response: vazio,
   handler: async () => {
     throw new DomainError('conflict', 'Este horário já foi ocupado. Escolha outro.', {
       reason: 'slot_taken',
@@ -127,7 +140,7 @@ const comDatas = defineRoute({
   auth: 'key',
   summary: 'Datas na resposta',
   tag: 'teste',
-  response: z.object({ quando: z.date(), grande: z.bigint(), nada: z.undefined().optional(), lista: z.array(z.date()) }),
+  response: z.object({ quando: isoInstant, grande: z.number(), nada: z.string().optional(), lista: z.array(isoInstant) }),
   handler: async () => {
     const quando = addMinutes(new Date(1_800_000_000_000), 0)
     return { quando, grande: 7n, nada: undefined, lista: [quando] }
@@ -144,6 +157,48 @@ const foraDoContrato = defineRoute({
   handler: async () => ({ n: 'não é número' }) as unknown as { n: number },
 })
 
+const campoExtra = defineRoute({
+  method: 'GET',
+  path: '/v1/teste/campo-extra',
+  auth: 'key',
+  summary: 'Campo a mais na raiz',
+  tag: 'teste',
+  response: z.object({ n: z.number() }),
+  handler: async () => ({ n: 1, vazou: 'x' }) as { n: number },
+})
+
+const campoExtraAninhado = defineRoute({
+  method: 'GET',
+  path: '/v1/teste/campo-extra-aninhado',
+  auth: 'key',
+  summary: 'Campo a mais em objeto aninhado dentro de lista',
+  tag: 'teste',
+  response: z.object({ itens: z.array(z.object({ id: z.string() })) }),
+  handler: async () => ({ itens: [{ id: 'a' }, { id: 'b', senha: 'x' }] }) as { itens: { id: string }[] },
+})
+
+const detalhesImpossiveis = defineRoute({
+  method: 'GET',
+  path: '/v1/teste/detalhes-impossiveis',
+  auth: 'key',
+  summary: 'DomainError com details que não serializa',
+  tag: 'teste',
+  response: vazio,
+  handler: async () => {
+    throw new DomainError('conflict', 'Conflito.', { details: { mapa: new Map() } })
+  },
+})
+
+const comDataIso = defineRoute({
+  method: 'GET',
+  path: '/v1/teste/data-iso',
+  auth: 'key',
+  summary: 'Data com esquema de fio',
+  tag: 'teste',
+  response: z.object({ quando: isoInstant }),
+  handler: async () => ({ quando: new Date(1_800_000_000_000) }),
+})
+
 const limitada = defineRoute({
   method: 'GET',
   path: '/v1/teste/limitada',
@@ -151,8 +206,11 @@ const limitada = defineRoute({
   summary: 'Limite próprio',
   tag: 'teste',
   limit: { limit: 2, windowSec: 60 },
-  response: objetoQualquer,
-  handler: async () => ({}),
+  response: vazio,
+  handler: async () => {
+    chamadas += 1
+    return {}
+  },
 })
 
 const criada = defineRoute({
@@ -184,6 +242,7 @@ let chaveA: { secret: string; id: string }
 const ORIGEM = 'https://app.exemplo.com'
 
 beforeEach(async () => {
+  chamadas = 0
   await resetDb()
   a = await makeBusiness()
   b = await makeBusiness()
@@ -282,6 +341,8 @@ describe('CORS', () => {
     expect(r.status).toBe(403)
     expect(apiError(r.json)).toMatchObject({ code: 'forbidden', reason: 'origin_not_allowed' })
     expect(r.headers.get('access-control-allow-origin')).toBeNull()
+    expect(r.headers.get('vary')?.toLowerCase()).toContain('origin')
+    expect(chamadas).toBe(0)
   })
 
   test('chave sem origens salvas recusa qualquer origem web, mas aceita app nativo (sem Origin)', async () => {
@@ -381,6 +442,7 @@ describe('token do cliente e da equipe', () => {
     const r2 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token: await customerToken(a.id, cliente.id) })))
     expect(r2.status).toBe(403)
     expect(apiError(r2.json).reason).toBe('wrong_token_kind')
+    expect(chamadas).toBe(0)
   })
 
   test('token do cliente da conta B com a chave da conta A: 401 igual aos outros', async () => {
@@ -388,6 +450,7 @@ describe('token do cliente e da equipe', () => {
     const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token: await customerToken(b.id, deB.id) })))
     expect(r.status).toBe(401)
     expect(apiError(r.json)).toMatchObject(SESSAO)
+    expect(chamadas).toBe(0)
   })
 
   test('token de equipe da conta B com a chave de A em rota de cliente: 401, não 403 (não revela o tipo)', async () => {
@@ -486,6 +549,7 @@ describe('corpo, parâmetros e consulta', () => {
     const r = await post({ nome: 'x', qtd: 'dois' })
     expect(r.status).toBe(422)
     expect(Object.keys(apiError(r.json).fields ?? {})).toEqual(['qtd'])
+    expect(chamadas).toBe(0)
   })
 
   test('campo desconhecido na raiz e em objeto aninhado estrito: 422 com o nome do campo', async () => {
@@ -590,7 +654,7 @@ describe('erros e resposta', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
       const token = 'token-que-nao-deve-vazar'
-      const r = await callRoute(explode, apiRequest('GET', '/v1/teste/explode?senha=abc', comChave({ token })))
+      const r = await callRoute(explode, apiRequest('GET', '/v1/teste/explode', comChave({ token, headers: { 'x-outro': 'senha=abc' } })))
       expect(r.status).toBe(500)
       expect(apiError(r.json).code).toBe('internal')
       expect(r.text).not.toContain('detalhe-interno-secreto')
@@ -686,10 +750,40 @@ describe('limites de requisições', () => {
     expect((await pedir(outra.secret)).status).toBe(200)
   })
 
-  test('requisição barrada pelo limite não chega ao handler nem lê o corpo', async () => {
-    for (let i = 0; i < 3; i++) await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))
-    const r = await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))
-    expect(r.status).toBe(429)
+  test('requisição barrada pelo limite não chega ao handler', async () => {
+    for (let i = 0; i < 2; i++) expect((await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))).status).toBe(200)
+    expect(chamadas).toBe(2)
+    for (let i = 0; i < 3; i++) expect((await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))).status).toBe(429)
+    expect(chamadas).toBe(2)
+  })
+
+  test('chave inválida do mesmo IP: 30 tentativas dão 401, a 31ª dá 429 com Retry-After; chave válida do mesmo IP segue', async () => {
+    const ruim = 'afk_a_00000000_' + 'A'.repeat(43)
+    const doIp = { 'x-forwarded-for': '203.0.113.7' }
+    for (let i = 0; i < 30; i++) {
+      const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim, headers: doIp }))
+      if (r.status !== 401) throw new Error(`tentativa ${i + 1} deu ${r.status}`)
+    }
+    const barrada = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim, headers: doIp }))
+    expect(barrada.status).toBe(429)
+    expect(apiError(barrada.json).code).toBe('rate_limited')
+    expect(Number(barrada.headers.get('retry-after'))).toBeGreaterThanOrEqual(1)
+    const valida = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ headers: doIp })))
+    expect(valida.status).toBe(200)
+    // Outro IP não é afetado.
+    const outroIp = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim, headers: { 'x-forwarded-for': '203.0.113.8' } }))
+    expect(outroIp.status).toBe(401)
+  })
+
+  test('chave inválida sem IP: só 401, nunca 429; chave válida não toca o contador', async () => {
+    const ruim = 'afk_a_00000000_' + 'A'.repeat(43)
+    for (let i = 0; i < 35; i++) {
+      const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim }))
+      expect(r.status).toBe(401)
+    }
+    for (let i = 0; i < 5; i++) await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ headers: { 'x-forwarded-for': '203.0.113.9' } })))
+    const linhas = await prisma.rateLimitBucket.findMany({ where: { key: { startsWith: 'api-chave-invalida:' } } })
+    expect(linhas).toHaveLength(0)
   })
 
   test('as chaves de limite guardadas não contêm o segredo da chave', async () => {
@@ -710,19 +804,85 @@ describe('registro', () => {
     expect(lista).toContain('GET /v1/health')
   })
 
-  test('registrar de novo a mesma rota da mesma origem substitui sem erro; de outra origem com definição diferente lança', () => {
+  test('registrar de novo o mesmo método e caminho: o último ganha, sem erro', () => {
     const def = { ...registeredRoutes().find((r) => r.path === '/v1/teste/chave')! }
     const nova = { ...def, path: '/v1/teste/registro' }
-    expect(() => registerRoute(nova, 'arquivo-a.ts')).not.toThrow()
-    expect(() => registerRoute({ ...nova, summary: 'Outra' }, 'arquivo-a.ts')).not.toThrow()
+    expect(() => registerRoute(nova)).not.toThrow()
+    expect(() => registerRoute({ ...nova, summary: 'Outra' })).not.toThrow()
     expect(registeredRoutes().filter((r) => r.path === '/v1/teste/registro')).toHaveLength(1)
     expect(registeredRoutes().find((r) => r.path === '/v1/teste/registro')?.summary).toBe('Outra')
-    expect(() => registerRoute({ ...nova, summary: 'Terceira' }, 'arquivo-b.ts')).toThrow(/GET \/v1\/teste\/registro/)
   })
 
   test('o mesmo método e caminho com métodos diferentes convivem', () => {
     const lista = registeredRoutes()
     expect(lista.some((r) => r.method === 'POST' && r.path === '/v1/teste/criada')).toBe(true)
     expect(lista.some((r) => r.method === 'DELETE' && r.path === '/v1/teste/apagada')).toBe(true)
+  })
+})
+
+describe('contrato da resposta (formato de fio)', () => {
+  test('campo a mais na raiz é erro de programação (500) fora de produção, apontando o caminho no log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const r = await callRoute(campoExtra, apiRequest('GET', '/v1/teste/campo-extra', comChave()))
+      expect(r.status).toBe(500)
+      expect(r.text).not.toContain('vazou')
+      expect(log.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain('vazou')
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  test('campo a mais em objeto dentro de lista também: o caminho aparece no log', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const r = await callRoute(campoExtraAninhado, apiRequest('GET', '/v1/teste/campo-extra-aninhado', comChave()))
+      expect(r.status).toBe(500)
+      expect(r.text).not.toContain('senha')
+      expect(log.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain('itens.1.senha')
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  test('handler devolve Date com esquema isoInstant: 200 com ISO UTC', async () => {
+    const r = await callRoute(comDataIso, apiRequest('GET', '/v1/teste/data-iso', comChave()))
+    expect(r.status).toBe(200)
+    expect(r.json).toEqual({ quando: '2027-01-15T08:00:00.000Z' })
+  })
+
+  test('o esquema de resposta das rotas vira JSON Schema (teste e health)', () => {
+    for (const caminho of ['/v1/teste/data-iso', '/v1/teste/datas', '/v1/health']) {
+      const def = registeredRoutes().find((r) => r.path === caminho)
+      if (!def) throw new Error(`rota ${caminho} não registrada`)
+      const js = z.toJSONSchema(def.response)
+      expect(js.type).toBe('object')
+    }
+  })
+})
+
+describe('defesas da camada', () => {
+  test('DomainError com details que não serializa: 500 internal padrão, com X-Request-Id e CORS', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    try {
+      const r = await callRoute(detalhesImpossiveis, apiRequest('GET', '/v1/teste/detalhes-impossiveis', comChave({ origin: ORIGEM })))
+      expect(r.status).toBe(500)
+      expect(apiError(r.json).code).toBe('internal')
+      expect(r.headers.get('x-request-id')).toBeTruthy()
+      expect(r.headers.get('access-control-allow-origin')).toBe(ORIGEM)
+      expect(log).toHaveBeenCalled()
+    } finally {
+      log.mockRestore()
+    }
+  })
+
+  test('rota sem esquema de consulta recusa parâmetro de consulta com o nome dele; consulta vazia passa', async () => {
+    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave?debug=1', comChave()))
+    expect(r.status).toBe(422)
+    expect(Object.keys(apiError(r.json).fields ?? {})).toEqual(['debug'])
+    expect(chamadas).toBe(0)
+    expect((await callRoute(porChave, apiRequest('GET', '/v1/teste/chave?', comChave()))).status).toBe(200)
+    expect((await callRoute(healthGet, apiRequest('GET', '/v1/health?'))).status).toBe(200)
+    expect((await callRoute(publica, apiRequest('GET', '/v1/teste/publica?x=1'))).status).toBe(422)
   })
 })

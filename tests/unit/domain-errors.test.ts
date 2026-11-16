@@ -1,5 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
-import { authorize, DomainError, z, isRecordNotFound, orNotFound, parse } from '@/server/domain/errors'
+import { authorize, DomainError, z, isRecordNotFound, orNotFound, parse, zodFields } from '@/server/domain/errors'
 
 const schema = z.object({ name: z.string().min(1, 'Informe o nome.'), price: z.number().int() })
 
@@ -75,4 +75,22 @@ test('mensagens do Zod saem em português e erro na raiz vai para _', () => {
   const raiz = capturar(() => parse(z.string(), 5)) as DomainError
   expect(raiz.fields?.['_']).toBeDefined()
   expect(raiz.fields?.['']).toBeUndefined()
+})
+
+describe('zodFields', () => {
+  test('caminho vira chave, primeira mensagem de cada caminho vale, raiz vira "_"', () => {
+    const r = z.object({ a: z.object({ b: z.string() }), c: z.array(z.number()) }).safeParse({ a: { b: 1 }, c: ['x', 'y'] })
+    if (r.success) throw new Error('era para falhar')
+    expect(Object.keys(zodFields(r.error)).sort()).toEqual(['a.b', 'c.0', 'c.1'])
+    const raiz = z.string().safeParse(1)
+    if (raiz.success) throw new Error('era para falhar')
+    expect(Object.keys(zodFields(raiz.error))).toEqual(['_'])
+  })
+
+  test('chave desconhecida: "_" por padrão (como parse), um campo por chave com perUnknownKey', () => {
+    const r = z.strictObject({ a: z.string() }).safeParse({ a: 'x', b: 1, c: 2 })
+    if (r.success) throw new Error('era para falhar')
+    expect(Object.keys(zodFields(r.error))).toEqual(['_'])
+    expect(Object.keys(zodFields(r.error, { perUnknownKey: true })).sort()).toEqual(['b', 'c'])
+  })
 })

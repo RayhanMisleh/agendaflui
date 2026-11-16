@@ -58,3 +58,11 @@ describe('toJson', () => {
     expect(() => toJson(a)).toThrow(/circular/i)
   })
 })
+
+describe('toJson e a chave __proto__', () => {
+  test('chave própria __proto__ é recusada (nada de trocar o protótipo da saída)', () => {
+    const malicioso = JSON.parse('{"__proto__":{"x":1},"a":1}') as unknown
+    expect(() => toJson(malicioso)).toThrow(/__proto__/)
+    expect(() => toJson({ itens: [malicioso] })).toThrow(/__proto__/)
+  })
+})

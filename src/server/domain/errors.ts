@@ -65,15 +65,31 @@ export function authorize(ctx: TenantContext, capability: Capability): void {
   }
 }
 
-export function parse<T>(schema: z.ZodType<T>, input: unknown): T {
-  const result = schema.safeParse(input)
-  if (result.success) return result.data
+/**
+ * Campo → mensagem de um erro do Zod: o caminho com pontos (`itens.0.qtd`; `_` para a raiz), com a primeira
+ * mensagem de cada caminho. `perUnknownKey` faz cada chave desconhecida de um objeto estrito virar um campo
+ * com o próprio nome (o padrão a agrupa na raiz do objeto, com a mensagem do Zod).
+ */
+export function zodFields(error: z.ZodError, opts: { perUnknownKey?: boolean } = {}): Record<string, string> {
   const fields: Record<string, string> = {}
-  for (const issue of result.error.issues) {
+  for (const issue of error.issues) {
+    if (opts.perUnknownKey && issue.code === 'unrecognized_keys') {
+      for (const key of issue.keys) {
+        const path = [...issue.path, key].map(String).join('.')
+        if (!(path in fields)) fields[path] = 'Campo não reconhecido. Remova-o da requisição.'
+      }
+      continue
+    }
     const path = issue.path.map(String).join('.') || '_'
     if (!(path in fields)) fields[path] = issue.message
   }
-  throw new DomainError('validation', 'Confira os campos informados e tente de novo.', { fields })
+  return fields
+}
+
+export function parse<T>(schema: z.ZodType<T>, input: unknown): T {
+  const result = schema.safeParse(input)
+  if (result.success) return result.data
+  throw new DomainError('validation', 'Confira os campos informados e tente de novo.', { fields: zodFields(result.error) })
 }
 
 export function orNotFound<T>(value: T | null | undefined, what: string): T {
