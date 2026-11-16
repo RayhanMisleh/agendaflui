@@ -50,7 +50,7 @@ export function ShellFrame(p: ShellFrameProps) {
   const coverClass = p.variant === 'dev' ? 'af-material-metal' : 'af-cover'
 
   return (
-    <div className={cx('af-shell', `af-shell--${p.variant}`, p.embedded && 'af-shell--embedded')}>
+    <div className={cx('af-shell', `af-shell--${p.variant}`, p.embedded && 'af-shell--embedded', p.banner && 'af-shell--support')}>
       <a className="af-skip" href={`#${contentId}`}>
         Pular para o conteúdo
       </a>
@@ -67,10 +67,11 @@ export function ShellFrame(p: ShellFrameProps) {
         {/* Coluna: marca no topo, menu no meio (cresce e rola sozinho), usuário na base. Fica colada à tela. */}
         <div className="af-shell__rail">
           <header className={cx('af-shell__top af-stitched', coverClass)}>
-            <div className="af-shell__brand">
+            <div className={cx('af-shell__brand', p.brand.symbolUrl && 'af-shell__brand--symbol')}>
               {p.brand.symbolUrl ? (
+                // Na barra estreita do celular o símbolo toma o lugar da logo; por isso ele leva o nome quando há logo.
                 // eslint-disable-next-line @next/next/no-img-element -- o símbolo vem do armazenamento da conta
-                <img src={p.brand.symbolUrl} alt="" className="af-shell__symbol" />
+                <img src={p.brand.symbolUrl} alt={p.brand.logoUrl ? p.brand.name : ''} className="af-shell__symbol" />
               ) : null}
               <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" />
             </div>

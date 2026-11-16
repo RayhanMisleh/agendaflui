@@ -1,7 +1,7 @@
 import { EntryScreen } from '@/ui/shells'
 import type { ThemeTokens } from '@/ui/theme/derive'
 import { loginMember } from './actions'
-import { LoginForm } from './LoginForm'
+import { LoginForm } from '@/app/_lib/LoginForm'
 
 type Marca = {
   name: string

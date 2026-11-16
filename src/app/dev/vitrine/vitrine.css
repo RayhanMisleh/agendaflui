@@ -427,4 +427,15 @@
       right: 0;
     }
   }
+
+  .vt-stack {
+    display: grid;
+    gap: 1.25rem;
+  }
+  .vt-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.5rem;
+  }
 }

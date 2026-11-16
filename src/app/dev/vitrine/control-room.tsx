@@ -1,6 +1,7 @@
 'use client'
+import { useState } from 'react'
 import { Activity, Building2, KeyRound, LayoutDashboard, ScrollText, ShieldCheck } from 'lucide-react'
-import { DataList, Gauge, Lamp, Paper, Stamp } from '@/ui/components'
+import { Button, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, Pagination, Paper, SearchBar, Stamp, StatusLamp } from '@/ui/components'
 import type { DataColumn, LampState, Tone } from '@/ui/components'
 import { DevShell } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
@@ -38,6 +39,70 @@ const COLUMNS: DataColumn<Account>[] = [
   { key: 'mes', header: 'Agendamentos no mês', cell: (a) => a.month },
   { key: 'acesso', header: 'Último acesso', cell: (a) => a.access },
 ]
+
+const ESTADO_VAZIO = { ok: false, message: null, fields: {} as Record<string, string> }
+async function acaoDemonstracao() {
+  return ESTADO_VAZIO
+}
+
+/** As peças das telas do painel dev, na ordem em que aparecem nas listas e nos formulários. */
+function PecasDasTelas() {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <>
+      <Paper raised={1} className="vt-accounts">
+        <div className="vt-stack">
+          <SearchBar
+            action="/vitrine"
+            label="Buscar contas"
+            placeholder="Nome, identificador ou e-mail"
+            query="pata"
+            filters={[
+              {
+                name: 'status',
+                label: 'Situação',
+                value: 'ACTIVE',
+                options: [
+                  { value: '', label: 'Todas' },
+                  { value: 'ACTIVE', label: 'Ativas' },
+                  { value: 'SUSPENDED', label: 'Suspensas' },
+                ],
+              },
+            ]}
+            clearHref="/vitrine"
+          />
+          <div className="vt-row">
+            <StatusLamp status="ACTIVE" />
+            <StatusLamp status="SUSPENDED" />
+            <StatusLamp status="ARCHIVED" />
+            <CopyButton text="http://painel.exemplo.test/entrar/pata-viva" label="Copiar link de entrada de Pata Viva" />
+          </div>
+          <FormErrors
+            message="Corrija os campos abaixo para criar a conta."
+            fields={{ slug: 'Este identificador já está em uso. Escolha outro.' }}
+            labels={{ slug: 'Identificador' }}
+          />
+          <div className="vt-row">
+            <Button variant="danger" onClick={() => setAberto(true)}>
+              Arquivar conta
+            </Button>
+          </div>
+          <Pagination basePath="/vitrine" params={{ search: 'pata' }} cursor="atual" nextCursor="proximo" />
+        </div>
+      </Paper>
+      <ConfirmDialog
+        open={aberto}
+        onClose={() => setAberto(false)}
+        title="Arquivar conta"
+        description="A conta e a equipe perdem o acesso na hora. Você pode reativá-la depois."
+        targetName="Pata Viva"
+        confirmLabel="Arquivar conta"
+        action={acaoDemonstracao}
+        initialState={ESTADO_VAZIO}
+      />
+    </>
+  )
+}
 
 /** A mesa de controle: o mesmo conjunto de componentes, em metal. */
 export function ControlRoom() {
@@ -79,6 +144,12 @@ export function ControlRoom() {
           <Paper raised={1} className="vt-accounts">
             <DataList label="Contas" columns={COLUMNS} rows={ACCOUNTS} rowKey={(a) => a.id} empty={null} />
           </Paper>
+        </section>
+        <section aria-labelledby="vt-pecas" className="vt-section">
+          <h3 id="vt-pecas" className="vt-h3">
+            Peças das telas
+          </h3>
+          <PecasDasTelas />
         </section>
       </div>
     </DevShell>

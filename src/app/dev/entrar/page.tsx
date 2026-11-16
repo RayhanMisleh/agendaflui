@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { LoginForm } from '@/app/painel/entrar/LoginForm'
+import { LoginForm } from '@/app/_lib/LoginForm'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 import { deriveTheme } from '@/ui/theme/derive'
 import { EntryScreen } from '@/ui/shells'

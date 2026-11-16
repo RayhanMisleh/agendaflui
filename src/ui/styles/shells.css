@@ -12,6 +12,8 @@
     --tab-active-bg: var(--paper);
     --tab-active-ink: var(--ink);
     --tab-active-bar: var(--accent-ink);
+    /* Altura da faixa de suporte: 0 sem faixa. A coluna fixa desce esse tanto para a faixa não a cobrir. */
+    --support-h: 0px;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -25,6 +27,9 @@
     .af-shell {
       --fx: rgb(from var(--on-cover) calc(255 - r) calc(255 - g) calc(255 - b));
     }
+  }
+  .af-shell--support {
+    --support-h: 2.5rem;
   }
   .af-shell--embedded {
     min-height: 0;
@@ -112,6 +117,21 @@
   .af-shell__support-action {
     margin-inline-start: auto;
   }
+  /* No computador a faixa tem altura fixa (uma linha): a coluna lateral conta com ela em `--support-h`. */
+  @media (min-width: 768px) {
+    .af-shell__support {
+      flex-wrap: nowrap;
+      height: var(--support-h);
+      min-height: 0;
+      padding-block: 0;
+    }
+    .af-shell__support > span:not(.af-shell__support-action) {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
 
   /* ---- Estrutura ---- */
   .af-shell__frame {
@@ -145,10 +165,12 @@
     gap: 0.625rem;
     min-width: 0;
   }
+  /* O símbolo (marca quadrada) aparece onde a moldura é estreita demais para a logo: a barra do celular. */
   .af-shell__symbol {
-    display: none;
-    width: 2rem;
-    height: 2rem;
+    display: block;
+    flex: none;
+    width: 2.5rem;
+    height: 2.5rem;
     border-radius: 6px;
     object-fit: cover;
     filter: drop-shadow(0 -1px 0 rgb(0 0 0 / 0.5)) drop-shadow(0 1px 0 rgb(255 255 255 / 0.2));
@@ -198,6 +220,10 @@
       0 0 2px var(--fx),
       0 0 3px var(--fx),
       0 0 5px var(--fx);
+  }
+  /* Com símbolo, a logo larga sai da barra do celular e o nome fica como texto ao lado dele. */
+  .af-shell__brand--symbol .af-brand__logo {
+    display: none;
   }
   .af-brand__logo {
     display: block;
@@ -516,11 +542,11 @@
       grid-column: 1;
       grid-row: 1;
       position: sticky;
-      top: 0;
+      top: var(--support-h);
       z-index: 4;
       align-self: start;
       width: calc(var(--cover-w) + var(--tab-out));
-      height: 100dvh;
+      height: calc(100dvh - var(--support-h));
       max-height: 100%;
       padding: 1.75rem 0 1.5rem;
       pointer-events: none;
@@ -569,6 +595,13 @@
     }
     .af-brand__logo {
       max-height: 4.25rem;
+    }
+    /* No computador a coluna comporta a logo: o símbolo some e a logo volta. */
+    .af-shell__symbol {
+      display: none;
+    }
+    .af-shell__brand--symbol .af-brand__logo {
+      display: block;
     }
 
     .af-shell__nav {

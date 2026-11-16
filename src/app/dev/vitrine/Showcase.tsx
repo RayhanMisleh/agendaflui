@@ -2,7 +2,7 @@
 import { useMemo, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import { CalendarDays, ChartColumn, Gift, House, Scissors, Settings, TriangleAlert, UserRound, Users } from 'lucide-react'
-import { Button, Field, Input, Paper, Select, ToastProvider } from '@/ui/components'
+import { Button, Checkbox, Field, Input, Paper, Select, ToastProvider } from '@/ui/components'
 import type { InputProps } from '@/ui/components'
 import { PainelShell } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
@@ -61,6 +61,20 @@ const FONTS: Array<[FontPair, string, string]> = [
   ['FRIENDLY', 'Amigável', 'Títulos de cantos redondos.'],
 ]
 
+/** Logo e símbolo de exemplo, desenhados na hora: a vitrine mostra o baixo-relevo e o símbolo sem depender de arquivo. */
+function svgUri(corpo: string, w: number, h: number): string {
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">${corpo}</svg>`)}`
+}
+function demoLogo(nome: string): string {
+  const texto = nome.replace(/[<>&"']/g, '').slice(0, 14)
+  return svgUri(
+    `<circle cx="22" cy="24" r="16" fill="#fff"/><path d="M14 26l6 6 12-14" fill="none" stroke="#333" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><text x="46" y="32" font-family="Georgia,serif" font-size="22" font-weight="700" fill="#fff">${texto}</text>`,
+    230,
+    48,
+  )
+}
+const DEMO_SIMBOLO = svgUri('<rect width="48" height="48" rx="10" fill="#fff"/><path d="M12 26l8 8 16-18" fill="none" stroke="#333" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>', 48, 48)
+
 function parseHex(raw: string): string | null {
   try {
     return normalizeHex(raw)
@@ -111,6 +125,8 @@ export function Showcase() {
   const [kind, setKind] = useState<ScenarioKind>(first.scenario)
   const [primary, setPrimary] = useState(first.brand.primary)
   const [accent, setAccent] = useState(first.brand.accent)
+  const [withLogo, setWithLogo] = useState(false)
+  const [withSupport, setWithSupport] = useState(false)
 
   const theme = useMemo(() => deriveTheme(brand), [brand])
   const scenario = SCENARIOS[kind]
@@ -179,6 +195,10 @@ export function Showcase() {
               </Select>
             </Field>
           </div>
+          <div className="vt-fields">
+            <Checkbox label="Mostrar logo e símbolo (baixo-relevo)" checked={withLogo} onChange={(e) => setWithLogo(e.target.checked)} />
+            <Checkbox label="Mostrar a faixa de suporte" checked={withSupport} onChange={(e) => setWithSupport(e.target.checked)} />
+          </div>
         </Paper>
 
         <div
@@ -194,7 +214,12 @@ export function Showcase() {
             headingLevel={2}
             contentId="demo-conteudo"
             theme={theme}
-            brand={{ name: name.trim() || 'Seu negócio', logoUrl: null, symbolUrl: null }}
+            brand={{
+              name: name.trim() || 'Seu negócio',
+              logoUrl: withLogo ? demoLogo(name.trim() || 'Seu negócio') : null,
+              symbolUrl: withLogo ? DEMO_SIMBOLO : null,
+            }}
+            {...(withSupport ? { supportBanner: `Você está em modo suporte na conta ${name.trim() || 'Seu negócio'}`, supportAction: <Button size="sm">Encerrar</Button> } : {})}
             nav={NAV}
             user={{ ...scenario.user, avatarUrl: null }}
             title="Agenda do dia"

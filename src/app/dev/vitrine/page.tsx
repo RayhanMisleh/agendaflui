@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
+import { requirePlatformAdmin } from '@/server/auth/guards'
 import { Showcase } from './Showcase'
 import { ControlRoom } from './control-room'
 
 export const metadata: Metadata = { title: 'Vitrine de componentes | AgendaFlui' }
 
-export default function VitrinePage() {
+// A vitrine é ferramenta da plataforma: só admin entra.
+export default async function VitrinePage() {
+  await requirePlatformAdmin()
   return (
     <div className="vt-page">
       <a className="af-skip" href="#vitrine">

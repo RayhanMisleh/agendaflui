@@ -2,9 +2,11 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Ellipsis, Lock } from 'lucide-react'
 import { Dialog } from '../components/Dialog'
 import { cx } from '../components/cx'
+import { isNavActive } from './nav'
 
 /** Item já com o ícone desenhado: componentes não atravessam a fronteira servidor/cliente. */
 export type NavNode = {
@@ -49,8 +51,11 @@ function Divider({ item, onNavigate }: { item: NavNode; onNavigate?: () => void 
 }
 
 /** Menu em divisórias de fichário. No celular vira a barra da base, com "Mais" quando há muitos itens. */
-export function ShellNav({ items, userPlate }: { items: NavNode[]; userPlate: ReactNode }) {
+export function ShellNav({ items: given, userPlate }: { items: NavNode[]; userPlate: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false)
+  const pathname = usePathname()
+  // `active` explícito vence; sem ele, a rota decide (e subpáginas ativam o destino pai).
+  const items = given.map((i) => ({ ...i, active: i.active ?? (!i.disabled && pathname !== null && isNavActive(pathname, i.href)) }))
   const hasMore = items.length > MAX_BAR
   const keep = hasMore ? KEEP_WITH_MORE : items.length
   const overflow = items.slice(keep)
