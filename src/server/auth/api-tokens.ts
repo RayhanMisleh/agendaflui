@@ -81,8 +81,8 @@ export async function verifyAccessToken(token: string, now: Date): Promise<Acces
     })
     const { sub, bid, knd, uid, iat, exp } = payload
     if (typeof iat !== 'number' || typeof exp !== 'number') return null
-    // `maxTokenAge` limita a idade, não a duração: confira as duas pontas.
-    if (iat > epochSeconds(now) || exp - iat > ACCESS_MINUTES * 60) return null
+    // `maxTokenAge` cobre `iat` no futuro e a idade, mas não a duração: confira `exp - iat`.
+    if (exp - iat > ACCESS_MINUTES * 60) return null
     if (!isUuid(sub) || !isUuid(bid)) return null
     if (knd === 'customer') return uid === undefined ? { kind: 'customer', businessId: bid, customerId: sub } : null
     if (knd === 'staff' && isUuid(uid)) return { kind: 'staff', businessId: bid, membershipId: sub, userId: uid }
@@ -166,25 +166,21 @@ export async function rotateRefreshToken(
   if (!validRefreshInput(businessId, refreshToken)) return null
   const hash = hashToken(refreshToken)
   return tenantDb(businessId).$transaction(async (tx) => {
+    // A primeira leitura só descobre o sujeito; tudo é decidido pela releitura depois da trava.
     const first = await tx.refreshToken.findFirst({ where: { tokenHash: hash } })
     if (!first) return null
-    if (first.revokedAt !== null || first.usedAt !== null) {
-      await revokeFamily(tx, first.familyId, now)
-      return null
-    }
-    if (first.expiresAt.getTime() <= now.getTime()) return null
-
-    // Trava do sujeito: serializa com `revokeAllFor`, que assim enxerga o token novo desta rotação.
     const subjectId = first.subject === 'CUSTOMER' ? first.customerId : first.membershipId
     if (!subjectId) return null
+    // Trava do sujeito: serializa com `revokeAllFor` e com a saída do app, que assim enxergam o token novo.
     await tx.$lockKey(first.subject === 'CUSTOMER' ? 'customer' : 'membership', subjectId)
 
-    // Releitura depois da trava: pode ter sido usado ou revogado enquanto esperávamos.
     const row = await tx.refreshToken.findFirst({ where: { id: first.id } })
-    if (!row || row.revokedAt !== null || row.usedAt !== null) {
-      await revokeFamily(tx, first.familyId, now)
+    if (!row) return null
+    if (row.revokedAt !== null || row.usedAt !== null) {
+      await revokeFamily(tx, row.familyId, now)
       return null
     }
+    if (row.expiresAt.getTime() <= now.getTime()) return null
 
     // Conta que não está ativa: recusa sem revogar nem consumir o token (reativar retoma as sessões).
     const business = await tx.business.findFirst({ select: { status: true } })
@@ -233,8 +229,12 @@ export async function rotateRefreshToken(
 export async function revokeRefreshToken(businessId: string, refreshToken: string, now: Date = new Date()): Promise<void> {
   if (!validRefreshInput(businessId, refreshToken)) return
   await tenantDb(businessId).$transaction(async (tx) => {
-    const row = await tx.refreshToken.findFirst({ where: { tokenHash: hashToken(refreshToken) } })
-    if (row) await revokeFamily(tx, row.familyId, now)
+    const first = await tx.refreshToken.findFirst({ where: { tokenHash: hashToken(refreshToken) } })
+    if (!first) return
+    const subjectId = first.subject === 'CUSTOMER' ? first.customerId : first.membershipId
+    if (!subjectId) return
+    await tx.$lockKey(first.subject === 'CUSTOMER' ? 'customer' : 'membership', subjectId)
+    await revokeFamily(tx, first.familyId, now)
   })
 }
 
@@ -242,6 +242,7 @@ export async function revokeRefreshToken(businessId: string, refreshToken: strin
  * Revoga todas as famílias vivas do cliente ou do vínculo. Devolve quantos tokens mudaram.
  * Trava o sujeito antes do UPDATE para não perder o token que uma rotação em andamento acabou de criar.
  * A trava de vínculo nunca é pega junto com a de cliente nos fluxos atuais (ordem do projeto: cliente primeiro).
+ * Quem chama com `customerId` não pode já estar segurando travas de `professional` (cliente vem primeiro).
  */
 export async function revokeAllFor(
   db: TenantClient | TenantTx,

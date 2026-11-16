@@ -295,3 +295,103 @@ describe('revokeAllFor concorrente com rotação', () => {
     }
   })
 })
+
+describe('revogação da família sob a trava do sujeito', () => {
+  const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
+  /** Segura a trava do cliente, dispara o concorrente, confere que ele espera, roda `dentro` e libera. */
+  async function sobTrava<T>(
+    businessId: string,
+    customerId: string,
+    concorrente: () => Promise<T>,
+    dentro: (tx: Parameters<Parameters<ReturnType<typeof tenantDb>['$transaction']>[0]>[0]) => Promise<void>,
+  ): Promise<{ resultado: T; terminouAntes: boolean }> {
+    let terminou = false
+    let promessa!: Promise<T>
+    let terminouAntes = false
+    await tenantDb(businessId).$transaction(async (tx) => {
+      await tx.$lockKey('customer', customerId)
+      promessa = concorrente().then((r) => {
+        terminou = true
+        return r
+      })
+      await pausa(400)
+      terminouAntes = terminou
+      await dentro(tx)
+    })
+    return { resultado: await promessa, terminouAntes }
+  }
+
+  async function irma(tx: Parameters<Parameters<ReturnType<typeof tenantDb>['$transaction']>[0]>[0], businessId: string, customerId: string) {
+    const familia = await prisma.refreshToken.findFirstOrThrow({ where: { customerId } })
+    await tx.refreshToken.create({
+      data: {
+        businessId,
+        subject: 'CUSTOMER',
+        customerId,
+        familyId: familia.familyId,
+        tokenHash: 'h-irma',
+        expiresAt: addMinutes(now, 100 * DIA),
+      },
+    })
+  }
+
+  test('reuso detectado espera a trava e revoga a família inteira, inclusive a linha nova', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    const { pair } = await emitirCliente(a.id, c.id)
+    await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))
+    await prisma.refreshToken.deleteMany({ where: { usedAt: null } })
+    const { resultado, terminouAntes } = await sobTrava(
+      a.id,
+      c.id,
+      () => rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 2)),
+      (tx) => irma(tx, a.id, c.id),
+    )
+    expect(terminouAntes).toBe(false)
+    expect(resultado).toBeNull()
+    expect(await prisma.refreshToken.count()).toBe(2)
+    expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+  })
+
+  test('revokeRefreshToken espera a trava e revoga a família inteira, inclusive a linha nova', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    const { pair } = await emitirCliente(a.id, c.id)
+    const { terminouAntes } = await sobTrava(
+      a.id,
+      c.id,
+      () => revokeRefreshToken(a.id, pair.refreshToken, addMinutes(now, 2)),
+      (tx) => irma(tx, a.id, c.id),
+    )
+    expect(terminouAntes).toBe(false)
+    expect(await prisma.refreshToken.count()).toBe(2)
+    expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+  })
+
+  test('a rotação de um token válido espera a trava do sujeito e termina depois de liberada', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    const { pair } = await emitirCliente(a.id, c.id)
+    const { resultado, terminouAntes } = await sobTrava(
+      a.id,
+      c.id,
+      () => rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1)),
+      async () => undefined,
+    )
+    expect(terminouAntes).toBe(false)
+    expect(resultado).not.toBeNull()
+  })
+
+  test('revokeAllFor recebendo uma transação que já segura a trava (reentrante) conclui e revoga', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    await emitirCliente(a.id, c.id)
+    const n = await tenantDb(a.id).$transaction(async (tx) => {
+      await tx.$lockKey('customer', c.id)
+      return revokeAllFor(tx, { customerId: c.id }, addMinutes(now, 1))
+    })
+    expect(n).toBe(1)
+    expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+  })
+})
