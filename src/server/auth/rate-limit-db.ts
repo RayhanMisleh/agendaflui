@@ -20,6 +20,8 @@ export const LIMITS = {
   /** Códigos errados por conta e e-mail (os dois propósitos juntos): vale entre códigos sucessivos. */
   codeFailures: { limit: 10, windowSec: 86_400 },
   booking: { limit: 20, windowSec: 60 },
+  /** Consultas públicas de disponibilidade (cada uma lê a agenda inteira de um ou mais dias). */
+  availability: { limit: 60, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>
 
 const MAX_KEY = 200

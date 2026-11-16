@@ -9,7 +9,7 @@ export const POST = defineRoute({
   method: 'POST',
   path: '/v1/appointments/{id}/reschedule',
   auth: 'customer',
-  summary: 'Remarca um agendamento do cliente para outro horário, dentro do prazo da conta',
+  summary: 'Remarca um agendamento do cliente para outro horário, dentro do prazo da conta (startsAt em UTC com Z)',
   tag: 'Agendamentos',
   params: z.object({ id: z.uuid() }),
   body: z.object({ startsAt: requestInstant, professionalId: z.string().max(64).nullable().optional() }),

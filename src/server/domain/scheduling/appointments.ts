@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import type { Prisma } from '@/server/db/generated/client'
@@ -23,7 +24,6 @@ import {
   toView,
   type AppointmentView,
   type Db,
-  type Row,
   type Scope,
   type Who,
 } from '@/server/domain/scheduling/appointment-view'
@@ -120,29 +120,29 @@ type BookInput = {
   idempotencyKey?: string
 }
 
-type KeyedRequest = {
-  customerId: string
-  key: string
-  startsAt: Date
-  serviceIds: string[]
-  /** Profissional pedido; `null` é "qualquer um". */
-  professionalId: string | null
-}
+type KeyedRequest = { customerId: string; key: string; hash: string }
+
+/** Nome do índice único parcial `(business_id, customer_id, idempotency_key)`, criado na migração. */
+const IDEMPOTENCY_INDEX = 'appointments_idempotency_key_key'
 
 function isIdempotencyViolation(err: unknown): boolean {
   if (typeof err !== 'object' || err === null || !('code' in err) || err.code !== 'P2002') return false
-  return JSON.stringify('meta' in err ? err.meta : {}).includes('idempotency')
+  return JSON.stringify('meta' in err ? err.meta : {}).includes(IDEMPOTENCY_INDEX)
 }
 
-function sameRequest(row: Row, r: KeyedRequest): boolean {
-  const had = row.items.map((item) => item.serviceId).sort()
-  const asked = [...r.serviceIds].sort()
-  return (
-    row.startsAt.getTime() === r.startsAt.getTime() &&
-    had.length === asked.length &&
-    had.every((id, index) => id === asked[index]) &&
-    (r.professionalId === null || r.professionalId === row.professionalId)
-  )
+/**
+ * Impressão do pedido (SHA-256 de uma forma canônica): serviços ordenados, instante em milissegundos, profissional pedido
+ * (`null` = qualquer um) e observação do cliente aparada (vazia = `null`). É o que a repetição compara; nada de estado atual.
+ */
+export function idempotencyRequestHash(r: {
+  serviceIds: string[]
+  startsAt: Date
+  professionalId?: string | null
+  customerNote?: string | null
+}): string {
+  const note = r.customerNote?.trim() ?? ''
+  const canonical = JSON.stringify([[...r.serviceIds].sort(), r.startsAt.getTime(), r.professionalId ?? null, note === '' ? null : note])
+  return createHash('sha256').update(canonical).digest('hex')
 }
 
 /**
@@ -159,21 +159,22 @@ async function replayOfKey(
 ): Promise<AppointmentView | null> {
   const found = await db.appointment.findFirst({
     where: { customerId: r.customerId, idempotencyKey: r.key },
-    select: { id: true, idempotencyKeyAt: true },
+    select: { id: true, idempotencyKeyAt: true, idempotencyRequestHash: true },
   })
   if (!found) return null
   if (found.idempotencyKeyAt === null || minutesBetween(found.idempotencyKeyAt, ctx.clock()) > IDEMPOTENCY_TTL_MIN) {
-    if (release) await release.appointment.update({ where: { id: found.id }, data: { idempotencyKey: null, idempotencyKeyAt: null } })
+    if (release) await release.appointment.update({ where: { id: found.id }, data: { idempotencyKey: null, idempotencyKeyAt: null, idempotencyRequestHash: null } })
     return null
   }
-  const row = await reload(db, found.id)
-  if (!sameRequest(row, r)) {
+  if (found.idempotencyRequestHash !== r.hash) {
     throw new DomainError(
       'conflict',
       'Esta chave de idempotência já foi usada em outro pedido. Gere uma chave nova para cada marcação diferente.',
       { reason: 'idempotency_key_reused' },
     )
   }
+  // Pedido igual ao original: devolve o agendamento como está hoje (remarcado ou cancelado, se for o caso).
+  const row = await reload(db, found.id)
   return toView(ctx, row, scope, (await getSchedulingRules(ctx, db)).customerChangeWindowMin)
 }
 
@@ -215,7 +216,16 @@ export async function bookAppointmentWithOutcome(
   const keyed: KeyedRequest | null =
     input.idempotencyKey === undefined
       ? null
-      : { customerId, key: input.idempotencyKey, startsAt: input.startsAt, serviceIds: i.serviceIds, professionalId: specificId }
+      : {
+          customerId,
+          key: input.idempotencyKey,
+          hash: idempotencyRequestHash({
+            serviceIds: i.serviceIds,
+            startsAt: input.startsAt,
+            professionalId: specificId,
+            customerNote: input.customerNote ?? null,
+          }),
+        }
   // Repetição de um pedido já atendido: responde antes de revalidar serviços e horário (que podem ter mudado desde então).
   if (keyed) {
     const replay = await replayOfKey(ctx, ctx.db, keyed, scope, null)
@@ -295,7 +305,8 @@ export async function bookAppointmentWithOutcome(
             notes: input.notes ?? null,
             customerNote: input.customerNote ?? null,
             idempotencyKey: input.idempotencyKey ?? null,
-            idempotencyKeyAt: input.idempotencyKey === undefined ? null : ctx.clock(),
+            idempotencyKeyAt: keyed === null ? null : ctx.clock(),
+            idempotencyRequestHash: keyed === null ? null : keyed.hash,
             createdByType: by.type,
             createdById: by.id,
           },

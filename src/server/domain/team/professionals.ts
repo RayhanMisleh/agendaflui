@@ -6,7 +6,7 @@ import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
-import { uploadUrl } from '@/server/storage/images'
+import { publicUploadUrl, uploadUrl } from '@/server/storage/images'
 
 export type ProfessionalView = {
   id: string
@@ -89,7 +89,7 @@ function toView(ctx: TenantContext, row: ProfessionalRow, ownId: string | null =
     id: row.id,
     name: row.name,
     bio: row.bio,
-    avatarUrl: uploadUrl(row.avatar),
+    avatarUrl: ctx.channel === 'app' ? publicUploadUrl(row.avatar) : uploadUrl(row.avatar),
     serviceIds: row.services.map((s) => s.serviceId).sort(),
   }
   if (isCustomer(ctx)) return view

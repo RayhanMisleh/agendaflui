@@ -5,7 +5,9 @@ import { POST as cancelar } from '@/app/api/v1/appointments/[id]/cancel/route'
 import { POST as remarcar } from '@/app/api/v1/appointments/[id]/reschedule/route'
 import { GET as proximo } from '@/app/api/v1/appointments/next/route'
 import { GET as listar, POST as marcar } from '@/app/api/v1/appointments/route'
-import { DELETE as excluirConta, GET as obterMe, PATCH as atualizarMe } from '@/app/api/v1/me/route'
+import { POST as excluirConta } from '@/app/api/v1/me/delete/route'
+import { GET as obterMe, PATCH as atualizarMe } from '@/app/api/v1/me/route'
+import * as meRoute from '@/app/api/v1/me/route'
 import { DELETE as removerDispositivo } from '@/app/api/v1/me/devices/[pushToken]/route'
 import { POST as registrarDispositivo } from '@/app/api/v1/me/devices/route'
 import { GET as lerAvisos, PUT as gravarAvisos } from '@/app/api/v1/me/notifications/route'
@@ -274,6 +276,39 @@ describe('idempotência de POST /v1/appointments', () => {
     expect(await totalAgendamentos(c.business.id)).toBe(1)
   })
 
+  test('repetir o pedido original depois de remarcar: 200 com o mesmo id (compara com o pedido, não com o estado atual)', async () => {
+    const dez = await inicio(c.dia(10), '10:00')
+    const id = String(jsonObject((await postar(c.tokenCliente, corpoMarcar(dez), KEY)).json).id)
+    const catorze = await inicio(c.dia(10), '14:00')
+    const rem = await chamar(remarcar, 'POST', `/v1/appointments/${id}/reschedule`, c.tokenCliente, { params: { id }, body: { startsAt: catorze } })
+    expect(rem.status).toBe(200)
+    const de_novo = await postar(c.tokenCliente, corpoMarcar(dez), KEY)
+    expect(de_novo.status).toBe(200)
+    expect(jsonObject(de_novo.json)).toMatchObject({ id, startsAt: catorze })
+    expect(await totalAgendamentos(c.business.id)).toBe(1)
+  })
+
+  test('repetir o pedido de um agendamento cancelado: 200 com o agendamento cancelado', async () => {
+    const dez = await inicio(c.dia(10), '10:00')
+    const id = String(jsonObject((await postar(c.tokenCliente, corpoMarcar(dez), KEY)).json).id)
+    await chamar(cancelar, 'POST', `/v1/appointments/${id}/cancel`, c.tokenCliente, { params: { id } })
+    const de_novo = await postar(c.tokenCliente, corpoMarcar(dez), KEY)
+    expect(de_novo.status).toBe(200)
+    expect(jsonObject(de_novo.json)).toMatchObject({ id, status: 'CANCELED' })
+  })
+
+  test('a mesma chave com outra observação ou com "qualquer profissional" no lugar do pedido original: 409', async () => {
+    const dez = await inicio(c.dia(10), '10:00')
+    await postar(c.tokenCliente, corpoMarcar(dez, { customerNote: 'Observação A' }), KEY)
+    for (const corpo of [corpoMarcar(dez, { customerNote: 'Observação B' }), corpoMarcar(dez), { ...corpoMarcar(dez, { customerNote: 'Observação A' }), professionalId: null }]) {
+      const r = await postar(c.tokenCliente, corpo, KEY)
+      expect(r.status, JSON.stringify(corpo)).toBe(409)
+      expect(apiError(r.json).reason).toBe('idempotency_key_reused')
+    }
+    const igual = await postar(c.tokenCliente, corpoMarcar(dez, { customerNote: '  Observação A ' }), KEY)
+    expect(igual.status).toBe(200)
+  })
+
   test('chave fora do formato: 422 (vazia, com espaço, acento, 81 caracteres); 80 caracteres vale', async () => {
     const startsAt = await inicio(c.dia(10), '10:00')
     for (const ruim of ['', 'com espaço', 'ação-1', 'x'.repeat(81)]) {
@@ -414,11 +449,15 @@ describe('senha e exclusão da conta', () => {
     expect((await chamar(trocarSenha, 'PUT', '/v1/me/password', c.tokenCliente, { body: { current: SENHA, next: 'nova-senha-segura-3', x: 1 } })).status).toBe(422)
   })
 
-  test('DELETE /v1/me com a senha: 204 e o cadastro é anonimizado; senha errada: 403 e nada muda', async () => {
-    const errada = await chamar(excluirConta, 'DELETE', '/v1/me', c.tokenCliente, { body: { password: 'errada-errada-1' } })
+  test('não existe mais DELETE /v1/me (corpo em DELETE se perde em clientes e proxies)', () => {
+    expect('DELETE' in meRoute).toBe(false)
+  })
+
+  test('POST /v1/me/delete com a senha: 204 e o cadastro é anonimizado; senha errada: 403 e nada muda', async () => {
+    const errada = await chamar(excluirConta, 'POST', '/v1/me/delete', c.tokenCliente, { body: { password: 'errada-errada-1' } })
     expect(errada.status).toBe(403)
     expect((await prisma.customer.findUniqueOrThrow({ where: { id: c.cliente.id } })).anonymizedAt).toBeNull()
-    const ok = await chamar(excluirConta, 'DELETE', '/v1/me', c.tokenCliente, { body: { password: SENHA } })
+    const ok = await chamar(excluirConta, 'POST', '/v1/me/delete', c.tokenCliente, { body: { password: SENHA } })
     expect(ok.status).toBe(204)
     expect((await prisma.customer.findUniqueOrThrow({ where: { id: c.cliente.id } })).anonymizedAt).not.toBeNull()
     expect((await chamar(obterMe, 'GET', '/v1/me', c.tokenCliente)).status).toBe(401)

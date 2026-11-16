@@ -11,7 +11,7 @@ import {
 } from '@/server/domain/scheduling/customer-appointments'
 import { cancelPendingForCustomer } from '@/server/domain/notifications/outbox'
 import { formatPhone, normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
-import { deleteUploadRecord, removeUploadFile, uploadUrl } from '@/server/storage/images'
+import { deleteUploadRecord, publicUploadUrl, removeUploadFile, uploadUrl } from '@/server/storage/images'
 import { dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
 
 export type CustomerView = {
@@ -130,7 +130,7 @@ function toView(ctx: TenantContext, row: CustomerRow): CustomerView {
     email: row.email,
     phone: row.phone,
     phoneLabel: row.phone === null ? null : formatPhone(row.phone),
-    avatarUrl: uploadUrl(row.avatar),
+    avatarUrl: ctx.channel === 'app' ? publicUploadUrl(row.avatar) : uploadUrl(row.avatar),
     birthDate: row.birthDate === null ? null : dbDateToLocal(row.birthDate),
     isClubMember: row.isClubMember,
     origin: row.origin,

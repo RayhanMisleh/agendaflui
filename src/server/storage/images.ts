@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { areaLink } from '@/server/area-links'
 import sharp, { type Metadata, type OutputInfo } from 'sharp'
 import type { AuditActorType, Upload } from '@/server/db/generated/client'
 import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
@@ -113,6 +114,11 @@ export async function saveImage(input: SaveImageInput, storage: Storage = getSto
     await storage.delete(path).catch(() => undefined)
     throw erro
   }
+}
+
+/** URL absoluta (host da API) de um upload, para quem usa o app e não está no host do painel. `/arquivos/*` é servido em todos os hosts. */
+export function publicUploadUrl(upload: { path: string } | null | undefined): string | null {
+  return upload ? areaLink('api', `/arquivos/${upload.path}`) : null
 }
 
 export function uploadUrl(upload: { path: string } | null | undefined): string | null {

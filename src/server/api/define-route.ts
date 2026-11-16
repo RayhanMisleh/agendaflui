@@ -74,6 +74,8 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
    */
   response: z.ZodType<R>
   status?: 200 | 201 | 202 | 204
+  /** Outros status de sucesso que o handler pode escolher com `setStatus` (só documentação para o OpenAPI, e a lista que `setStatus` aceita). */
+  alternateStatuses?: readonly (200 | 201 | 202)[]
   /** Limite da rota, além do limite geral por chave e IP. */
   limit?: LimitRule
   /**
@@ -321,6 +323,9 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
 
       let finalStatus: number = status
       const setStatus = (novo: 200 | 201 | 202): void => {
+        if (novo !== status && !(def.alternateStatuses ?? []).includes(novo)) {
+          throw new Error(`${def.method} ${def.path} pediu o status ${novo}, que não está em "status" nem em "alternateStatuses".`)
+        }
         finalStatus = novo
       }
       const result = await handle({ ctx, key, params, query, body, request, now, setStatus })

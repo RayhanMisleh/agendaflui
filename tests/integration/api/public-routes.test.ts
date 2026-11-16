@@ -5,11 +5,14 @@ import { GET as business } from '@/app/api/v1/business/route'
 import { GET as professionals } from '@/app/api/v1/professionals/route'
 import { GET as services } from '@/app/api/v1/services/route'
 import { prisma } from '@/server/db/client'
+import { areaLink } from '@/server/area-links'
+import { listProfessionals } from '@/server/domain/team/professionals'
+import { requestInstant } from '@/server/api/wire'
 import { addDays } from '@/server/time'
 import { apiError, apiRequest, callRoute, customerToken, jsonObject, staffToken } from '../../setup/api'
 import { chavesDe, montarCena, type Cena } from '../../setup/api-scene'
 import { resetDb } from '../../setup/db'
-import { makeMembership, makeProfessional, makeUser } from '../../setup/factories'
+import { makeCtx, makeMembership, makeProfessional, makeUpload, makeUser } from '../../setup/factories'
 
 // A API roda atrás de um proxy confiável nestes testes: o IP vem do último endereço de X-Forwarded-For.
 vi.hoisted(() => {
@@ -80,6 +83,53 @@ describe('GET /v1/business', () => {
 
   test('parâmetro de consulta desconhecido: 422', async () => {
     expect((await get(business, '/v1/business?x=1')).status).toBe(422)
+  })
+})
+
+describe('URLs de arquivo', () => {
+  test('pela API, logo, símbolo e avatar saem absolutos no host da API; pelo painel continuam relativos', async () => {
+    const logo = await makeUpload(c.business.id)
+    const simbolo = await makeUpload(c.business.id)
+    const avatar = await makeUpload(c.business.id)
+    await prisma.businessBranding.update({ where: { businessId: c.business.id }, data: { logoUploadId: logo.id, symbolUploadId: simbolo.id } })
+    await prisma.professional.update({ where: { id: c.ana.id }, data: { avatarUploadId: avatar.id } })
+    const base = areaLink('api', '/arquivos/')
+    expect(base).toMatch(/^https?:\/\/.+\/arquivos\/$/)
+    const b = jsonObject(jsonObject((await get(business, '/v1/business')).json).brand)
+    expect(b.logoUrl).toBe(`${base}${logo.path}`)
+    expect(b.symbolUrl).toBe(`${base}${simbolo.path}`)
+    const p = (jsonObject((await get(professionals, '/v1/professionals')).json).items as { avatarUrl: string }[])[0]
+    expect(p?.avatarUrl).toBe(`${base}${avatar.path}`)
+    const painel = await makeCtx(c.business)
+    expect((await listProfessionals(painel)).find((x) => x.id === c.ana.id)?.avatarUrl).toBe(`/arquivos/${avatar.path}`)
+  })
+
+  test('a foto do cliente sai absoluta pelo app', async () => {
+    const foto = await makeUpload(c.business.id)
+    await prisma.customer.update({ where: { id: c.cliente.id }, data: { avatarUploadId: foto.id } })
+    const { GET: me } = await import('@/app/api/v1/me/route')
+    const r = await callRoute(me, apiRequest('GET', '/v1/me', { key: c.key, token: c.tokenCliente }))
+    expect(jsonObject(r.json).avatarUrl).toBe(`${areaLink('api', '/arquivos/')}${foto.path}`)
+  })
+})
+
+describe('limite da disponibilidade', () => {
+  test('a 61ª consulta no minuto: 429, em /availability e em /availability/days (cada rota com o seu)', async () => {
+    const q = `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}`
+    for (let i = 0; i < 60; i++) {
+      const r = await get(availability, q)
+      expect(r.status, `consulta ${i + 1}`).toBe(200)
+    }
+    expect((await get(availability, q)).status).toBe(429)
+    const from = c.dia(5)
+    expect((await get(availabilityDays, `/v1/availability/days?from=${from}&to=${from}&serviceIds=${c.banho.id}`)).status).toBe(200)
+  })
+})
+
+describe('instantes de entrada', () => {
+  test('o esquema de fio diz que só vale UTC com Z', () => {
+    expect(requestInstant.description).toMatch(/UTC/)
+    expect(requestInstant.description).toMatch(/Z/)
   })
 })
 

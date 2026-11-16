@@ -1,7 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
-import { credentialText } from '@/server/api/auth-schemas'
 import { customerProfileSchema } from '@/server/api/booking-schemas'
-import { deleteOwnAccount, ownCustomerId } from '@/server/domain/customers/account'
+import { ownCustomerId } from '@/server/domain/customers/account'
 import { getCustomer, updateCustomer } from '@/server/domain/customers/customers'
 import { z } from '@/server/domain/errors'
 
@@ -34,18 +33,6 @@ export const PATCH = defineRoute({
     .partial(),
   response: customerProfileSchema,
   handler: async ({ ctx, body }) => updateCustomer(ctx, ownCustomerId(ctx), body),
-})
-
-export const DELETE = defineRoute({
-  method: 'DELETE',
-  path: '/v1/me',
-  auth: 'customer',
-  status: 204,
-  summary: 'Exclui a conta do cliente (confirma com a senha); os dados pessoais são anonimizados',
-  tag: 'Conta do cliente',
-  body: z.object({ password: credentialText }),
-  response: z.undefined(),
-  handler: async ({ ctx, body }) => deleteOwnAccount(ctx, body),
 })
 
 export const OPTIONS = preflight

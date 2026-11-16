@@ -20,4 +20,6 @@ export const requestInstant = isoInstant.refine((texto) => {
   } catch {
     return false
   }
-}, 'Informe um instante válido em ISO 8601 UTC, por exemplo 2027-01-15T13:00:00.000Z.')
+}, 'Informe um instante válido em ISO 8601 UTC, por exemplo 2027-01-15T13:00:00.000Z.').describe(
+  'Instante em ISO 8601 UTC, sempre com o sufixo Z (por exemplo 2027-01-15T13:00:00.000Z); deslocamentos como -03:00 não são aceitos. Envie o instante exatamente como a API devolveu.',
+)

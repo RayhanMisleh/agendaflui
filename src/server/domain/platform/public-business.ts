@@ -2,7 +2,7 @@ import 'server-only'
 import { prisma } from '@/server/db/client'
 import type { Prisma } from '@/server/db/generated/client'
 import { DomainError } from '@/server/domain/errors'
-import { uploadUrl } from '@/server/storage/images'
+import { publicUploadUrl } from '@/server/storage/images'
 import { deriveTheme } from '@/shared/theme/derive'
 
 type Term = { singular: string; plural: string }
@@ -83,8 +83,8 @@ export async function getPublicBusiness(businessId: string): Promise<PublicBusin
     name: branding.displayName || row.name,
     timeZone: row.timezone,
     brand: {
-      logoUrl: uploadUrl(branding.logo),
-      symbolUrl: uploadUrl(branding.symbol),
+      logoUrl: publicUploadUrl(branding.logo),
+      symbolUrl: publicUploadUrl(branding.symbol),
       primary: branding.primaryColor,
       accent: branding.accentColor,
       material: branding.coverMaterial,

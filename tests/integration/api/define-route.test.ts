@@ -75,6 +75,21 @@ const chaveOuCliente = defineRoute({
   },
 })
 
+const statusNaoDeclarado = defineRoute({
+  method: 'POST',
+  path: '/v1/teste/status-nao-declarado',
+  auth: 'key',
+  status: 201,
+  alternateStatuses: [200],
+  summary: 'Pede um status que não declarou',
+  tag: 'teste',
+  response: z.object({ ok: z.boolean() }),
+  handler: async ({ setStatus }) => {
+    setStatus(202)
+    return { ok: true }
+  },
+})
+
 const limitadaPorSujeito = defineRoute({
   method: 'POST',
   path: '/v1/teste/limitada-por-sujeito',
@@ -95,6 +110,7 @@ const statusDinamico = defineRoute({
   path: '/v1/teste/status-dinamico',
   auth: 'key',
   status: 201,
+  alternateStatuses: [200],
   summary: 'Status escolhido pelo handler',
   tag: 'teste',
   body: z.object({ repetido: z.boolean() }),
@@ -659,6 +675,12 @@ describe('limite por sujeito e status escolhido pelo handler', () => {
     const r = await callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comChave({ token: 'lixo' })))
     expect(r.status).toBe(401)
     expect(chamadas).toBe(0)
+  })
+
+  test('setStatus só aceita status declarado em status ou alternateStatuses: outro é erro de programação (500)', async () => {
+    const r = await callRoute(statusNaoDeclarado, apiRequest('POST', '/v1/teste/status-nao-declarado', comChave()))
+    expect(r.status).toBe(500)
+    expect(registeredRoutes().find((d) => d.path === '/v1/teste/status-dinamico')?.alternateStatuses).toEqual([200])
   })
 
   test('setStatus troca o status de sucesso da rota (201 padrão, 200 quando o handler pede)', async () => {

@@ -32,12 +32,13 @@ export const POST = defineRoute({
   path: '/v1/appointments',
   auth: 'customer',
   status: 201,
+  alternateStatuses: [200],
   summary:
-    'Marca um horário. Com o cabeçalho Idempotency-Key, repetir o mesmo pedido em até 24 h devolve o mesmo agendamento (200)',
+    'Marca um horário. Com o cabeçalho Idempotency-Key, repetir o mesmo pedido em até 24 h devolve o mesmo agendamento (200). Instantes de entrada: só UTC com Z',
   tag: 'Agendamentos',
   body: z.object({
     serviceIds: z.array(z.string()).max(10),
-    startsAt: requestInstant,
+    startsAt: requestInstant, // ISO 8601 UTC com Z (ver a descrição do esquema)
     professionalId: z.string().max(64).nullable().optional(),
     customerNote: z.string().max(2000).nullable().optional(),
   }),
