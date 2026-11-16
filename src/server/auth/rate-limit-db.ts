@@ -15,6 +15,10 @@ export const LIMITS = {
   authIp: { limit: 10, windowSec: 900 },
   /** Pedidos de código (cadastro e redefinição) por e-mail: protege a caixa de entrada de quem recebe. */
   codeEmail: { limit: 3, windowSec: 900 },
+  /** Teto diário de pedidos de código por conta, e-mail e propósito. */
+  codeEmailDaily: { limit: 6, windowSec: 86_400 },
+  /** Códigos errados por conta e e-mail (os dois propósitos juntos): vale entre códigos sucessivos. */
+  codeFailures: { limit: 10, windowSec: 86_400 },
   booking: { limit: 20, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>
 
@@ -93,4 +97,12 @@ export async function purgeRateLimits(now: Date): Promise<number> {
   const corte = fromEpochMs(now.getTime() - PURGE_AFTER_SEC * 1000)
   const r = await prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: corte } } })
   return r.count
+}
+
+/** `true` se a chave já bateu no teto da janela atual (não conta nada). */
+export async function isRateLimited(key: string, rule: LimitRule, now: Date): Promise<boolean> {
+  const row = await prisma.rateLimitBucket.findUnique({ where: { key } })
+  if (!row) return false
+  const vencida = row.windowStart.getTime() + rule.windowSec * 1000 <= now.getTime()
+  return !vencida && row.count >= rule.limit
 }

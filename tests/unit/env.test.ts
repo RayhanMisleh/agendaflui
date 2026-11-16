@@ -48,3 +48,12 @@ test('em produção com o segredo de exemplo, a fase de build do Next aceita e a
   expect(() => parseEnv({ ...prod, NEXT_PHASE: 'phase-production-server' })).toThrow(/APP_SECRET/)
   expect(() => parseEnv(prod)).toThrow(/APP_SECRET/)
 })
+
+test('em produção com SMTP_URL, MAIL_FROM precisa ser informado; a fase de build e os outros ambientes dispensam', () => {
+  const prod = { ...ok, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), SMTP_URL: 'smtp://localhost:2525' }
+  expect(() => parseEnv(prod)).toThrow(/MAIL_FROM/)
+  expect(parseEnv({ ...prod, MAIL_FROM: 'Conta <contato@exemplo.com>' }).MAIL_FROM).toBe('Conta <contato@exemplo.com>')
+  expect(parseEnv({ ...prod, NEXT_PHASE: 'phase-production-build' }).NODE_ENV).toBe('production')
+  expect(parseEnv({ ...prod, SMTP_URL: undefined }).NODE_ENV).toBe('production')
+  expect(parseEnv({ ...prod, NODE_ENV: 'development' }).NODE_ENV).toBe('development')
+})

@@ -3,7 +3,7 @@ import { AuthError } from '@/server/auth/actor'
 import { issueTokens, revokeAllFor, type RequestMeta, type TokenPair } from '@/server/auth/api-tokens'
 import { checkLoginLimit, clearLoginLimit } from '@/server/auth/login-limit'
 import { hashPassword, passwordSchema, verifyPassword } from '@/server/auth/password'
-import { clearRateLimit, hitRateLimit, LIMITS, limitKey } from '@/server/auth/rate-limit-db'
+import { clearRateLimit, hitRateLimit, isRateLimited, LIMITS, limitKey } from '@/server/auth/rate-limit-db'
 import { CODE_TTL_MINUTES, confirmCode, issueCodeWithRetry } from '@/server/auth/verification-code'
 import { tenantDb } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
@@ -126,49 +126,68 @@ async function deliver(businessId: string, kind: string, to: string, render: (br
   }
 }
 
-/** Conta um pedido de código para o e-mail; `false` quando passou do limite (a rota responde igual e não envia). */
+/** Conta um pedido de código para o e-mail; `false` quando passou do limite (a resposta é a mesma e nada é enviado). */
 async function allowCodeRequest(businessId: string, purpose: 'REGISTER' | 'PASSWORD_RESET', email: string, now: Date): Promise<boolean> {
-  const r = await hitRateLimit(limitKey(`codigo:${businessId}:${purpose}`, email), LIMITS.codeEmail, now)
-  return r.allowed
+  const curto = await hitRateLimit(limitKey(`codigo:${businessId}:${purpose}`, email), LIMITS.codeEmail, now)
+  if (!curto.allowed) return false
+  const dia = await hitRateLimit(limitKey(`codigo-dia:${businessId}:${purpose}`, email), LIMITS.codeEmailDaily, now)
+  return dia.allowed
+}
+
+/** Contador de códigos ERRADOS por conta e e-mail, comum aos dois propósitos (atravessa códigos sucessivos). */
+const failureKey = (businessId: string, email: string): string => limitKey(`codigo-erro:${businessId}`, email)
+
+/** Estourado o contador, a confirmação responde `invalid_code` sem nem comparar o código. */
+async function assertCodeGuessesLeft(businessId: string, email: string, now: Date): Promise<void> {
+  if (await isRateLimited(failureKey(businessId, email), LIMITS.codeFailures, now)) throw invalidCode()
+}
+
+async function countCodeFailure(businessId: string, email: string, now: Date): Promise<void> {
+  await hitRateLimit(failureKey(businessId, email), LIMITS.codeFailures, now)
 }
 
 /**
  * Pede o cadastro: NÃO cria o cliente. Guarda um código de confirmação (só o HMAC) com o nome, o telefone e o HASH da
- * senha, e envia o código por e-mail. Se o e-mail já tem conta com senha, responde igual e o e-mail avisa disso.
- * O hash da senha é calculado nos dois caminhos para o trabalho ser o mesmo.
+ * senha, e envia o código por e-mail. Se o e-mail já tem conta com senha, o e-mail enviado avisa disso.
+ *
+ * Duas partes, para o tempo da resposta não revelar se o e-mail existe: esta função faz só o que é igual para todos
+ * (validação e hash da senha, sempre) e DEVOLVE a continuação, que a rota agenda para depois da resposta
+ * (`runAfterResponse`): limites por e-mail, consulta do cliente, emissão do código, renderização e envio.
  */
 export async function requestRegistration(
   businessId: string,
   input: { name: string; email: string; phone?: string | null; password: string },
   _meta: RequestMeta,
   now: Date,
-): Promise<void> {
+): Promise<() => Promise<void>> {
   const i = parse(registerSchema, input)
   const passwordHash = await hashPassword(i.password)
-  if (!(await allowCodeRequest(businessId, 'REGISTER', i.email, now))) return
-  const db = tenantDb(businessId)
-  const existing = await db.customer.findFirst({
-    where: { email: i.email },
-    select: { name: true, passwordHash: true, archivedAt: true, anonymizedAt: true },
-  })
-  if (existing) {
-    // Cliente arquivado ou removido: a conta não está disponível; nada é enviado (a resposta continua igual).
-    if (existing.passwordHash !== null && existing.archivedAt === null && existing.anonymizedAt === null) {
-      await deliver(businessId, 'account_exists', i.email, (brand) => renderAccountExists(brand, { customerName: existing.name }))
+  return async () => {
+    if (!(await allowCodeRequest(businessId, 'REGISTER', i.email, now))) return
+    const db = tenantDb(businessId)
+    const existing = await db.customer.findFirst({
+      where: { email: i.email },
+      select: { name: true, passwordHash: true, archivedAt: true, anonymizedAt: true },
+    })
+    if (existing) {
+      // Cliente arquivado ou removido: a conta não está disponível; nada é enviado.
+      if (existing.passwordHash !== null && existing.archivedAt === null && existing.anonymizedAt === null) {
+        await deliver(businessId, 'account_exists', i.email, (brand) => renderAccountExists(brand, { customerName: existing.name }))
+      }
+      if (existing.passwordHash !== null || existing.archivedAt !== null || existing.anonymizedAt !== null) return
     }
-    if (existing.passwordHash !== null || existing.archivedAt !== null || existing.anonymizedAt !== null) return
+    const code = await issueCodeWithRetry(db, {
+      businessId,
+      purpose: 'REGISTER',
+      email: i.email,
+      payload: { name: i.name, phone: i.phone, passwordHash },
+      now,
+    })
+    if (code === null) return
+    await deliver(businessId, 'registration', i.email, (brand) =>
+      renderRegistrationCode(brand, { customerName: i.name, code, ttlMin: CODE_TTL_MINUTES }),
+    )
   }
-  const code = await issueCodeWithRetry(db, {
-    businessId,
-    purpose: 'REGISTER',
-    email: i.email,
-    payload: { name: i.name, phone: i.phone, passwordHash },
-    now,
-  })
-  if (code === null) return
-  await deliver(businessId, 'registration', i.email, (brand) =>
-    renderRegistrationCode(brand, { customerName: i.name, code, ttlMin: CODE_TTL_MINUTES }),
-  )
 }
 
 /**
@@ -183,14 +202,15 @@ export async function confirmRegistration(
   now: Date,
 ): Promise<CustomerSession> {
   const i = parse(verifySchema, input)
+  await assertCodeGuessesLeft(businessId, i.email, now)
   const db = tenantDb(businessId)
   const before = await db.customer.findFirst({ where: { email: i.email }, select: { id: true } })
-  let session: CustomerSession | null
+  let session: CustomerSession | { guessed: boolean }
   try {
     session = await db.$transaction(async (tx) => {
       if (before) await tx.$lockKey('customer', before.id)
       const ok = await confirmCode(tx, { businessId, purpose: 'REGISTER', email: i.email, code: i.code, now })
-      if (!ok) return null
+      if (!ok.ok) return { guessed: ok.guessed }
       const payload = registerPayload.safeParse(ok.payload)
       if (!payload.success) throw new Error('O código de cadastro guardado está corrompido.')
       let current = await tx.customer.findFirst({ where: { email: i.email } })
@@ -228,7 +248,10 @@ export async function confirmRegistration(
     if (isUniqueViolation(err)) throw emailInUse()
     throw err
   }
-  if (!session) throw invalidCode()
+  if ('guessed' in session) {
+    if (session.guessed) await countCodeFailure(businessId, i.email, now)
+    throw invalidCode()
+  }
   return session
 }
 
@@ -271,30 +294,33 @@ export async function loginCustomer(
 }
 
 /**
- * Esqueci a senha: sempre termina sem erro. Só envia o código se houver cliente ativo (com senha ou cadastro de balcão)
- * com aquele e-mail e o limite por e-mail permitir.
+ * Esqueci a senha. Sem erro nenhum: só envia o código se houver cliente ativo (com senha ou cadastro de balcão) com
+ * aquele e-mail e os limites permitirem. Como o cadastro, devolve a continuação para a rota agendar depois da resposta:
+ * nada que dependa de o e-mail existir roda antes dela.
  */
-export async function requestPasswordReset(businessId: string, email: string, _meta: RequestMeta, now: Date): Promise<void> {
+export async function requestPasswordReset(businessId: string, email: string, _meta: RequestMeta, now: Date): Promise<() => Promise<void>> {
   const parsed = emailField.safeParse(email)
-  if (!parsed.success) return
-  if (!(await allowCodeRequest(businessId, 'PASSWORD_RESET', parsed.data, now))) return
-  const db = tenantDb(businessId)
-  const customer = await db.customer.findFirst({
-    where: { email: parsed.data, archivedAt: null, anonymizedAt: null },
-    select: { id: true, name: true },
-  })
-  if (!customer) return
-  const code = await issueCodeWithRetry(db, {
-    businessId,
-    purpose: 'PASSWORD_RESET',
-    email: parsed.data,
-    payload: { customerId: customer.id },
-    now,
-  })
-  if (code === null) return
-  await deliver(businessId, 'password_reset', parsed.data, (brand) =>
-    renderPasswordResetCode(brand, { customerName: customer.name, code, ttlMin: CODE_TTL_MINUTES }),
-  )
+  return async () => {
+    if (!parsed.success) return
+    if (!(await allowCodeRequest(businessId, 'PASSWORD_RESET', parsed.data, now))) return
+    const db = tenantDb(businessId)
+    const customer = await db.customer.findFirst({
+      where: { email: parsed.data, archivedAt: null, anonymizedAt: null },
+      select: { id: true, name: true },
+    })
+    if (!customer) return
+    const code = await issueCodeWithRetry(db, {
+      businessId,
+      purpose: 'PASSWORD_RESET',
+      email: parsed.data,
+      payload: { customerId: customer.id },
+      now,
+    })
+    if (code === null) return
+    await deliver(businessId, 'password_reset', parsed.data, (brand) =>
+      renderPasswordResetCode(brand, { customerName: customer.name, code, ttlMin: CODE_TTL_MINUTES }),
+    )
+  }
 }
 
 /** Redefine a senha com o código: troca a senha e revoga todos os tokens de renovação do cliente. */
@@ -305,13 +331,14 @@ export async function resetPassword(
   now: Date,
 ): Promise<void> {
   const i = parse(resetSchema, input)
+  await assertCodeGuessesLeft(businessId, i.email, now)
   const passwordHash = await hashPassword(i.password)
   const db = tenantDb(businessId)
   const found = await db.customer.findFirst({ where: { email: i.email, archivedAt: null, anonymizedAt: null }, select: { id: true } })
   const done = await db.$transaction(async (tx) => {
     if (found) await tx.$lockKey('customer', found.id)
     const ok = await confirmCode(tx, { businessId, purpose: 'PASSWORD_RESET', email: i.email, code: i.code, now })
-    if (!ok) return false
+    if (!ok.ok) return ok.guessed ? ('guessed' as const) : false
     const payload = z.object({ customerId: z.string() }).safeParse(ok.payload)
     if (!found || !payload.success || payload.data.customerId !== found.id) return false
     const customer = await tx.customer.findFirst({
@@ -326,7 +353,8 @@ export async function resetPassword(
     await revokeAllFor(tx, { customerId: found.id }, now)
     return true
   })
-  if (!done) throw invalidCode()
+  if (done === 'guessed') await countCodeFailure(businessId, i.email, now)
+  if (done !== true) throw invalidCode()
 }
 
 /** Conta uma tentativa de senha do próprio cliente (troca e exclusão); o teto é o do login por e-mail. */

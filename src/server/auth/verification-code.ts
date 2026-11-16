@@ -1,9 +1,10 @@
 import 'server-only'
 import { createHmac, hkdfSync, randomInt, timingSafeEqual } from 'node:crypto'
+import { prisma } from '@/server/db/client'
 import type { Prisma, VerificationPurpose } from '@/server/db/generated/client'
 import type { TenantTx } from '@/server/db/tenant'
 import { env } from '@/server/env'
-import { addMinutes } from '@/server/time'
+import { addMinutes, fromEpochMs } from '@/server/time'
 
 export const CODE_TTL_MINUTES = 15
 export const MAX_CODE_ATTEMPTS = 5
@@ -47,7 +48,7 @@ async function issueCodeIn(tx: TenantTx, i: Issue): Promise<string> {
   const code = generateCode()
   await tx.verificationCode.updateMany({
     where: { purpose: i.purpose, email: i.email, consumedAt: null },
-    data: { consumedAt: i.now },
+    data: { consumedAt: i.now, payload: {} },
   })
   await tx.verificationCode.create({
     data: {
@@ -79,15 +80,15 @@ export async function issueCodeWithRetry(db: Db, i: Issue): Promise<string | nul
 }
 
 /**
- * Confere o código sob a transação do chamador. Devolve o `payload` e consome o código, ou `null` (inexistente,
- * vencido, errado ou morto por tentativas). Tudo é UPDATE condicional: duas confirmações simultâneas do mesmo código
+ * Confere o código sob a transação do chamador. Devolve o `payload` e consome o código, ou `ok: false` (inexistente,
+ * vencido, errado ou morto por tentativas; `guessed` diz se um palpite foi comparado com um código vivo). Tudo é UPDATE condicional: duas confirmações simultâneas do mesmo código
  * passam em exatamente uma, e a 5ª tentativa errada mata o código mesmo em paralelo. O chamador NÃO deve lançar
- * quando recebe `null` (as tentativas contadas precisam ser confirmadas); lance só depois do commit.
+ * quando recebe `ok: false` (as tentativas contadas precisam ser confirmadas); lance só depois do commit.
  */
 export async function confirmCode(
   tx: TenantTx,
   i: { businessId: string; purpose: VerificationPurpose; email: string; code: string; now: Date },
-): Promise<{ payload: Prisma.JsonValue } | null> {
+): Promise<{ ok: true; payload: Prisma.JsonValue } | { ok: false; guessed: boolean }> {
   const row = await tx.verificationCode.findFirst({
     where: { purpose: i.purpose, email: i.email, consumedAt: null },
     orderBy: { createdAt: 'desc' },
@@ -95,17 +96,17 @@ export async function confirmCode(
   const given = codeMac(i.businessId, i.purpose, i.email, i.code)
   // Sem linha, compara com um valor fixo para o trabalho ser o mesmo; a comparação é em tempo constante.
   const matches = sameMac(row?.codeHash ?? '0'.repeat(64), given) && row !== null
-  if (!row) return null
+  if (!row) return { ok: false, guessed: false }
   if (row.expiresAt.getTime() <= i.now.getTime()) {
-    await tx.verificationCode.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: i.now } })
-    return null
+    await tx.verificationCode.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: i.now, payload: {} } })
+    return { ok: false, guessed: false }
   }
   if (matches) {
     const consumed = await tx.verificationCode.updateMany({
       where: { id: row.id, consumedAt: null, attempts: { lt: MAX_CODE_ATTEMPTS }, expiresAt: { gt: i.now } },
-      data: { consumedAt: i.now },
+      data: { consumedAt: i.now, payload: {} },
     })
-    return consumed.count === 1 ? { payload: row.payload } : null
+    return consumed.count === 1 ? { ok: true, payload: row.payload } : { ok: false, guessed: false }
   }
   // Errado: conta a tentativa de forma condicional (nunca passa do teto) e mata o código na última.
   const counted = await tx.verificationCode.updateMany({
@@ -116,8 +117,15 @@ export async function confirmCode(
     // A linha fica travada por este UPDATE até o fim da transação: a releitura vê a contagem exata.
     const atual = await tx.verificationCode.findFirst({ where: { id: row.id }, select: { attempts: true } })
     if (atual && atual.attempts >= MAX_CODE_ATTEMPTS) {
-      await tx.verificationCode.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: i.now } })
+      await tx.verificationCode.updateMany({ where: { id: row.id, consumedAt: null }, data: { consumedAt: i.now, payload: {} } })
     }
   }
-  return null
+  return { ok: false, guessed: true }
+}
+
+/** Apaga os códigos que venceram há mais de 1 dia (consumidos ou não); devolve quantos. Chamada pelo trabalho periódico. */
+export async function purgeVerificationCodes(now: Date): Promise<number> {
+  const corte = fromEpochMs(now.getTime() - 24 * 60 * 60 * 1000)
+  const r = await prisma.verificationCode.deleteMany({ where: { expiresAt: { lt: corte } } })
+  return r.count
 }

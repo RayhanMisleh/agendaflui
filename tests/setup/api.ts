@@ -1,5 +1,6 @@
 import type { Actor } from '@/server/auth/actor'
 import { signAccessToken } from '@/server/auth/api-tokens'
+import { setAfterScheduler } from '@/server/api/after'
 import type { RouteHandler } from '@/server/api/define-route'
 import { createApiKey } from '@/server/domain/platform/api-keys'
 import { makePlatformAdmin } from './factories'
@@ -91,3 +92,19 @@ export async function customerToken(businessId: string, customerId: string): Pro
 export async function staffToken(businessId: string, membershipId: string, userId: string): Promise<string> {
   return (await signAccessToken({ kind: 'staff', businessId, membershipId, userId }, new Date())).token
 }
+
+// `after` do Next lança fora de uma requisição real: nos testes, o trabalho adiado fica numa fila que só roda em `flushAfter`.
+const adiadas: (() => Promise<void>)[] = []
+setAfterScheduler((task) => {
+  adiadas.push(task)
+})
+
+/** Executa (em paralelo) e aguarda o trabalho que as rotas agendaram para depois da resposta. */
+export async function flushAfter(): Promise<void> {
+  for (let guarda = 0; adiadas.length > 0 && guarda < 10; guarda++) {
+    await Promise.all(adiadas.splice(0).map((t) => t()))
+  }
+}
+
+/** Quantas tarefas adiadas estão esperando `flushAfter`. */
+export const pendingAfter = (): number => adiadas.length

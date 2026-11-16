@@ -1,3 +1,4 @@
+import { runAfterResponse } from '@/server/api/after'
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { credentialText, verificationSentSchema } from '@/server/api/auth-schemas'
 import { requestMeta } from '@/server/api/request-meta'
@@ -16,7 +17,7 @@ export const POST = defineRoute({
   status: 202,
   limit: LIMITS.authIp,
   handler: async ({ key, body, request, now }) => {
-    await requestRegistration(key.businessId, body, requestMeta(request), now)
+    runAfterResponse(await requestRegistration(key.businessId, body, requestMeta(request), now))
     return { status: 'verification_sent' as const }
   },
 })

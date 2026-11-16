@@ -8,11 +8,14 @@ import { POST as register } from '@/app/api/v1/auth/customer/register/route'
 import { POST as verify } from '@/app/api/v1/auth/customer/verify/route'
 import type { RouteHandler } from '@/server/api/define-route'
 import { verifyAccessToken } from '@/server/auth/api-tokens'
+import { limitKey } from '@/server/auth/rate-limit-db'
+import { purgeVerificationCodes } from '@/server/auth/verification-code'
+import { setEmailChannel } from '@/server/notifications/channels'
 import { hashPassword, verifyPassword } from '@/server/auth/password'
 import { prisma } from '@/server/db/client'
 import { confirmRegistration, requestRegistration } from '@/server/domain/customers/account'
 import { addMinutes } from '@/server/time'
-import { apiError, apiRequest, callRoute, jsonObject, makeAppKey } from '../../setup/api'
+import { apiError, apiRequest, callRoute, flushAfter, jsonObject, makeAppKey, pendingAfter } from '../../setup/api'
 import { resetDb } from '../../setup/db'
 import { makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService } from '../../setup/factories'
 import { fakeMail } from '../../setup/mail'
@@ -44,8 +47,11 @@ async function novaConta(nome = 'Barbearia Ouro & Cia'): Promise<Conta> {
   return { id: business.id, key: secret, nome }
 }
 
-function chamar(handler: RouteHandler, caminho: string, conta: Conta, body: unknown, ip: string = outroIp()) {
-  return callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { key: conta.key, body, headers: { 'x-forwarded-for': ip } }))
+/** Chama a rota e, a menos que `flush` seja falso, executa o trabalho que ela adiou para depois da resposta. */
+async function chamar(handler: RouteHandler, caminho: string, conta: Conta, body: unknown, ip: string = outroIp(), flush = true) {
+  const r = await callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { key: conta.key, body, headers: { 'x-forwarded-for': ip } }))
+  if (flush) await flushAfter()
+  return r
 }
 
 const cadastrar = (c: Conta, email = EMAIL, extra: Record<string, unknown> = {}) =>
@@ -185,13 +191,13 @@ describe('cadastro com confirmação', () => {
     const c = await novaConta()
     const t0 = new Date()
     const i = { name: 'Maria Souza', email: EMAIL, password: SENHA }
-    await requestRegistration(c.id, i, meta, t0)
+    await (await requestRegistration(c.id, i, meta, t0))()
     const code = mail.codeOf()
     const tarde = await confirmRegistration(c.id, { email: EMAIL, code }, meta, addMinutes(t0, 15)).catch((e: unknown) => e)
     expect(tarde).toMatchObject({ code: 'validation', reason: 'invalid_code' })
     expect(await prisma.customer.count()).toBe(0)
 
-    await requestRegistration(c.id, i, meta, t0)
+    await (await requestRegistration(c.id, i, meta, t0))()
     const novo = mail.codeOf()
     const ok = await confirmRegistration(c.id, { email: EMAIL, code: novo }, meta, new Date(addMinutes(t0, 15).getTime() - 1000))
     expect(ok.customerId).toBeTruthy()
@@ -211,9 +217,11 @@ describe('cadastro com confirmação', () => {
 
   test('pedidos simultâneos não geram erro 500 e deixam um único código vivo', async () => {
     const c = await novaConta()
-    const respostas = await Promise.all([cadastrar(c), cadastrar(c), cadastrar(c)])
+    const respostas = await Promise.all(
+      [1, 2, 3].map(() => chamar(register, '/register', c, { name: 'Maria Souza', email: EMAIL, password: SENHA }, outroIp(), false)),
+    )
     expect(respostas.map((r) => r.status)).toEqual([202, 202, 202])
-    expect(await prisma.verificationCode.count({ where: { consumedAt: null } })).toBeLessThanOrEqual(1)
+    await flushAfter()
     expect(await prisma.verificationCode.count({ where: { consumedAt: null } })).toBe(1)
   })
 
@@ -316,7 +324,6 @@ describe('cadastro com confirmação', () => {
     expect(saida).not.toContain(mail.codeOfFailed())
     expect(saida).toContain('m***@exemplo.test')
 
-    const { setEmailChannel } = await import('@/server/notifications/channels')
     setEmailChannel(null)
     expect((await cadastrar(c, 'joana@exemplo.test')).status).toBe(202)
   })
@@ -529,5 +536,135 @@ describe('esqueci a senha e redefinição', () => {
     for (let i = 0; i < 11; i++) status.push((await chamar(forgot, '/password/forgot', c, { email: `p${i}@exemplo.test` }, ip)).status)
     expect(status.slice(0, 10).every((s) => s === 202)).toBe(true)
     expect(status[10]).toBe(429)
+  })
+})
+
+describe('nada que dependa do e-mail acontece antes da resposta', () => {
+  test('antes do flushAfter nenhum caminho toca a tabela de códigos nem o canal; depois, só os que devem', async () => {
+    const c = await novaConta()
+    await clienteComSenha(c, { email: 'existe@exemplo.test' })
+    await makeCustomer(c.id, { email: 'balcao@exemplo.test' })
+    await clienteComSenha(c, { email: 'arquivado@exemplo.test', archivedAt: new Date() })
+    const respostas = []
+    for (const email of ['novo@exemplo.test', 'existe@exemplo.test', 'balcao@exemplo.test', 'arquivado@exemplo.test']) {
+      respostas.push(await chamar(register, '/register', c, { name: 'Maria', email, password: SENHA }, outroIp(), false))
+    }
+    for (const email of ['existe@exemplo.test', 'balcao@exemplo.test', 'inexistente@exemplo.test', 'arquivado@exemplo.test']) {
+      respostas.push(await chamar(forgot, '/password/forgot', c, { email }, outroIp(), false))
+    }
+    expect(respostas.every((r) => r.status === 202)).toBe(true)
+    expect(new Set(respostas.map((r) => r.text)).size).toBe(1)
+    expect(pendingAfter()).toBe(8)
+    expect(await prisma.verificationCode.count()).toBe(0)
+    expect(await prisma.rateLimitBucket.count({ where: { key: { startsWith: 'codigo' } } })).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+    await flushAfter()
+    // novo, existente (aviso), balcão no cadastro; existente e balcão no esqueci.
+    expect(mail.sent).toHaveLength(5)
+    expect(await prisma.verificationCode.count()).toBe(4)
+  })
+
+  test('cadastro com e-mail de cliente arquivado: 202, nenhum código e nenhum e-mail', async () => {
+    const c = await novaConta()
+    await clienteComSenha(c, { email: 'arquivado@exemplo.test', archivedAt: new Date() })
+    expect((await cadastrar(c, 'arquivado@exemplo.test')).status).toBe(202)
+    expect(await prisma.verificationCode.count()).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+})
+
+describe('tentativas de código atravessando códigos', () => {
+  test('10 erros espalhados por três códigos: o 11º palpite, mesmo certo, dá invalid_code sem consumir o código', async () => {
+    const c = await novaConta()
+    await cadastrar(c)
+    let code = mail.codeOf()
+    for (let i = 0; i < 4; i++) expect((await confirmar(c, errado(code))).status).toBe(422)
+    await cadastrar(c)
+    code = mail.codeOf()
+    for (let i = 0; i < 4; i++) expect((await confirmar(c, errado(code))).status).toBe(422)
+    await cadastrar(c)
+    code = mail.codeOf()
+    for (let i = 0; i < 2; i++) expect((await confirmar(c, errado(code))).status).toBe(422)
+    const certo = await confirmar(c, code)
+    expect(certo.status).toBe(422)
+    expect(apiError(certo.json).reason).toBe('invalid_code')
+    const linha = await prisma.verificationCode.findFirstOrThrow({ where: { consumedAt: null } })
+    expect(linha.attempts).toBe(2)
+    expect(await prisma.customer.count()).toBe(0)
+  })
+
+  test('o contador é comum aos dois propósitos e o sucesso não o zera', async () => {
+    const c = await novaConta()
+    await clienteComSenha(c)
+    await chamar(forgot, '/password/forgot', c, { email: EMAIL })
+    const reset1 = mail.codeOf()
+    for (let i = 0; i < 5; i++) await chamar(reset, '/password/reset', c, { email: EMAIL, code: errado(reset1), password: NOVA })
+    await chamar(forgot, '/password/forgot', c, { email: EMAIL })
+    const reset2 = mail.codeOf()
+    for (let i = 0; i < 5; i++) await chamar(reset, '/password/reset', c, { email: EMAIL, code: errado(reset2), password: NOVA })
+    await chamar(forgot, '/password/forgot', c, { email: EMAIL })
+    const reset3 = mail.codeOf()
+    const r = await chamar(reset, '/password/reset', c, { email: EMAIL, code: reset3, password: NOVA })
+    expect(r.status).toBe(422)
+    expect((await entrar(c, EMAIL, SENHA)).status).toBe(200)
+  })
+
+  test('teto diário de emissão: o 7º pedido do dia não emite, com a mesma resposta', async () => {
+    const c = await novaConta()
+    await clienteComSenha(c)
+    // Zera só a janela curta a cada pedido para isolar o teto diário.
+    const respostas = []
+    for (let i = 0; i < 7; i++) {
+      await prisma.rateLimitBucket.deleteMany({ where: { key: limitKey(`codigo:${c.id}:PASSWORD_RESET`, EMAIL) } })
+      respostas.push(await chamar(forgot, '/password/forgot', c, { email: EMAIL }))
+    }
+    expect(respostas.every((r) => r.status === 202)).toBe(true)
+    expect(new Set(respostas.map((r) => r.text)).size).toBe(1)
+    expect(mail.sent).toHaveLength(6)
+  })
+})
+
+describe('payload e limpeza', () => {
+  const payloadsVivos = async () =>
+    (await prisma.verificationCode.findMany()).map((l) => ({ consumed: l.consumedAt !== null, payload: JSON.stringify(l.payload) }))
+
+  test('confirmar, substituir e matar por tentativas deixam o payload vazio', async () => {
+    const c = await novaConta()
+    await cadastrar(c)
+    await cadastrar(c)
+    let linhas = await payloadsVivos()
+    expect(linhas.filter((l) => l.consumed).every((l) => l.payload === '{}')).toBe(true)
+    expect(linhas.filter((l) => !l.consumed).every((l) => l.payload.includes('passwordHash'))).toBe(true)
+    const code = mail.codeOf()
+    expect((await confirmar(c, code)).status).toBe(200)
+    linhas = await payloadsVivos()
+    expect(linhas.every((l) => l.consumed && l.payload === '{}')).toBe(true)
+
+    await resetDb()
+    const d = await novaConta()
+    await cadastrar(d)
+    const certo = mail.codeOf()
+    for (let i = 0; i < 5; i++) await confirmar(d, errado(certo))
+    linhas = await payloadsVivos()
+    expect(linhas.every((l) => l.consumed && l.payload === '{}')).toBe(true)
+  })
+
+  test('vencido também é limpo', async () => {
+    const c = await novaConta()
+    const t0 = new Date()
+    await (await requestRegistration(c.id, { name: 'Maria', email: EMAIL, password: SENHA }, meta, t0))()
+    await confirmRegistration(c.id, { email: EMAIL, code: mail.codeOf() }, meta, addMinutes(t0, 16)).catch(() => undefined)
+    expect((await payloadsVivos()).every((l) => l.consumed && l.payload === '{}')).toBe(true)
+  })
+
+  test('purgeVerificationCodes apaga só o que venceu há mais de 1 dia', async () => {
+    const c = await novaConta()
+    const agora = new Date()
+    const base = { businessId: c.id, purpose: 'REGISTER' as const, codeHash: 'h'.repeat(64) }
+    await prisma.verificationCode.create({ data: { ...base, email: 'a@x.test', expiresAt: addMinutes(agora, -(24 * 60 + 1)) } })
+    await prisma.verificationCode.create({ data: { ...base, email: 'b@x.test', expiresAt: addMinutes(agora, -(23 * 60)) } })
+    await prisma.verificationCode.create({ data: { ...base, email: 'c@x.test', expiresAt: addMinutes(agora, 10) } })
+    expect(await purgeVerificationCodes(agora)).toBe(1)
+    expect((await prisma.verificationCode.findMany()).map((l) => l.email).sort()).toEqual(['b@x.test', 'c@x.test'])
   })
 })

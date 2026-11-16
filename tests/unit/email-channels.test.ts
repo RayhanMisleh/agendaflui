@@ -64,6 +64,14 @@ describe('getEmailChannel', () => {
     expect(getEmailChannel({ NODE_ENV: 'development', SMTP_URL: undefined })).toBeNull()
   })
 
+  test('o canal SMTP é um só por processo (e setEmailChannel continua mandando)', () => {
+    const prod = { NODE_ENV: 'production', SMTP_URL: 'smtp://localhost:2525', MAIL_FROM: 'a@b.test' }
+    expect(getEmailChannel(prod)).toBe(getEmailChannel(prod))
+    const falso = { async send() {} }
+    setEmailChannel(falso)
+    expect(getEmailChannel(prod)).toBe(falso)
+  })
+
   test('desenvolvimento usa arquivo; produção usa SMTP se configurado, senão nenhum', () => {
     expect(getEmailChannel({ NODE_ENV: 'development', SMTP_URL: undefined })).not.toBeNull()
     expect(getEmailChannel({ NODE_ENV: 'production', SMTP_URL: 'smtp://localhost:2525' })).not.toBeNull()

@@ -24,6 +24,8 @@ export type StaffProfile = StaffMember & {
   capabilities: Capability[]
 }
 
+const NIL_UUID = '00000000-0000-0000-0000-000000000000'
+
 // Hash fixo para igualar o tempo quando não há senha para conferir.
 const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
@@ -50,13 +52,15 @@ export async function loginStaff(
 
   const user = email.length > 0 && email.length <= 254 ? await prisma.user.findUnique({ where: { email } }) : null
   const ok = await verifyPassword(user?.passwordHash ?? (await hashFalso), typeof input.password === 'string' ? input.password : '')
-  const membership = user ? await prisma.membership.findFirst({ where: { userId: user.id, businessId, active: true } }) : null
+  // Sempre as duas consultas, exista o usuário ou não (o tempo não revela se o e-mail é de alguém).
+  const membership = await prisma.membership.findFirst({ where: { userId: user?.id ?? NIL_UUID, businessId, active: true } })
   if (!user || !user.passwordHash || !ok || !membership) throw new AuthError('invalid_credentials')
 
   const db = tenantDb(businessId)
   const result = await db.$transaction(async (tx) => {
     await tx.$lockKey('membership', membership.id)
-    // Relê sob a trava: desativar o vínculo derruba as sessões sob esta mesma trava.
+    // Relê sob a trava, por garantia de que o vínculo ainda está ativo. Desativar o vínculo não revoga tokens: o contexto
+    // (a cada requisição) e a renovação releem o vínculo e recusam.
     const atual = await tx.membership.findFirst({ where: { id: membership.id, active: true }, select: { role: true } })
     if (!atual) return null
     const pair = await issueTokens(tx, { kind: 'staff', businessId, membershipId: membership.id, userId: user.id }, meta, now)
