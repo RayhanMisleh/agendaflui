@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { AuditLog, Business, Membership, MembershipRole, Prisma, Service, Upload, User } from '@/server/db/generated/client'
+import type { AuditLog, Business, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import type { Actor, TenantContext } from '@/server/auth/actor'
+import type { Weekday } from '@/server/time'
 import { createTenantContext } from '@/server/auth/context'
 
 let contador = 0
@@ -98,6 +99,36 @@ export async function makeService(
   return prisma.service.create({
     data: { name: `Serviço ${sufixo()}`, priceCents: 5000, durationMin: 30, ...overrides, businessId },
   })
+}
+
+/** Profissional direto no banco. Sem `serviceIds`, não liga nenhum serviço. */
+export async function makeProfessional(
+  businessId: string,
+  overrides: Partial<Omit<Prisma.ProfessionalUncheckedCreateInput, 'businessId'>> & { serviceIds?: string[] } = {},
+): Promise<Professional> {
+  const { serviceIds = [], ...rest } = overrides
+  const professional = await prisma.professional.create({
+    data: { name: `Profissional ${sufixo()}`, ...rest, businessId },
+  })
+  if (serviceIds.length > 0) {
+    await prisma.professionalService.createMany({
+      data: serviceIds.map((serviceId) => ({ businessId, professionalId: professional.id, serviceId })),
+    })
+  }
+  return professional
+}
+
+/** Intervalos de expediente de um dia da semana, direto no banco. */
+export async function makeWorkingHours(
+  businessId: string,
+  professionalId: string,
+  weekday: Weekday,
+  ranges: { startMin: number; endMin: number }[],
+): Promise<WorkingHours[]> {
+  await prisma.workingHours.createMany({
+    data: ranges.map((r) => ({ businessId, professionalId, weekday, startMin: r.startMin, endMin: r.endMin })),
+  })
+  return prisma.workingHours.findMany({ where: { businessId, professionalId, weekday } })
 }
 
 /** Contexto de conta para testes de domínio. Sem `actor`, cria um usuário e um vínculo OWNER. */
