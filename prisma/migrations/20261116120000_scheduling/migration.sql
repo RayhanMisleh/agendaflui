@@ -365,8 +365,6 @@ ALTER TABLE "notifications" ADD CONSTRAINT "notifications_membership_id_fkey" FO
 -- AddForeignKey
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- Extensão para a restrição de exclusão (igualdade de uuid dentro de um índice gist).
-
 -- FKs compostas: cada relação fica dentro da mesma conta. ON UPDATE NO ACTION, como nas migrações anteriores.
 ALTER TABLE "customers" ADD CONSTRAINT "customers_avatar_upload_id_same_business_fkey"
   FOREIGN KEY ("business_id", "avatar_upload_id") REFERENCES "uploads"("business_id", "id")
