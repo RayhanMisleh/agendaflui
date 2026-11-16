@@ -407,6 +407,7 @@ model Customer {
   id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId              String         @map("business_id") @db.Uuid
   name                    String
+  searchName              String         @default("") @map("search_name")
   email                   String?
   phone                   String?
   passwordHash            String?        @map("password_hash")
@@ -434,6 +435,7 @@ model Customer {
   @@unique([businessId, id])
   @@index([businessId, phone])
   @@index([businessId, name])
+  @@index([businessId, searchName])
   @@map("customers")
 }
 

@@ -79,7 +79,7 @@ const listOptionsSchema = z.object({
 const idSchema = z.uuid()
 const reorderSchema = z.object({ orderedIds: z.array(z.string()) })
 
-function toView(service: Service): ServiceView {
+export function toServiceView(service: Service): ServiceView {
   return {
     id: service.id,
     name: service.name,
@@ -123,11 +123,11 @@ export async function listServices(
     },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
   })
-  return services.map(toView)
+  return services.map(toServiceView)
 }
 
 export async function getService(ctx: TenantContext, id: string): Promise<ServiceView> {
-  return toView(await loadService(ctx, id))
+  return toServiceView(await loadService(ctx, id))
 }
 
 export async function createService(ctx: TenantContext, input: ServiceInput): Promise<ServiceView> {
@@ -141,7 +141,7 @@ export async function createService(ctx: TenantContext, input: ServiceInput): Pr
     await audit(ctx, { action: 'service.created', targetType: 'Service', targetId: service.id }, tx)
     return service
   })
-  return toView(created)
+  return toServiceView(created)
 }
 
 export async function updateService(
@@ -154,7 +154,7 @@ export async function updateService(
   const current = await loadService(ctx, id)
   if (current.archivedAt !== null) throw archivedConflict()
   const fields = Object.keys(data)
-  if (fields.length === 0) return toView(current)
+  if (fields.length === 0) return toServiceView(current)
   try {
     const updated = await ctx.db.$transaction(async (tx) => {
       const service = await tx.service.update({ where: { id }, data })
@@ -165,7 +165,7 @@ export async function updateService(
       )
       return service
     })
-    return toView(updated)
+    return toServiceView(updated)
   } catch (err) {
     if (isRecordNotFound(err)) throw notFound()
     throw err
@@ -191,7 +191,7 @@ export async function archiveService(ctx: TenantContext, id: string): Promise<vo
 export async function restoreService(ctx: TenantContext, id: string): Promise<ServiceView> {
   authorize(ctx, 'manage_catalog')
   const current = await loadService(ctx, id)
-  if (current.archivedAt === null) return toView(current)
+  if (current.archivedAt === null) return toServiceView(current)
   try {
     const restored = await ctx.db.$transaction(async (tx) => {
       const last = await tx.service.aggregate({ where: { archivedAt: null }, _max: { displayOrder: true } })
@@ -202,7 +202,7 @@ export async function restoreService(ctx: TenantContext, id: string): Promise<Se
       await audit(ctx, { action: 'service.restored', targetType: 'Service', targetId: id }, tx)
       return service
     })
-    return toView(restored)
+    return toServiceView(restored)
   } catch (err) {
     if (isRecordNotFound(err)) throw notFound()
     throw err

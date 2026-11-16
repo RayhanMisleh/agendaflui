@@ -1,9 +1,10 @@
 import type { TenantContext } from '@/server/auth/actor'
-import type { Customer, Prisma } from '@/server/db/generated/client'
+import type { Prisma } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
-import { formatPhone, normalizeEmail, normalizePhone } from '@/server/domain/customers/contact'
+import { formatPhone, normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
+import { deleteUploadRecord, removeUploadFile, uploadUrl } from '@/server/storage/images'
 import { dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
 
 export type CustomerView = {
@@ -34,6 +35,9 @@ export type CustomerInput = {
 const ANONYMIZED_NAME = 'Cliente removido'
 const REMOVED_MESSAGE = 'Este cadastro foi removido a pedido do cliente e não pode mais ser alterado.'
 const MIN_BIRTH_DATE = '1900-01-01'
+type CustomerRow = Prisma.CustomerGetPayload<{ include: { avatar: true } }>
+const withAvatar = { avatar: true } as const
+
 const DEFAULT_LIMIT = 30
 const MAX_LIMIT = 100
 
@@ -96,7 +100,7 @@ const listSchema = z.object({
   search: z.string().max(80, 'Use até 80 caracteres na busca.').optional(),
   clubOnly: z.boolean().optional(),
   includeArchived: z.boolean().optional(),
-  cursor: z.string().max(500).optional(),
+  cursor: z.string().max(1024).optional(),
   limit: z
     .number()
     .int('Informe o limite como número inteiro.')
@@ -105,14 +109,19 @@ const listSchema = z.object({
     .optional(),
 })
 
-function toView(ctx: TenantContext, row: Customer): CustomerView {
+// O Prisma não escapa os coringas do LIKE; sem isso "%" e "_" casariam com tudo.
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`)
+}
+
+function toView(ctx: TenantContext, row: CustomerRow): CustomerView {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     phone: row.phone,
     phoneLabel: row.phone === null ? null : formatPhone(row.phone),
-    avatarUrl: null,
+    avatarUrl: uploadUrl(row.avatar),
     birthDate: row.birthDate === null ? null : dbDateToLocal(row.birthDate),
     notes: isCustomer(ctx) ? null : row.notes,
     isClubMember: row.isClubMember,
@@ -154,9 +163,9 @@ function assertOwnRecord(ctx: TenantContext, id: string): void {
   if (ctx.actor.kind === 'customer' && ctx.actor.customerId !== id) throw forbidden()
 }
 
-async function loadRow(ctx: TenantContext, id: string): Promise<Customer> {
+async function loadRow(ctx: TenantContext, id: string): Promise<CustomerRow> {
   if (!idSchema.safeParse(id).success) throw notFound()
-  return orNotFound(await ctx.db.customer.findUnique({ where: { id } }), 'Cliente')
+  return orNotFound(await ctx.db.customer.findUnique({ where: { id }, include: withAvatar }), 'Cliente')
 }
 
 function assertBirthDateNotFuture(ctx: TenantContext, birthDate: string | null | undefined): void {
@@ -177,7 +186,7 @@ async function assertEmailFree(ctx: TenantContext, email: string, selfId: string
 
 type Cursor = { name: string; id: string }
 
-function encodeCursor(row: Pick<Customer, 'name' | 'id'>): string {
+function encodeCursor(row: { name: string; id: string }): string {
   return Buffer.from(JSON.stringify([row.name, row.id])).toString('base64url')
 }
 
@@ -210,16 +219,16 @@ export async function listCustomers(
   const { search, clubOnly, includeArchived, cursor, limit = DEFAULT_LIMIT } = parse(listSchema, q)
   const after = cursor === undefined ? null : decodeCursor(cursor)
   const term = search?.trim() ?? ''
-  // O Prisma não escapa os coringas do LIKE; sem isso "%" e "_" casariam com tudo.
-  const pattern = term.replace(/[\\%_]/g, (c) => `\\${c}`)
+  const key = searchKey(term)
   const digits = term.replace(/\D/g, '')
+  const looksLikePhone = /^[\d\s()+.-]+$/.test(term) && digits.length >= 3
   const conditions: Prisma.CustomerWhereInput[] = []
   if (term.length >= 2) {
     conditions.push({
       OR: [
-        { name: { contains: pattern, mode: 'insensitive' } },
-        { email: { contains: pattern, mode: 'insensitive' } },
-        ...(digits.length >= 3 ? [{ phone: { contains: digits } }] : []),
+        { searchName: { contains: escapeLike(key) } },
+        { email: { contains: escapeLike(term), mode: 'insensitive' } },
+        ...(looksLikePhone ? [{ phone: { contains: digits } }] : []),
       ],
     })
   }
@@ -233,6 +242,7 @@ export async function listCustomers(
       ...(conditions.length > 0 ? { AND: conditions } : {}),
     },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    include: withAvatar,
     take: limit + 1,
   })
   const page = rows.slice(0, limit)
@@ -255,13 +265,17 @@ export async function createCustomer(ctx: TenantContext, input: CustomerInput): 
   assertBirthDateNotFuture(ctx, birthDate)
   const data = {
     name,
+    searchName: searchKey(name),
     ...definedOnly(optional),
     ...(birthDate ? { birthDate: localToDbDate(birthDate) } : {}),
   }
   if (data.email) await assertEmailFree(ctx, data.email, null)
   try {
     const created = await ctx.db.$transaction(async (tx) => {
-      const customer = await tx.customer.create({ data: { ...data, businessId: ctx.businessId, origin: 'PANEL' } })
+      const customer = await tx.customer.create({
+        data: { ...data, businessId: ctx.businessId, origin: 'PANEL' },
+        include: withAvatar,
+      })
       await audit(ctx, { action: 'customer.created', targetType: 'Customer', targetId: customer.id }, tx)
       return customer
     })
@@ -285,18 +299,27 @@ export async function updateCustomer(
   }
   const { birthDate, ...rest } = definedOnly(parse(updateSchema, input))
   assertBirthDateNotFuture(ctx, birthDate)
-  const data = { ...rest, ...(birthDate !== undefined ? { birthDate: birthDate === null ? null : localToDbDate(birthDate) } : {}) }
   const current = await loadRow(ctx, id)
   if (current.anonymizedAt !== null) throw removedConflict()
   if (current.archivedAt !== null) {
     throw new DomainError('conflict', 'Este cliente está arquivado. Restaure o cadastro antes de alterá-lo.')
   }
-  const fields = Object.keys(data)
+  const changes = {
+    ...rest,
+    ...(birthDate !== undefined ? { birthDate: birthDate === null ? null : localToDbDate(birthDate) } : {}),
+  }
+  const fields = Object.keys(changes)
   if (fields.length === 0) return toView(ctx, current)
-  if (data.email) await assertEmailFree(ctx, data.email, id)
+  const data: Prisma.CustomerUncheckedUpdateInput = {
+    ...changes,
+    ...(changes.name !== undefined ? { searchName: searchKey(changes.name) } : {}),
+    // E-mail novo (ou removido) deixa de estar verificado.
+    ...(changes.email !== undefined && changes.email !== current.email ? { emailVerifiedAt: null } : {}),
+  }
+  if (changes.email) await assertEmailFree(ctx, changes.email, id)
   try {
     const updated = await ctx.db.$transaction(async (tx) => {
-      const row = await tx.customer.update({ where: { id }, data })
+      const row = await tx.customer.update({ where: { id }, data, include: withAvatar })
       await audit(
         ctx,
         { action: 'customer.updated', targetType: 'Customer', targetId: id, metadata: { fields } },
@@ -334,7 +357,7 @@ export async function restoreCustomer(ctx: TenantContext, id: string): Promise<C
   if (current.archivedAt === null) return toView(ctx, current)
   try {
     const restored = await ctx.db.$transaction(async (tx) => {
-      const row = await tx.customer.update({ where: { id }, data: { archivedAt: null } })
+      const row = await tx.customer.update({ where: { id }, data: { archivedAt: null }, include: withAvatar })
       await audit(ctx, { action: 'customer.restored', targetType: 'Customer', targetId: id }, tx)
       return row
     })
@@ -352,12 +375,14 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
   const current = await loadRow(ctx, id)
   if (current.anonymizedAt !== null) return
   const now = ctx.clock()
+  let avatarPath: string | null = null
   try {
     await ctx.db.$transaction(async (tx) => {
       await tx.customer.update({
         where: { id },
         data: {
           name: ANONYMIZED_NAME,
+          searchName: searchKey(ANONYMIZED_NAME),
           email: null,
           phone: null,
           passwordHash: null,
@@ -369,10 +394,13 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
           archivedAt: current.archivedAt ?? now,
         },
       })
-      await audit(ctx, { action: 'customer.anonymized', targetType: 'Customer', targetId: id }, tx)
+      if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
     })
   } catch (err) {
     if (isRecordNotFound(err)) throw notFound()
     throw err
   }
+  // O arquivo só sai depois do commit; se falhar, a auditoria registra.
+  const avatarRemoved = avatarPath === null ? false : (await removeUploadFile(avatarPath)).fileRemoved
+  await audit(ctx, { action: 'customer.anonymized', targetType: 'Customer', targetId: id, metadata: { avatarRemoved } })
 }

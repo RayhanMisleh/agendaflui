@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import sharp, { type Metadata, type OutputInfo } from 'sharp'
 import type { AuditActorType, Upload } from '@/server/db/generated/client'
-import { tenantDb } from '@/server/db/tenant'
+import type { TenantContext } from '@/server/auth/actor'
+import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
 import { createPlatformUpload } from '@/server/db/uploads'
 import { getStorage, type Storage } from './storage'
 
@@ -117,4 +118,33 @@ export async function saveImage(input: SaveImageInput, storage: Storage = getSto
 
 export function uploadUrl(upload: { path: string } | null | undefined): string | null {
   return upload ? `/arquivos/${upload.path}` : null
+}
+
+/** Apaga só o registro (da conta do cliente `db`); devolve o caminho do arquivo, ou `null` se não havia registro. */
+export async function deleteUploadRecord(db: TenantClient | TenantTx, uploadId: string): Promise<string | null> {
+  const upload = await db.upload.findUnique({ where: { id: uploadId }, select: { path: true } })
+  if (!upload) return null
+  await db.upload.deleteMany({ where: { id: uploadId } })
+  return upload.path
+}
+
+/** Remove o arquivo do storage. Não lança: a falha volta como `fileRemoved: false` para quem chamou registrar. */
+export async function removeUploadFile(path: string, storage: Storage = getStorage()): Promise<{ fileRemoved: boolean }> {
+  try {
+    await storage.delete(path)
+    return { fileRemoved: true }
+  } catch {
+    return { fileRemoved: false }
+  }
+}
+
+/** Apaga o registro (só da própria conta) e depois o arquivo. */
+export async function deleteUpload(
+  ctx: TenantContext,
+  uploadId: string,
+  storage: Storage = getStorage(),
+): Promise<{ fileRemoved: boolean }> {
+  const path = await deleteUploadRecord(ctx.db, uploadId)
+  if (path === null) return { fileRemoved: false }
+  return removeUploadFile(path, storage)
 }

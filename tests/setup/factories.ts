@@ -6,6 +6,7 @@ import { prisma } from '@/server/db/client'
 import type { Actor, TenantContext } from '@/server/auth/actor'
 import { addMinutes, type Weekday } from '@/server/time'
 import { createTenantContext } from '@/server/auth/context'
+import { searchKey } from '@/server/domain/customers/contact'
 
 let contador = 0
 
@@ -125,8 +126,9 @@ export async function makeCustomer(
 ): Promise<Customer> {
   contador += 1
   const phone = `5511${(900000000 + contador).toString()}`
+  const name = overrides.name ?? `Cliente ${sufixo()}`
   return prisma.customer.create({
-    data: { name: `Cliente ${sufixo()}`, phone, origin: 'PANEL', ...overrides, businessId },
+    data: { phone, origin: 'PANEL', searchName: searchKey(name), ...overrides, name, businessId },
   })
 }
 

@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { prisma } from '@/server/db/client'
 import {
   anonymizeCustomer,
@@ -8,6 +11,8 @@ import {
   restoreCustomer,
   updateCustomer,
 } from '@/server/domain/customers/customers'
+import { createLocalDiskStorage } from '@/server/storage/local-disk'
+import type { Storage } from '@/server/storage/storage'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
@@ -17,9 +22,26 @@ import {
   makeCustomer,
   makeProfessional,
   makeService,
+  makeUpload,
 } from '../setup/factories'
 
-beforeEach(resetDb)
+let storage: Storage
+let dir: string
+
+vi.mock('@/server/storage/storage', async (original) => {
+  const real = await original<typeof import('@/server/storage/storage')>()
+  return { ...real, getStorage: () => storage }
+})
+
+beforeEach(async () => {
+  await resetDb()
+  dir = await mkdtemp(join(tmpdir(), 'agendaflui-customers-'))
+  storage = createLocalDiskStorage(dir)
+})
+
+afterEach(async () => {
+  await rm(dir, { recursive: true, force: true })
+})
 
 function ctxCliente(business: { id: string }, customerId: string, now?: Date) {
   return makeCtx(business, {
@@ -400,9 +422,8 @@ describe('arquivar, restaurar e anonimizar', () => {
   test('anonimizar zera os dados, mantém o agendamento e pode ser repetido', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
-    const upload = await prisma.upload.create({
-      data: { businessId: b.id, path: 'uploads/a.png', mimeType: 'image/png', sizeBytes: 1, width: 1, height: 1, createdByType: 'SYSTEM' },
-    })
+    const upload = await makeUpload(b.id)
+    await storage.put(upload.path, Buffer.from('foto'), 'image/png')
     const c = await makeCustomer(b.id, {
       name: 'Ana Souza',
       email: 'ana@exemplo.com',
@@ -410,6 +431,7 @@ describe('arquivar, restaurar e anonimizar', () => {
       birthDate: new Date('1990-05-17T00:00:00Z'),
       notes: 'segredo',
       avatarUploadId: upload.id,
+      emailVerifiedAt: new Date(),
       isClubMember: true,
     })
     const ag = await agendar(b.id, c.id)
@@ -422,15 +444,41 @@ describe('arquivar, restaurar e anonimizar', () => {
       phone: null,
       passwordHash: null,
       avatarUploadId: null,
+      emailVerifiedAt: null,
+      searchName: 'cliente removido',
       birthDate: null,
       notes: null,
     })
+    expect(await prisma.upload.findUnique({ where: { id: upload.id } })).toBeNull()
+    expect(await storage.get(upload.path)).toBeNull()
     expect(depois.anonymizedAt).not.toBeNull()
     expect(depois.archivedAt).not.toBeNull()
     expect((await prisma.appointment.findUniqueOrThrow({ where: { id: ag.id } })).customerId).toBe(c.id)
     const logs = await auditorias(b.id, 'customer.anonymized')
     expect(logs).toHaveLength(1)
     expect(JSON.stringify(logs[0]?.metadata)).not.toMatch(/Ana|ana@|segredo/)
+    expect(logs[0]?.metadata).toMatchObject({ avatarRemoved: true })
+  })
+
+  test('se o arquivo da foto não sair do storage, o registro já saiu e a auditoria avisa', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const upload = await makeUpload(b.id)
+    const c = await makeCustomer(b.id, { avatarUploadId: upload.id })
+    storage = { ...storage, delete: () => Promise.reject(new Error('disco indisponível')) }
+    await anonymizeCustomer(ctx, c.id)
+    expect(await prisma.upload.findUnique({ where: { id: upload.id } })).toBeNull()
+    const logs = await auditorias(b.id, 'customer.anonymized')
+    expect(logs[0]?.metadata).toMatchObject({ avatarRemoved: false })
+  })
+
+  test('sem foto, a auditoria registra avatarRemoved falso', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const c = await makeCustomer(b.id)
+    await anonymizeCustomer(ctx, c.id)
+    const logs = await auditorias(b.id, 'customer.anonymized')
+    expect(logs[0]?.metadata).toMatchObject({ avatarRemoved: false })
   })
 
   test('anonimizado não pode ser restaurado nem alterado', async () => {
@@ -454,5 +502,112 @@ describe('arquivar, restaurar e anonimizar', () => {
     await anonymizeCustomer(ctx, c.id)
     const novo = await createCustomer(ctx, { name: 'Ana 2', email: 'ana@exemplo.com' })
     expect(novo.email).toBe('ana@exemplo.com')
+  })
+})
+
+describe('e-mail verificado, avatar e busca avançada', () => {
+  test('trocar o e-mail limpa a verificação; manter ou não tocar mantém', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const verificadoEm = new Date('2026-10-01T10:00:00Z')
+    const c = await makeCustomer(b.id, { email: 'ana@exemplo.com', emailVerifiedAt: verificadoEm })
+    const lido = () => prisma.customer.findUniqueOrThrow({ where: { id: c.id } })
+    await updateCustomer(ctx, c.id, { name: 'Ana 2' })
+    expect((await lido()).emailVerifiedAt).toEqual(verificadoEm)
+    await updateCustomer(ctx, c.id, { email: ' ANA@exemplo.com ' })
+    expect((await lido()).emailVerifiedAt).toEqual(verificadoEm)
+    await updateCustomer(ctx, c.id, { email: 'outra@exemplo.com' })
+    expect((await lido()).emailVerifiedAt).toBeNull()
+    await prisma.customer.update({ where: { id: c.id }, data: { emailVerifiedAt: verificadoEm } })
+    await updateCustomer(ctx, c.id, { email: null })
+    expect(await lido()).toMatchObject({ email: null, emailVerifiedAt: null })
+  })
+
+  test('avatarUrl vem do upload do avatar', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const upload = await makeUpload(b.id)
+    const c = await makeCustomer(b.id, { avatarUploadId: upload.id })
+    expect((await getCustomer(ctx, c.id)).avatarUrl).toBe(`/arquivos/${upload.path}`)
+    expect((await listCustomers(ctx)).items[0]?.avatarUrl).toBe(`/arquivos/${upload.path}`)
+  })
+
+  test('busca por nome ignora acentos e maiúsculas, e o nome gravado acompanha as trocas', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const joao = await createCustomer(ctx, { name: 'João Silva' })
+    const jose = await createCustomer(ctx, { name: 'José Alves' })
+    const conceicao = await createCustomer(ctx, { name: 'Maria da Conceição' })
+    const achar = async (search: string) => (await listCustomers(ctx, { search })).items.map((c) => c.id)
+    expect(await achar('joao')).toEqual([joao.id])
+    expect(await achar('JOÃO')).toEqual([joao.id])
+    expect(await achar('jose')).toEqual([jose.id])
+    expect(await achar('conceicao')).toEqual([conceicao.id])
+    expect(await achar('Conceição')).toEqual([conceicao.id])
+    await updateCustomer(ctx, joao.id, { name: 'Pedro Ávila' })
+    expect(await achar('joao')).toEqual([])
+    expect(await achar('avila')).toEqual([joao.id])
+  })
+
+  test('sublinhado do termo é literal', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const com = await createCustomer(ctx, { name: 'Com', email: 'ana_souza@exemplo.com' })
+    await createCustomer(ctx, { name: 'Sem', email: 'anaxsouza@exemplo.com' })
+    expect((await listCustomers(ctx, { search: 'ana_souza@' })).items.map((c) => c.id)).toEqual([com.id])
+  })
+
+  test('telefone só entra na busca se o termo parece telefone', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    await createCustomer(ctx, { name: 'Zé', phone: '(11) 91985-0000', email: 'ze@exemplo.com' })
+    const tel = await createCustomer(ctx, { name: 'Lia', phone: '(11) 91234-5678' })
+    expect((await listCustomers(ctx, { search: 'joao1985@gmail' })).items).toHaveLength(0)
+    expect((await listCustomers(ctx, { search: '(11) 91234' })).items.map((c) => c.id)).toEqual([tel.id])
+  })
+
+  test('busca combinada com clubOnly e includeArchived', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const socia = await makeCustomer(b.id, { name: 'Ana Sócia', isClubMember: true })
+    await makeCustomer(b.id, { name: 'Ana Comum' })
+    const arq = await makeCustomer(b.id, { name: 'Ana Arquivada', archivedAt: new Date() })
+    const ids = async (q: Parameters<typeof listCustomers>[1]) => (await listCustomers(ctx, q)).items.map((c) => c.id)
+    expect(await ids({ search: 'ana', clubOnly: true })).toEqual([socia.id])
+    expect(await ids({ search: 'ana' })).toHaveLength(2)
+    expect(await ids({ search: 'arquivada' })).toEqual([])
+    expect(await ids({ search: 'arquivada', includeArchived: true })).toEqual([arq.id])
+  })
+
+  test('cursor de nome longo com caracteres de 3 bytes é aceito na página seguinte', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const longo = `M${'€'.repeat(119)}`
+    await makeCustomer(b.id, { name: 'Aaa' })
+    await makeCustomer(b.id, { name: longo })
+    await makeCustomer(b.id, { name: 'Zzz' })
+    const p1 = await listCustomers(ctx, { limit: 1 })
+    const p2 = await listCustomers(ctx, { limit: 1, cursor: p1.nextCursor ?? '' })
+    expect(p2.items[0]?.name).toBe(longo)
+    expect(p2.nextCursor?.length).toBeGreaterThan(500)
+    const p3 = await listCustomers(ctx, { limit: 1, cursor: p2.nextCursor ?? '' })
+    expect(p3.items.map((c) => c.name)).toEqual(['Zzz'])
+  })
+
+  test('data de nascimento no futuro em updateCustomer dá validation', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b, { now: new Date('2026-11-16T15:00:00Z') })
+    const c = await makeCustomer(b.id)
+    const e = await domainError(updateCustomer(ctx, c.id, { birthDate: '2026-11-17' }))
+    expect(e.code).toBe('validation')
+    expect(e.fields).toHaveProperty('birthDate')
+  })
+
+  test('ator cliente mandando notes null recebe forbidden', async () => {
+    const b = await makeBusiness()
+    const c = await makeCustomer(b.id, { notes: 'interna' })
+    const ctx = await ctxCliente(b, c.id)
+    expect((await domainError(updateCustomer(ctx, c.id, { notes: null }))).code).toBe('forbidden')
+    expect((await prisma.customer.findUniqueOrThrow({ where: { id: c.id } })).notes).toBe('interna')
   })
 })
