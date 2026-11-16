@@ -33,6 +33,7 @@ export function can(actor: Actor, capability: Capability): boolean {
     case 'impersonator':
       return true
     case 'platform_admin':
+    case 'customer':
     case 'system':
       return false
   }

@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
+import { requestInfo } from '@/app/_lib/request-info'
 import { env } from '@/server/env'
 import type { Actor, TenantContext } from './actor'
 import { can, type Capability } from './capabilities'
@@ -72,5 +73,6 @@ export async function requireTenant(capability?: Capability): Promise<TenantCont
   const ctx = await lerContexto(token)
   if (!ctx) redirect('/escolher-conta')
   if (capability && !can(ctx.actor, capability)) notFound()
-  return ctx
+  const info = await requestInfo()
+  return { ...ctx, request: { ip: info.ip ?? null, userAgent: info.userAgent ?? null } }
 }

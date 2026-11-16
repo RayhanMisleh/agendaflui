@@ -1,12 +1,24 @@
 import type { MembershipRole } from '@/server/db/generated/client'
+import type { TenantClient } from '@/server/db/tenant'
 
 export type Actor =
   | { kind: 'platform_admin'; adminId: string; name: string }
-  | { kind: 'member'; userId: string; name: string; role: MembershipRole }
+  | { kind: 'member'; userId: string; membershipId: string; name: string; role: MembershipRole }
   | { kind: 'impersonator'; adminId: string; name: string }
+  | { kind: 'customer'; customerId: string; name: string }
   | { kind: 'system' }
 
-export type TenantContext = { businessId: string; timeZone: string; actor: Actor }
+export type RequestInfo = { ip: string | null; userAgent: string | null }
+
+export type TenantContext = {
+  businessId: string
+  timeZone: string
+  actor: Actor
+  /** Cliente por conta, criado uma vez por contexto. */
+  db: TenantClient
+  clock: () => Date
+  request: RequestInfo
+}
 
 export type AuthErrorCode =
   | 'invalid_credentials'

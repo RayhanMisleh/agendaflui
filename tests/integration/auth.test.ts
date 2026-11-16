@@ -82,7 +82,7 @@ test('quem tem duas contas escolhe; conta suspensa não aparece', async () => {
   await expect(selectBusiness(token, b3.id)).rejects.toMatchObject({ code: 'no_access' })
   await selectBusiness(token, b2.id)
   const ctx = await getTenantContext(token)
-  expect(ctx).toMatchObject({ businessId: b2.id, timeZone: b2.timezone, actor: { kind: 'member', role: 'OWNER' } })
+  expect(ctx).toMatchObject({ businessId: b2.id, timeZone: b2.timezone, actor: { kind: 'member', role: 'OWNER', membershipId: expect.any(String) } })
   expect((await getMemberSession(token))?.activeBusinessId).toBe(b2.id)
 })
 test('o contexto da conta traz o fuso gravado nela, não o padrão', async () => {

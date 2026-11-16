@@ -3,6 +3,8 @@ import type { AuditLog, Business, Membership, MembershipRole, Prisma, Upload, Us
 import { hashPassword } from '@/server/auth/password'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
+import type { Actor, TenantContext } from '@/server/auth/actor'
+import { createTenantContext } from '@/server/auth/context'
 
 let contador = 0
 
@@ -86,4 +88,19 @@ export async function makeAuditLog(businessId: string | null): Promise<AuditLog>
   return prisma.auditLog.create({
     data: { businessId, actorType: 'SYSTEM', actorName: 'sistema', action: `teste-${sufixo()}` },
   })
+}
+
+/** Contexto de conta para testes de domínio. Sem `actor`, cria um usuário e um vínculo OWNER. */
+export async function makeCtx(
+  business: { id: string },
+  opts: { actor?: Actor; now?: Date } = {},
+): Promise<TenantContext> {
+  let actor = opts.actor
+  if (!actor) {
+    const user = await makeUser()
+    const membership = await makeMembership(business.id, user.id, 'OWNER')
+    actor = { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role: 'OWNER' }
+  }
+  const now = opts.now
+  return createTenantContext({ businessId: business.id, actor, ...(now ? { clock: () => now } : {}) })
 }

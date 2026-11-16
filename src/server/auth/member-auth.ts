@@ -3,6 +3,7 @@ import { prisma } from '@/server/db/client'
 import type { MembershipRole } from '@/server/db/generated/client'
 import { addMinutes } from '@/server/time'
 import { AuthError, type TenantContext } from './actor'
+import { createTenantContext } from './context'
 import { hashPassword, verifyPassword } from './password'
 import { createRateLimiter } from './rate-limit'
 import { generateToken, hashToken } from './tokens'
@@ -110,11 +111,16 @@ export async function getTenantContext(token: string | undefined): Promise<Tenan
     include: { business: true },
   })
   if (!membership) return null
-  return {
+  return createTenantContext({
     businessId: membership.businessId,
-    timeZone: membership.business.timezone,
-    actor: { kind: 'member', userId: session.user.id, name: session.user.name, role: membership.role },
-  }
+    actor: {
+      kind: 'member',
+      userId: session.user.id,
+      membershipId: membership.id,
+      name: session.user.name,
+      role: membership.role,
+    },
+  })
 }
 
 export async function logoutUser(token: string): Promise<void> {

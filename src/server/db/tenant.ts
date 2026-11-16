@@ -103,6 +103,28 @@ function escoparPorConta(modelo: string, operacao: string, args: Args, businessI
   }
 }
 
+/** Campos que o código da conta pode alterar na própria conta; o resto é da plataforma. */
+const CAMPOS_DA_CONTA_EDITAVEIS: readonly string[] = [
+  'name',
+  'segment',
+  'document',
+  'email',
+  'phone',
+  'addressLine',
+  'city',
+  'state',
+  'postalCode',
+]
+
+function conferirCamposDaConta(data: Args): Args {
+  for (const chave of Object.keys(data)) {
+    if (!CAMPOS_DA_CONTA_EDITAVEIS.includes(chave)) {
+      throw new TenantViolationError(`Business.${chave}: campo não pode ser alterado pelo cliente por conta.`)
+    }
+  }
+  return data
+}
+
 function escoparConta(operacao: string, args: Args, businessId: string): Args {
   const modelo = 'Business'
   if (OPERACOES_DE_LEITURA.includes(operacao)) {
@@ -112,7 +134,7 @@ function escoparConta(operacao: string, args: Args, businessId: string): Args {
     return {
       ...args,
       where: filtrar(args['where'], 'id', businessId),
-      data: conferirDados(args['data'], modelo, 'id', businessId),
+      data: conferirCamposDaConta(conferirDados(args['data'], modelo, 'id', businessId)),
     }
   }
   throw new TenantViolationError(`${modelo}.${operacao}: não é permitido pelo cliente por conta.`)

@@ -2,7 +2,7 @@ import type { Actor } from '@/server/auth/actor'
 import { CAPABILITIES, can } from '@/server/auth/capabilities'
 import type { MembershipRole } from '@/server/db/generated/client'
 
-const member = (role: MembershipRole): Actor => ({ kind: 'member', userId: 'u', name: 'n', role })
+const member = (role: MembershipRole): Actor => ({ kind: 'member', userId: 'u', membershipId: 'm', name: 'n', role })
 
 test('profissional só tem o básico', () => {
   const allowed = CAPABILITIES.filter((c) => can(member('PROFESSIONAL'), c))
