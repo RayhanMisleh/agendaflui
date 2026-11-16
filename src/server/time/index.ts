@@ -170,6 +170,13 @@ export function fromEpochMs(ms: number): Date {
   return new Date(ms)
 }
 
+const HOUR_MS = 3_600_000
+
+/** O início da hora cheia (em UTC) que contém o instante. Recusa instante inválido. */
+export function startOfUtcHour(instant: Date): Date {
+  return fromEpochMs(Math.floor(instant.getTime() / HOUR_MS) * HOUR_MS)
+}
+
 const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
 
 /** Instante a partir de um texto ISO 8601 em UTC (`2026-11-14T03:30:00.000Z`, milissegundos opcionais). Recusa qualquer outro formato. */

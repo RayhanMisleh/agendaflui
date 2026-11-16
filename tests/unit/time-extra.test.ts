@@ -14,6 +14,7 @@ import {
   minuteOfDay,
   minuteToInstant,
   parseMinuteLabel,
+  startOfUtcHour,
 } from '@/server/time'
 
 const iso = (d: Date) => d.toISOString()
@@ -129,5 +130,17 @@ describe('fromIsoInstant', () => {
     for (const ruim of ['2027-01-15', '2027-01-15T13:00:00+03:00', '2027-01-15T13:00:00', 'amanhã', '', '2027-02-31T10:00:00Z', ' 2027-01-15T13:00:00Z']) {
       expect(() => fromIsoInstant(ruim), ruim).toThrow(RangeError)
     }
+  })
+})
+
+describe('startOfUtcHour', () => {
+  test('trunca para a hora cheia em UTC, sem depender do fuso', () => {
+    expect(toIsoInstant(startOfUtcHour(fromIsoInstant('2026-11-16T10:59:59.999Z')))).toBe('2026-11-16T10:00:00.000Z')
+    expect(toIsoInstant(startOfUtcHour(fromIsoInstant('2026-11-16T10:00:00.000Z')))).toBe('2026-11-16T10:00:00.000Z')
+    expect(toIsoInstant(startOfUtcHour(fromEpochMs(-1)))).toBe('1969-12-31T23:00:00.000Z')
+  })
+
+  test('recusa instante inválido', () => {
+    expect(() => startOfUtcHour(new Date(Number.NaN))).toThrow(RangeError)
   })
 })

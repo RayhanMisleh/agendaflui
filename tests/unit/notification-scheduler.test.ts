@@ -90,3 +90,52 @@ describe('startScheduler', () => {
     c.stop()
   })
 })
+
+describe('startScheduler: métricas de uso', () => {
+  test('grava a métrica a cada 30 segundos, uma execução por vez', async () => {
+    vi.useFakeTimers()
+    let ativas = 0
+    let maximo = 0
+    const flush = vi.fn(async () => {
+      ativas += 1
+      maximo = Math.max(maximo, ativas)
+      await sleep(45_000)
+      ativas -= 1
+      return 0
+    })
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, flush })
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(flush).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(flush).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(flush).toHaveBeenCalledTimes(2)
+    expect(maximo).toBe(1)
+    s.stop()
+    await vi.advanceTimersByTimeAsync(120_000)
+    expect(flush).toHaveBeenCalledTimes(2)
+  })
+
+  test('erro ao gravar a métrica não para o agendador', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const flush = vi.fn(async () => {
+      throw new Error('banco caiu')
+    })
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, flush })
+    await vi.advanceTimersByTimeAsync(95_000)
+    expect(flush).toHaveBeenCalledTimes(3)
+    s.stop()
+  })
+
+  test('shutdown faz um último flush e não espera além do teto de tempo', async () => {
+    vi.useFakeTimers()
+    const flush = vi.fn(() => new Promise<number>(() => undefined))
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, flush })
+    const fim = s.shutdown()
+    await vi.advanceTimersByTimeAsync(5_000)
+    await fim
+    expect(flush).toHaveBeenCalledTimes(1)
+    s.stop()
+  })
+})

@@ -13,6 +13,7 @@ import { checkWireContract } from './contract'
 import { corsHeaders, isSyntacticOrigin, originAllowed, preflightHeaders } from './cors'
 import { ApiRateLimitError, BodyTooLargeError, buildResponse, errorResponse } from './errors'
 import { toJson } from './serialize'
+import { recordUsage } from './usage'
 
 /*
  * Como escrever uma rota (`src/app/api/v1/**\/route.ts`):
@@ -291,7 +292,26 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
   const status = def.status ?? 200
   const handle = def.handler as unknown as (c: Record<string, unknown>) => Promise<unknown>
 
+  /** Registra o uso depois de a resposta estar pronta: só com chave válida, e nenhuma falha aqui muda a resposta. */
+  const track = (key: ResolvedKey | null, status: number, started: number): void => {
+    if (key === null) return
+    try {
+      const erro = status >= 500 || (status >= 400 && ![401, 404, 409, 422, 429].includes(status))
+      recordUsage({ apiKeyId: key.apiKeyId, businessId: key.businessId, route: `${def.method} ${def.path}`, ms: performance.now() - started, error: erro, at: new Date() })
+    } catch {
+      // Métrica nunca muda a resposta.
+    }
+  }
+
   const handler: RouteHandler = async (request, seg) => {
+    const started = performance.now()
+    const holder: { key: ResolvedKey | null } = { key: null }
+    const res = await respond(request, seg, holder)
+    track(holder.key, res.status, started)
+    return res
+  }
+
+  const respond = async (request: Request, seg: Parameters<RouteHandler>[1], holder: { key: ResolvedKey | null }): Promise<Response> => {
     const requestId = crypto.randomUUID()
     let cors: Record<string, string> = {}
     const finish = (res: Response): Response => {
@@ -321,6 +341,7 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
           if (!originAllowed(origin, key.allowedOrigins)) throw origemNegada()
           cors = corsHeaders(origin)
         }
+        holder.key = key
         await enforceGeneralLimit(request, key, now)
       }
 
