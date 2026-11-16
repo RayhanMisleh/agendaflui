@@ -7,7 +7,7 @@
 
 - Telas e rotas do painel dev para chaves de app (listar, criar, revogar, origens) e para o resumo de uso da API (`usageSummary`).
 - Quem criar "desativar vínculo" ou "trocar senha de usuário" chama `revokeAllFor({ membershipId })` sob a trava do vínculo.
-- `listClosures` precisa de visão por ator antes de virar rota.
+- (mover para a Fase 4) `listClosures` precisa de visão por ator antes de virar rota.
 - `areaUrl` sem validar barra inicial.
 - `canonicalTimeZone` ao gravar o fuso da conta (hoje aceita minúsculas e `UTC`).
 - Vitrine atrás de `requirePlatformAdmin`.
