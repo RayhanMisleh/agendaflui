@@ -26,6 +26,9 @@ vazio e inicia o Next. Para parar, Ctrl+C (o banco também é encerrado).
 | Painel do negócio | http://painel.localhost:3000 |
 | API | http://api.localhost:3000 |
 
+O seed de demonstração não roda em produção, a menos que `SEED_ALLOW_PRODUCTION=1`. Se o `npm run dev`
+avisar que os dados de demonstração ficaram incompletos, rode `npm run db:reset` e inicie de novo.
+
 Os e-mails e as senhas de demonstração estão no `.env.example` (copiados para o seu `.env`).
 Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Cada conta tem o
 próprio link de entrada: `painel.localhost:3000/entrar/patas-e-cia`.

@@ -25,6 +25,8 @@ por donos e equipes) e `API_HOST` (API do aplicativo).
 
 - Regra de negócio só em `src/server/`.
 - Dados de conta só por `tenantDb`; o cliente Prisma cru (`@/server/db/client`) fica restrito às pastas liberadas no ESLint.
+- Código de domínio (`src/server/domain/**`) recebe `ctx` e usa `ctx.db` e `ctx.clock()`; nunca o cliente Prisma cru nem `new Date()`.
+- Esquemas de validação importam `z` de `@/server/domain/errors`, nunca de `zod`.
 - Data e hora só por `src/server/time/`. Leia a spec antes de mexer em agenda ou fuso.
 - Sem `any` e sem `@ts-ignore`.
 - Tabela nova: classifique o modelo em `src/server/db/models.ts`. Se for de conta, ela tem coluna
