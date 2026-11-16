@@ -1,6 +1,6 @@
 import pg from 'pg'
 import { prisma } from '@/server/db/client'
-import { listAvailableDays } from '@/server/domain/scheduling/availability'
+import { getAvailability, listAvailableDays } from '@/server/domain/scheduling/availability'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
@@ -142,3 +142,82 @@ describe('listAvailableDays', () => {
     expect(e.fields?.['professionalId']).toBeDefined()
   })
 })
+
+describe('listAvailableDays: regras do cliente e da folga', () => {
+  test('além de maxAdvanceDays vem false para o cliente (e true para a equipe); o último dia permitido vem true', async () => {
+    const s = await montar()
+    await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { maxAdvanceDays: 7 } })
+    for (const p of [s.ana, s.caio]) await makeWorkingHours(s.b.id, p.id, 'TUESDAY', [MANHA])
+    const q = { from: '2026-11-23', to: '2026-11-24', serviceIds: [s.banho.id] }
+    expect((await listAvailableDays(s.cliente, q)).map((d) => [d.date, d.available])).toEqual([
+      ['2026-11-23', true],
+      ['2026-11-24', false],
+    ])
+    expect((await listAvailableDays(s.gerente, q)).map((d) => d.available)).toEqual([true, true])
+  })
+
+  test('dia em que só sobra horário antes da antecedência mínima vem false para o cliente', async () => {
+    const s = await montar()
+    await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { minLeadMin: 120 } })
+    // Segunda 11:00 em São Paulo; expediente até 12:00: o único início (11:00) fica antes da antecedência.
+    const agora = new Date('2026-11-16T14:00:00Z')
+    const customer = await makeCustomer(s.b.id)
+    const cliente = await makeCtx(s.b, { actor: { kind: 'customer', customerId: customer.id, name: customer.name }, now: agora })
+    const equipe = await makeCtx(s.b, { now: agora })
+    const q = { from: '2026-11-16', to: '2026-11-16', serviceIds: [s.banho.id] }
+    expect((await listAvailableDays(cliente, q))[0]?.available).toBe(false)
+    expect((await listAvailableDays(equipe, q))[0]?.available).toBe(true)
+  })
+
+  test('a folga vale na borda do dia: agendamento até 23:50 da véspera tira o início das 00:00', async () => {
+    const b = await makeBusiness()
+    await prisma.businessSettings.update({ where: { businessId: b.id }, data: { slotStepMin: 30, bufferMin: 15 } })
+    const corte = await makeService(b.id, { name: 'Corte', durationMin: 30 })
+    const noturno = await makeProfessional(b.id, { name: 'Noturno', serviceIds: [corte.id] })
+    await makeWorkingHours(b.id, noturno.id, 'TUESDAY', [{ startMin: 0, endMin: 30 }])
+    const dono = await makeCustomer(b.id)
+    // Segunda 23:20 a 23:50 em São Paulo.
+    await makeAppointment(b.id, {
+      customerId: dono.id,
+      professionalId: noturno.id,
+      serviceId: corte.id,
+      startsAt: new Date(Date.UTC(2026, 10, 16, 23 + 3, 20)),
+    })
+    const gerente = await makeCtx(b, { now: SEGUNDA_08H })
+    const q = { from: '2026-11-17', to: '2026-11-17', serviceIds: [corte.id] }
+    expect((await listAvailableDays(gerente, q))[0]?.available).toBe(false)
+    expect((await getAvailability(gerente, { date: '2026-11-17', serviceIds: [corte.id] })).slots).toEqual([])
+    await prisma.businessSettings.update({ where: { businessId: b.id }, data: { bufferMin: 0 } })
+    expect((await listAvailableDays(gerente, q))[0]?.available).toBe(true)
+  })
+
+  test('para cada dia de uma semana, available é igual a getAvailability(dia).slots.length > 0', async () => {
+    const s = await montar()
+    // Quinta lotada por 3 horas nos dois profissionais; sexta com bloqueio no dia todo de um e folga do outro.
+    for (const p of [s.ana, s.caio]) {
+      await makeAppointment(s.b.id, {
+        customerId: (await makeCustomer(s.b.id)).id,
+        professionalId: p.id,
+        serviceId: s.banho.id,
+        startsAt: sp(19, 9),
+        durationMin: 180,
+      })
+    }
+    await makeWorkingHours(s.b.id, s.ana.id, 'FRIDAY', [MANHA])
+    await prisma.timeBlock.create({
+      data: { businessId: s.b.id, professionalId: s.ana.id, startsAt: sp(20, 0), endsAt: sp(21, 0), createdByType: 'SYSTEM' },
+    })
+    for (const ctx of [s.cliente, s.gerente]) {
+      const q = { from: '2026-11-16', to: '2026-11-22', serviceIds: [s.banho.id] }
+      const dias = await listAvailableDays(ctx, q)
+      expect(dias).toHaveLength(7)
+      for (const d of dias) {
+        const v = await getAvailability(ctx, { date: d.date, serviceIds: [s.banho.id] })
+        expect(d.available, d.date).toBe(v.slots.length > 0)
+      }
+      expect(dias.some((d) => d.available)).toBe(true)
+      expect(dias.some((d) => !d.available)).toBe(true)
+    }
+  })
+})
+

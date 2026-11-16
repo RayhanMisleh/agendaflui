@@ -13,8 +13,9 @@ import { formatPhone } from '@/server/domain/customers/contact'
 import { DomainError, z } from '@/server/domain/errors'
 import { enqueueAppointmentEvent } from '@/server/domain/notifications/outbox'
 import { ownProfessionalId } from '@/server/domain/team/professionals'
+import { customerChangeDeadline, withinCustomerWindow } from '@/server/domain/scheduling/change-window'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
-import { addMinutes, formatDateTime, formatTime, fromEpochMs, localParts } from '@/server/time'
+import { formatDateTime, formatTime, fromEpochMs, localParts } from '@/server/time'
 
 export type AppointmentView = {
   id: string
@@ -161,13 +162,20 @@ export function canSeeInternals(ctx: TenantContext, scope: Scope, professionalId
   return scope.all || (scope.ownId !== null && scope.ownId === professionalId)
 }
 
-/** Prazo de alteração: `customerChangeWindowMin` (das regras da conta, lidas uma vez por operação) antes do início. */
-function changeOf(ctx: TenantContext, row: Row, changeWindowMin: number): AppointmentView['change'] {
-  const until = addMinutes(row.startsAt, -changeWindowMin)
+/**
+ * Prazo de alteração: `customerChangeWindowMin` (das regras da conta, lidas uma vez por operação) antes do
+ * início. `allowed` diz se ESTE ator pode alterar: situação aberta, mais o prazo (cliente dono) ou a regra de
+ * escopo da equipe (`canSeeInternals`: todas as agendas, suporte ou o profissional do próprio agendamento).
+ */
+function changeOf(ctx: TenantContext, row: Row, scope: Scope, changeWindowMin: number): AppointmentView['change'] {
+  const until = customerChangeDeadline(row.startsAt, changeWindowMin)
+  const actor = ctx.actor
+  const mayChange =
+    actor.kind === 'customer'
+      ? row.customerId === actor.customerId && withinCustomerWindow(ctx.clock(), row.startsAt, changeWindowMin)
+      : canSeeInternals(ctx, scope, row.professionalId)
   return {
-    // O prazo vale para o cliente; a equipe pode alterar enquanto a situação permitir.
-    allowed:
-      OPEN_STATUSES.includes(row.status) && (ctx.actor.kind !== 'customer' || ctx.clock().getTime() <= until.getTime()),
+    allowed: OPEN_STATUSES.includes(row.status) && mayChange,
     until,
     untilLabel: formatDateTime(until, ctx.timeZone),
   }
@@ -206,7 +214,7 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
     commissionCents: internals ? row.commissionCents : null,
     notes: internals ? row.notes : null,
     customerNote: row.customerNote,
-    change: changeOf(ctx, row, changeWindowMin),
+    change: changeOf(ctx, row, scope, changeWindowMin),
     canceledAt: row.canceledAt,
     cancelReason: row.cancelReason,
     completedAt: row.completedAt,

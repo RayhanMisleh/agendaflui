@@ -53,9 +53,19 @@ const regrasDeData = [
   },
 ]
 
+const semPrismaCru = {
+  group: ['@/server/db/client', '**/db/client', '**/db/client.*', '**/server/db/client', '**/server/db/client.*'],
+  message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
+}
+
 const semInterface = {
-  group: ['@/ui', '@/ui/**'],
+  group: ['@/ui', '@/ui/**', '**/ui/**'],
   message: 'O servidor não importa da interface. O que for comum fica em src/shared.',
+}
+
+const semServidorNemInterface = {
+  group: ['@/server', '@/server/**', '**/server/**', '@/ui', '@/ui/**', '**/ui/**'],
+  message: 'src/shared é neutro: não importa de src/server nem de src/ui.',
 }
 
 export default defineConfig([
@@ -78,32 +88,14 @@ export default defineConfig([
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            {
-              group: ['@/server/db/client', '**/db/client', '**/db/client.*', '**/server/db/client', '**/server/db/client.*'],
-              message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
-            },
-          ],
+          patterns: [semPrismaCru],
         },
       ],
     },
   },
   {
     files: ['src/server/**'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@/server/db/client', '**/db/client', '**/db/client.*', '**/server/db/client', '**/server/db/client.*'],
-              message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
-            },
-            semInterface,
-          ],
-        },
-      ],
-    },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface] }] },
   },
   {
     files: ['src/shared/**'],
@@ -112,10 +104,8 @@ export default defineConfig([
         'error',
         {
           patterns: [
-            {
-              group: ['@/server', '@/server/**', '@/ui', '@/ui/**'],
-              message: 'src/shared é neutro: não importa de src/server nem de src/ui.',
-            },
+            semPrismaCru,
+            semServidorNemInterface,
           ],
         },
       ],

@@ -1,6 +1,6 @@
 import { contrastRatio, hexToOklch, mix, normalizeHex, oklchToHex, shiftLightness } from './color'
 
-// Mesmos valores dos enums do Prisma; declarados aqui para src/ui não importar de src/server.
+// Mesmos valores dos enums do Prisma; declarados aqui porque src/shared não importa de src/server (nem de src/ui).
 export type CoverMaterial = 'LEATHER' | 'LINEN' | 'WOOD' | 'ENAMEL'
 export type PaperTone = 'WHITE' | 'CREAM' | 'GRAY'
 export type FontPair = 'CLASSIC' | 'MODERN' | 'FRIENDLY'

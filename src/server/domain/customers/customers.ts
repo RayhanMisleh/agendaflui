@@ -423,6 +423,8 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
           archivedAt: current.archivedAt ?? now,
         },
       })
+      // A observação do cliente é texto livre e pode ter dado pessoal: sai de todos os agendamentos dele.
+      await tx.appointment.updateMany({ where: { customerId: id, customerNote: { not: null } }, data: { customerNote: null } })
       // Cancela depois de anonimizar: o cliente já não recebe aviso nenhum.
       const canceled = await cancelOpenAppointmentsOfCustomer(tx, ctx, open, CANCEL_REASON)
       await cancelPendingForCustomer(tx, id)

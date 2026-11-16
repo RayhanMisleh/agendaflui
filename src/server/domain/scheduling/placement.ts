@@ -4,9 +4,10 @@ import { DomainError } from '@/server/domain/errors'
 import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { computeFreeStarts, loadDayOccupancy, type Candidate } from '@/server/domain/scheduling/availability'
 import type { Db, Row, Who } from '@/server/domain/scheduling/appointment-view'
+import { withinCustomerWindow } from '@/server/domain/scheduling/change-window'
 import { overlaps } from '@/server/domain/scheduling/slots'
 import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
-import { addMinutes, formatTime, localDayRange, localParts, minutesBetween } from '@/server/time'
+import { addMinutes, formatTime, localDayRange, localParts } from '@/server/time'
 
 /** Limite do passado e do futuro que a equipe pode registrar. */
 export const STAFF_RANGE_DAYS = 366
@@ -44,7 +45,7 @@ function windowLabel(min: number): string {
 
 /** O cliente só cancela ou remarca até `customerChangeWindowMin` antes do início. */
 export function assertCustomerWindow(ctx: TenantContext, rules: SchedulingRules, startsAt: Date, verb: string): void {
-  if (minutesBetween(ctx.clock(), startsAt) < rules.customerChangeWindowMin) {
+  if (!withinCustomerWindow(ctx.clock(), startsAt, rules.customerChangeWindowMin)) {
     throw new DomainError(
       'conflict',
       `O prazo para ${verb} pelo app é de ${windowLabel(rules.customerChangeWindowMin)} antes do horário. Fale com o estabelecimento.`,

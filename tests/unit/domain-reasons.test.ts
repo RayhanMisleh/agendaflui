@@ -22,8 +22,11 @@ function usados(): Set<string> {
   return encontrados
 }
 
+// A garantia de "nenhum reason fora da lista" é do tipo `DomainReason` no typecheck (o construtor de
+// `DomainError` só aceita valores da lista). Os testes abaixo conferem o texto dos arquivos nos dois
+// sentidos, em especial o inverso: nada na lista sem uso.
 describe('DOMAIN_REASONS', () => {
-  test('contém todo reason usado no domínio e no banco', () => {
+  test('todo reason escrito no domínio e no banco consta na lista', () => {
     const lista: readonly string[] = DOMAIN_REASONS
     expect(usados().size).toBeGreaterThan(10)
     for (const reason of usados()) expect(lista, `falta '${reason}'`).toContain(reason)

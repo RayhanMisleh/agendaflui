@@ -1,5 +1,6 @@
 import { prisma } from '@/server/db/client'
 import { anonymizeCustomer, archiveCustomer } from '@/server/domain/customers/customers'
+import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
 import {
   bookAppointment,
   cancelAppointment,
@@ -17,6 +18,7 @@ import {
   makeProfessional,
   makeService,
   makeWorkingHours,
+  memberOf,
 } from '../setup/factories'
 
 beforeEach(resetDb)
@@ -199,6 +201,73 @@ describe('change (prazo de alteração)', () => {
     const v = await getAppointment(s.cliente, ag.id)
     expect(v.change.until?.toISOString()).toBe('2026-11-16T12:00:00.000Z')
     expect(v.change.untilLabel).toBe('16/11/2026 08:00')
+  })
+})
+
+describe('change.allowed diz se o ator pode alterar', () => {
+  test('profissional vê o agendamento de um colega pela ficha do cliente com allowed false; o dele, true', async () => {
+    const s = await montar()
+    const eu = await ctxWithRole(s.b, 'PROFESSIONAL', { now: SEGUNDA_08H })
+    const minha = await makeProfessional(s.b.id, {
+      name: 'Eu',
+      membershipId: memberOf(eu).membershipId,
+      serviceIds: [s.banho.id],
+    })
+    const base = { customerId: s.customer.id, serviceId: s.banho.id }
+    const meu = await makeAppointment(s.b.id, { ...base, professionalId: minha.id, startsAt: DEZ })
+    const doColega = await makeAppointment(s.b.id, {
+      ...base,
+      professionalId: s.ana.id,
+      startsAt: new Date('2026-11-16T15:00:00Z'),
+    })
+    const lista = await listCustomerAppointments(eu, { customerId: s.customer.id, scope: 'upcoming' })
+    const allowed = Object.fromEntries(lista.items.map((v) => [v.id, v.change.allowed]))
+    expect(allowed).toEqual({ [meu.id]: true, [doColega.id]: false })
+    const gerente = await listCustomerAppointments(s.gerente, { customerId: s.customer.id, scope: 'upcoming' })
+    expect(gerente.items.map((v) => v.change.allowed)).toEqual([true, true])
+  })
+
+  test('cliente só altera o próprio agendamento: na view dele é true, e outro cliente nem o lê', async () => {
+    const s = await montar()
+    const ag = await makeAppointment(s.b.id, {
+      customerId: s.customer.id,
+      professionalId: s.ana.id,
+      serviceId: s.banho.id,
+      startsAt: DEZ,
+    })
+    expect((await getAppointment(s.cliente, ag.id)).change.allowed).toBe(true)
+  })
+})
+
+describe('anonimização e nota do cliente', () => {
+  test('apaga customerNote de todos os agendamentos do cliente, passados e futuros', async () => {
+    const s = await montar()
+    const base = { customerId: s.customer.id, professionalId: s.ana.id, serviceId: s.banho.id }
+    const futuro = await makeAppointment(s.b.id, { ...base, startsAt: DEZ })
+    const passado = await makeAppointment(s.b.id, {
+      ...base,
+      startsAt: new Date('2026-11-09T13:00:00Z'),
+      status: 'COMPLETED',
+    })
+    const outro = await makeCustomer(s.b.id)
+    const deOutro = await makeAppointment(s.b.id, {
+      customerId: outro.id,
+      professionalId: s.ana.id,
+      serviceId: s.banho.id,
+      startsAt: new Date('2026-11-16T15:00:00Z'),
+    })
+    await prisma.appointment.updateMany({
+      where: { id: { in: [futuro.id, passado.id, deOutro.id] } },
+      data: { customerNote: 'Tem medo de secador' },
+    })
+    await anonymizeCustomer(s.gerente, s.customer.id)
+    const meus = await prisma.appointment.findMany({ where: { customerId: s.customer.id } })
+    expect(meus).toHaveLength(2)
+    expect(meus.map((a) => a.customerNote)).toEqual([null, null])
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: deOutro.id } })).customerNote).toBe(
+      'Tem medo de secador',
+    )
+    expect((await getAppointment(s.gerente, passado.id)).customerNote).toBeNull()
   })
 })
 
