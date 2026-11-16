@@ -1,5 +1,6 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { BusinessSettings } from '@/server/db/generated/client'
+import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { definedOnly } from '@/server/domain/input'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
@@ -56,15 +57,18 @@ function toRules(settings: BusinessSettings): SchedulingRules {
   }
 }
 
-async function loadSettings(ctx: TenantContext): Promise<BusinessSettings> {
+async function loadSettings(ctx: TenantContext, db: TenantClient | TenantTx): Promise<BusinessSettings> {
   return orNotFound(
-    await ctx.db.businessSettings.findUnique({ where: { businessId: ctx.businessId } }),
+    await db.businessSettings.findUnique({ where: { businessId: ctx.businessId } }),
     'Configurações da conta',
   )
 }
 
-export async function getSchedulingRules(ctx: TenantContext): Promise<SchedulingRules> {
-  return toRules(await loadSettings(ctx))
+export async function getSchedulingRules(
+  ctx: TenantContext,
+  db: TenantClient | TenantTx = ctx.db,
+): Promise<SchedulingRules> {
+  return toRules(await loadSettings(ctx, db))
 }
 
 export async function updateSchedulingRules(

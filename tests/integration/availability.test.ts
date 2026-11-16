@@ -143,6 +143,22 @@ describe('getAvailability', () => {
     expect(equipe.slots.length).toBeGreaterThan(0)
   })
 
+  test('borda exata de maxAdvanceDays: o dia 23 é oferecido inteiro ao cliente e o dia 24 devolve vazio', async () => {
+    const s = await montar()
+    await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { maxAdvanceDays: 7 } })
+    for (const p of [s.a, s.c]) await makeWorkingHours(s.b.id, p.id, 'TUESDAY', [MANHA, TARDE])
+    const limite = await getAvailability(s.cliente, { date: '2026-11-23', serviceIds: [s.banho.id] })
+    expect(labels(limite)).toEqual([
+      '09:00', '09:30', '10:00', '10:30', '11:00',
+      '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00',
+    ])
+    expect(labels(limite).at(-1)).toBe('17:00')
+    const alem = await getAvailability(s.cliente, { date: '2026-11-24', serviceIds: [s.banho.id] })
+    expect(alem.slots).toEqual([])
+    const equipe = await getAvailability(s.gerente, { date: '2026-11-24', serviceIds: [s.banho.id] })
+    expect(equipe.slots.length).toBeGreaterThan(0)
+  })
+
   test('antecedência vale para o cliente; a equipe começa agora', async () => {
     const s = await montar({ now: new Date('2026-11-16T13:10:00Z') })
     const cliente = await getAvailability(s.cliente, { date: SEGUNDA, serviceIds: [s.banho.id] })
@@ -164,6 +180,15 @@ describe('getAvailability', () => {
     )
     expect(e.code).toBe('validation')
     expect(e.fields).toHaveProperty('professionalId')
+  })
+
+  test('mensagem de profissional que não é candidato', async () => {
+    const s = await montar()
+    const soBanho = await makeProfessional(s.b.id, { name: 'Bia', serviceIds: [s.banho.id] })
+    const e = await domainError(
+      getAvailability(s.cliente, { date: SEGUNDA, serviceIds: [s.banho.id, s.tosa.id], professionalId: soBanho.id }),
+    )
+    expect(e.fields?.professionalId).toBe('Este profissional não está disponível para esses serviços.')
   })
 
   test('profissional inativo ou arquivado não é candidato', async () => {
@@ -303,7 +328,59 @@ describe('resolveServices', () => {
   })
 })
 
+describe('resolveServices, regras do clube e cadastro', () => {
+  test('cliente comum misturando serviço do clube com um comum recebe forbidden club_only', async () => {
+    const s = await montar()
+    const vip = await makeService(s.b.id, { clubOnly: true, durationMin: 30 })
+    const e = await domainError(resolveServices(s.cliente, [s.banho.id, vip.id]))
+    expect(e.code).toBe('forbidden')
+    expect(e.reason).toBe('club_only')
+  })
+
+  test('cliente do clube arquivado ou anonimizado recebe forbidden', async () => {
+    const s = await montar()
+    const vip = await makeService(s.b.id, { clubOnly: true, durationMin: 30 })
+    const arquivado = await clienteCtx(s.b, SEGUNDA_08H, { isClubMember: true })
+    const anonimo = await clienteCtx(s.b, SEGUNDA_08H, { isClubMember: true })
+    const idDe = (ctx: typeof arquivado) => (ctx.actor.kind === 'customer' ? ctx.actor.customerId : '')
+    await prisma.customer.update({ where: { id: idDe(arquivado) }, data: { archivedAt: new Date('2026-11-01T00:00:00Z') } })
+    await prisma.customer.update({ where: { id: idDe(anonimo) }, data: { anonymizedAt: new Date('2026-11-01T00:00:00Z') } })
+    for (const ctx of [arquivado, anonimo]) {
+      const e = await domainError(resolveServices(ctx, [vip.id]))
+      expect(e.code).toBe('forbidden')
+    }
+  })
+})
+
 describe('loadDayOccupancy', () => {
+  test('dentro de uma transação, enxerga o agendamento criado na mesma transação', async () => {
+    const s = await montar()
+    const cli = await makeCustomer(s.b.id)
+    const inicio = new Date('2026-11-16T13:00:00Z')
+    const visto = await s.gerente.db.$transaction(async (tx) => {
+      await tx.appointment.create({
+        data: {
+          businessId: s.b.id,
+          customerId: cli.id,
+          professionalId: s.a.id,
+          startsAt: inicio,
+          endsAt: new Date('2026-11-16T14:00:00Z'),
+          status: 'CONFIRMED',
+          source: 'PANEL',
+          totalCents: 8000,
+          totalDurationMin: 60,
+          createdByType: 'SYSTEM',
+        },
+      })
+      const dentro = await loadDayOccupancy(s.gerente, { professionalIds: [s.a.id], date: SEGUNDA, bufferMin: 0 }, tx)
+      const fora = await loadDayOccupancy(s.gerente, { professionalIds: [s.a.id], date: SEGUNDA, bufferMin: 0 })
+      return { dentro: dentro.get(s.a.id)?.busy, fora: fora.get(s.a.id)?.busy }
+    })
+    expect(visto.dentro).toEqual([{ start: inicio, end: new Date('2026-11-16T14:00:00Z') }])
+    expect(visto.fora).toEqual([])
+  })
+
+
   test('agrupa expediente, ocupação e bloqueios por profissional e respeita ignoreAppointmentId', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
@@ -322,7 +399,7 @@ describe('loadDayOccupancy', () => {
         createdByType: 'SYSTEM',
       },
     })
-    const mapa = await loadDayOccupancy(s.gerente, { professionalIds: [s.a.id, s.c.id], date: SEGUNDA })
+    const mapa = await loadDayOccupancy(s.gerente, { professionalIds: [s.a.id, s.c.id], date: SEGUNDA, bufferMin: 0 })
     expect(mapa.get(s.a.id)).toEqual({
       workingRanges: [MANHA, TARDE],
       busy: [{ start: ag.startsAt, end: ag.endsAt }],
@@ -335,6 +412,7 @@ describe('loadDayOccupancy', () => {
     const sem = await loadDayOccupancy(s.gerente, {
       professionalIds: [s.a.id],
       date: SEGUNDA,
+      bufferMin: 0,
       ignoreAppointmentId: ag.id,
     })
     expect(sem.get(s.a.id)?.busy).toEqual([])

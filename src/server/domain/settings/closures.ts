@@ -1,4 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
+import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
 import { compareLocalDates, daysBetween, dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
@@ -117,10 +118,14 @@ export async function deleteClosure(ctx: TenantContext, id: string): Promise<voi
 }
 
 /** A data local cai dentro de algum fechamento da conta (primeiro e último dia incluídos). */
-export async function isClosedOn(ctx: TenantContext, date: string): Promise<boolean> {
+export async function isClosedOn(
+  ctx: TenantContext,
+  date: string,
+  db: TenantClient | TenantTx = ctx.db,
+): Promise<boolean> {
   const { date: day } = parse(z.object({ date: localDate }), { date })
   const dbDay = localToDbDate(day)
-  const hit = await ctx.db.businessClosure.findFirst({
+  const hit = await db.businessClosure.findFirst({
     where: { startDate: { lte: dbDay }, endDate: { gte: dbDay } },
     select: { id: true },
   })

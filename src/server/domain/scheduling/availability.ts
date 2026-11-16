@@ -4,7 +4,8 @@ import { isCustomer } from '@/server/domain/input'
 import { isClosedOn } from '@/server/domain/settings/closures'
 import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { computeSlots, type Interval, type WorkingRange } from '@/server/domain/scheduling/slots'
-import type { ServiceView } from '@/server/domain/catalog/services'
+import { toServiceView, type ServiceView } from '@/server/domain/catalog/services'
+import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import {
   addDays,
   addMinutes,
@@ -26,6 +27,8 @@ const STAFF_WINDOW_DAYS = 365
 /** Agendamentos que ocupam o horário do profissional. */
 const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED', 'COMPLETED'] as const
 
+type Db = TenantClient | TenantTx
+
 const localDate = z.string().refine(isLocalDate, 'Use uma data válida no formato AAAA-MM-DD.')
 const uuid = z.uuid()
 
@@ -33,45 +36,35 @@ function invalidServices(message: string): DomainError {
   return new DomainError('validation', message, { fields: { serviceIds: message } })
 }
 
+const serviceIdsSchema = z.object({
+  serviceIds: z
+    .array(z.string())
+    .min(1, 'Escolha pelo menos um serviço.')
+    .max(MAX_SERVICES, `Escolha no máximo ${MAX_SERVICES} serviços por atendimento.`)
+    .refine(
+      (ids) => ids.every((id) => uuid.safeParse(id).success),
+      'Um dos serviços escolhidos não é válido. Escolha de novo.',
+    )
+    .refine((ids) => new Set(ids).size === ids.length, 'Há serviços repetidos na lista. Escolha cada serviço uma vez.'),
+})
+
 /** Valida a lista e devolve os serviços na ordem pedida, com duração e total somados. */
 export async function resolveServices(
   ctx: TenantContext,
   serviceIds: string[],
+  db: Db = ctx.db,
 ): Promise<{ items: ServiceView[]; durationMin: number; totalCents: number }> {
-  if (!Array.isArray(serviceIds) || serviceIds.length === 0) {
-    throw invalidServices('Escolha pelo menos um serviço.')
-  }
-  if (serviceIds.length > MAX_SERVICES) {
-    throw invalidServices(`Escolha no máximo ${MAX_SERVICES} serviços por atendimento.`)
-  }
-  if (!serviceIds.every((id) => uuid.safeParse(id).success)) {
-    throw invalidServices('Um dos serviços escolhidos não é válido. Escolha de novo.')
-  }
-  if (new Set(serviceIds).size !== serviceIds.length) {
-    throw invalidServices('Há serviços repetidos na lista. Escolha cada serviço uma vez.')
-  }
+  const ids = parse(serviceIdsSchema, { serviceIds }).serviceIds
 
-  const rows = await ctx.db.service.findMany({
-    where: { id: { in: serviceIds }, active: true, archivedAt: null },
+  const rows = await db.service.findMany({
+    where: { id: { in: ids }, active: true, archivedAt: null },
   })
   const byId = new Map(rows.map((row) => [row.id, row]))
   const items: ServiceView[] = []
-  for (const id of serviceIds) {
+  for (const id of ids) {
     const row = byId.get(id)
     if (!row) throw invalidServices('Um dos serviços não está disponível. Escolha outro e tente de novo.')
-    items.push({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      icon: row.icon,
-      priceCents: row.priceCents,
-      durationMin: row.durationMin,
-      rewardPoints: row.rewardPoints,
-      clubOnly: row.clubOnly,
-      active: row.active,
-      displayOrder: row.displayOrder,
-      archived: row.archivedAt !== null,
-    })
+    items.push(toServiceView(row))
   }
 
   const durationMin = items.reduce((sum, item) => sum + item.durationMin, 0)
@@ -80,11 +73,16 @@ export async function resolveServices(
   }
 
   if (ctx.actor.kind === 'customer' && items.some((item) => item.clubOnly)) {
-    const customer = await ctx.db.customer.findUnique({
-      where: { id: ctx.actor.customerId },
+    const customer = await db.customer.findFirst({
+      where: { id: ctx.actor.customerId, archivedAt: null, anonymizedAt: null },
       select: { isClubMember: true },
     })
-    if (!customer?.isClubMember) {
+    if (!customer) {
+      throw new DomainError('forbidden', 'Seu cadastro não está ativo. Fale com o estabelecimento.', {
+        reason: 'customer_inactive',
+      })
+    }
+    if (!customer.isClubMember) {
       throw new DomainError('forbidden', 'Um dos serviços é exclusivo do clube. Escolha outro serviço.', {
         reason: 'club_only',
       })
@@ -97,6 +95,7 @@ export async function resolveServices(
 const occupancySchema = z.object({
   professionalIds: z.array(z.uuid('Escolha profissionais válidos.')),
   date: localDate,
+  bufferMin: z.number().int().min(0),
   ignoreAppointmentId: z.uuid('Agendamento inválido.').optional(),
 })
 
@@ -106,21 +105,21 @@ const occupancySchema = z.object({
  */
 export async function loadDayOccupancy(
   ctx: TenantContext,
-  q: { professionalIds: string[]; date: string; ignoreAppointmentId?: string },
+  q: { professionalIds: string[]; date: string; bufferMin: number; ignoreAppointmentId?: string },
+  db: Db = ctx.db,
 ): Promise<Map<string, DayOccupancy>> {
-  const { professionalIds, date, ignoreAppointmentId } = parse(occupancySchema, q)
+  const { professionalIds, date, bufferMin, ignoreAppointmentId } = parse(occupancySchema, q)
   const result = new Map<string, DayOccupancy>()
   for (const id of professionalIds) result.set(id, { workingRanges: [], busy: [], blocked: [] })
   if (professionalIds.length === 0) return result
 
-  const { bufferMin } = await getSchedulingRules(ctx)
   const day = localDayRange(date, ctx.timeZone)
   const [hours, appointments, blocks] = await Promise.all([
-    ctx.db.workingHours.findMany({
+    db.workingHours.findMany({
       where: { professionalId: { in: professionalIds }, weekday: weekdayOf(date) },
       orderBy: [{ startMin: 'asc' }, { id: 'asc' }],
     }),
-    ctx.db.appointment.findMany({
+    db.appointment.findMany({
       where: {
         professionalId: { in: professionalIds },
         status: { in: [...ACTIVE_STATUSES] },
@@ -130,7 +129,7 @@ export async function loadDayOccupancy(
       },
       orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
     }),
-    ctx.db.timeBlock.findMany({
+    db.timeBlock.findMany({
       where: {
         professionalId: { in: professionalIds },
         startsAt: { lt: day.end },
@@ -152,7 +151,7 @@ const availabilitySchema = z.object({
 })
 
 function invalidProfessional(): DomainError {
-  const message = 'Este profissional não faz todos os serviços escolhidos. Escolha outro ou deixe em "qualquer um".'
+  const message = 'Este profissional não está disponível para esses serviços.'
   return new DomainError('validation', message, { fields: { professionalId: message } })
 }
 
@@ -192,7 +191,7 @@ export async function getAvailability(
     ? localDayRange(addDays(today, rules.maxAdvanceDays), ctx.timeZone).end
     : addMinutes(now, STAFF_WINDOW_DAYS * 24 * 60)
 
-  const occupancy = await loadDayOccupancy(ctx, { professionalIds: chosen, date })
+  const occupancy = await loadDayOccupancy(ctx, { professionalIds: chosen, date, bufferMin: rules.bufferMin })
   const starts = new Map<number, { startsAt: Date; professionalIds: string[] }>()
   for (const id of chosen) {
     const o = occupancy.get(id)
