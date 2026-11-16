@@ -54,6 +54,7 @@ const bookSchema = z.object({
   professionalId: z.uuid('Escolha um profissional válido.').nullish(),
   startsAt: startsAtSchema,
   notes: optionalText(2000).nullable().optional(),
+  customerNote: optionalText(500).nullable().optional(),
 })
 
 const rescheduleSchema = z.object({
@@ -96,17 +97,30 @@ export function itemRows(ctx: TenantContext, appointmentId: string, items: Await
 
 export async function bookAppointment(
   ctx: TenantContext,
-  i: { customerId?: string; professionalId?: string | null; serviceIds: string[]; startsAt: Date; notes?: string | null },
+  i: {
+    customerId?: string
+    professionalId?: string | null
+    serviceIds: string[]
+    startsAt: Date
+    /** Anotação interna: só a equipe. */
+    notes?: string | null
+    /** Observação do cliente ao marcar. */
+    customerNote?: string | null
+  },
 ): Promise<AppointmentView> {
   const input = parse(bookSchema, {
     customerId: i.customerId,
     professionalId: i.professionalId,
     startsAt: i.startsAt,
     notes: i.notes,
+    customerNote: i.customerNote,
   })
   const who = actorKind(ctx)
   let customerId: string
   if (ctx.actor.kind === 'customer') {
+    if (input.notes !== undefined && input.notes !== null) {
+      throw forbidden('As anotações internas são da equipe. Escreva sua observação no campo de observação do cliente.')
+    }
     if (input.customerId !== undefined && input.customerId !== ctx.actor.customerId) {
       throw forbidden('Você só pode marcar horários para você mesmo.')
     }
@@ -184,10 +198,11 @@ export async function bookAppointment(
           startsAt,
           endsAt,
           status: who === 'customer' && !rules.autoConfirm ? 'PENDING' : 'CONFIRMED',
-          source: who === 'customer' ? 'APP' : 'PANEL',
+          source: ctx.channel === 'app' ? 'APP' : 'PANEL',
           totalCents: services.totalCents,
           totalDurationMin: services.durationMin,
           notes: input.notes ?? null,
+          customerNote: input.customerNote ?? null,
           createdByType: by.type,
           createdById: by.id,
         },
@@ -205,7 +220,7 @@ export async function bookAppointment(
       )
       const row = await reload(tx, created.id)
       await afterChange(tx, ctx, 'booked', row)
-      return toView(ctx, row, scope)
+      return toView(ctx, row, scope, rules.customerChangeWindowMin)
     },
     { customerId },
   )
@@ -322,7 +337,7 @@ export async function rescheduleAppointment(
         previousStartsAt: row.startsAt.getTime(),
         previousProfessionalId: row.professionalId,
       })
-      return toView(ctx, updated, scope)
+      return toView(ctx, updated, scope, rules.customerChangeWindowMin)
     },
   )
 }
@@ -360,6 +375,7 @@ export async function adjustAppointment(
       if (!OPEN_STATUSES.includes(row.status)) {
         throw invalidTransition('Só dá para ajustar agendamentos pendentes ou confirmados.')
       }
+      const rules = await getSchedulingRules(ctx, tx)
       const data: Prisma.AppointmentUncheckedUpdateInput = {}
       const fields: string[] = []
       const services = i.serviceIds !== undefined ? await resolveServices(ctx, i.serviceIds, tx) : null
@@ -370,7 +386,6 @@ export async function adjustAppointment(
           throw new DomainError('validation', message, { fields: { serviceIds: message } })
         }
         const endsAt = addMinutes(row.startsAt, services.durationMin)
-        const rules = await getSchedulingRules(ctx, tx)
         await assertFreeForStaff(ctx, tx, {
           professionalIds: [row.professionalId],
           specific: true,
@@ -395,7 +410,7 @@ export async function adjustAppointment(
         data.notes = input.notes
         fields.push('notes')
       }
-      if (fields.length === 0) return toView(ctx, row, scope)
+      if (fields.length === 0) return toView(ctx, row, scope, rules.customerChangeWindowMin)
 
       await tx.appointment.update({ where: { id }, data })
       if (services) {
@@ -409,7 +424,7 @@ export async function adjustAppointment(
       )
       const updated = await reload(tx, id)
       await afterChange(tx, ctx, 'adjusted', updated, { fields: fields.join(',') })
-      return toView(ctx, updated, scope)
+      return toView(ctx, updated, scope, rules.customerChangeWindowMin)
     },
   )
 }
@@ -417,5 +432,7 @@ export async function adjustAppointment(
 export async function getAppointment(ctx: TenantContext, id: string): Promise<AppointmentView> {
   const who = actorKind(ctx)
   const scope = await staffScope(ctx, who)
-  return toView(ctx, await loadForActor(ctx, ctx.db, id, who, scope), scope)
+  const row = await loadForActor(ctx, ctx.db, id, who, scope)
+  const rules = await getSchedulingRules(ctx)
+  return toView(ctx, row, scope, rules.customerChangeWindowMin)
 }

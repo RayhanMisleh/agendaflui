@@ -17,6 +17,7 @@ import {
   toView,
   type AppointmentView,
   type ChangeEvent,
+  type ChangeExtra,
   type Row,
 } from '@/server/domain/scheduling/appointment-view'
 import { assertCustomerWindow, assertProfessionalUnchanged, lockedTransaction } from '@/server/domain/scheduling/placement'
@@ -37,8 +38,10 @@ type StatusChange = {
   metadata?: (row: Row, extra: Prisma.AppointmentUncheckedUpdateInput) => Record<string, string | number | null>
   /** Texto do erro `slot_taken` quando a mudança volta a ocupar um horário que outro agendamento tomou. */
   slotTakenMessage?: string
+  /** Trava também o cliente (antes dos profissionais), para serializar com arquivar e anonimizar. */
+  lockCustomer?: boolean
   /** Dados a mais para os avisos do evento (ver `afterChange`). */
-  eventExtra?: Record<string, string | number | null>
+  eventExtra?: ChangeExtra
 }
 
 function assertTransition(row: Row, spec: StatusChange): void {
@@ -85,11 +88,11 @@ async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange):
         const row = await loadForActor(ctx, tx, id, who, scope)
         assertProfessionalUnchanged(row, [before.professionalId])
         assertTransition(row, spec)
-        if (who === 'customer') {
-          assertCustomerWindow(ctx, await getSchedulingRules(ctx, tx), row.startsAt, spec.customerVerb ?? '')
-        }
-        return toView(ctx, await applyChange(tx, ctx, row, spec), scope)
+        const rules = await getSchedulingRules(ctx, tx)
+        if (who === 'customer') assertCustomerWindow(ctx, rules, row.startsAt, spec.customerVerb ?? '')
+        return toView(ctx, await applyChange(tx, ctx, row, spec), scope, rules.customerChangeWindowMin)
       },
+      spec.lockCustomer ? { customerId: before.customerId } : {},
     )
   } catch (err) {
     if (spec.slotTakenMessage && err instanceof DomainError && err.reason === 'slot_taken') {
@@ -131,7 +134,7 @@ export async function cancelAppointment(
  * Sem prazo do cliente; o membro do profissional é avisado, qualquer que seja quem cancela.
  */
 export async function cancelWithinTransaction(tx: TenantTx, ctx: TenantContext, id: string, reason: string): Promise<void> {
-  await applyChange(tx, ctx, await reload(tx, id), cancelSpec(ctx, reason, { notifyProfessional: 1 }))
+  await applyChange(tx, ctx, await reload(tx, id), cancelSpec(ctx, reason, { notifyProfessional: true }))
 }
 
 export function confirmAppointment(ctx: TenantContext, id: string): Promise<AppointmentView> {
@@ -188,6 +191,16 @@ export function undoOutcome(ctx: TenantContext, id: string): Promise<Appointment
     event: 'outcome_undone',
     invalid: 'Só dá para desfazer agendamentos concluídos ou com falta.',
     slotTakenMessage: 'Não dá para desfazer: o horário já está ocupado por outro agendamento.',
-    prepare: async () => ({ completedAt: null, commissionCents: null }),
+    lockCustomer: true,
+    prepare: async (_tx, row) => {
+      if (row.customer.archivedAt !== null || row.customer.anonymizedAt !== null) {
+        throw new DomainError(
+          'conflict',
+          'Não dá para desfazer: o cadastro deste cliente foi arquivado ou removido. Restaure o cliente antes, se for o caso.',
+          { reason: 'customer_gone' },
+        )
+      }
+      return { completedAt: null, commissionCents: null }
+    },
   })
 }

@@ -350,6 +350,10 @@ export async function archiveCustomer(ctx: TenantContext, id: string): Promise<v
     await ctx.db.$transaction(async (tx) => {
       // A trava do cliente serializa com as marcações dele; atendimento em andamento também impede.
       await tx.$lockKey('customer', id)
+      // Relê sob a trava: outra chamada pode ter arquivado entre a leitura de fora e a trava.
+      const locked = await tx.customer.findUnique({ where: { id }, select: { archivedAt: true } })
+      if (!locked) throw notFound()
+      if (locked.archivedAt !== null) return
       const count = (await openAppointmentsOfCustomer(ctx, tx, id)).length
       if (count > 0) {
         const quantos = count === 1 ? 'Há 1 agendamento futuro' : `Há ${count} agendamentos futuros`
@@ -394,12 +398,15 @@ export async function restoreCustomer(ctx: TenantContext, id: string): Promise<C
 export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise<void> {
   if (ctx.actor.kind === 'customer') assertOwnRecord(ctx, id)
   else authorize(ctx, 'manage_clients')
-  const current = await loadRow(ctx, id)
-  if (current.anonymizedAt !== null) return
+  await loadRow(ctx, id)
   const now = ctx.clock()
   let avatarPath: string | null = null
   try {
     await withCustomerAppointmentsLocked(ctx, id, async (tx, open) => {
+      // Relê sob a trava: outra chamada pode ter anonimizado entre a leitura de fora e a trava.
+      const current = await tx.customer.findUnique({ where: { id } })
+      if (!current) throw notFound()
+      if (current.anonymizedAt !== null) return
       await tx.customer.update({
         where: { id },
         data: {

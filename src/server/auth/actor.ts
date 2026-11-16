@@ -10,6 +10,9 @@ export type Actor =
 
 export type RequestInfo = { ip: string | null; userAgent: string | null }
 
+/** Por onde a ação chegou: o aplicativo, o painel da conta ou o próprio sistema (tarefas internas). */
+export type Channel = 'app' | 'panel' | 'system'
+
 export type TenantContext = {
   businessId: string
   timeZone: string
@@ -18,6 +21,7 @@ export type TenantContext = {
   db: TenantClient
   clock: () => Date
   request: RequestInfo
+  channel: Channel
 }
 
 export type AuthErrorCode =

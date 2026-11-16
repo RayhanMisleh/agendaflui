@@ -3,7 +3,7 @@ import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Memb
 import { hashPassword } from '@/server/auth/password'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
-import type { Actor, TenantContext } from '@/server/auth/actor'
+import type { Actor, Channel, TenantContext } from '@/server/auth/actor'
 import { addMinutes, type Weekday } from '@/server/time'
 import { createTenantContext } from '@/server/auth/context'
 import { searchKey } from '@/server/domain/customers/contact'
@@ -191,7 +191,7 @@ export async function makeAppointment(
 /** Contexto de conta para testes de domínio. Sem `actor`, cria um usuário e um vínculo OWNER. */
 export async function makeCtx(
   business: { id: string },
-  opts: { actor?: Actor; now?: Date } = {},
+  opts: { actor?: Actor; now?: Date; channel?: Channel } = {},
 ): Promise<TenantContext> {
   let actor = opts.actor
   if (!actor) {
@@ -200,20 +200,23 @@ export async function makeCtx(
     actor = { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role: 'OWNER' }
   }
   const now = opts.now
-  return createTenantContext({ businessId: business.id, actor, ...(now ? { clock: () => now } : {}) })
+  // O ator `customer` só existe pelo app; os demais, por padrão, chegam pelo painel.
+  const channel = opts.channel ?? (actor.kind === 'customer' ? 'app' : 'panel')
+  return createTenantContext({ businessId: business.id, actor, channel, ...(now ? { clock: () => now } : {}) })
 }
 
 /** Contexto de um membro com o papel dado: cria o usuário e o vínculo. */
 export async function ctxWithRole(
   business: { id: string },
   role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL',
-  opts: { now?: Date } = {},
+  opts: { now?: Date; channel?: Channel } = {},
 ): Promise<TenantContext> {
   const user = await makeUser()
   const membership = await makeMembership(business.id, user.id, role)
   return makeCtx(business, {
     actor: { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role },
     ...(opts.now ? { now: opts.now } : {}),
+    ...(opts.channel ? { channel: opts.channel } : {}),
   })
 }
 

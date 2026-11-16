@@ -2,7 +2,7 @@ import 'server-only'
 import { prisma } from '@/server/db/client'
 import { tenantDb } from '@/server/db/tenant'
 import { DomainError } from '@/server/domain/errors'
-import type { Actor, RequestInfo, TenantContext } from './actor'
+import type { Actor, Channel, RequestInfo, TenantContext } from './actor'
 
 /** Monta o contexto da conta: lê a conta (fuso e situação) e cria o cliente por conta uma vez. */
 export async function createTenantContext(i: {
@@ -10,6 +10,7 @@ export async function createTenantContext(i: {
   actor: Actor
   clock?: () => Date
   request?: RequestInfo
+  channel?: Channel
 }): Promise<TenantContext> {
   const business = await prisma.business.findUnique({
     where: { id: i.businessId },
@@ -26,5 +27,6 @@ export async function createTenantContext(i: {
     db: tenantDb(business.id),
     clock: i.clock ?? (() => new Date()),
     request: i.request ?? { ip: null, userAgent: null },
+    channel: i.channel ?? 'panel',
   }
 }

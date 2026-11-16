@@ -13,7 +13,8 @@ import { formatPhone } from '@/server/domain/customers/contact'
 import { DomainError, z } from '@/server/domain/errors'
 import { enqueueAppointmentEvent } from '@/server/domain/notifications/outbox'
 import { ownProfessionalId } from '@/server/domain/team/professionals'
-import { formatTime, fromEpochMs, localParts } from '@/server/time'
+import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
+import { addMinutes, formatDateTime, formatTime, fromEpochMs, localParts } from '@/server/time'
 
 export type AppointmentView = {
   id: string
@@ -30,6 +31,10 @@ export type AppointmentView = {
   totalDurationMin: number
   commissionCents: number | null
   notes: string | null
+  /** Observação escrita pelo cliente ao marcar; visível ao cliente e à equipe. */
+  customerNote: string | null
+  /** Prazo do cliente para cancelar ou remarcar; para a equipe, `allowed` só segue a situação. */
+  change: { allowed: boolean; until: Date | null; untilLabel: string | null }
   canceledAt: Date | null
   cancelReason: string | null
   completedAt: Date | null
@@ -62,6 +67,16 @@ export type ChangeEvent =
   | 'outcome_undone'
   | 'adjusted'
 
+/** Dados a mais de um evento, usados só para montar os avisos (ver `afterChange`). */
+export type ChangeExtra = {
+  from?: string
+  fields?: string
+  /** Avisa também o membro ligado ao profissional, qualquer que seja quem age. */
+  notifyProfessional?: boolean
+  previousStartsAt?: number
+  previousProfessionalId?: string
+}
+
 /**
  * Ponto único dos avisos de cada operação. Roda dentro da transação, depois da gravação, para o aviso
  * nascer junto com a mudança ou não nascer.
@@ -71,13 +86,13 @@ export async function afterChange(
   ctx: TenantContext,
   event: ChangeEvent,
   appointment: Row,
-  extra: Record<string, string | number | null> = {},
+  extra: ChangeExtra = {},
 ): Promise<void> {
   if (event === 'adjusted') return
   const previous = typeof extra.previousStartsAt === 'number' ? fromEpochMs(extra.previousStartsAt) : undefined
   const professional = typeof extra.previousProfessionalId === 'string' ? extra.previousProfessionalId : undefined
   await enqueueAppointmentEvent(tx, ctx, event, appointment, {
-    ...(extra.notifyProfessional === 1 ? { notifyProfessional: true } : {}),
+    ...(extra.notifyProfessional ? { notifyProfessional: true } : {}),
     ...(previous ? { previousStartsAt: previous } : {}),
     ...(professional ? { previousProfessionalId: professional } : {}),
   })
@@ -146,7 +161,20 @@ export function canSeeInternals(ctx: TenantContext, scope: Scope, professionalId
   return scope.all || (scope.ownId !== null && scope.ownId === professionalId)
 }
 
-export function toView(ctx: TenantContext, row: Row, scope: Scope): AppointmentView {
+/** Prazo de alteração: `customerChangeWindowMin` (das regras da conta, lidas uma vez por operação) antes do início. */
+function changeOf(ctx: TenantContext, row: Row, changeWindowMin: number): AppointmentView['change'] {
+  const until = addMinutes(row.startsAt, -changeWindowMin)
+  return {
+    // O prazo vale para o cliente; a equipe pode alterar enquanto a situação permitir.
+    allowed:
+      OPEN_STATUSES.includes(row.status) && (ctx.actor.kind !== 'customer' || ctx.clock().getTime() <= until.getTime()),
+    until,
+    untilLabel: formatDateTime(until, ctx.timeZone),
+  }
+}
+
+/** `changeWindowMin` vem das regras de agenda da conta; quem monta a lista as lê uma vez só. */
+export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowMin: number): AppointmentView {
   const internals = canSeeInternals(ctx, scope, row.professionalId)
   return {
     id: row.id,
@@ -177,6 +205,8 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope): AppointmentV
     totalDurationMin: row.totalDurationMin,
     commissionCents: internals ? row.commissionCents : null,
     notes: internals ? row.notes : null,
+    customerNote: row.customerNote,
+    change: changeOf(ctx, row, changeWindowMin),
     canceledAt: row.canceledAt,
     cancelReason: row.cancelReason,
     completedAt: row.completedAt,

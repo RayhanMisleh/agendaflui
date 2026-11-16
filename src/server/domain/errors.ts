@@ -7,6 +7,28 @@ import { can, type Capability } from '@/server/auth/capabilities'
 z.config(z.locales.pt())
 export { z }
 
+/** Motivos estáveis de erro (`DomainError.reason`), em ordem alfabética. Acrescente o seu aqui ao criar um. */
+export const DOMAIN_REASONS = [
+  'already_started',
+  'blocked',
+  'busy',
+  'changed',
+  'club_only',
+  'customer_gone',
+  'customer_inactive',
+  'email_taken',
+  'has_future_appointments',
+  'invalid_status',
+  'invalid_transition',
+  'membership_taken',
+  'not_today',
+  'slot_taken',
+  'slot_unavailable',
+  'too_early',
+  'too_late',
+] as const
+export type DomainReason = (typeof DOMAIN_REASONS)[number]
+
 export type DomainErrorCode =
   | 'validation'
   | 'not_found'
@@ -18,7 +40,7 @@ export type DomainErrorCode =
 export class DomainError extends Error {
   code: DomainErrorCode
   /** Subcódigo estável, por exemplo `slot_taken`. */
-  reason?: string
+  reason?: DomainReason
   /** Campo → mensagem. */
   fields?: Record<string, string>
   details?: Record<string, unknown>
@@ -26,7 +48,7 @@ export class DomainError extends Error {
   constructor(
     code: DomainErrorCode,
     message: string,
-    extra?: { reason?: string; fields?: Record<string, string>; details?: Record<string, unknown> },
+    extra?: { reason?: DomainReason; fields?: Record<string, string>; details?: Record<string, unknown> },
   ) {
     super(message)
     this.name = 'DomainError'

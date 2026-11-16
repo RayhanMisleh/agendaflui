@@ -53,6 +53,11 @@ const regrasDeData = [
   },
 ]
 
+const semInterface = {
+  group: ['@/ui', '@/ui/**'],
+  message: 'O servidor não importa da interface. O que for comum fica em src/shared.',
+}
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -84,18 +89,49 @@ export default defineConfig([
     },
   },
   {
+    files: ['src/server/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/server/db/client', '**/db/client', '**/db/client.*', '**/server/db/client', '**/server/db/client.*'],
+              message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
+            },
+            semInterface,
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/shared/**'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@/server', '@/server/**', '@/ui', '@/ui/**'],
+              message: 'src/shared é neutro: não importa de src/server nem de src/ui.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['src/server/time/**', 'tests/**'],
     rules: { 'no-restricted-syntax': 'off' },
   },
   {
-    files: [
-      'src/server/db/**',
-      'src/server/auth/**',
-      'src/server/domain/platform/**',
-      'prisma/**',
-      'scripts/**',
-      'tests/**',
-    ],
+    // Pastas liberadas para o cliente Prisma cru; ainda assim, o servidor não importa da interface.
+    files: ['src/server/db/**', 'src/server/auth/**', 'src/server/domain/platform/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semInterface] }] },
+  },
+  {
+    files: ['prisma/**', 'scripts/**', 'tests/**'],
     rules: { 'no-restricted-imports': 'off' },
   },
 ])

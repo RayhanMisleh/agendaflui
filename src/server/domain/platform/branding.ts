@@ -2,7 +2,7 @@ import 'server-only'
 import { prisma } from '@/server/db/client'
 import type { Prisma } from '@/server/db/generated/client'
 import { uploadUrl } from '@/server/storage/images'
-import { deriveTheme, type ThemeTokens } from '@/ui/theme/derive'
+import { deriveTheme, type ThemeTokens } from '@/shared/theme/derive'
 
 /** O que a tela de entrada pode saber de uma conta antes de haver sessão. Nada além disto sai daqui. */
 export type PublicBrand = {

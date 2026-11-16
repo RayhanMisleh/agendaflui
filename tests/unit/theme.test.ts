@@ -96,3 +96,14 @@ test('cor inválida em deriveTheme lança RangeError', () => {
   expect(() => deriveTheme({ ...base, primary: 'vermelho' })).toThrow(RangeError)
   expect(() => deriveTheme({ ...base, primary: '#0E4F5C', accent: '#12' })).toThrow(RangeError)
 })
+
+describe('tema neutro em src/shared', () => {
+  test('os caminhos antigos reexportam as mesmas funções do caminho novo', async () => {
+    const color = await import('@/shared/theme/color')
+    const derive = await import('@/shared/theme/derive')
+    expect(color.normalizeHex).toBe(normalizeHex)
+    expect(color.contrastRatio).toBe(contrastRatio)
+    expect(derive.deriveTheme).toBe(deriveTheme)
+    expect(color.normalizeHex('#abc')).toBe('#AABBCC')
+  })
+})

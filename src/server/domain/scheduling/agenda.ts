@@ -4,6 +4,7 @@ import type { AppointmentStatus, Prisma, Professional } from '@/server/db/genera
 import { authorize, DomainError, parse, z } from '@/server/domain/errors'
 import { ACTIVE_STATUSES, OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { listClosures } from '@/server/domain/settings/closures'
+import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import {
   actorKind,
   assertProfessionalAllowed,
@@ -214,12 +215,13 @@ export async function getAgenda(
   const ids = professionals.map((p) => p.id)
   const hours = ids.length > 0 ? await loadWorkingHours(ctx, ids) : new Map<string, Map<Weekday, Ranges>>()
 
+  const changeWindowMin = (await getSchedulingRules(ctx)).customerChangeWindowMin
   const byDay = new Map<string, Map<string, AppointmentView[]>>()
   for (const row of rows) {
     const date = localParts(row.startsAt, ctx.timeZone).date
     const columns = byDay.get(date) ?? new Map<string, AppointmentView[]>()
     const list = columns.get(row.professionalId) ?? []
-    list.push(toView(ctx, row, scope))
+    list.push(toView(ctx, row, scope, changeWindowMin))
     columns.set(row.professionalId, list)
     byDay.set(date, columns)
   }
@@ -344,8 +346,9 @@ export async function listCustomerAppointments(
   })
   const page = rows.slice(0, limit)
   const last = page[page.length - 1]
+  const changeWindowMin = (await getSchedulingRules(ctx)).customerChangeWindowMin
   return {
-    items: page.map((row) => toView(ctx, row, viewer)),
+    items: page.map((row) => toView(ctx, row, viewer, changeWindowMin)),
     nextCursor: rows.length > limit && last ? encodeCursor(last) : null,
   }
 }
@@ -357,7 +360,8 @@ export async function getNextAppointment(ctx: TenantContext, customerId?: string
     include,
     orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
   })
-  return row ? toView(ctx, row, await viewScope(ctx)) : null
+  if (!row) return null
+  return toView(ctx, row, await viewScope(ctx), (await getSchedulingRules(ctx)).customerChangeWindowMin)
 }
 
 function emptySummary(): DaySummary {
