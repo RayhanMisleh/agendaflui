@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AuditLog, Business, Membership, MembershipRole, Prisma, Upload, User } from '@/server/db/generated/client'
+import type { AuditLog, Business, Membership, MembershipRole, Prisma, Service, Upload, User } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
@@ -87,6 +87,16 @@ export async function makeUpload(businessId: string | null): Promise<Upload> {
 export async function makeAuditLog(businessId: string | null): Promise<AuditLog> {
   return prisma.auditLog.create({
     data: { businessId, actorType: 'SYSTEM', actorName: 'sistema', action: `teste-${sufixo()}` },
+  })
+}
+
+/** Serviço direto no banco (nome único, 30 min, R$ 50,00). */
+export async function makeService(
+  businessId: string,
+  overrides: Partial<Omit<Prisma.ServiceUncheckedCreateInput, 'businessId'>> = {},
+): Promise<Service> {
+  return prisma.service.create({
+    data: { name: `Serviço ${sufixo()}`, priceCents: 5000, durationMin: 30, ...overrides, businessId },
   })
 }
 
