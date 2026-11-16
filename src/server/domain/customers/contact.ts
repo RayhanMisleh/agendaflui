@@ -13,14 +13,34 @@ export function normalizeEmail(input: string): string {
   return email
 }
 
-/** Só dígitos, com DDI. Sem DDI (10 ou 11 dígitos), assume o Brasil (55). Inválido → `RangeError`. */
+const NATIONAL = (digits: string) => digits.length === 10 || digits.length === 11
+
+/**
+ * Só dígitos, com DDI. `+` ou `00` no início marcam número internacional (mantido).
+ * Sem eles, tira o zero de tronco ou de operadora e, com 10 ou 11 dígitos, assume o Brasil (55).
+ * Inválido → `RangeError`.
+ */
 export function normalizePhone(input: string): string {
+  if (/\p{L}/u.test(input)) throw new RangeError(PHONE_HELP)
   const plus = input.trim().startsWith('+')
   let digits = input.replace(/\D/g, '')
-  if (!plus && digits.startsWith('00')) digits = digits.slice(2)
-  if (!plus && (digits.length === 10 || digits.length === 11)) digits = `55${digits}`
-  if (digits.length < 10 || digits.length > 15) throw new RangeError(PHONE_HELP)
+  let international = plus
+  if (!plus && digits.startsWith('00')) {
+    digits = digits.slice(2)
+    international = true
+  }
+  if (!international) {
+    if (digits.startsWith('0') && NATIONAL(digits.slice(1))) digits = digits.slice(1)
+    else if (digits.startsWith('0') && NATIONAL(digits.slice(3))) digits = digits.slice(3)
+    if (NATIONAL(digits)) digits = `55${digits}`
+  }
+  if (digits.startsWith('0') || digits.length < 10 || digits.length > 15) throw new RangeError(PHONE_HELP)
   return digits
+}
+
+/** Chave de busca: sem acentos, minúscula, espaços colapsados e aparados. */
+export function searchKey(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim()
 }
 
 /** '5511912345678' → '(11) 91234-5678'; fora do Brasil, '+' e os dígitos. */
