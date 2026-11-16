@@ -2,7 +2,8 @@ import 'server-only'
 import { hkdfSync, randomUUID } from 'node:crypto'
 import { jwtVerify, SignJWT } from 'jose'
 import { prisma } from '@/server/db/client'
-import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
+import type { Prisma } from '@/server/db/generated/client'
+import { lockKeyRaw, tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
 import { env } from '@/server/env'
 import { addMinutes, fromEpochMs } from '@/server/time'
 import { generateToken, hashToken } from './tokens'
@@ -278,6 +279,21 @@ export async function revokeAllFor(
   }
   if (typeof Reflect.get(db, '$transaction') === 'function') return (db as TenantClient).$transaction(run)
   return run(db as TenantTx)
+}
+
+/**
+ * Gêmea de `revokeAllFor({ membershipId })` para o domínio de plataforma, que trabalha numa transação do `prisma` cru
+ * (precisa revogar sessões do painel na mesma transação, e `tenantDb` recusa `Session`). Pega a mesma trava de vínculo.
+ */
+export async function revokeMemberTokensIn(
+  tx: Prisma.TransactionClient,
+  businessId: string,
+  membershipId: string,
+  now: Date,
+): Promise<number> {
+  await lockKeyRaw(tx, businessId, 'membership', membershipId)
+  const result = await tx.refreshToken.updateMany({ where: { businessId, membershipId, revokedAt: null }, data: { revokedAt: now } })
+  return result.count
 }
 
 /** Apaga os tokens de renovação vencidos há mais de 7 dias, de todas as contas; devolve quantos. Chamada pela limpeza periódica. */

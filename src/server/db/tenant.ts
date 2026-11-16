@@ -222,6 +222,21 @@ function criarExtensao(businessId: string) {
   })
 }
 
+/**
+ * A mesma trava de `$lockKey`, para o domínio de plataforma, que trabalha com o `prisma` cru dentro de uma transação
+ * (precisa tocar sessões e usuários, que `tenantDb` recusa). A chave é a mesma, então serializa com `$lockKey`.
+ */
+export async function lockKeyRaw(tx: Prisma.TransactionClient, businessId: string, scope: LockScope, id: string): Promise<void> {
+  if (typeof businessId !== 'string' || !UUID.test(businessId)) throw new TenantViolationError('businessId inválido: informe o UUID da conta.')
+  if (!ESCOPOS_DE_TRAVA.includes(scope)) throw new TenantViolationError(`lockKeyRaw: escopo "${String(scope)}" não é permitido.`)
+  if (typeof id !== 'string' || !UUID.test(id)) throw new TenantViolationError('lockKeyRaw: informe o UUID do registro a travar.')
+  if (['$connect', '$disconnect', '$extends'].some((metodo) => typeof Reflect.get(tx, metodo) === 'function')) {
+    throw new TenantViolationError('lockKeyRaw só pode ser usado dentro de uma transação ($transaction).')
+  }
+  const chave = `${businessId}:${scope}:${id.toLowerCase()}`
+  await tx.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${chave}, 0))`
+}
+
 export type TenantClient = ReturnType<typeof criarExtensao>
 
 /** Cliente recebido no callback de `ctx.db.$transaction(async (tx) => …)`. */

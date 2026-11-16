@@ -14,6 +14,8 @@ export type ShellFrameProps = {
   nav: NavItem[]
   user: ShellUser
   banner?: string
+  /** Botão da faixa de suporte (por exemplo "Encerrar"). Só aparece com `banner`. */
+  bannerAction?: ReactNode
   title: string
   actions?: ReactNode
   children: ReactNode
@@ -56,6 +58,7 @@ export function ShellFrame(p: ShellFrameProps) {
         <div className="af-shell__support" role="note">
           <Info size={18} aria-hidden="true" />
           <span>{p.banner}</span>
+          {p.bannerAction ? <span className="af-shell__support-action">{p.bannerAction}</span> : null}
         </div>
       ) : null}
       <div className="af-shell__frame">

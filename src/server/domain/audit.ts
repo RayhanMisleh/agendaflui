@@ -57,3 +57,27 @@ export async function audit(
     },
   })
 }
+
+/**
+ * Linha de auditoria de uma ação do admin da plataforma feita fora de um contexto de conta (painel dev), na transação da
+ * escrita. O admin é o autor; `businessId` é a conta afetada, ou `null` para o que é só da plataforma.
+ */
+export async function auditPlatform(
+  tx: Pick<Prisma.TransactionClient, 'auditLog'>,
+  actor: Extract<Actor, { kind: 'platform_admin' }>,
+  entry: { businessId: string | null; action: string; targetType: string; targetId: string; metadata?: Prisma.InputJsonObject },
+): Promise<void> {
+  await tx.auditLog.create({
+    data: {
+      businessId: entry.businessId,
+      actorType: 'PLATFORM_ADMIN',
+      actorId: actor.adminId,
+      actorName: actor.name,
+      onBehalf: false,
+      action: entry.action,
+      targetType: entry.targetType,
+      targetId: entry.targetId,
+      metadata: entry.metadata ?? {},
+    },
+  })
+}

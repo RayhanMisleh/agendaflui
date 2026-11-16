@@ -36,6 +36,7 @@ export const SELF_MODELS: Modelos = ['Business']
 export const PLATFORM_MODELS: Modelos = [
   'PlatformAdmin',
   'PlatformSession',
+  'SupportHandoff',
   'User',
   'Session',
   'UserToken',

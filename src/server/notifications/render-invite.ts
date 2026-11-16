@@ -41,3 +41,18 @@ export function renderAccessGranted(i: { ownerName: string; businessName: string
   })
   return { subject: `AgendaFlui: você agora tem acesso a ${conta}`, ...body }
 }
+
+/** Convite de quem entra na equipe de uma conta e ainda não tem senha. O token só aparece dentro do link. */
+export function renderMemberInvite(i: { name: string; businessName: string; roleLabel: string; link: string; ttlDays: number }): RenderedMail {
+  const title = 'Defina sua senha'
+  const conta = limpo(i.businessName)
+  const body = emailFrame(PLATFORM_MAIL_BRAND, title, {
+    paragraphs: [
+      saudacao(i.name),
+      `Você foi adicionado à equipe de ${conta} no AgendaFlui, como ${limpo(i.roleLabel)}. Abra o link abaixo para escolher sua senha e entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
+      i.link,
+      'Se você não esperava este e-mail, ignore-o: nada será feito sem a sua senha.',
+    ],
+  })
+  return { subject: `AgendaFlui: defina sua senha para entrar em ${conta}`, ...body }
+}

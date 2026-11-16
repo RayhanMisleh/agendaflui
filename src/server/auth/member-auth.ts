@@ -7,6 +7,7 @@ import { DomainError } from '@/server/domain/errors'
 import { createTenantContext } from './context'
 import { fakePasswordHash, verifyPassword } from './password'
 import { checkLoginLimit, clearLoginLimit } from './login-limit'
+import { findSupportSession, getSupportContext } from './support-session'
 import { generateToken, hashToken } from './tokens'
 
 const SESSAO_MINUTOS = 30 * 24 * 60
@@ -15,6 +16,8 @@ export type MemberSession = {
   user: { id: string; name: string; email: string }
   memberships: { businessId: string; businessName: string; slug: string; role: MembershipRole }[]
   activeBusinessId: string | null
+  /** Só na sessão de suporte (admin da plataforma "entrando como"): sem vínculos, com a conta aberta. */
+  support: { adminId: string; adminName: string; businessName: string } | null
 }
 
 async function listMemberships(userId: string): Promise<MemberSession['memberships']> {
@@ -31,11 +34,11 @@ async function listMemberships(userId: string): Promise<MemberSession['membershi
   }))
 }
 
-/** Sessão de usuário válida (não revogada, não vencida). Sessões de impersonação ficam para a Fase 3. */
-async function findValidSession(token: string | undefined) {
+/** Sessão de usuário válida (não revogada, não vencida). A sessão de suporte (sem usuário) é lida por `support-session`. */
+async function findValidSession(token: string | undefined, now: Date) {
   if (!token) return null
   const session = await prisma.session.findFirst({
-    where: { tokenHash: hashToken(token), revokedAt: null, expiresAt: { gt: new Date() } },
+    where: { tokenHash: hashToken(token), revokedAt: null, expiresAt: { gt: now } },
     include: { user: true },
   })
   if (!session || !session.userId || !session.user) return null
@@ -47,6 +50,8 @@ export async function loginUser(i: {
   password: string
   ip?: string
   userAgent?: string
+  /** Token da sessão que o navegador já tem no cookie: é revogado no login novo. */
+  previousToken?: string
 }): Promise<{ token: string; expiresAt: Date; session: MemberSession }> {
   const email = i.email.trim().toLowerCase()
   const now = new Date()
@@ -68,37 +73,51 @@ export async function loginUser(i: {
     prisma.session.create({
       data: { userId: user.id, activeBusinessId, tokenHash: hash, expiresAt, ip: i.ip, userAgent: i.userAgent },
     }),
+    ...(i.previousToken
+      ? [prisma.session.updateMany({ where: { tokenHash: hashToken(i.previousToken), revokedAt: null }, data: { revokedAt: now } })]
+      : []),
   ])
   return {
     token,
     expiresAt,
-    session: { user: { id: user.id, name: user.name, email: user.email }, memberships, activeBusinessId },
+    session: { user: { id: user.id, name: user.name, email: user.email }, memberships, activeBusinessId, support: null },
   }
 }
 
-export async function getMemberSession(token: string | undefined): Promise<MemberSession | null> {
-  const session = await findValidSession(token)
-  if (!session) return null
+export async function getMemberSession(token: string | undefined, now: Date = new Date()): Promise<MemberSession | null> {
+  const session = await findValidSession(token, now)
+  if (!session) {
+    const suporte = await findSupportSession(token, now)
+    if (!suporte) return null
+    return {
+      user: { id: suporte.admin.id, name: suporte.admin.name, email: '' },
+      memberships: [],
+      activeBusinessId: suporte.business.id,
+      support: { adminId: suporte.admin.id, adminName: suporte.admin.name, businessName: suporte.business.name },
+    }
+  }
   const memberships = await listMemberships(session.userId)
   const active = memberships.some((m) => m.businessId === session.activeBusinessId)
   return {
     user: { id: session.user.id, name: session.user.name, email: session.user.email },
     memberships,
     activeBusinessId: active ? session.activeBusinessId : null,
+    support: null,
   }
 }
 
 export async function selectBusiness(token: string, businessId: string): Promise<void> {
-  const session = await findValidSession(token)
+  const session = await findValidSession(token, new Date())
   if (!session) throw new AuthError('no_access')
   const memberships = await listMemberships(session.userId)
   if (!memberships.some((m) => m.businessId === businessId)) throw new AuthError('no_access')
   await prisma.session.update({ where: { id: session.id }, data: { activeBusinessId: businessId } })
 }
 
-export async function getTenantContext(token: string | undefined): Promise<TenantContext | null> {
-  const session = await findValidSession(token)
-  if (!session || !session.activeBusinessId) return null
+export async function getTenantContext(token: string | undefined, now: Date = new Date()): Promise<TenantContext | null> {
+  const session = await findValidSession(token, now)
+  if (!session) return getSupportContext(token, now)
+  if (!session.activeBusinessId) return null
   // Papel, vínculo e situação da conta são relidos a cada chamada.
   const membership = await prisma.membership.findFirst({
     where: { userId: session.userId, businessId: session.activeBusinessId, active: true, business: { status: 'ACTIVE' } },

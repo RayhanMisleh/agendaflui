@@ -8,6 +8,7 @@ import { LinkButton } from '@/ui/components'
 import { PainelShell } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
 import { redirect } from 'next/navigation'
+import { EncerrarSuporte } from '../EncerrarSuporte'
 import { SairDaConta } from '../SairDaConta'
 
 /** Moldura do painel do negócio com a marca, os termos e o usuário da conta ativa. */
@@ -39,6 +40,7 @@ export async function PainelFrame({
 
   const papel =
     ctx.actor.kind === 'member' ? roleLabel(ctx.actor.role, termos.termProfessionalSingular) : 'Suporte'
+  const suporte = ctx.actor.kind === 'impersonator'
   const nome = ctx.actor.kind === 'member' || ctx.actor.kind === 'impersonator' ? ctx.actor.name : session.user.name
 
   return (
@@ -48,11 +50,14 @@ export async function PainelFrame({
       nav={nav}
       user={{ name: nome, roleLabel: papel, avatarUrl: null }}
       title={title}
+      {...(suporte ? { supportBanner: `Você está em modo suporte na conta ${marca.name}`, supportAction: <EncerrarSuporte /> } : {})}
       actions={
-        <>
-          {session.memberships.length > 1 ? <LinkButton href="/escolher-conta">Trocar de conta</LinkButton> : null}
-          <SairDaConta />
-        </>
+        suporte ? null : (
+          <>
+            {session.memberships.length > 1 ? <LinkButton href="/escolher-conta">Trocar de conta</LinkButton> : null}
+            <SairDaConta />
+          </>
+        )
       }
     >
       {children}

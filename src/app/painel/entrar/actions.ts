@@ -4,7 +4,7 @@ import { emailDigitado, lerCampos, mensagemDeLogin, SEM_CONTA, SEM_DADOS } from 
 import type { LoginState } from '@/app/_lib/login-form'
 import { requestInfo } from '@/server/auth/request-info'
 import { AuthError } from '@/server/auth/actor'
-import { PAINEL_COOKIE, setBrandCookie, setSessionCookie } from '@/server/auth/guards'
+import { PAINEL_COOKIE, readCookie, setBrandCookie, setSessionCookie } from '@/server/auth/guards'
 import { loginUser, logoutUser } from '@/server/auth/member-auth'
 
 export async function loginMember(_anterior: LoginState, form: FormData): Promise<LoginState> {
@@ -12,7 +12,8 @@ export async function loginMember(_anterior: LoginState, form: FormData): Promis
   if (!campos) return { error: SEM_DADOS, email: emailDigitado(form) }
   let entrada: Awaited<ReturnType<typeof loginUser>>
   try {
-    entrada = await loginUser({ ...campos, ...(await requestInfo()) })
+    const anterior = await readCookie(PAINEL_COOKIE)
+    entrada = await loginUser({ ...campos, ...(await requestInfo()), ...(anterior ? { previousToken: anterior } : {}) })
   } catch (erro) {
     if (erro instanceof AuthError) return { error: mensagemDeLogin(erro), email: campos.email }
     throw erro

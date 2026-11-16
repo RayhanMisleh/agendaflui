@@ -183,6 +183,7 @@ model PlatformAdmin {
   platformSessions PlatformSession[]
   impersonations   Session[]
   apiKeys          ApiKey[]
+  supportHandoffs  SupportHandoff[]
 
   @@map("platform_admins")
 }
@@ -202,6 +203,26 @@ model PlatformSession {
 
   @@index([adminId])
   @@map("platform_sessions")
+}
+
+/// Token de passagem do "entrar como": o cookie do painel dev não vale no host do painel, então o admin leva este token
+/// (só o hash fica aqui; 60 s; uso único) e a rota do painel o troca por uma sessão de suporte.
+model SupportHandoff {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId    String    @map("admin_id") @db.Uuid
+  businessId String    @map("business_id") @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt     DateTime? @map("used_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  admin    PlatformAdmin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([businessId])
+  @@map("support_handoffs")
 }
 
 model Business {
@@ -250,6 +271,7 @@ model Business {
   refreshTokens        RefreshToken[]
   devices              Device[]
   verificationCodes    VerificationCode[]
+  supportHandoffs      SupportHandoff[]
 
   @@map("businesses")
 }

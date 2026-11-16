@@ -14,6 +14,8 @@ export function PainelShell(p: {
   user: { name: string; roleLabel: string; avatarUrl: string | null }
   /** "Você está no painel de X como suporte": faixa permanente, sem botão de fechar. */
   supportBanner?: string
+  /** Botão da faixa de suporte ("Encerrar"). */
+  supportAction?: ReactNode
   title: string
   actions?: ReactNode
   children: ReactNode
@@ -30,6 +32,7 @@ export function PainelShell(p: {
         nav={p.nav}
         user={p.user}
         banner={p.supportBanner}
+        bannerAction={p.supportAction}
         title={p.title}
         actions={p.actions}
         embedded={p.embedded}

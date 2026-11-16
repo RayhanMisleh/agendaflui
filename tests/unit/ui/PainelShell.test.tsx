@@ -42,6 +42,22 @@ test('supportBanner aparece só quando informado', () => {
   expect(screen.getByText('Você está no painel de Patas e Pelos como suporte.')).toBeInTheDocument()
 })
 
+test('supportAction aparece dentro da faixa e só com a faixa', () => {
+  const { rerender } = render(
+    <PainelShell {...base} supportBanner="Você está em modo suporte na conta Patas e Pelos" supportAction={<button type="button">Encerrar</button>}>
+      x
+    </PainelShell>,
+  )
+  const faixa = screen.getByRole('note')
+  expect(faixa).toContainElement(screen.getByRole('button', { name: 'Encerrar' }))
+  rerender(
+    <PainelShell {...base} supportAction={<button type="button">Encerrar</button>}>
+      x
+    </PainelShell>,
+  )
+  expect(screen.queryByRole('button', { name: 'Encerrar' })).toBeNull()
+})
+
 test('o tema chega ao elemento raiz', () => {
   render(<PainelShell {...base}>x</PainelShell>)
   const root = screen.getByTestId('painel-shell')

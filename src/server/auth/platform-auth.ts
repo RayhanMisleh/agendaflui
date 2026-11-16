@@ -13,6 +13,8 @@ export async function loginPlatformAdmin(i: {
   password: string
   ip?: string
   userAgent?: string
+  /** Token da sessão que o navegador já tem no cookie: é revogado no login novo. */
+  previousToken?: string
 }): Promise<{ token: string; expiresAt: Date }> {
   const email = i.email.trim().toLowerCase()
   const now = new Date()
@@ -31,6 +33,9 @@ export async function loginPlatformAdmin(i: {
     prisma.platformSession.create({
       data: { adminId: admin.id, tokenHash: hash, expiresAt, ip: i.ip, userAgent: i.userAgent },
     }),
+    ...(i.previousToken
+      ? [prisma.platformSession.updateMany({ where: { tokenHash: hashToken(i.previousToken), revokedAt: null }, data: { revokedAt: now } })]
+      : []),
   ])
   return { token, expiresAt }
 }
