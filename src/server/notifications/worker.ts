@@ -74,23 +74,29 @@ async function deliver(n: LoadedNotification, channels: Channels): Promise<Outco
     }
   }
   if (!channels.push) return { kind: 'failed', code: 'not_configured', retry: false }
+  let invalidTokens: string[]
   try {
-    const { invalidTokens } = await withTimeout(channels.push.send({ ...rendered.push, tokens: recipient.pushTokens }), SEND_TIMEOUT_MS)
-    if (invalidTokens.length > 0) {
-      await prisma.device.deleteMany({ where: { businessId: n.businessId, pushToken: { in: invalidTokens } } })
-    }
-    // Todos os tokens eram mortos: nada chegou a ninguém.
-    if (recipient.pushTokens.every((t) => invalidTokens.includes(t))) return { kind: 'skipped', reason: 'no_device' }
-    return { kind: 'sent' }
+    invalidTokens = (await withTimeout(channels.push.send({ ...rendered.push, tokens: recipient.pushTokens }), SEND_TIMEOUT_MS)).invalidTokens
   } catch (err) {
     return { kind: 'failed', code: codeOf(err), retry: true }
   }
+  // Fora do `try` do envio: o push já saiu, e falha na limpeza não pode reagendá-lo.
+  if (invalidTokens.length > 0) {
+    try {
+      await prisma.device.deleteMany({ where: { businessId: n.businessId, pushToken: { in: invalidTokens } } })
+    } catch (err) {
+      console.error(`[avisos] erro ao apagar tokens inválidos: ${err instanceof Error ? err.name : 'desconhecido'}`)
+    }
+  }
+  // Todos os tokens eram mortos: nada chegou a ninguém.
+  if (recipient.pushTokens.every((t) => invalidTokens.includes(t))) return { kind: 'skipped', reason: 'no_device' }
+  return { kind: 'sent' }
 }
 
 async function handle(row: Claimed, now: () => Date, channels: Channels, total: RoundResult): Promise<void> {
   const n = await loadNotification(row.id, row.businessId)
   if (!n) {
-    await finish(row, { status: 'SKIPPED', skipReason: 'recipient_gone' })
+    if (await finish(row, { status: 'SKIPPED', skipReason: 'gone' })) total.skipped += 1
     return
   }
   const decision = decide(n, now())
@@ -109,7 +115,7 @@ async function handle(row: Claimed, now: () => Date, channels: Channels, total: 
     if (await finish(row, { status: 'FAILED', attempts, lastError: outcome.code })) total.failed += 1
   } else {
     const wait = RETRY_MINUTES[attempts - 1] ?? 60
-    if (await finish(row, { attempts, lastError: outcome.code, scheduledFor: addMinutes(now(), wait) })) total.retried += 1
+    if (await finish(row, { attempts, lastError: outcome.code, nextAttemptAt: addMinutes(now(), wait) })) total.retried += 1
   }
 }
 
@@ -132,7 +138,7 @@ export async function processDueNotifications(o: Options = {}): Promise<RoundRes
           row,
           done
             ? { status: 'FAILED', attempts, lastError: 'internal_error' }
-            : { attempts, lastError: 'internal_error', scheduledFor: addMinutes(now(), RETRY_MINUTES[attempts - 1] ?? 60) },
+            : { attempts, lastError: 'internal_error', nextAttemptAt: addMinutes(now(), RETRY_MINUTES[attempts - 1] ?? 60) },
         )
         if (ok) total[done ? 'failed' : 'retried'] += 1
       } catch {

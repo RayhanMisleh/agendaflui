@@ -11,6 +11,9 @@ const skip = (reason: string): Decision => ({ action: 'skip', reason })
 const REMINDER_LATE_MIN = 30
 
 const REMINDERS: readonly NotificationKind[] = ['APPOINTMENT_REMINDER_24H', 'APPOINTMENT_REMINDER_1H']
+/** Concluído e cancelado são os únicos que valem depois do atendimento; passado disso de atraso, deixam de valer. */
+const CLOSING_LATE_MIN = 24 * 60
+
 /** Avisos que fazem sentido depois do fim do atendimento. */
 const AFTER_END_OK: readonly NotificationKind[] = ['APPOINTMENT_COMPLETED', 'APPOINTMENT_CANCELED', 'STAFF_APPOINTMENT_CANCELED']
 
@@ -69,5 +72,6 @@ export function decide(n: LoadedNotification, now: Date): Decision {
   if (!a || !stillValid(n, a, now)) return skip('stale')
   if (!AFTER_END_OK.includes(n.kind) && a.endsAt.getTime() <= now.getTime()) return skip('past')
   if (REMINDERS.includes(n.kind) && now.getTime() - n.scheduledFor.getTime() > REMINDER_LATE_MIN * 60_000) return skip('late')
+  if (AFTER_END_OK.includes(n.kind) && now.getTime() - n.scheduledFor.getTime() > CLOSING_LATE_MIN * 60_000) return skip('late')
   return SEND
 }

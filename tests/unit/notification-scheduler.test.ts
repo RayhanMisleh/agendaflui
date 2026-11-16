@@ -70,4 +70,23 @@ describe('startScheduler', () => {
     t.mockRestore()
     s.stop()
   })
+
+  test('register chamado duas vezes no mesmo processo não cria dois intervalos', async () => {
+    vi.useFakeTimers()
+    const run = vi.fn(async () => undefined)
+    const a = startScheduler({ run, cleanup: async () => undefined })
+    const b = startScheduler({ run, cleanup: async () => undefined })
+    await vi.advanceTimersByTimeAsync(60_000 * 3)
+    const chamadas = run.mock.calls.length
+    expect(chamadas).toBeLessThanOrEqual(4)
+    a.stop()
+    await vi.advanceTimersByTimeAsync(60_000 * 3)
+    expect(run.mock.calls.length).toBe(chamadas)
+    b.stop()
+    // depois de parar, um novo início volta a valer
+    const c = startScheduler({ run, cleanup: async () => undefined })
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(run.mock.calls.length).toBe(chamadas + 1)
+    c.stop()
+  })
 })

@@ -685,6 +685,8 @@ model Notification {
   lockedUntil   DateTime?           @map("locked_until") @db.Timestamptz(3)
   // Identificador da rodada de envio que reservou a linha; a atualização final confere que ainda é esta.
   lockedBy      String?             @map("locked_by")
+  // Quando a próxima tentativa pode sair depois de uma falha. `scheduledFor` é o horário previsto e nunca muda.
+  nextAttemptAt DateTime?           @map("next_attempt_at") @db.Timestamptz(3)
   skipReason    String?             @map("skip_reason")
   payload       Json                @default("{}")
   dedupeKey     String              @map("dedupe_key")

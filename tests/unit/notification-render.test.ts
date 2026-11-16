@@ -84,6 +84,8 @@ describe('renderNotification', () => {
     const r = renderNotification(n)
     expect(r.email.subject).toMatch(/passou para outro|transferido/i)
     expect(r.email.text).not.toMatch(/cancelou/i)
+    expect(r.email.text).toContain('para outro Tosador')
+    expect(r.email.subject).toContain('outro Tosador')
   })
 
   test('remarcação mostra o horário anterior quando o payload o traz', () => {

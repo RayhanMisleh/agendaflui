@@ -139,11 +139,11 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
     case 'STAFF_APPOINTMENT_CANCELED':
       return moved
         ? {
-            title: 'O horário passou para outro profissional',
-            subject: `Agendamento passou para outro profissional: ${customer} em ${when}`,
-            pushTitle: 'Horário passou para outro profissional',
+            title: `O horário passou para outro ${limpo(n.business.terms.professional)}`,
+            subject: `Agendamento passou para outro ${limpo(n.business.terms.professional)}: ${customer} em ${when}`,
+            pushTitle: `Horário passou para outro ${limpo(n.business.terms.professional)}`,
             pushBody: `${customer} em ${when} saiu da sua agenda.`,
-            content: { paragraphs: paragraphs(hello, 'Este horário passou para outro profissional e saiu da sua agenda.'), rows: details },
+            content: { paragraphs: paragraphs(hello, `Este horário passou para outro ${limpo(n.business.terms.professional)} e saiu da sua agenda.`), rows: details },
           }
         : {
             title: 'Agendamento cancelado',

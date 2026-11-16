@@ -150,6 +150,27 @@ const casos: Caso[] = [
     n: loaded({ kind: 'PROFESSIONAL_FREE_EARLY', appointment: { status: 'PENDING' } }),
     esperado: skip('stale'),
   },
+  // concluído e cancelado: atraso de mais de 24 h em relação ao horário previsto
+  {
+    nome: 'concluído com exatamente 24 h de atraso ainda envia',
+    n: loaded({ kind: 'APPOINTMENT_COMPLETED', scheduledFor: min(AGORA, -1440), appointment: { status: 'COMPLETED', startsAt: min(AGORA, -1600), endsAt: min(AGORA, -1540) } }),
+    esperado: SEND,
+  },
+  {
+    nome: 'concluído com mais de 24 h de atraso',
+    n: loaded({ kind: 'APPOINTMENT_COMPLETED', scheduledFor: min(AGORA, -1441), appointment: { status: 'COMPLETED', startsAt: min(AGORA, -1600), endsAt: min(AGORA, -1540) } }),
+    esperado: skip('late'),
+  },
+  {
+    nome: 'cancelado com mais de 24 h de atraso',
+    n: loaded({ kind: 'APPOINTMENT_CANCELED', scheduledFor: min(AGORA, -1441), appointment: { status: 'CANCELED' } }),
+    esperado: skip('late'),
+  },
+  {
+    nome: 'cancelamento para a equipe com mais de 24 h de atraso',
+    n: loaded({ kind: 'STAFF_APPOINTMENT_CANCELED', recipient: { kind: 'member', id: 'm-1' }, scheduledFor: min(AGORA, -1441), appointment: { status: 'CANCELED' } }),
+    esperado: skip('late'),
+  },
   // passado e atraso
   {
     nome: 'agendamento que já terminou',

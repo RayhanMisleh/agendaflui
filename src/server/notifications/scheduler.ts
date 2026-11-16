@@ -3,6 +3,7 @@ import { purgeRateLimits } from '@/server/auth/rate-limit-db'
 import { purgeVerificationCodes } from '@/server/auth/verification-code'
 import { processDueNotifications } from './worker'
 
+const GUARD = '__agendafluiScheduler'
 const ROUND_MS = 60_000
 const CLEANUP_MS = 60 * 60_000
 const FIRST_ROUND_MS = 2_000
@@ -30,6 +31,9 @@ function report(what: string, err: unknown): void {
  * ainda roda, pula). Os temporizadores não seguram o processo. Erro numa rodada é registrado e a seguinte roda normalmente.
  */
 export function startScheduler(deps: Deps = {}): { stop: () => void } {
+  // Um agendador por processo, mesmo que `register()` rode mais de uma vez.
+  const existing = Reflect.get(globalThis, GUARD) as { stop: () => void } | undefined
+  if (existing) return existing
   const run = deps.run ?? (() => processDueNotifications())
   const cleanup = deps.cleanup ?? defaultCleanup
   let busy = false
@@ -63,10 +67,13 @@ export function startScheduler(deps: Deps = {}): { stop: () => void } {
   const every = setInterval(() => void tick(), ROUND_MS)
   first.unref()
   every.unref()
-  return {
+  const handle = {
     stop() {
       clearTimeout(first)
       clearInterval(every)
+      Reflect.deleteProperty(globalThis, GUARD)
     },
   }
+  Reflect.set(globalThis, GUARD, handle)
+  return handle
 }

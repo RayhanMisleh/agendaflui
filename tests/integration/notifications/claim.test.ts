@@ -81,4 +81,15 @@ describe('claimDue', () => {
     expect(await claimDue(addMinutes(AGORA, 1), 50)).toEqual([])
     expect(await claimDue(addMinutes(AGORA, 3), 50)).toHaveLength(3)
   })
+
+  test('próxima tentativa no futuro não é reservada; vencida volta, e a ordem é por COALESCE(next_attempt_at, scheduled_for)', async () => {
+    await fila(3)
+    const [a, b, c] = await prisma.notification.findMany({ orderBy: { dedupeKey: 'asc' } })
+    // k0 é a mais nova (-1 min), k2 a mais antiga (-3 min)
+    await prisma.notification.update({ where: { id: a!.id }, data: { nextAttemptAt: addMinutes(AGORA, 1) } })
+    await prisma.notification.update({ where: { id: b!.id }, data: { nextAttemptAt: addMinutes(AGORA, -10) } })
+    const r = await claimDue(AGORA, 50)
+    expect(r.map((x) => x.id)).toEqual([b!.id, c!.id])
+    expect(await prisma.notification.findUniqueOrThrow({ where: { id: a!.id } })).toMatchObject({ lockedBy: null })
+  })
 })

@@ -1,7 +1,7 @@
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { getChannels, getEmailChannel, setEmailChannel } from '@/server/notifications/channels'
 import { createFileChannel } from '@/server/notifications/channels/email-file'
 import { createSmtpChannel } from '@/server/notifications/channels/email-smtp'
@@ -48,6 +48,21 @@ describe('canal de arquivo', () => {
 })
 
 describe('canal SMTP', () => {
+  test('o transporte tem tempos limite de no máximo 20 s', async () => {
+    const nodemailer = (await import('nodemailer')).default
+    const espiao = vi.spyOn(nodemailer, 'createTransport')
+    try {
+      createSmtpChannel('smtp://localhost:2525', 'a@b.test')
+      const opcoes = espiao.mock.calls[0]?.[1] as Record<string, number> | undefined
+      for (const k of ['connectionTimeout', 'greetingTimeout', 'socketTimeout']) {
+        expect(opcoes?.[k]).toBeGreaterThan(0)
+        expect(opcoes?.[k]).toBeLessThanOrEqual(20_000)
+      }
+    } finally {
+      espiao.mockRestore()
+    }
+  })
+
   test('cria o canal sem conectar e também recusa destinatário inseguro', async () => {
     const canal = createSmtpChannel('smtp://localhost:2525', 'a@b.test')
     await expect(canal.send({ ...msg, to: 'a@b.test,c@d.test' })).rejects.toThrow()
