@@ -99,3 +99,9 @@ test('adminAction converte DomainError em estado de formulário com os valores d
   const estado = await acao({ ok: false, message: null, fields: {}, values: { name: '' } }, fd)
   expect(estado).toMatchObject({ ok: false, fields: { name: 'Já existe uma conta com este nome.' }, values: { name: 'Pata' } })
 })
+
+test('arquivos enviados no formulário não voltam em values', () => {
+  const erro = new DomainError('validation', 'Erro', { fields: { name: 'Informe o nome.' } })
+  const estado = formError<{ name: string; logo?: File }>(erro, { name: '', logo: new File(['x'], 'logo.png', { type: 'image/png' }) })
+  expect(estado.values).toEqual({ name: '' })
+})

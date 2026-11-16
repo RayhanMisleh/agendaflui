@@ -1,18 +1,13 @@
 'use client'
-import { useActionState, useId, useState, useSyncExternalStore } from 'react'
+import { useActionState, useId, useState } from 'react'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 import { Field } from './Field'
 import { FormErrors } from './FormErrors'
 import { Input } from './Input'
+import { useHydrated } from './use-hydrated'
 
 type ConfirmState = { ok: boolean; message: string | null; fields: Record<string, string> }
-
-const semAssinatura = () => () => {}
-/** `false` no servidor e na primeira pintura; `true` depois que o JavaScript assumiu. */
-function useHidratado(): boolean {
-  return useSyncExternalStore(semAssinatura, () => true, () => false)
-}
 
 /**
  * O formulário de confirmação, sem moldura. Com `targetName` (ação destrutiva) a pessoa digita o nome exato do alvo e o
@@ -39,7 +34,7 @@ export function ConfirmForm({
 }) {
   const [state, formAction, pending] = useActionState(action, initialState)
   const [typed, setTyped] = useState('')
-  const hidratado = useHidratado()
+  const hidratado = useHydrated()
   const uid = useId()
   const exige = targetName !== undefined
   const confere = !exige || typed === targetName

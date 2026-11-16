@@ -9,12 +9,15 @@ export const MENSAGEM_GENERICA = 'Não foi possível concluir agora. Tente de no
 /** Nomes de campo que nunca voltam ao navegador: senhas, segredos, tokens e chaves. */
 const SEGREDO = /senha|password|secret|segredo|token|apikey|api_key/i
 
+/** Arquivos (File/Blob) enviados no formulário não voltam ao navegador: não são serializáveis e podem ser grandes. */
+const ehArquivo = (v: unknown): boolean => typeof Blob !== 'undefined' && v instanceof Blob
+
 function semSegredos(valor: unknown): unknown {
   if (Array.isArray(valor)) return valor.map(semSegredos)
   if (valor !== null && typeof valor === 'object' && Object.getPrototypeOf(valor) === Object.prototype) {
     return Object.fromEntries(
       Object.entries(valor)
-        .filter(([chave]) => !SEGREDO.test(chave))
+        .filter(([chave, v]) => !SEGREDO.test(chave) && !ehArquivo(v))
         .map(([chave, v]) => [chave, semSegredos(v)]),
     )
   }

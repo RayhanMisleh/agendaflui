@@ -1,7 +1,8 @@
 'use client'
 import { useState } from 'react'
 import { Activity, Building2, KeyRound, LayoutDashboard, ScrollText, ShieldCheck } from 'lucide-react'
-import { Button, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, Pagination, Paper, SearchBar, Stamp, StatusLamp } from '@/ui/components'
+import { BrandPreview, Button, ColorField, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, MaterialPicker, Pagination, Paper, SearchBar, Stamp, StatusLamp, StepRail } from '@/ui/components'
+import type { CoverMaterial } from '@/shared/theme/derive'
 import type { DataColumn, LampState, Tone } from '@/ui/components'
 import { DevShell } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
@@ -46,10 +47,46 @@ async function acaoDemonstracao() {
 }
 
 /** As peças das telas do painel dev, na ordem em que aparecem nas listas e nos formulários. */
+const ETAPAS = [
+  { id: 'dados', label: 'Dados' },
+  { id: 'marca', label: 'Marca' },
+  { id: 'termos', label: 'Termos' },
+  { id: 'modulos', label: 'Módulos' },
+  { id: 'regras', label: 'Regras de agenda' },
+  { id: 'dono', label: 'Dono' },
+  { id: 'chave', label: 'Chave de app' },
+]
+
+/** A criação de conta em miniatura: trilho de etapas, cor, material e a prévia ao vivo da marca. */
+function CriacaoDeConta() {
+  const [etapa, setEtapa] = useState(1)
+  const [cor, setCor] = useState('#7A1F2B')
+  const [material, setMaterial] = useState<CoverMaterial>('LEATHER')
+  return (
+    <Paper raised={1} className="vt-accounts">
+      <div className="vt-stack">
+        <StepRail steps={ETAPAS} current={etapa} onSelect={setEtapa} errorSteps={[4]} visitedUntil={3} />
+        <div className="vt-brandgrid">
+          <div className="vt-stack">
+            <ColorField label="Cor principal" value={cor} onChange={setCor} />
+            <MaterialPicker value={material} onChange={setMaterial} primary={cor} accent="#E0A030" paper="CREAM" fontPair="CLASSIC" />
+          </div>
+          <BrandPreview
+            businessName="Pata Viva"
+            brand={{ primary: cor, accent: '#E0A030', material, paper: 'CREAM', fontPair: 'CLASSIC' }}
+            terms={{ professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores' }}
+          />
+        </div>
+      </div>
+    </Paper>
+  )
+}
+
 function PecasDasTelas() {
   const [aberto, setAberto] = useState(false)
   return (
     <>
+      <CriacaoDeConta />
       <Paper raised={1} className="vt-accounts">
         <div className="vt-stack">
           <SearchBar
