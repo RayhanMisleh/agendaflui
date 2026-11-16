@@ -347,6 +347,80 @@ describe('getAgenda: entrada e custo', () => {
   })
 })
 
+describe('getAgenda: profissionais inativos e arquivados', () => {
+  test('inativo com agendamento confirmado amanhã aparece, com active false, depois dos ativos', async () => {
+    const s = await montar()
+    await prisma.professional.update({ where: { id: s.ana.id }, data: { active: false } })
+    const a = await marcar(s, { startsAt: sp(17, 10) })
+    const dias = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-17' })
+    // As colunas valem para o intervalo todo: o inativo aparece em todos os dias consultados.
+    expect(dias[0]?.professionals.map((p) => p.id)).toEqual([s.caio.id, s.ana.id])
+    expect(dias[0]?.professionals[1]?.appointments).toEqual([])
+    expect(dias[1]?.professionals.map((p) => [p.id, p.active, p.archived])).toEqual([
+      [s.caio.id, true, false],
+      [s.ana.id, false, false],
+    ])
+    expect(dias[1]?.professionals[1]?.appointments.map((x) => x.id)).toEqual([a.id])
+    expect(dias[1]?.professionals[0]?.appointments).toEqual([])
+  })
+
+  test('arquivado com atendimento concluído na semana passada aparece naquela consulta, com archived true', async () => {
+    const s = await montar()
+    const antigo = await makeProfessional(s.b.id, { name: 'Antigo', archivedAt: AGORA, active: false })
+    const a = await marcar(s, { startsAt: sp(10, 10), professionalId: antigo.id, status: 'COMPLETED' })
+    const passada = await getAgenda(s.gerente, { from: '2026-11-09', to: '2026-11-15' })
+    const coluna = passada[1]?.professionals.find((p) => p.id === antigo.id)
+    expect(coluna).toMatchObject({ active: false, archived: true })
+    expect(coluna?.appointments.map((x) => x.id)).toEqual([a.id])
+    expect(passada[0]?.professionals.map((p) => p.id)).toEqual([s.ana.id, s.caio.id, antigo.id])
+    expect(passada[0]?.professionals[2]?.appointments).toEqual([])
+    const atual = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-22' })
+    expect(atual.every((d) => d.professionals.every((p) => p.id !== antigo.id))).toBe(true)
+  })
+
+  test('inativo sem agendamento nem bloqueio no intervalo não aparece; com bloqueio aparece', async () => {
+    const s = await montar()
+    const parado = await makeProfessional(s.b.id, { name: 'Parado', active: false })
+    const dias = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-17' })
+    expect(dias.every((d) => d.professionals.every((p) => p.id !== parado.id))).toBe(true)
+    await bloquear(s.b, parado.id, sp(17, 9), sp(17, 10), 'Licença')
+    const com = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-17' })
+    expect(com[0]?.professionals.find((p) => p.id === parado.id)?.blocks).toEqual([])
+    expect(com[1]?.professionals.find((p) => p.id === parado.id)?.blocks).toHaveLength(1)
+  })
+
+  test('com professionalId a coluna do inativo ou arquivado vem normalmente', async () => {
+    const s = await montar()
+    const antigo = await makeProfessional(s.b.id, { name: 'Antigo', archivedAt: AGORA, active: false })
+    const dias = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-16', professionalId: antigo.id })
+    expect(dias[0]?.professionals.map((p) => [p.id, p.active, p.archived])).toEqual([[antigo.id, false, true]])
+  })
+
+  test('dentro do intervalo, a coluna extra não muda o número de consultas', async () => {
+    const s = await montar()
+    const ex = await makeProfessional(s.b.id, { name: 'Ex', active: false })
+    await marcar(s, { startsAt: sp(16, 9), professionalId: ex.id })
+    await marcar(s, { startsAt: sp(16, 9) })
+    const contar = async (): Promise<number> => {
+      let n = 0
+      const original = pg.Client.prototype.query
+      pg.Client.prototype.query = function contado(this: pg.Client, ...args: unknown[]) {
+        n += 1
+        return (original as (...a: unknown[]) => unknown).apply(this, args)
+      } as typeof original
+      try {
+        await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-16' })
+      } finally {
+        pg.Client.prototype.query = original
+      }
+      return n
+    }
+    const com = await contar()
+    await prisma.appointment.deleteMany({ where: { professionalId: ex.id } })
+    expect(await contar()).toBeLessThanOrEqual(com)
+  })
+})
+
 describe('listCustomerAppointments', () => {
   async function historico(s: Montagem) {
     // Relógio: segunda 08:00. Passados: 4 (um cancelado, um concluído); futuros: 3 ativos e 1 cancelado.
@@ -370,6 +444,30 @@ describe('listCustomerAppointments', () => {
     const passados = await listCustomerAppointments(s.gerente, { customerId: s.cliente.id, scope: 'past' })
     // O cancelado de 18/11 é "passado" por não estar ativo; a ordem é do mais recente ao mais antigo.
     expect(passados.items.map((x) => x.id)).toEqual([h.futuroCancelado, ...h.passados])
+  })
+
+  test('atendimento em andamento é próximo; depois de terminar vai para past; cancelado futuro é past', async () => {
+    const s = await montar({ now: sp(16, 10, 10) })
+    // Começou às 10:00 (há 10 minutos) e termina às 10:30 (em 20 minutos).
+    const andando = await marcar(s, { startsAt: sp(16, 10), durationMin: 30 })
+    const cancelado = await marcar(s, { startsAt: sp(18, 9), status: 'CANCELED' })
+    const proximos = await listCustomerAppointments(s.gerente, { customerId: s.cliente.id, scope: 'upcoming' })
+    expect(proximos.items.map((x) => x.id)).toEqual([andando.id])
+    expect((await getNextAppointment(s.gerente, s.cliente.id))?.id).toBe(andando.id)
+    const passados = await listCustomerAppointments(s.gerente, { customerId: s.cliente.id, scope: 'past' })
+    expect(passados.items.map((x) => x.id)).toEqual([cancelado.id])
+
+    const depois = await makeCtx(s.b, { now: sp(16, 10, 30) })
+    expect((await listCustomerAppointments(depois, { customerId: s.cliente.id, scope: 'upcoming' })).items).toEqual([])
+    expect(await getNextAppointment(depois, s.cliente.id)).toBeNull()
+    const passadosDepois = await listCustomerAppointments(depois, { customerId: s.cliente.id, scope: 'past' })
+    expect(passadosDepois.items.map((x) => x.id)).toEqual([cancelado.id, andando.id])
+  })
+
+  test('cursor com epoch fora do limite de Date é validation', async () => {
+    const s = await montar()
+    const cursor = Buffer.from(JSON.stringify([9e15, '00000000-0000-4000-8000-000000000000'])).toString('base64url')
+    expect((await domainError(listCustomerAppointments(s.gerente, { customerId: s.cliente.id, scope: 'upcoming', cursor }))).code).toBe('validation')
   })
 
   test('um agendamento que começa exatamente agora é próximo', async () => {
@@ -483,12 +581,11 @@ describe('getNextAppointment', () => {
     await marcar(s, { startsAt: sp(16, 9), status: 'COMPLETED' })
     await marcar(s, { startsAt: sp(16, 9), status: 'NO_SHOW' })
     expect(await getNextAppointment(s.gerente, s.cliente.id)).toBeNull()
-    const longe = await marcar(s, { startsAt: sp(20, 9) })
+    await marcar(s, { startsAt: sp(20, 9) })
     const perto = await marcar(s, { startsAt: sp(17, 9), status: 'PENDING' })
     const proximo = await getNextAppointment(s.gerente, s.cliente.id)
     expect(proximo?.id).toBe(perto.id)
     expect(proximo?.items[0]?.name).toBe('Banho')
-    expect(longe.id).not.toBe(perto.id)
   })
 
   test('o cliente consulta o próprio sem informar o id; a equipe precisa informar', async () => {
@@ -522,6 +619,7 @@ describe('getDaySummary', () => {
       bookedMinutes: 150,
       workingMinutes: 2 * (180 + 300),
       revenueCents: 8000,
+      occupancy: 0.1563,
     })
   })
 
@@ -537,6 +635,7 @@ describe('getDaySummary', () => {
       bookedMinutes: 30 + 60 + 60, // confirmado 30, concluído 60, pendente 60
       workingMinutes: 480,
       revenueCents: 8000,
+      occupancy: 0.3125,
     })
   })
 
@@ -556,7 +655,43 @@ describe('getDaySummary', () => {
     })
     const r = await getDaySummary(s.gerente, '2026-11-16')
     expect(r.workingMinutes).toBe(0)
+    expect(r.occupancy).toBeNull()
     expect(r.total).toBe(4)
+  })
+
+  test('com um inativo que tem agendamento, o resumo bate com a soma das colunas da agenda', async () => {
+    const s = await montar()
+    await dia(s)
+    const ex = await makeProfessional(s.b.id, { name: 'Ex', active: false })
+    await makeWorkingHours(s.b.id, ex.id, 'MONDAY', [MANHA])
+    await makeProfessional(s.b.id, { name: 'Parado', active: false })
+    await marcar(s, { startsAt: sp(16, 9), professionalId: ex.id, status: 'COMPLETED' })
+    const r = await getDaySummary(s.gerente, '2026-11-16')
+    const [agenda] = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-16', includeCanceled: true })
+    const colunas = agenda?.professionals ?? []
+    expect(colunas.map((p) => p.id)).toContain(ex.id)
+    const itens = colunas.flatMap((p) => p.appointments)
+    expect(r.total).toBe(itens.length)
+    expect(r.bookedMinutes).toBe(itens.filter((a) => a.status !== 'CANCELED').reduce((n, a) => n + a.totalDurationMin, 0))
+    expect(r.workingMinutes).toBe(colunas.reduce((n, p) => n + p.workingRanges.reduce((m, w) => m + w.endMin - w.startMin, 0), 0))
+    expect(r.workingMinutes).toBe(2 * 480 + 180)
+    expect(r.revenueCents).toBe(16000)
+    expect(r.occupancy).toBe(Math.round((r.bookedMinutes / r.workingMinutes) * 10000) / 10000)
+  })
+
+  test('occupancy fica limitada a 1 e é null sem expediente', async () => {
+    const s = await montar()
+    const so = await makeProfessional(s.b.id, { name: 'Só', serviceIds: [s.banho.id] })
+    await makeWorkingHours(s.b.id, so.id, 'TUESDAY', [{ startMin: 540, endMin: 600 }])
+    await prisma.professional.update({ where: { id: s.ana.id }, data: { active: false } })
+    await prisma.professional.update({ where: { id: s.caio.id }, data: { active: false } })
+    await marcar(s, { startsAt: sp(17, 9), professionalId: so.id, durationMin: 60 })
+    await marcar(s, { startsAt: sp(17, 10), professionalId: so.id, durationMin: 60 })
+    const cheio = await getDaySummary(s.gerente, '2026-11-17')
+    expect(cheio.bookedMinutes).toBe(120)
+    expect(cheio.workingMinutes).toBe(60)
+    expect(cheio.occupancy).toBe(1)
+    expect((await getDaySummary(s.gerente, '2026-11-18')).occupancy).toBeNull()
   })
 
   test('dia vazio devolve tudo zerado, com as cinco chaves', async () => {
@@ -567,6 +702,7 @@ describe('getDaySummary', () => {
       bookedMinutes: 0,
       workingMinutes: 0,
       revenueCents: 0,
+      occupancy: null,
     })
   })
 
@@ -578,6 +714,7 @@ describe('getDaySummary', () => {
     expect(meu.total).toBe(2)
     expect(meu.bookedMinutes).toBe(60)
     expect(meu.workingMinutes).toBe(480)
+    expect(meu.occupancy).toBe(0.125)
     expect((await getDaySummary(eu, '2026-11-16', s.ana.id)).total).toBe(2)
     expect((await domainError(getDaySummary(eu, '2026-11-16', s.caio.id))).code).toBe('forbidden')
     const semFicha = await comoProfissional(s, null)
@@ -587,6 +724,7 @@ describe('getDaySummary', () => {
       bookedMinutes: 0,
       workingMinutes: 0,
       revenueCents: 0,
+      occupancy: null,
     })
   })
 

@@ -37,6 +37,8 @@ export type AgendaDay = {
   professionals: {
     id: string
     name: string
+    active: boolean
+    archived: boolean
     workingRanges: { startMin: number; endMin: number; startLabel: string; endLabel: string }[]
     appointments: AppointmentView[]
     blocks: (TimeBlockView & { local: { start: string; end: string } })[]
@@ -49,6 +51,8 @@ export type DaySummary = {
   bookedMinutes: number
   workingMinutes: number
   revenueCents: number
+  /** `bookedMinutes / workingMinutes`, em 4 casas e no máximo 1; `null` sem expediente. */
+  occupancy: number | null
 }
 
 const MAX_DAYS = 31
@@ -92,30 +96,41 @@ function byProfessional(a: Professional, b: Professional): number {
 }
 
 /**
- * Profissionais cuja agenda o ator pode ver: o pedido (ou todos os ativos) com `view_all_agendas`; só a própria
- * ficha sem ela. `null` no pedido e `undefined` valem como "não pediu".
+ * Profissionais cuja agenda o ator pode ver. `open` indica "todas as agendas, sem filtro": a lista traz toda a
+ * conta e quem chama escolhe as colunas (ativos mais os que têm movimento). Com o pedido, só a ficha pedida
+ * (mesmo inativa ou arquivada); sem `view_all_agendas`, só a própria.
  */
 async function visibleProfessionals(
   ctx: TenantContext,
   who: Who,
   scope: Scope,
   requested: string | null | undefined,
-): Promise<Professional[]> {
+): Promise<{ list: Professional[]; open: boolean }> {
   const id = requested ?? null
   if (id !== null) {
     if (!idSchema.safeParse(id).success) throw professionalNotFound()
     assertProfessionalAllowed(who, scope, id)
     const found = await ctx.db.professional.findUnique({ where: { id } })
     if (!found) throw professionalNotFound()
-    return [found]
+    return { list: [found], open: false }
   }
   if (!scope.all) {
-    if (!scope.ownId) return []
-    const own = await ctx.db.professional.findUnique({ where: { id: scope.ownId } })
-    return own ? [own] : []
+    const own = scope.ownId ? await ctx.db.professional.findUnique({ where: { id: scope.ownId } }) : null
+    return { list: own ? [own] : [], open: false }
   }
-  const rows = await ctx.db.professional.findMany({ where: { active: true, archivedAt: null } })
-  return rows.sort(byProfessional)
+  return { list: await ctx.db.professional.findMany(), open: true }
+}
+
+const isListed = (p: Professional): boolean => p.active && p.archivedAt === null
+
+/** Ativos primeiro, depois os demais; cada grupo por displayOrder, nome e id. */
+function byColumn(a: Professional, b: Professional): number {
+  return Number(isListed(b)) - Number(isListed(a)) || byProfessional(a, b)
+}
+
+/** Colunas: o conjunto aberto fica com os ativos e os que têm movimento no período; o fechado, como veio. */
+function pickColumns(list: Professional[], open: boolean, busy: Set<string>): Professional[] {
+  return (open ? list.filter((p) => isListed(p) || busy.has(p.id)) : list).sort(byColumn)
 }
 
 type Ranges = { startMin: number; endMin: number }[]
@@ -158,8 +173,9 @@ export async function getAgenda(
     })
   }
   const scope = await staffScope(ctx, who)
-  const professionals = await visibleProfessionals(ctx, who, scope, professionalId)
-  const ids = professionals.map((p) => p.id)
+  const visible = await visibleProfessionals(ctx, who, scope, professionalId)
+  const everyone = visible.open
+  const scopeIds = visible.list.map((p) => p.id)
 
   const dates: string[] = []
   for (let date = from; compareLocalDates(date, to) <= 0; date = addDays(date, 1)) dates.push(date)
@@ -167,12 +183,13 @@ export async function getAgenda(
   const end = localDayRange(to, ctx.timeZone).end
 
   const closures = await listClosures(ctx, { from, to })
-  const hours = ids.length > 0 ? await loadWorkingHours(ctx, ids) : new Map<string, Map<Weekday, Ranges>>()
+  // Sem filtro de profissional, o movimento de fichas inativas ou arquivadas também entra.
+  const byOwner: Prisma.AppointmentWhereInput = everyone ? {} : { professionalId: { in: scopeIds } }
   const rows: Row[] =
-    ids.length > 0
+    everyone || scopeIds.length > 0
       ? await ctx.db.appointment.findMany({
           where: {
-            professionalId: { in: ids },
+            ...byOwner,
             startsAt: { gte: start, lt: end },
             ...(includeCanceled ? {} : { status: { not: 'CANCELED' } }),
           },
@@ -181,12 +198,20 @@ export async function getAgenda(
         })
       : []
   const blocks =
-    ids.length > 0
+    everyone || scopeIds.length > 0
       ? await ctx.db.timeBlock.findMany({
-          where: { professionalId: { in: ids }, startsAt: { lt: end }, endsAt: { gt: start } },
+          where: {
+            ...(everyone ? {} : { professionalId: { in: scopeIds } }),
+            startsAt: { lt: end },
+            endsAt: { gt: start },
+          },
           orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
         })
       : []
+  const busy = new Set([...rows.map((r) => r.professionalId), ...blocks.map((x) => x.professionalId)])
+  const professionals = pickColumns(visible.list, everyone, busy)
+  const ids = professionals.map((p) => p.id)
+  const hours = ids.length > 0 ? await loadWorkingHours(ctx, ids) : new Map<string, Map<Weekday, Ranges>>()
 
   const byDay = new Map<string, Map<string, AppointmentView[]>>()
   for (const row of rows) {
@@ -213,6 +238,8 @@ export async function getAgenda(
         return {
           id: p.id,
           name: p.name,
+          active: p.active,
+          archived: p.archivedAt !== null,
           workingRanges: (hours.get(p.id)?.get(weekday) ?? []).map((r) => ({
             ...r,
             startLabel: minuteLabel(r.startMin),
@@ -297,8 +324,8 @@ export async function listCustomerAppointments(
   const conditions: Prisma.AppointmentWhereInput[] = [
     { customerId },
     upcoming
-      ? { startsAt: { gte: now }, status: { in: UPCOMING } }
-      : { OR: [{ startsAt: { lt: now } }, { status: { notIn: UPCOMING } }] },
+      ? { endsAt: { gt: now }, status: { in: UPCOMING } }
+      : { OR: [{ endsAt: { lte: now } }, { status: { notIn: UPCOMING } }] },
   ]
   if (after) {
     const op = upcoming ? 'gt' : 'lt'
@@ -324,7 +351,7 @@ export async function listCustomerAppointments(
 export async function getNextAppointment(ctx: TenantContext, customerId?: string): Promise<AppointmentView | null> {
   const id = await resolveCustomer(ctx, customerId)
   const row: Row | null = await ctx.db.appointment.findFirst({
-    where: { customerId: id, startsAt: { gte: ctx.clock() }, status: { in: UPCOMING } },
+    where: { customerId: id, endsAt: { gt: ctx.clock() }, status: { in: UPCOMING } },
     include,
     orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
   })
@@ -338,6 +365,7 @@ function emptySummary(): DaySummary {
     bookedMinutes: 0,
     workingMinutes: 0,
     revenueCents: 0,
+    occupancy: null,
   }
 }
 
@@ -350,19 +378,17 @@ export async function getDaySummary(
   const who = actorKind(ctx)
   if (who === 'customer') throw forbidden('Você não tem permissão para ver o resumo do dia.')
   const scope = await staffScope(ctx, who)
-  const professionals = await visibleProfessionals(ctx, who, scope, parsed.professionalId)
+  const visible = await visibleProfessionals(ctx, who, scope, parsed.professionalId)
   const summary = emptySummary()
-  // Quem vê todas as agendas e não filtrou conta todos os agendamentos do dia, mesmo os de fichas arquivadas.
-  const everyone = scope.all && (parsed.professionalId ?? null) === null
-  if (!everyone && professionals.length === 0) return summary
+  if (!visible.open && visible.list.length === 0) return summary
 
   const range = localDayRange(parsed.date, ctx.timeZone)
   const rows = await ctx.db.appointment.findMany({
     where: {
       startsAt: { gte: range.start, lt: range.end },
-      ...(everyone ? {} : { professionalId: { in: professionals.map((p) => p.id) } }),
+      ...(visible.open ? {} : { professionalId: { in: visible.list.map((p) => p.id) } }),
     },
-    select: { status: true, totalCents: true, totalDurationMin: true },
+    select: { status: true, totalCents: true, totalDurationMin: true, professionalId: true },
   })
   for (const row of rows) {
     summary.total += 1
@@ -371,16 +397,21 @@ export async function getDaySummary(
     if (row.status === 'COMPLETED') summary.revenueCents += row.totalCents
   }
 
+  // Mesmo conjunto da agenda: ativos mais quem tem agendamento no dia.
+  const considered = pickColumns(visible.list, visible.open, new Set(rows.map((r) => r.professionalId)))
   const closures = await listClosures(ctx, { from: parsed.date, to: parsed.date })
-  if (closures.length === 0 && professionals.length > 0) {
+  if (closures.length === 0 && considered.length > 0) {
     const hours = await loadWorkingHours(
       ctx,
-      professionals.map((p) => p.id),
+      considered.map((p) => p.id),
     )
     const weekday = weekdayOf(parsed.date)
     for (const days of hours.values()) {
       for (const r of days.get(weekday) ?? []) summary.workingMinutes += r.endMin - r.startMin
     }
+  }
+  if (summary.workingMinutes > 0) {
+    summary.occupancy = Math.min(1, Math.round((summary.bookedMinutes / summary.workingMinutes) * 10000) / 10000)
   }
   return summary
 }

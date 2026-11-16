@@ -162,9 +162,11 @@ export function formatDateTime(instant: Date, tz: string): string {
   return `${formatDate(instant, tz)} ${formatTime(instant, tz)}`
 }
 
-/** Instante a partir de milissegundos desde 1970 (UTC). Recusa valor que não seja número finito. */
+const MAX_EPOCH_MS = 8.64e15
+
+/** Instante a partir de milissegundos desde 1970 (UTC). Recusa valor não inteiro ou fora do limite de `Date`. */
 export function fromEpochMs(ms: number): Date {
-  if (!Number.isFinite(ms)) throw new RangeError('Milissegundos inválidos.')
+  if (!Number.isInteger(ms) || Math.abs(ms) > MAX_EPOCH_MS) throw new RangeError('Milissegundos inválidos.')
   return new Date(ms)
 }
 

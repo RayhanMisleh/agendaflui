@@ -3,6 +3,7 @@ import {
   WEEKDAYS,
   compareLocalDates,
   daysBetween,
+  fromEpochMs,
   dbDateToLocal,
   isoWeekRange,
   localToDbDate,
@@ -93,5 +94,19 @@ describe('semana, comparação e diferença', () => {
     expect(compareLocalDates('2026-11-16', '2026-11-16')).toBe(0)
     expect(daysBetween('2026-12-30', '2027-01-02')).toBe(3)
     expect(daysBetween('2027-01-02', '2026-12-30')).toBe(-3)
+  })
+})
+
+describe('fromEpochMs', () => {
+  test('aceita inteiros dentro do limite de Date', () => {
+    expect(iso(fromEpochMs(0))).toBe('1970-01-01T00:00:00.000Z')
+    expect(fromEpochMs(8.64e15).getTime()).toBe(8.64e15)
+    expect(fromEpochMs(-8.64e15).getTime()).toBe(-8.64e15)
+  })
+
+  test('recusa fora do limite, não inteiro e não finito', () => {
+    for (const ms of [8.64e15 + 1, -8.64e15 - 1, 9e15, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => fromEpochMs(ms)).toThrow(RangeError)
+    }
   })
 })
