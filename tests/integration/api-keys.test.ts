@@ -83,6 +83,12 @@ describe('createApiKey', () => {
     'https://*.exemplo.com',
     '*',
     'https://*',
+    'http://localhost.evil.com',
+    'https://evil.com@good.com',
+    'https://exemplo.com:0',
+    'null',
+    'https://-ruim.com',
+    'https://ex_emplo.com',
     'https://app.exemplo.com:99999',
     'ftp://app.exemplo.com',
     '',
@@ -91,10 +97,55 @@ describe('createApiKey', () => {
     expect(e.code).toBe('validation')
   })
 
-  test('recusa mais de 20 origens', async () => {
+  test('recusa mais de 20 origens distintas, mas conta só depois de normalizar e deduplicar', async () => {
     const origens = Array.from({ length: 21 }, (_, i) => `https://app${i}.exemplo.com`)
     const e = await domainError(createApiKey(actor, { kind: 'PLATFORM', name: 'X', allowedOrigins: origens }))
     expect(e.code).toBe('validation')
+    const repetidas = [...origens.slice(0, 20), 'HTTPS://APP0.exemplo.com/']
+    const { key } = await createApiKey(actor, { kind: 'PLATFORM', name: 'Y', allowedOrigins: repetidas })
+    expect(key.allowedOrigins).toHaveLength(20)
+  })
+
+  test('recusa origem com mais de 300 caracteres', async () => {
+    const longa = `https://${'a'.repeat(60)}.${'b'.repeat(60)}.${'c'.repeat(60)}.${'d'.repeat(60)}.${'e'.repeat(60)}.com`
+    expect(longa.length).toBeGreaterThan(300)
+    const e = await domainError(createApiKey(actor, { kind: 'PLATFORM', name: 'X', allowedOrigins: [longa] }))
+    expect(e.code).toBe('validation')
+  })
+
+  test('omite a porta padrão (443 em https, 80 em http) e mantém as outras', async () => {
+    const { key } = await createApiKey(actor, {
+      kind: 'PLATFORM',
+      name: 'Portas',
+      allowedOrigins: ['HTTPS://Exemplo.COM:443', 'https://exemplo.com:8443', 'http://localhost:80', 'http://localhost:3000'],
+    })
+    expect(key.allowedOrigins).toEqual(['https://exemplo.com', 'https://exemplo.com:8443', 'http://localhost', 'http://localhost:3000'])
+  })
+
+  test('converte IDN para punycode e aceita punycode pronto', async () => {
+    const { key } = await createApiKey(actor, {
+      kind: 'PLATFORM',
+      name: 'IDN',
+      allowedOrigins: ['https://café.com.br', 'https://xn--caf-dma.com.br', 'https://CAFÉ.com.br/'],
+    })
+    expect(key.allowedOrigins).toEqual(['https://xn--caf-dma.com.br'])
+  })
+
+  test('colisão de prefixo sorteia de novo (até 3 tentativas)', async () => {
+    const existente = await createApiKey(actor, { kind: 'PLATFORM', name: 'Antiga' })
+    const prefixoOcupado = existente.key.prefix
+    const sequencia = (ocupadas: number) => {
+      let chamadas = 0
+      return (n: number): Buffer => {
+        if (n === 32) return Buffer.alloc(32, 7)
+        chamadas++
+        return chamadas <= ocupadas ? Buffer.from(prefixoOcupado, 'hex') : Buffer.from('00112233', 'hex')
+      }
+    }
+    const { key, secret } = await createApiKey(actor, { kind: 'PLATFORM', name: 'Nova' }, { randomBytes: sequencia(2) })
+    expect(key.prefix).toBe('00112233')
+    expect(secret).toMatch(FORMATO)
+    await expect(createApiKey(actor, { kind: 'PLATFORM', name: 'Outra' }, { randomBytes: sequencia(3) })).rejects.toThrow()
   })
 
   test('audita sem o segredo, com o ator da plataforma', async () => {
@@ -109,7 +160,7 @@ describe('createApiKey', () => {
       businessId: conta.id,
     })
     expect(JSON.stringify(logs)).not.toContain(secret)
-    expect(JSON.stringify(logs)).not.toContain(secret.split('_')[3]!)
+    expect(JSON.stringify(logs)).not.toContain(secret.slice(-43))
   })
 })
 
@@ -155,21 +206,34 @@ describe('resolveAppKey', () => {
     expect(e2.code).toBe('business_unavailable')
   })
 
-  test('ausente, malformada, inexistente, errada e revogada dão a mesma resposta', async () => {
+  test('ausente, malformada, inexistente, errada e revogada dão exatamente a mesma resposta', async () => {
     const { key, secret } = await createApiKey(actor, { kind: 'ACCOUNT', businessId: conta.id, name: 'App' })
     const ultimo = secret.slice(-1)
     const trocada = secret.slice(0, -1) + (ultimo === 'A' ? 'B' : 'A')
+    const restoErrado = `afk_a_${key.prefix}_${'x'.repeat(43)}`
     const prefixoInexistente = secret.replace(`_${key.prefix}_`, '_00000000_')
     const revogada = await createApiKey(actor, { kind: 'ACCOUNT', businessId: conta.id, name: 'Velha' })
     await revokeApiKey(actor, revogada.key.id)
-    const casos: Array<string | null> = [null, '', 'lixo', secret.slice(0, -2), `${secret}x`, trocada, prefixoInexistente, revogada.secret]
+    const casos: Array<string | null> = [null, '', 'lixo', trocada, restoErrado, prefixoInexistente, revogada.secret]
+    const respostas: Array<{ code: string; reason: string; message: string }> = []
     for (const k of casos) {
       const e = await authError(resolveAppKey({ key: k, businessSlug: conta.slug }))
-      expect(e.code, String(k)).toBe('unauthorized')
-      expect(e.reason, String(k)).toBe('invalid_app_key')
+      respostas.push({ code: e.code, reason: e.reason, message: e.message })
       expect(e.message, String(k)).not.toContain(secret)
     }
+    expect(respostas[0]).toMatchObject({ code: 'unauthorized', reason: 'invalid_app_key' })
+    for (const r of respostas) expect(r).toEqual(respostas[0])
     await expect(resolveAppKey({ key: secret, businessSlug: null })).resolves.toBeDefined()
+  })
+
+  test('o slug é normalizado (espaços e maiúsculas); vazio vale como ausente', async () => {
+    const { secret } = await createApiKey(actor, { kind: 'ACCOUNT', businessId: conta.id, name: 'App' })
+    expect((await resolveAppKey({ key: secret, businessSlug: ` ${conta.slug.toUpperCase()} ` })).businessId).toBe(conta.id)
+    expect((await resolveAppKey({ key: secret, businessSlug: '   ' })).businessId).toBe(conta.id)
+    const p = await createApiKey(actor, { kind: 'PLATFORM', name: 'Geral' })
+    expect((await resolveAppKey({ key: p.secret, businessSlug: conta.slug.toUpperCase() })).businessId).toBe(conta.id)
+    const e = await authError(resolveAppKey({ key: p.secret, businessSlug: '  ' }))
+    expect(e.reason).toBe('unknown_business')
   })
 
   test('lastUsedAt é gravado no máximo uma vez por minuto', async () => {
@@ -190,9 +254,10 @@ describe('resolveAppKey', () => {
 describe('revogar, listar e atualizar origens', () => {
   test('revogar marca a data, audita e a chave deixa de valer; repetir não muda a data', async () => {
     const { key, secret } = await createApiKey(actor, { kind: 'ACCOUNT', businessId: conta.id, name: 'App' })
-    await revokeApiKey(actor, key.id)
+    const t = new Date('2026-11-16T12:00:00.000Z')
+    await revokeApiKey(actor, key.id, t)
     const depois = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
-    expect(depois.revokedAt).not.toBeNull()
+    expect(depois.revokedAt).toEqual(t)
     await revokeApiKey(actor, key.id)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })).revokedAt).toEqual(depois.revokedAt)
     expect(await prisma.auditLog.count({ where: { action: 'api_key.revoked' } })).toBe(1)
@@ -226,6 +291,34 @@ describe('revogar, listar e atualizar origens', () => {
     expect(e.code).toBe('validation')
     const nf = await domainError(updateApiKeyOrigins(actor, crypto.randomUUID(), []))
     expect(nf.code).toBe('not_found')
-    expect(await prisma.auditLog.count({ where: { action: 'api_key.origins_updated' } })).toBe(2)
+    const logs = await prisma.auditLog.findMany({ where: { action: 'api_key.origins_updated' }, orderBy: { createdAt: 'asc' } })
+    expect(logs).toHaveLength(2)
+    expect(logs[0]?.metadata).toMatchObject({ before: [], after: ['https://b.exemplo.com'] })
+    expect(logs[1]?.metadata).toMatchObject({ before: ['https://b.exemplo.com'], after: [] })
+  })
+
+  test('atualizar origens de chave revogada é recusado, sem gravar nem auditar', async () => {
+    const { key } = await createApiKey(actor, { kind: 'PLATFORM', name: 'P', allowedOrigins: ['https://a.exemplo.com'] })
+    await revokeApiKey(actor, key.id)
+    const e = await domainError(updateApiKeyOrigins(actor, key.id, ['https://b.exemplo.com']))
+    expect(e.code).toBe('validation')
+    expect(e.message).toBe('Esta chave foi revogada. Crie uma nova chave.')
+    const depois = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
+    expect(depois.allowedOrigins).toEqual(['https://a.exemplo.com'])
+    expect(await prisma.auditLog.count({ where: { action: 'api_key.origins_updated' } })).toBe(0)
+  })
+
+  test('funções administrativas recusam quem não é admin da plataforma', async () => {
+    const intruso = { kind: 'system' } as unknown as PlatformAdminActor
+    const { key } = await createApiKey(actor, { kind: 'PLATFORM', name: 'P' })
+    for (const chamada of [
+      createApiKey(intruso, { kind: 'PLATFORM', name: 'X' }),
+      listApiKeys(intruso),
+      revokeApiKey(intruso, key.id),
+      updateApiKeyOrigins(intruso, key.id, []),
+    ]) {
+      expect((await domainError(chamada)).code).toBe('forbidden')
+    }
+    expect(await prisma.apiKey.count()).toBe(1)
   })
 })
