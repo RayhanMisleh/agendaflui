@@ -115,6 +115,19 @@ describe('listAudit: filtros', () => {
   })
 })
 
+describe('listAudit: isolamento entre contas', () => {
+  test('com businessId de uma conta, não vem linha de outra conta gravada no mesmo instante', async () => {
+    const a = await makeBusiness()
+    const b = await makeBusiness()
+    const mesmo = at('2026-11-14T10:00:00.000Z')
+    await linha({ createdAt: mesmo, action: 'da.a', businessId: a.id })
+    await linha({ createdAt: mesmo, action: 'da.b', businessId: b.id })
+    await linha({ createdAt: mesmo, action: 'da.plataforma' })
+    expect((await listAudit(actor, { businessId: a.id }, NOW)).items.map((i) => i.action)).toEqual(['da.a'])
+    expect((await listAudit(actor, { businessId: b.id, limit: 1 }, NOW)).items.map((i) => i.action)).toEqual(['da.b'])
+  })
+})
+
 describe('listAudit: paginação por cursor', () => {
   test('páginas não repetem nem pulam, mesmo com o mesmo instante em várias linhas e inserções entre as páginas', async () => {
     const ids: string[] = []

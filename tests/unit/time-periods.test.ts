@@ -95,4 +95,29 @@ describe('localPeriods', () => {
     expect(() => localPeriods(new Date(Number.NaN), 'America/Sao_Paulo')).toThrow(RangeError)
     expect(() => localPeriods(at('2026-11-16T15:00:00.000Z'), 'Marte/Olimpo')).toThrow(RangeError)
   })
+
+  test('Lisboa: a virada do horário de verão em março (29/3/2026, dia de 23 horas) e em outubro (25/10/2026, dia de 25 horas)', () => {
+    const marco = localPeriods(at('2026-03-29T12:00:00.000Z'), 'Europe/Lisbon')
+    expect(pair(marco.today)).toEqual(['2026-03-29T00:00:00.000Z', '2026-03-29T23:00:00.000Z'])
+    expect(pair(marco.month)).toEqual(['2026-03-01T00:00:00.000Z', '2026-03-29T23:00:00.000Z'])
+    expect(pair(marco.previousSamePeriod)).toEqual(['2026-02-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z'])
+    const outubro = localPeriods(at('2026-10-25T12:00:00.000Z'), 'Europe/Lisbon')
+    expect(pair(outubro.today)).toEqual(['2026-10-24T23:00:00.000Z', '2026-10-26T00:00:00.000Z'])
+    expect(pair(outubro.previousMonth)).toEqual(['2026-08-31T23:00:00.000Z', '2026-09-30T23:00:00.000Z'])
+    expect(pair(localMonthRange('2026-10-10', 'Europe/Lisbon'))).toEqual(['2026-09-30T23:00:00.000Z', '2026-11-01T00:00:00.000Z'])
+  })
+
+  test('virada de ano: 31/12 e 01/01', () => {
+    const ultimo = localPeriods(at('2026-12-31T20:00:00.000Z'), 'America/Sao_Paulo')
+    expect(pair(ultimo.today)).toEqual(['2026-12-31T03:00:00.000Z', '2027-01-01T03:00:00.000Z'])
+    expect(pair(ultimo.month)).toEqual(['2026-12-01T03:00:00.000Z', '2027-01-01T03:00:00.000Z'])
+    expect(pair(ultimo.previousSamePeriod)).toEqual(['2026-11-01T03:00:00.000Z', '2026-12-01T03:00:00.000Z'])
+    const primeiro = localPeriods(at('2027-01-01T03:00:00.000Z'), 'America/Sao_Paulo')
+    expect(pair(primeiro.today)).toEqual(['2027-01-01T03:00:00.000Z', '2027-01-02T03:00:00.000Z'])
+    expect(pair(primeiro.month)).toEqual(['2027-01-01T03:00:00.000Z', '2027-01-02T03:00:00.000Z'])
+    expect(pair(primeiro.previousMonth)).toEqual(['2026-12-01T03:00:00.000Z', '2027-01-01T03:00:00.000Z'])
+    // Um segundo antes da virada ainda é 31/12 em São Paulo; em Lisboa (UTC+0) já é 2027.
+    const lisboa = localPeriods(at('2027-01-01T00:00:00.000Z'), 'Europe/Lisbon')
+    expect(pair(lisboa.today)).toEqual(['2027-01-01T00:00:00.000Z', '2027-01-02T00:00:00.000Z'])
+  })
 })

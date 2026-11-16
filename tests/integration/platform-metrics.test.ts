@@ -239,28 +239,54 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
     const parada = await conta({ createdAt: at('2026-09-01T12:00:00.000Z') })
     await agendamento(parada, { startsAt: at('2026-12-01T13:00:00.000Z'), createdAt: dias(NOW, -15) })
     const nunca = await conta({ createdAt: at('2026-09-01T12:00:00.000Z') })
+    const nova = await conta({ createdAt: dias(NOW, -1) }) // criada ontem, sem agendamento: ainda não é "quieta"
     const recente = await conta()
     await agendamento(recente, { startsAt: at('2026-11-20T13:00:00.000Z'), createdAt: dias(NOW, -3) })
     const arquivada = await conta({ status: 'ARCHIVED' })
     const suspensa = await conta({ status: 'SUSPENDED' })
     void arquivada
     void suspensa
+    void nova
 
     const { quietAccounts } = await getOverview(actor, NOW)
-    expect(quietAccounts.map((q) => q.id)).toEqual([nunca.business.id, parada.business.id])
-    expect(quietAccounts[0]?.lastActivityAt).toBeNull()
-    expect(quietAccounts[1]?.lastActivityAt?.getTime()).toBe(dias(NOW, -15).getTime())
-    expect(quietAccounts[1]?.name).toBe(parada.business.name)
+    // Quem parou vem primeiro; a conta antiga que nunca teve agendamento vem por último.
+    expect(quietAccounts.map((q) => q.id)).toEqual([parada.business.id, nunca.business.id])
+    expect(quietAccounts[1]?.lastActivityAt).toBeNull()
+    expect(quietAccounts[0]?.lastActivityAt?.getTime()).toBe(dias(NOW, -15).getTime())
+    expect(quietAccounts[0]?.name).toBe(parada.business.name)
   })
 
-  test('contas quietas: no máximo 10', async () => {
+  test('contas quietas: no máximo 10, e as que pararam não perdem a vaga para as que nunca tiveram agendamento', async () => {
     for (let i = 0; i < 12; i++) await conta()
-    expect((await getOverview(actor, NOW)).quietAccounts).toHaveLength(10)
+    const parada = await conta()
+    await agendamento(parada, { startsAt: at('2026-12-01T13:00:00.000Z'), createdAt: dias(NOW, -40) })
+    const { quietAccounts } = await getOverview(actor, NOW)
+    expect(quietAccounts).toHaveLength(10)
+    expect(quietAccounts[0]?.id).toBe(parada.business.id)
+  })
+
+  test('conta com fuso inválido fica fora dos números e é contada em skippedAccounts, com aviso sem dado pessoal', async () => {
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const ruim = await conta()
+    await prisma.business.update({ where: { id: ruim.business.id }, data: { timezone: 'Marte/Olimpo' } })
+    await agendamento(ruim, { startsAt: at('2026-11-16T13:00:00.000Z') })
+    const boa = await conta()
+    await agendamento(boa, { startsAt: at('2026-11-16T13:00:00.000Z') })
+    const o = await getOverview(actor, NOW)
+    expect(o.skippedAccounts).toBe(1)
+    expect(o.appointments.today).toBe(1)
+    const log = JSON.stringify(aviso.mock.calls)
+    expect(log).toContain('1')
+    expect(log).not.toContain(ruim.business.name)
+    expect(log).not.toContain(ruim.business.id)
+    vi.restoreAllMocks()
+    expect((await getOverview(actor, NOW)).skippedAccounts).toBe(1)
   })
 
   test('sem dados: tudo zero e listas vazias', async () => {
     expect(await getOverview(actor, NOW)).toEqual({
       accounts: { active: 0, suspended: 0, archived: 0, newLast30d: 0 },
+      skippedAccounts: 0,
       appointments: { today: 0, month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       customers: { total: 0, newMonth: { current: 0, previous: 0, previousSamePeriod: 0 } },
       revenueCents: { month: { current: 0, previous: 0, previousSamePeriod: 0 } },
@@ -315,6 +341,48 @@ describe('getOverview: número de consultas', () => {
     expect(comVinte).toBeLessThanOrEqual(15)
     expect(comVinte).toBe(comUm)
     expect(o.appointments.month.current).toBe(21)
+  })
+})
+
+describe('índices das métricas', () => {
+  const ESPERADOS = [
+    ['appointments', 'appointments_starts_at_idx'],
+    ['appointments', 'appointments_ends_at_completed_idx'],
+    ['appointments', 'appointments_business_id_created_at_idx'],
+    ['refresh_tokens', 'refresh_tokens_created_at_idx'],
+    ['refresh_tokens', 'refresh_tokens_used_at_idx'],
+    ['audit_logs', 'audit_logs_created_at_id_idx'],
+    ['notifications', 'notifications_status_updated_at_idx'],
+  ] as const
+
+  test('existem no catálogo, e o parcial de término só vale para COMPLETED', async () => {
+    const linhas = await prisma.$queryRaw<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'`
+    const porNome = new Map(linhas.map((l) => [l.indexname, l.indexdef]))
+    for (const [, nome] of ESPERADOS) expect(porNome.has(nome), nome).toBe(true)
+    expect(porNome.get('appointments_ends_at_completed_idx')).toMatch(/WHERE \(?\(?status = 'COMPLETED'/)
+    expect(porNome.get('audit_logs_created_at_id_idx')).toMatch(/created_at DESC, id DESC/)
+  })
+
+  test('EXPLAIN das consultas pesadas cita os índices novos', async () => {
+    const plano = async (sql: string): Promise<string> =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off')
+        const r = await tx.$queryRawUnsafe<Record<string, string>[]>(`EXPLAIN ${sql}`)
+        return r.map((x) => Object.values(x)[0]).join('\n')
+      })
+    const a = await plano(`SELECT count(*) FROM appointments a WHERE a.starts_at >= '2026-10-01' AND a.starts_at < '2026-12-01'`)
+    expect(a).toContain('appointments_starts_at_idx')
+    const b = await plano(`SELECT sum(total_cents) FROM appointments a WHERE a.status = 'COMPLETED' AND a.ends_at >= '2026-10-01' AND a.ends_at < '2026-12-01'`)
+    expect(b).toContain('appointments_ends_at_completed_idx')
+    const c = await plano(`SELECT * FROM audit_logs WHERE created_at >= '2026-10-01' AND created_at < '2026-12-01' ORDER BY created_at DESC, id DESC LIMIT 51`)
+    expect(c).toContain('audit_logs_created_at_id_idx')
+    const d = await plano(`SELECT count(*) FROM notifications WHERE status = 'PENDING'`)
+    expect(d).toMatch(/notifications_status_updated_at_idx|notifications_status_scheduled_for_locked_until_idx/)
+    const e = await plano(`SELECT count(*) FROM notifications WHERE status = 'FAILED' AND updated_at >= '2026-11-15'`)
+    expect(e).toContain('notifications_status_updated_at_idx')
+    const f = await plano(`SELECT count(*) FROM refresh_tokens WHERE created_at >= '2026-11-01' AND created_at < '2026-11-17'`)
+    expect(f).toContain('refresh_tokens_created_at_idx')
   })
 })
 

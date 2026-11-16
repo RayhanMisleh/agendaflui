@@ -17,6 +17,7 @@ type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
  *   do número de fusos, e nada é somado em memória.
  * - "mês" é o mês até o fim de hoje (parcial). `previous` é o mês anterior inteiro; `previousSamePeriod` é o mesmo número
  *   de dias do mês anterior, para comparar parcial com parcial.
+ * - Avisos e uso da API contam todas as contas, inclusive arquivadas (são números do sistema).
  * - Agendamento cancelado não conta como agendamento. Conta arquivada fica fora dos números da plataforma.
  * - Cliente arquivado ou anonimizado não conta como cliente.
  * - Receita é a soma de `total_cents` (o valor cobrado) dos agendamentos COMPLETED cujo término cai no período.
@@ -33,6 +34,8 @@ export type Trend = {
 
 export type Overview = {
   accounts: { active: number; suspended: number; archived: number; newLast30d: number }
+  /** Contas não arquivadas ignoradas nos números por terem fuso horário inválido. */
+  skippedAccounts: number
   appointments: { today: number; month: Trend }
   customers: { total: number; newMonth: Trend }
   revenueCents: { month: Trend }
@@ -147,8 +150,10 @@ const ZERO: Trend = { current: 0, previous: 0, previousSamePeriod: 0 }
 export async function getOverview(actor: PlatformAdminActor, now: Date): Promise<Overview> {
   assertPlatformAdmin(actor)
   const live = Prisma.sql`b.status <> 'ARCHIVED'`
-  const zonas = await prisma.business.findMany({ where: { status: { not: 'ARCHIVED' } }, select: { timezone: true }, distinct: ['timezone'] })
+  const zonas = await prisma.business.groupBy({ by: ['timezone'], where: { status: { not: 'ARCHIVED' } }, _count: { _all: true } })
   const windows: Windows = zonas.filter((z) => isValidTimeZone(z.timezone)).map((z) => ({ tz: z.timezone, p: localPeriods(now, z.timezone) }))
+  const skippedAccounts = zonas.filter((z) => !isValidTimeZone(z.timezone)).reduce((soma, z) => soma + z._count._all, 0)
+  if (skippedAccounts > 0) console.warn(JSON.stringify({ level: 'warn', event: 'overview_invalid_timezone', accounts: skippedAccounts }))
   const since24h = addMinutes(now, -DAY_MIN)
   const quietCutoff = addMinutes(now, -QUIET_DAYS * DAY_MIN)
 
@@ -161,7 +166,7 @@ export async function getOverview(actor: PlatformAdminActor, now: Date): Promise
       JOIN businesses b ON b.id = a.business_id
       JOIN ${windowsTable(windows)} ON w.tz = b.timezone
       WHERE ${live}
-        AND ((a.starts_at >= ${lo} AND a.starts_at < ${hi}) OR (a.ends_at >= ${lo} AND a.ends_at < ${hi}))`)
+        AND ((a.starts_at >= ${lo} AND a.starts_at < ${hi}) OR (a.status = 'COMPLETED' AND a.ends_at >= ${lo} AND a.ends_at < ${hi}))`)
     return apptResult(only(rows))
   }
 
@@ -180,13 +185,15 @@ export async function getOverview(actor: PlatformAdminActor, now: Date): Promise
     prisma.$queryRaw<Row[]>(Prisma.sql`
       SELECT count(*) FILTER (WHERE status = 'PENDING') AS pending,
              count(*) FILTER (WHERE status = 'FAILED' AND updated_at >= ${since24h}) AS failed
-      FROM notifications`),
+      FROM notifications WHERE status IN ('PENDING', 'FAILED')`),
     prisma.$queryRaw<{ id: string; name: string; last: Date | null }[]>(Prisma.sql`
-      SELECT b.id, b.name, (SELECT max(a.created_at) FROM appointments a WHERE a.business_id = b.id) AS last
-      FROM businesses b
-      WHERE b.status = 'ACTIVE'
-        AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.business_id = b.id AND a.created_at >= ${quietCutoff})
-      ORDER BY last ASC NULLS FIRST, b.name ASC, b.id ASC
+      SELECT q.id, q.name, q.last FROM (
+        SELECT b.id, b.name, (SELECT max(a.created_at) FROM appointments a WHERE a.business_id = b.id) AS last
+        FROM businesses b
+        WHERE b.status = 'ACTIVE' AND b.created_at < ${quietCutoff}
+          AND NOT EXISTS (SELECT 1 FROM appointments a WHERE a.business_id = b.id AND a.created_at >= ${quietCutoff})
+      ) q
+      ORDER BY (q.last IS NULL) ASC, q.last ASC, q.id ASC
       LIMIT ${QUIET_LIMIT}::int`),
   ])
 
@@ -194,6 +201,7 @@ export async function getOverview(actor: PlatformAdminActor, now: Date): Promise
   const n = only(notif)
   return {
     accounts: { active: num(a['active']), suspended: num(a['suspended']), archived: num(a['archived']), newLast30d: num(a['new30']) },
+    skippedAccounts,
     appointments: { today: appt.today, month: appt.month },
     customers: { total: cust.total, newMonth: cust.newMonth },
     revenueCents: { month: appt.revenue },
@@ -227,7 +235,7 @@ export async function getAccountMetrics(actor: PlatformAdminActor, businessId: s
       JOIN businesses b ON b.id = a.business_id
       JOIN ${windowsTable(windows)} ON w.tz = b.timezone
       WHERE ${scope}
-        AND ((a.starts_at >= ${lo} AND a.starts_at < ${hi}) OR (a.ends_at >= ${lo} AND a.ends_at < ${hi})
+        AND ((a.starts_at >= ${lo} AND a.starts_at < ${hi}) OR (a.status = 'COMPLETED' AND a.ends_at >= ${lo} AND a.ends_at < ${hi})
              OR (a.starts_at >= ${now} AND a.starts_at < ${next7dEnd}))`),
     customerAggregate(windows, scope),
     appUsersAggregate(windows, scope),

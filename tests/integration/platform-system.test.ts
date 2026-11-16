@@ -183,6 +183,8 @@ describe('retryFailedNotification', () => {
     const r = await Promise.allSettled([retryFailedNotification(actor, n.id, NOW), retryFailedNotification(actor, n.id, NOW)])
     expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
     expect(await prisma.auditLog.count({ where: { action: 'notification.retried' } })).toBe(1)
+    const perdeu = r.find((x) => x.status === 'rejected')
+    expect(perdeu?.status === 'rejected' && perdeu.reason).toMatchObject({ code: 'conflict', reason: 'not_failed' })
   })
 
   test('admin desativado não reenvia', async () => {

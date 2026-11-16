@@ -486,6 +486,7 @@ model AuditLog {
   business Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
 
   @@index([businessId, createdAt])
+  @@index([createdAt(sort: Desc), id(sort: Desc)])
   @@map("audit_logs")
 }
 
@@ -692,6 +693,8 @@ model Appointment {
   @@index([businessId, startsAt])
   @@index([businessId, professionalId, startsAt])
   @@index([businessId, customerId, startsAt])
+  @@index([startsAt])
+  @@index([businessId, createdAt])
   @@map("appointments")
 }
 
@@ -750,6 +753,7 @@ model Notification {
   @@unique([businessId, id])
   @@unique([businessId, dedupeKey])
   @@index([status, scheduledFor, lockedUntil])
+  @@index([status, updatedAt])
   @@index([customerId])
   @@index([membershipId])
   @@index([appointmentId])
@@ -801,6 +805,8 @@ model RefreshToken {
 
   @@unique([businessId, id])
   @@index([businessId, familyId])
+  @@index([createdAt])
+  @@index([usedAt])
   @@index([customerId])
   @@index([membershipId])
   @@map("refresh_tokens")

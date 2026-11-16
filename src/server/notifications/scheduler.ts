@@ -82,11 +82,10 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
       ok = false
       summary = failureSummary(err)
     }
-    try {
-      await record({ kind, startedAt, finishedAt: new Date(), ok, summary })
-    } catch (err) {
-      report('registro da execução', err)
-    }
+    // Sem aguardar: um banco lento ou travado nunca segura a rodada nem a limpeza seguinte.
+    void Promise.resolve()
+      .then(() => record({ kind, startedAt, finishedAt: new Date(), ok, summary }))
+      .catch((err: unknown) => report('registro da execução', err))
   }
 
   const tick = async (): Promise<void> => {

@@ -225,3 +225,18 @@ describe('startScheduler: registro das execuções', () => {
     expect(JSON.stringify(log.mock.calls)).not.toMatch(/maria|@/)
   })
 })
+
+describe('startScheduler: registro que não responde', () => {
+  test('um record que nunca resolve não impede a rodada seguinte nem a limpeza', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const run = vi.fn(async () => ({ sent: 1 }))
+    const cleanup = vi.fn(async () => undefined)
+    const s = startScheduler({ run, cleanup, flush: async () => 0, record: () => new Promise<void>(() => undefined) })
+    await vi.advanceTimersByTimeAsync(2_500)
+    expect(cleanup).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(60_000 * 3)
+    expect(run.mock.calls.length).toBeGreaterThanOrEqual(3)
+    s.stop()
+  })
+})
