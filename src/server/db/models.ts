@@ -18,6 +18,9 @@ export const TENANT_MODELS: Modelos = [
   'Appointment',
   'AppointmentItem',
   'Notification',
+  'RefreshToken',
+  'Device',
+  'VerificationCode',
 ]
 
 /**
@@ -30,4 +33,13 @@ export const TENANT_OPTIONAL_MODELS: Modelos = ['Upload', 'AuditLog']
 export const SELF_MODELS: Modelos = ['Business']
 
 /** Sem dono de conta ou entre contas: qualquer acesso por `tenantDb` é recusado. */
-export const PLATFORM_MODELS: Modelos = ['PlatformAdmin', 'PlatformSession', 'User', 'Session', 'UserToken']
+export const PLATFORM_MODELS: Modelos = [
+  'PlatformAdmin',
+  'PlatformSession',
+  'User',
+  'Session',
+  'UserToken',
+  'ApiKey',
+  'RateLimitBucket',
+  'ApiUsageHourly',
+]

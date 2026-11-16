@@ -141,6 +141,35 @@ enum CustomerOrigin {
   @@map("customer_origin")
 }
 
+enum ApiKeyKind {
+  ACCOUNT
+  PLATFORM
+
+  @@map("api_key_kind")
+}
+
+enum TokenSubject {
+  CUSTOMER
+  MEMBER
+
+  @@map("token_subject")
+}
+
+enum DevicePlatform {
+  IOS
+  ANDROID
+  WEB
+
+  @@map("device_platform")
+}
+
+enum VerificationPurpose {
+  REGISTER
+  PASSWORD_RESET
+
+  @@map("verification_purpose")
+}
+
 model PlatformAdmin {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name         String
@@ -153,6 +182,7 @@ model PlatformAdmin {
 
   platformSessions PlatformSession[]
   impersonations   Session[]
+  apiKeys          ApiKey[]
 
   @@map("platform_admins")
 }
@@ -210,6 +240,10 @@ model Business {
   appointments         Appointment[]
   appointmentItems     AppointmentItem[]
   notifications        Notification[]
+  apiKeys              ApiKey[]
+  refreshTokens        RefreshToken[]
+  devices              Device[]
+  verificationCodes    VerificationCode[]
 
   @@map("businesses")
 }
@@ -310,6 +344,8 @@ model Membership {
 
   professionals Professional[]
   notifications Notification[]
+  refreshTokens RefreshToken[]
+  devices       Device[]
 
   @@unique([businessId, id])
   @@unique([businessId, userId])
@@ -432,6 +468,8 @@ model Customer {
 
   appointments  Appointment[]
   notifications Notification[]
+  refreshTokens RefreshToken[]
+  devices       Device[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -638,6 +676,8 @@ model Notification {
   attempts      Int                 @default(0)
   lastError     String?             @map("last_error")
   sentAt        DateTime?           @map("sent_at") @db.Timestamptz(3)
+  lockedUntil   DateTime?           @map("locked_until") @db.Timestamptz(3)
+  skipReason    String?             @map("skip_reason")
   payload       Json                @default("{}")
   dedupeKey     String              @map("dedupe_key")
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -651,8 +691,131 @@ model Notification {
   @@unique([businessId, id])
   @@unique([businessId, dedupeKey])
   @@index([status, scheduledFor])
+  @@index([status, scheduledFor, lockedUntil])
   @@index([customerId])
   @@index([membershipId])
   @@index([appointmentId])
   @@map("notifications")
+}
+
+model ApiKey {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String?      @map("business_id") @db.Uuid
+  kind             ApiKeyKind
+  name             String
+  prefix           String       @unique
+  keyHash          String       @unique @map("key_hash")
+  allowedOrigins   String[]     @default([]) @map("allowed_origins")
+  lastUsedAt       DateTime?    @map("last_used_at") @db.Timestamptz(3)
+  revokedAt        DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  createdByAdminId String?      @map("created_by_admin_id") @db.Uuid
+  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business     Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy    PlatformAdmin?  @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  usageHourly  ApiUsageHourly[]
+
+  @@index([businessId])
+  @@index([createdByAdminId])
+  @@map("api_keys")
+}
+
+model RefreshToken {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String       @map("business_id") @db.Uuid
+  subject      TokenSubject
+  customerId   String?      @map("customer_id") @db.Uuid
+  membershipId String?      @map("membership_id") @db.Uuid
+  familyId     String       @map("family_id") @db.Uuid
+  tokenHash    String       @unique @map("token_hash")
+  expiresAt    DateTime     @map("expires_at") @db.Timestamptz(3)
+  usedAt       DateTime?    @map("used_at") @db.Timestamptz(3)
+  revokedAt    DateTime?    @map("revoked_at") @db.Timestamptz(3)
+  ip           String?
+  userAgent    String?      @map("user_agent")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  membership Membership? @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@index([businessId, familyId])
+  @@index([customerId])
+  @@index([membershipId])
+  @@map("refresh_tokens")
+}
+
+model Device {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String         @map("business_id") @db.Uuid
+  customerId   String?        @map("customer_id") @db.Uuid
+  membershipId String?        @map("membership_id") @db.Uuid
+  platform     DevicePlatform
+  pushToken    String         @map("push_token")
+  lastSeenAt   DateTime       @map("last_seen_at") @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  membership Membership? @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@unique([businessId, pushToken])
+  @@index([customerId])
+  @@index([membershipId])
+  @@map("devices")
+}
+
+model VerificationCode {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String              @map("business_id") @db.Uuid
+  purpose    VerificationPurpose
+  email      String
+  codeHash   String              @map("code_hash")
+  payload    Json                @default("{}")
+  expiresAt  DateTime            @map("expires_at") @db.Timestamptz(3)
+  attempts   Int                 @default(0)
+  consumedAt DateTime?           @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@index([businessId, purpose, email])
+  @@map("verification_codes")
+}
+
+/// Contador de janela fixa; não é registro de negócio, por isso não tem id nem updated_at.
+model RateLimitBucket {
+  key         String   @id
+  windowStart DateTime @map("window_start") @db.Timestamptz(3)
+  count       Int
+
+  @@index([windowStart])
+  @@map("rate_limit_buckets")
+}
+
+model ApiUsageHourly {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  apiKeyId   String   @map("api_key_id") @db.Uuid
+  businessId String?  @map("business_id") @db.Uuid
+  route      String
+  hour       DateTime @db.Timestamptz(3)
+  count      Int
+  errorCount Int      @map("error_count")
+  totalMs    BigInt   @map("total_ms")
+  maxMs      Int      @map("max_ms")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@unique([apiKeyId, route, hour])
+  @@index([businessId, hour])
+  @@map("api_usage_hourly")
 }
