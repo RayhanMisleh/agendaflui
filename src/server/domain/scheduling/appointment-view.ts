@@ -10,6 +10,7 @@ import type {
 } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { formatPhone } from '@/server/domain/customers/contact'
+import { isCustomer } from '@/server/domain/input'
 import { DomainError, z } from '@/server/domain/errors'
 import { enqueueAppointmentEvent } from '@/server/domain/notifications/outbox'
 import { ownProfessionalId } from '@/server/domain/team/professionals'
@@ -30,8 +31,10 @@ export type AppointmentView = {
   items: { serviceId: string; name: string; priceCents: number; durationMin: number }[]
   totalCents: number
   totalDurationMin: number
-  commissionCents: number | null
-  notes: string | null
+  /** Só na visão da equipe: o cliente do app e o visitante nunca recebem estes dois campos (a chave nem existe). */
+  commissionCents?: number | null
+  /** Anotação interna da equipe (mesma regra de `commissionCents`). */
+  notes?: string | null
   /** Observação escrita pelo cliente ao marcar; visível ao cliente e à equipe. */
   customerNote: string | null
   /** Prazo do cliente para cancelar ou remarcar; para a equipe, `allowed` só segue a situação. */
@@ -129,6 +132,8 @@ export function party(ctx: TenantContext): { type: PartyType; id: string | null 
       return { type: 'CUSTOMER', id: actor.customerId }
     case 'system':
       return { type: 'SYSTEM', id: null }
+    case 'guest':
+      throw forbidden('Entre na sua conta para fazer isso.')
   }
 }
 
@@ -184,7 +189,7 @@ function changeOf(ctx: TenantContext, row: Row, scope: Scope, changeWindowMin: n
 /** `changeWindowMin` vem das regras de agenda da conta; quem monta a lista as lê uma vez só. */
 export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowMin: number): AppointmentView {
   const internals = canSeeInternals(ctx, scope, row.professionalId)
-  return {
+  const view: AppointmentView = {
     id: row.id,
     status: row.status,
     source: row.source,
@@ -211,14 +216,15 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
       })),
     totalCents: row.totalCents,
     totalDurationMin: row.totalDurationMin,
-    commissionCents: internals ? row.commissionCents : null,
-    notes: internals ? row.notes : null,
     customerNote: row.customerNote,
     change: changeOf(ctx, row, scope, changeWindowMin),
     canceledAt: row.canceledAt,
     cancelReason: row.cancelReason,
     completedAt: row.completedAt,
   }
+  // A visão do cliente é outra: sem as chaves internas, em vez de chaves nulas.
+  if (isCustomer(ctx)) return view
+  return { ...view, commissionCents: internals ? row.commissionCents : null, notes: internals ? row.notes : null }
 }
 
 /**

@@ -71,6 +71,8 @@ function creator(ctx: TenantContext): { createdByType: PartyType; createdById: s
       return { createdByType: 'CUSTOMER', createdById: actor.customerId }
     case 'system':
       return { createdByType: 'SYSTEM', createdById: null }
+    case 'guest':
+      throw new DomainError('forbidden', 'Entre na sua conta para fazer isso.')
   }
 }
 

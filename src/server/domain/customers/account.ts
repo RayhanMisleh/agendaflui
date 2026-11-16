@@ -345,7 +345,8 @@ async function assertOwnPassword(ctx: TenantContext, customerId: string, passwor
   await clearRateLimit(key)
 }
 
-function ownCustomerId(ctx: TenantContext): string {
+/** Id do cliente que age; qualquer outro ator (equipe, visitante) recebe `forbidden`. */
+export function ownCustomerId(ctx: TenantContext): string {
   if (ctx.actor.kind !== 'customer') throw new DomainError('forbidden', 'Só o próprio cliente pode fazer isso.')
   return ctx.actor.customerId
 }

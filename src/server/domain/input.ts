@@ -9,7 +9,7 @@ export function definedOnly<T extends Record<string, unknown>>(data: T): Partial
   return result
 }
 
-/** O cliente do app tem visão reduzida: só o que está ativo e não arquivado. */
+/** O cliente do app (com ou sem login) tem visão reduzida: só o que está ativo e não arquivado, sem campos internos. */
 export function isCustomer(ctx: TenantContext): boolean {
-  return ctx.actor.kind === 'customer'
+  return ctx.actor.kind === 'customer' || ctx.actor.kind === 'guest'
 }

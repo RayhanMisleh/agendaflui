@@ -35,6 +35,7 @@ export function can(actor: Actor, capability: Capability): boolean {
     case 'platform_admin':
     case 'customer':
     case 'system':
+    case 'guest':
       return false
   }
 }

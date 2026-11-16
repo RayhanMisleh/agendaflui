@@ -616,6 +616,10 @@ model Appointment {
   commissionCents  Int?              @map("commission_cents")
   notes            String?
   customerNote     String?           @map("customer_note")
+  // Chave de idempotência do pedido do app (cabeçalho Idempotency-Key). O índice único parcial
+  // (business_id, customer_id, idempotency_key) WHERE idempotency_key IS NOT NULL vive só na migração.
+  idempotencyKey   String?           @map("idempotency_key")
+  idempotencyKeyAt DateTime?         @map("idempotency_key_at") @db.Timestamptz(3)
   createdByType    PartyType         @map("created_by_type")
   createdById      String?           @map("created_by_id") @db.Uuid
   canceledAt       DateTime?         @map("canceled_at") @db.Timestamptz(3)

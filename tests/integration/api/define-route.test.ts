@@ -39,10 +39,69 @@ const porChave = defineRoute({
   auth: 'key',
   summary: 'Rota só com chave',
   tag: 'teste',
-  response: z.object({ businessId: z.string(), slug: z.string(), timeZone: z.string(), ctxNulo: z.boolean() }),
+  response: z.object({
+    businessId: z.string(),
+    slug: z.string(),
+    timeZone: z.string(),
+    ator: z.string(),
+    canal: z.string(),
+    ctxTimeZone: z.string(),
+    ctxBusinessId: z.string(),
+  }),
   handler: async ({ ctx, key }) => {
     chamadas += 1
-    return { businessId: key.businessId, slug: key.businessSlug, timeZone: key.timeZone, ctxNulo: ctx === null }
+    return {
+      businessId: key.businessId,
+      slug: key.businessSlug,
+      timeZone: key.timeZone,
+      ator: ctx.actor.kind,
+      canal: ctx.channel,
+      ctxTimeZone: ctx.timeZone,
+      ctxBusinessId: ctx.businessId,
+    }
+  },
+})
+
+const chaveOuCliente = defineRoute({
+  method: 'GET',
+  path: '/v1/teste/chave-ou-cliente',
+  auth: 'key_or_customer',
+  summary: 'Visitante ou cliente',
+  tag: 'teste',
+  response: z.object({ ator: z.string(), clienteId: z.string().nullable(), canal: z.string() }),
+  handler: async ({ ctx }) => {
+    chamadas += 1
+    return { ator: ctx.actor.kind, clienteId: ctx.actor.kind === 'customer' ? ctx.actor.customerId : null, canal: ctx.channel }
+  },
+})
+
+const limitadaPorSujeito = defineRoute({
+  method: 'POST',
+  path: '/v1/teste/limitada-por-sujeito',
+  auth: 'customer',
+  summary: 'Limite por chave e cliente',
+  tag: 'teste',
+  limit: { limit: 2, windowSec: 60 },
+  limitBy: 'subject',
+  response: vazio,
+  handler: async () => {
+    chamadas += 1
+    return {}
+  },
+})
+
+const statusDinamico = defineRoute({
+  method: 'POST',
+  path: '/v1/teste/status-dinamico',
+  auth: 'key',
+  status: 201,
+  summary: 'Status escolhido pelo handler',
+  tag: 'teste',
+  body: z.object({ repetido: z.boolean() }),
+  response: z.object({ ok: z.boolean() }),
+  handler: async ({ body, setStatus }) => {
+    if (body.repetido) setStatus(200)
+    return { ok: true }
   },
 })
 
@@ -283,10 +342,35 @@ describe('chave de app', () => {
     expect(apiError(r.json).reason).toBe('business_mismatch')
   })
 
-  test('rota com chave: o handler recebe a conta e ctx nulo', async () => {
+  test('rota com chave: o handler recebe a conta e o contexto de visitante (canal app, fuso da conta)', async () => {
     const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ businessId: a.id, slug: a.slug, timeZone: a.timezone, ctxNulo: true })
+    expect(r.json).toEqual({
+      businessId: a.id,
+      slug: a.slug,
+      timeZone: a.timezone,
+      ator: 'guest',
+      canal: 'app',
+      ctxTimeZone: a.timezone,
+      ctxBusinessId: a.id,
+    })
+  })
+
+  test('o contexto de visitante usa o cliente por conta: lê só a conta da chave', async () => {
+    const tz = defineRoute({
+      method: 'GET',
+      path: '/v1/teste/visitante-le',
+      auth: 'key',
+      summary: 'Lê com o contexto do visitante',
+      tag: 'teste',
+      response: z.object({ clientes: z.number() }),
+      handler: async ({ ctx }) => ({ clientes: await ctx.db.customer.count() }),
+    })
+    await makeCustomer(a.id)
+    await makeCustomer(a.id)
+    await makeCustomer(b.id)
+    const r = await callRoute(tz, apiRequest('GET', '/v1/teste/visitante-le', comChave()))
+    expect(r.json).toEqual({ clientes: 2 })
   })
 
   test('conta suspensa: 503 business_unavailable', async () => {
@@ -510,6 +594,79 @@ describe('token do cliente e da equipe', () => {
     const deB = await makeMembership(b.id, user.id, 'OWNER')
     const r = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token: await staffToken(a.id, deB.id, user.id) })))
     expect(r.status).toBe(401)
+  })
+})
+
+describe('chave ou token de cliente (key_or_customer)', () => {
+  const rota = '/v1/teste/chave-ou-cliente'
+  let cliente: Customer
+  beforeEach(async () => {
+    cliente = await makeCustomer(a.id)
+  })
+
+  test('sem Authorization: visitante; com token de cliente válido: o cliente', async () => {
+    const visitante = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave()))
+    expect(visitante.json).toEqual({ ator: 'guest', clienteId: null, canal: 'app' })
+    const token = await customerToken(a.id, cliente.id)
+    const logado = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token })))
+    expect(logado.json).toEqual({ ator: 'customer', clienteId: cliente.id, canal: 'app' })
+  })
+
+  test('token presente e ruim nunca vira visitante: inválido, vencido, vazio e não Bearer dão 401', async () => {
+    const vencido = (await signAccessToken({ kind: 'customer', businessId: a.id, customerId: cliente.id }, addMinutes(new Date(), -60))).token
+    for (const o of [{ token: 'lixo' }, { token: vencido }, { headers: { authorization: '' } }, { headers: { authorization: 'Basic abc' } }]) {
+      const r = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave(o)))
+      expect(r.status, JSON.stringify(o).slice(0, 40)).toBe(401)
+      expect(apiError(r.json).reason).toBe('session_invalid')
+    }
+    expect(chamadas).toBe(0)
+  })
+
+  test('token de equipe: 403; de cliente de outra conta ou arquivado: 401', async () => {
+    const user = await makeUser()
+    const m = await makeMembership(a.id, user.id, 'OWNER')
+    const equipe = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token: await staffToken(a.id, m.id, user.id) })))
+    expect(equipe.status).toBe(403)
+    expect(apiError(equipe.json).reason).toBe('wrong_token_kind')
+    const deB = await makeCustomer(b.id)
+    const cruzado = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token: await customerToken(b.id, deB.id) })))
+    expect(cruzado.status).toBe(401)
+    await prisma.customer.update({ where: { id: cliente.id }, data: { archivedAt: new Date() } })
+    const arquivado = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token: await customerToken(a.id, cliente.id) })))
+    expect(arquivado.status).toBe(401)
+    expect(chamadas).toBe(0)
+  })
+})
+
+describe('limite por sujeito e status escolhido pelo handler', () => {
+  test('limitBy subject: conta por chave e cliente, qualquer que seja o IP', async () => {
+    const um = await makeCustomer(a.id)
+    const dois = await makeCustomer(a.id)
+    const t1 = await customerToken(a.id, um.id)
+    const t2 = await customerToken(a.id, dois.id)
+    const chamar = (token: string, ip: string) =>
+      callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comChave({ token, headers: { 'x-forwarded-for': ip } })))
+    expect((await chamar(t1, '198.51.100.1')).status).toBe(200)
+    expect((await chamar(t1, '198.51.100.2')).status).toBe(200)
+    const barrada = await chamar(t1, '198.51.100.3')
+    expect(barrada.status).toBe(429)
+    expect(barrada.headers.get('retry-after')).not.toBeNull()
+    expect((await chamar(t2, '198.51.100.1')).status).toBe(200)
+    expect(chamadas).toBe(3)
+  })
+
+  test('token inválido em rota com limite por sujeito: 401, sem chegar ao handler', async () => {
+    const r = await callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comChave({ token: 'lixo' })))
+    expect(r.status).toBe(401)
+    expect(chamadas).toBe(0)
+  })
+
+  test('setStatus troca o status de sucesso da rota (201 padrão, 200 quando o handler pede)', async () => {
+    const novo = await callRoute(statusDinamico, apiRequest('POST', '/v1/teste/status-dinamico', comChave({ body: { repetido: false } })))
+    expect(novo.status).toBe(201)
+    const repetido = await callRoute(statusDinamico, apiRequest('POST', '/v1/teste/status-dinamico', comChave({ body: { repetido: true } })))
+    expect(repetido.status).toBe(200)
+    expect(repetido.json).toEqual({ ok: true })
   })
 })
 

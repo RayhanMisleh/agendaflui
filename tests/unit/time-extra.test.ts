@@ -4,6 +4,8 @@ import {
   compareLocalDates,
   daysBetween,
   fromEpochMs,
+  fromIsoInstant,
+  toIsoInstant,
   dbDateToLocal,
   isoWeekRange,
   localToDbDate,
@@ -107,6 +109,20 @@ describe('fromEpochMs', () => {
   test('recusa fora do limite, não inteiro e não finito', () => {
     for (const ms of [8.64e15 + 1, -8.64e15 - 1, 9e15, 1.5, Number.NaN, Number.POSITIVE_INFINITY]) {
       expect(() => fromEpochMs(ms)).toThrow(RangeError)
+    }
+  })
+})
+
+describe('fromIsoInstant', () => {
+  test('lê ISO UTC com ou sem milissegundos e devolve o mesmo instante de toIsoInstant', () => {
+    expect(toIsoInstant(fromIsoInstant('2027-01-15T13:00:00.000Z'))).toBe('2027-01-15T13:00:00.000Z')
+    expect(fromIsoInstant('2027-01-15T13:00:00Z').getTime()).toBe(fromIsoInstant('2027-01-15T13:00:00.000Z').getTime())
+    expect(fromIsoInstant('2027-01-15T13:00:00.5Z').getTime() % 1000).toBe(500)
+  })
+
+  test('recusa data sem hora, deslocamento, texto livre e dia que não existe', () => {
+    for (const ruim of ['2027-01-15', '2027-01-15T13:00:00+03:00', '2027-01-15T13:00:00', 'amanhã', '', '2027-02-31T10:00:00Z', ' 2027-01-15T13:00:00Z']) {
+      expect(() => fromIsoInstant(ruim), ruim).toThrow(RangeError)
     }
   })
 })

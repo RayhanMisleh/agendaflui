@@ -22,6 +22,8 @@ import {
   staffScope,
   toView,
   type AppointmentView,
+  type Db,
+  type Row,
   type Scope,
   type Who,
 } from '@/server/domain/scheduling/appointment-view'
@@ -34,7 +36,7 @@ import {
   placeAppointment,
 } from '@/server/domain/scheduling/placement'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
-import { addMinutes, toIsoInstant } from '@/server/time'
+import { addMinutes, minutesBetween, toIsoInstant } from '@/server/time'
 
 export {
   cancelAppointment,
@@ -47,6 +49,9 @@ export type { AppointmentView } from '@/server/domain/scheduling/appointment-vie
 
 const MAX_TOTAL_CENTS = 10_000_000
 
+/** Por quanto tempo uma chave de idempotência vale: passado esse prazo, a mesma chave marca de novo. */
+export const IDEMPOTENCY_TTL_MIN = 24 * 60
+
 const startsAtSchema = z.date('Informe um horário válido.')
 
 const bookSchema = z.object({
@@ -55,6 +60,10 @@ const bookSchema = z.object({
   startsAt: startsAtSchema,
   notes: optionalText(2000).nullable().optional(),
   customerNote: optionalText(500).nullable().optional(),
+  idempotencyKey: z
+    .string('Informe a chave de idempotência como texto.')
+    .regex(/^[A-Za-z0-9_-]{1,80}$/, 'Use de 1 a 80 caracteres: letras, números, "-" e "_".')
+    .optional(),
 })
 
 const rescheduleSchema = z.object({
@@ -95,25 +104,91 @@ export function itemRows(ctx: TenantContext, appointmentId: string, items: Await
   }))
 }
 
-export async function bookAppointment(
+type BookInput = {
+  customerId?: string
+  professionalId?: string | null
+  serviceIds: string[]
+  startsAt: Date
+  /** Anotação interna: só a equipe. */
+  notes?: string | null
+  /** Observação do cliente ao marcar. */
+  customerNote?: string | null
+  /**
+   * Chave de idempotência (1 a 80 caracteres `[A-Za-z0-9_-]`): repetir o pedido igual com a mesma chave do mesmo
+   * cliente em até 24 h devolve o mesmo agendamento, sem marcar de novo; um pedido diferente com a mesma chave é conflito.
+   */
+  idempotencyKey?: string
+}
+
+type KeyedRequest = {
+  customerId: string
+  key: string
+  startsAt: Date
+  serviceIds: string[]
+  /** Profissional pedido; `null` é "qualquer um". */
+  professionalId: string | null
+}
+
+function isIdempotencyViolation(err: unknown): boolean {
+  if (typeof err !== 'object' || err === null || !('code' in err) || err.code !== 'P2002') return false
+  return JSON.stringify('meta' in err ? err.meta : {}).includes('idempotency')
+}
+
+function sameRequest(row: Row, r: KeyedRequest): boolean {
+  const had = row.items.map((item) => item.serviceId).sort()
+  const asked = [...r.serviceIds].sort()
+  return (
+    row.startsAt.getTime() === r.startsAt.getTime() &&
+    had.length === asked.length &&
+    had.every((id, index) => id === asked[index]) &&
+    (r.professionalId === null || r.professionalId === row.professionalId)
+  )
+}
+
+/**
+ * Já existe agendamento deste cliente com a chave? Pedido igual: devolve a visão dele (a repetição não marca nem avisa de
+ * novo). Pedido diferente: `conflict` `idempotency_key_reused`. Chave com mais de 24 h: some do agendamento antigo
+ * (só com `release`, dentro da transação de marcar) e o pedido segue como novo. `null` = nada a repetir.
+ */
+async function replayOfKey(
   ctx: TenantContext,
-  i: {
-    customerId?: string
-    professionalId?: string | null
-    serviceIds: string[]
-    startsAt: Date
-    /** Anotação interna: só a equipe. */
-    notes?: string | null
-    /** Observação do cliente ao marcar. */
-    customerNote?: string | null
-  },
-): Promise<AppointmentView> {
+  db: Db,
+  r: KeyedRequest,
+  scope: Scope,
+  release: Db | null,
+): Promise<AppointmentView | null> {
+  const found = await db.appointment.findFirst({
+    where: { customerId: r.customerId, idempotencyKey: r.key },
+    select: { id: true, idempotencyKeyAt: true },
+  })
+  if (!found) return null
+  if (found.idempotencyKeyAt === null || minutesBetween(found.idempotencyKeyAt, ctx.clock()) > IDEMPOTENCY_TTL_MIN) {
+    if (release) await release.appointment.update({ where: { id: found.id }, data: { idempotencyKey: null, idempotencyKeyAt: null } })
+    return null
+  }
+  const row = await reload(db, found.id)
+  if (!sameRequest(row, r)) {
+    throw new DomainError(
+      'conflict',
+      'Esta chave de idempotência já foi usada em outro pedido. Gere uma chave nova para cada marcação diferente.',
+      { reason: 'idempotency_key_reused' },
+    )
+  }
+  return toView(ctx, row, scope, (await getSchedulingRules(ctx, db)).customerChangeWindowMin)
+}
+
+/** Como `bookAppointment`, e diz se o resultado foi uma repetição idempotente (nada foi marcado nem avisado de novo). */
+export async function bookAppointmentWithOutcome(
+  ctx: TenantContext,
+  i: BookInput,
+): Promise<{ appointment: AppointmentView; replayed: boolean }> {
   const input = parse(bookSchema, {
     customerId: i.customerId,
     professionalId: i.professionalId,
     startsAt: i.startsAt,
     notes: i.notes,
     customerNote: i.customerNote,
+    idempotencyKey: i.idempotencyKey,
   })
   const who = actorKind(ctx)
   let customerId: string
@@ -137,6 +212,16 @@ export async function bookAppointment(
   const specificId = input.professionalId ?? null
   if (specificId) assertProfessionalAllowed(who, scope, specificId)
 
+  const keyed: KeyedRequest | null =
+    input.idempotencyKey === undefined
+      ? null
+      : { customerId, key: input.idempotencyKey, startsAt: input.startsAt, serviceIds: i.serviceIds, professionalId: specificId }
+  // Repetição de um pedido já atendido: responde antes de revalidar serviços e horário (que podem ter mudado desde então).
+  if (keyed) {
+    const replay = await replayOfKey(ctx, ctx.db, keyed, scope, null)
+    if (replay) return { appointment: replay, replayed: true }
+  }
+
   // Leitura prévia, só para validar cedo e saber quem travar; a decisão é refeita dentro da transação.
   const pre = await resolveServices(ctx, i.serviceIds)
   const lockIds = specificId
@@ -152,78 +237,98 @@ export async function bookAppointment(
   }
 
   const startsAt = input.startsAt
-  return lockedTransaction(
-    ctx,
-    lockIds,
-    () => ({ startsAt, durationMin: pre.durationMin, professionalIds: lockIds }),
-    async (tx) => {
-      const customer = await tx.customer.findFirst({
-        where: { id: customerId, archivedAt: null, anonymizedAt: null },
-        select: { id: true },
-      })
-      if (!customer) {
-        if (who === 'customer') throw forbidden('Seu cadastro não está ativo. Fale com o estabelecimento.')
-        const message = 'Este cliente não existe ou está arquivado. Escolha outro cliente.'
-        throw new DomainError('validation', message, { fields: { customerId: message } })
-      }
-      const rules = await getSchedulingRules(ctx, tx)
-      const services = await resolveServices(ctx, i.serviceIds, tx)
-      const endsAt = addMinutes(startsAt, services.durationMin)
-      const candidates = await listCandidates(ctx, services.items.map((s) => s.id), tx)
-      const locked = new Set(lockIds)
-      let eligible: Candidate[]
-      if (specificId) {
-        const found = candidates.find((c) => c.id === specificId)
-        if (!found) throw invalidProfessional()
-        eligible = [found]
-      } else {
-        eligible = restrictToScope(who, scope, candidates).filter((c) => locked.has(c.id))
-      }
-      const professionalId = await placeAppointment(ctx, tx, {
-        who,
-        eligible,
-        specific: specificId !== null,
-        startsAt,
-        endsAt,
-        durationMin: services.durationMin,
-        rules,
-      })
-
-      const by = party(ctx)
-      const created = await tx.appointment.create({
-        data: {
-          businessId: ctx.businessId,
-          customerId,
-          professionalId,
+  try {
+    return await lockedTransaction(
+      ctx,
+      lockIds,
+      () => ({ startsAt, durationMin: pre.durationMin, professionalIds: lockIds }),
+      async (tx) => {
+        const customer = await tx.customer.findFirst({
+          where: { id: customerId, archivedAt: null, anonymizedAt: null },
+          select: { id: true },
+        })
+        if (!customer) {
+          if (who === 'customer') throw forbidden('Seu cadastro não está ativo. Fale com o estabelecimento.')
+          const message = 'Este cliente não existe ou está arquivado. Escolha outro cliente.'
+          throw new DomainError('validation', message, { fields: { customerId: message } })
+        }
+        // Já sob a trava do cliente: um pedido igual que acabou de terminar aparece aqui.
+        if (keyed) {
+          const replay = await replayOfKey(ctx, tx, keyed, scope, tx)
+          if (replay) return { appointment: replay, replayed: true }
+        }
+        const rules = await getSchedulingRules(ctx, tx)
+        const services = await resolveServices(ctx, i.serviceIds, tx)
+        const endsAt = addMinutes(startsAt, services.durationMin)
+        const candidates = await listCandidates(ctx, services.items.map((s) => s.id), tx)
+        const locked = new Set(lockIds)
+        let eligible: Candidate[]
+        if (specificId) {
+          const found = candidates.find((c) => c.id === specificId)
+          if (!found) throw invalidProfessional()
+          eligible = [found]
+        } else {
+          eligible = restrictToScope(who, scope, candidates).filter((c) => locked.has(c.id))
+        }
+        const professionalId = await placeAppointment(ctx, tx, {
+          who,
+          eligible,
+          specific: specificId !== null,
           startsAt,
           endsAt,
-          status: who === 'customer' && !rules.autoConfirm ? 'PENDING' : 'CONFIRMED',
-          source: ctx.channel === 'app' ? 'APP' : 'PANEL',
-          totalCents: services.totalCents,
-          totalDurationMin: services.durationMin,
-          notes: input.notes ?? null,
-          customerNote: input.customerNote ?? null,
-          createdByType: by.type,
-          createdById: by.id,
-        },
-      })
-      await tx.appointmentItem.createMany({ data: itemRows(ctx, created.id, services.items) })
-      await audit(
-        ctx,
-        {
-          action: 'appointment.booked',
-          targetType: 'Appointment',
-          targetId: created.id,
-          metadata: { professionalId, startsAt: toIsoInstant(startsAt), source: created.source, status: created.status },
-        },
-        tx,
-      )
-      const row = await reload(tx, created.id)
-      await afterChange(tx, ctx, 'booked', row)
-      return toView(ctx, row, scope, rules.customerChangeWindowMin)
-    },
-    { customerId },
-  )
+          durationMin: services.durationMin,
+          rules,
+        })
+
+        const by = party(ctx)
+        const created = await tx.appointment.create({
+          data: {
+            businessId: ctx.businessId,
+            customerId,
+            professionalId,
+            startsAt,
+            endsAt,
+            status: who === 'customer' && !rules.autoConfirm ? 'PENDING' : 'CONFIRMED',
+            source: ctx.channel === 'app' ? 'APP' : 'PANEL',
+            totalCents: services.totalCents,
+            totalDurationMin: services.durationMin,
+            notes: input.notes ?? null,
+            customerNote: input.customerNote ?? null,
+            idempotencyKey: input.idempotencyKey ?? null,
+            idempotencyKeyAt: input.idempotencyKey === undefined ? null : ctx.clock(),
+            createdByType: by.type,
+            createdById: by.id,
+          },
+        })
+        await tx.appointmentItem.createMany({ data: itemRows(ctx, created.id, services.items) })
+        await audit(
+          ctx,
+          {
+            action: 'appointment.booked',
+            targetType: 'Appointment',
+            targetId: created.id,
+            metadata: { professionalId, startsAt: toIsoInstant(startsAt), source: created.source, status: created.status },
+          },
+          tx,
+        )
+        const row = await reload(tx, created.id)
+        await afterChange(tx, ctx, 'booked', row)
+        return { appointment: toView(ctx, row, scope, rules.customerChangeWindowMin), replayed: false }
+      },
+      { customerId },
+    )
+  } catch (err) {
+    // Rede de segurança: o índice único cobre a corrida que a trava do cliente já impede. Quem perde relê e repete.
+    if (keyed && isIdempotencyViolation(err)) {
+      const replay = await replayOfKey(ctx, ctx.db, keyed, scope, null)
+      if (replay) return { appointment: replay, replayed: true }
+    }
+    throw err
+  }
+}
+
+export async function bookAppointment(ctx: TenantContext, i: BookInput): Promise<AppointmentView> {
+  return (await bookAppointmentWithOutcome(ctx, i)).appointment
 }
 
 export async function rescheduleAppointment(

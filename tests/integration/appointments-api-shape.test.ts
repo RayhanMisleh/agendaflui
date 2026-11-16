@@ -87,7 +87,7 @@ describe('nota do cliente', () => {
       customerNote: '  Tem medo de secador  ',
     })
     expect(v.customerNote).toBe('Tem medo de secador')
-    expect(v.notes).toBeNull()
+    expect(v).not.toHaveProperty('notes')
     expect((await getAppointment(s.cliente, v.id)).customerNote).toBe('Tem medo de secador')
     const staff = await getAppointment(s.gerente, v.id)
     expect(staff.customerNote).toBe('Tem medo de secador')

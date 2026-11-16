@@ -7,7 +7,7 @@ import { z } from '@/server/domain/errors'
 const resposta = z.object({ id: z.string() })
 
 describe('tipo do handler por autenticação', () => {
-  test('customer e staff recebem ctx e key sem checagem de nulo; key só key; none nada', () => {
+  test('customer, staff, key e key_or_customer recebem ctx e key sem checagem de nulo; none nada', () => {
     const cliente = defineRoute({
       method: 'GET',
       path: '/v1/tipos/cliente',
@@ -33,11 +33,16 @@ describe('tipo do handler por autenticação', () => {
       summary: 's',
       tag: 't',
       response: resposta,
-      handler: async ({ ctx, key }) => {
-        // @ts-expect-error rota `key` não tem ctx (o tipo é null)
-        const negado: string = ctx.businessId
-        return { id: key.businessId + negado }
-      },
+      handler: async ({ ctx, key }) => ({ id: key.businessId + ctx.businessId + ctx.actor.kind }),
+    })
+    const chaveOuCliente = defineRoute({
+      method: 'GET',
+      path: '/v1/tipos/chave-ou-cliente',
+      auth: 'key_or_customer',
+      summary: 's',
+      tag: 't',
+      response: resposta,
+      handler: async ({ ctx, key }) => ({ id: key.businessId + ctx.businessId + ctx.actor.kind }),
     })
     const publica = defineRoute({
       method: 'GET',
@@ -52,7 +57,7 @@ describe('tipo do handler por autenticação', () => {
         return { id: negado }
       },
     })
-    expect([cliente, equipe, porChave, publica].every((h) => typeof h === 'function')).toBe(true)
+    expect([cliente, equipe, porChave, chaveOuCliente, publica].every((h) => typeof h === 'function')).toBe(true)
   })
 
   test('o handler pode devolver Date e bigint onde o esquema de fio diz texto e número', () => {

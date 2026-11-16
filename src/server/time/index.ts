@@ -170,6 +170,18 @@ export function fromEpochMs(ms: number): Date {
   return new Date(ms)
 }
 
+const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/
+
+/** Instante a partir de um texto ISO 8601 em UTC (`2026-11-14T03:30:00.000Z`, milissegundos opcionais). Recusa qualquer outro formato. */
+export function fromIsoInstant(text: string): Date {
+  const instant = ISO_INSTANT.test(text) ? new Date(text) : null
+  // `Date` aceita "31 de fevereiro" e "24:00" e rola para o dia seguinte: o instante lido tem de reescrever o mesmo texto.
+  if (instant === null || !Number.isFinite(instant.getTime()) || instant.toISOString().slice(0, 19) !== text.slice(0, 19)) {
+    throw new RangeError('Use um instante em ISO 8601 UTC, por exemplo 2026-11-14T03:30:00.000Z.')
+  }
+  return instant
+}
+
 /** Texto ISO 8601 em UTC (`2026-11-14T03:30:00.000Z`), para gravar ou trafegar um instante. */
 export function toIsoInstant(instant: Date): string {
   if (!Number.isFinite(instant.getTime())) throw new RangeError('Instante inválido.')

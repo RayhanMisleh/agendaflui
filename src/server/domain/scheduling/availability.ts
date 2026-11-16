@@ -72,11 +72,15 @@ export async function resolveServices(
     throw invalidServices(`Os serviços somam mais de ${MAX_TOTAL_MIN / 60} horas. Escolha menos serviços.`)
   }
 
-  if (ctx.actor.kind === 'customer' && items.some((item) => item.clubOnly)) {
-    const customer = await db.customer.findFirst({
-      where: { id: ctx.actor.customerId, archivedAt: null, anonymizedAt: null },
-      select: { isClubMember: true },
-    })
+  if (isCustomer(ctx) && items.some((item) => item.clubOnly)) {
+    // O visitante (sem login) é tratado como cliente comum, sem clube.
+    const customer =
+      ctx.actor.kind === 'customer'
+        ? await db.customer.findFirst({
+            where: { id: ctx.actor.customerId, archivedAt: null, anonymizedAt: null },
+            select: { isClubMember: true },
+          })
+        : { isClubMember: false }
     if (!customer) {
       throw new DomainError('forbidden', 'Seu cadastro não está ativo. Fale com o estabelecimento.', {
         reason: 'customer_inactive',

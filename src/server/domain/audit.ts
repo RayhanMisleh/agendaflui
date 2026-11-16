@@ -1,6 +1,7 @@
 import type { Prisma } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import type { Actor, TenantContext } from '@/server/auth/actor'
+import { DomainError } from '@/server/domain/errors'
 
 type Autor = {
   actorType: 'USER' | 'PLATFORM_ADMIN' | 'SYSTEM'
@@ -29,6 +30,9 @@ function autor(actor: Actor): Autor {
       }
     case 'system':
       return { actorType: 'SYSTEM', actorId: null, actorName: 'Sistema', onBehalf: false, extra: {} }
+    case 'guest':
+      // O visitante não grava nada; se uma escrita chegou até aqui, a checagem de permissão falhou antes.
+      throw new DomainError('forbidden', 'Entre na sua conta para fazer isso.')
   }
 }
 

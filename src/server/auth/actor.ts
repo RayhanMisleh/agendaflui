@@ -7,6 +7,8 @@ export type Actor =
   | { kind: 'impersonator'; adminId: string; name: string }
   | { kind: 'customer'; customerId: string; name: string }
   | { kind: 'system' }
+  /** Quem usa o app sem entrar: lê o que é público (catálogo, disponibilidade) e não grava nada. */
+  | { kind: 'guest' }
 
 export type RequestInfo = { ip: string | null; userAgent: string | null }
 

@@ -22,7 +22,8 @@ export type CustomerView = {
   phoneLabel: string | null
   avatarUrl: string | null
   birthDate: string | null
-  notes: string | null
+  /** Anotação interna da equipe: o cliente do app não recebe este campo (a chave nem existe). */
+  notes?: string | null
   isClubMember: boolean
   origin: 'APP' | 'PANEL'
   hasAppAccess: boolean
@@ -123,7 +124,7 @@ function escapeLike(text: string): string {
 }
 
 function toView(ctx: TenantContext, row: CustomerRow): CustomerView {
-  return {
+  const view: CustomerView = {
     id: row.id,
     name: row.name,
     email: row.email,
@@ -131,13 +132,13 @@ function toView(ctx: TenantContext, row: CustomerRow): CustomerView {
     phoneLabel: row.phone === null ? null : formatPhone(row.phone),
     avatarUrl: uploadUrl(row.avatar),
     birthDate: row.birthDate === null ? null : dbDateToLocal(row.birthDate),
-    notes: isCustomer(ctx) ? null : row.notes,
     isClubMember: row.isClubMember,
     origin: row.origin,
     hasAppAccess: row.passwordHash !== null,
     archived: row.archivedAt !== null,
     createdAt: row.createdAt,
   }
+  return isCustomer(ctx) ? view : { ...view, notes: row.notes }
 }
 
 function notFound(): DomainError {

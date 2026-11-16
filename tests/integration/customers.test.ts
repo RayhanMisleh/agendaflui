@@ -316,7 +316,7 @@ describe('ator cliente', () => {
     const ctx = await ctxCliente(b, a.id)
     const view = await getCustomer(ctx, a.id)
     expect(view.id).toBe(a.id)
-    expect(view.notes).toBeNull()
+    expect(view).not.toHaveProperty('notes')
     expect((await domainError(getCustomer(ctx, outro.id))).code).toBe('forbidden')
     expect((await domainError(listCustomers(ctx))).code).toBe('forbidden')
     expect((await domainError(archiveCustomer(ctx, a.id))).code).toBe('forbidden')
@@ -330,7 +330,7 @@ describe('ator cliente', () => {
     const ctx = await ctxCliente(b, a.id)
     const novo = await updateCustomer(ctx, a.id, { phone: '+55 (11) 98765-4321' })
     expect(novo.phone).toBe('5511987654321')
-    expect(novo.notes).toBeNull()
+    expect(novo).not.toHaveProperty('notes')
     for (const troca of [{ isClubMember: true }, { notes: 'x' }, { name: 'Novo', isClubMember: true }]) {
       expect((await domainError(updateCustomer(ctx, a.id, troca))).code).toBe('forbidden')
     }

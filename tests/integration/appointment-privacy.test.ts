@@ -100,8 +100,9 @@ describe('comissão e observações do agendamento', () => {
     }
     const { items } = await listCustomerAppointments(s.clienteCtx, { scope: 'upcoming' })
     expect(items).toHaveLength(2)
-    expect(items.every((i) => i.commissionCents === null && i.notes === null)).toBe(true)
-    expect(await getNextAppointment(s.clienteCtx)).toMatchObject({ commissionCents: null, notes: null })
+    expect(items.every((i) => !('commissionCents' in i) && !('notes' in i))).toBe(true)
+    expect(await getNextAppointment(s.clienteCtx)).not.toHaveProperty('commissionCents')
+    expect(await getNextAppointment(s.clienteCtx)).not.toHaveProperty('notes')
   })
 
   test('as operações que devolvem a view seguem a mesma regra', async () => {
@@ -123,7 +124,8 @@ describe('comissão e observações do agendamento', () => {
       serviceIds: [s.tosa.id],
       startsAt: new Date('2026-11-16T17:00:00Z'),
     })
-    expect(clienteMarca).toMatchObject({ commissionCents: null, notes: null })
+    expect(clienteMarca).not.toHaveProperty('commissionCents')
+    expect(clienteMarca).not.toHaveProperty('notes')
   })
 
   test('concluir pelo profissional devolve a comissão do próprio atendimento', async () => {
@@ -160,12 +162,12 @@ describe('comissão na ficha do profissional', () => {
     expect(Object.fromEntries(lista.map((p) => [p.name, p.commissionBps]))).toEqual({ Eu: 3000, Colega: 0 })
   })
 
-  test('gerente e suporte veem a comissão de todos; o cliente vê zero', async () => {
+  test('gerente e suporte veem a comissão de todos; o cliente não recebe o campo', async () => {
     const s = await montar()
     for (const ctx of [s.gerente, s.suporte]) {
       expect((await getProfessional(ctx, s.colega.id)).commissionBps).toBe(5000)
     }
-    expect((await getProfessional(s.clienteCtx, s.colega.id)).commissionBps).toBe(0)
-    expect((await listProfessionals(s.clienteCtx)).every((p) => p.commissionBps === 0)).toBe(true)
+    expect(await getProfessional(s.clienteCtx, s.colega.id)).not.toHaveProperty('commissionBps')
+    expect((await listProfessionals(s.clienteCtx)).every((p) => !('commissionBps' in p))).toBe(true)
   })
 })

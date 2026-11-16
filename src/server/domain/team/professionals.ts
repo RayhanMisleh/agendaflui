@@ -13,12 +13,13 @@ export type ProfessionalView = {
   name: string
   bio: string | null
   avatarUrl: string | null
-  commissionBps: number
-  active: boolean
-  displayOrder: number
-  archived: boolean
-  membershipId: string | null
   serviceIds: string[]
+  /** Os cinco campos abaixo são da equipe: o cliente do app e o visitante só recebem os de cima (as chaves nem existem). */
+  commissionBps?: number
+  active?: boolean
+  displayOrder?: number
+  archived?: boolean
+  membershipId?: string | null
 }
 
 export type ProfessionalInput = {
@@ -84,18 +85,21 @@ function seesCommission(ctx: TenantContext, row: ProfessionalRow, ownId: string 
 }
 
 function toView(ctx: TenantContext, row: ProfessionalRow, ownId: string | null = null): ProfessionalView {
-  const customer = isCustomer(ctx)
-  return {
+  const view: ProfessionalView = {
     id: row.id,
     name: row.name,
     bio: row.bio,
     avatarUrl: uploadUrl(row.avatar),
+    serviceIds: row.services.map((s) => s.serviceId).sort(),
+  }
+  if (isCustomer(ctx)) return view
+  return {
+    ...view,
     commissionBps: seesCommission(ctx, row, ownId) ? row.commissionBps : 0,
     active: row.active,
     displayOrder: row.displayOrder,
     archived: row.archivedAt !== null,
-    membershipId: customer ? null : row.membershipId,
-    serviceIds: row.services.map((s) => s.serviceId).sort(),
+    membershipId: row.membershipId,
   }
 }
 
