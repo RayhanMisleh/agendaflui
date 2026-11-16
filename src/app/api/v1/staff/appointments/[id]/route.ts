@@ -1,0 +1,17 @@
+import { defineRoute, preflight } from '@/server/api/define-route'
+import { staffAppointment, staffAppointmentSchema } from '@/server/api/schemas/staff'
+import { z } from '@/server/domain/errors'
+import { getAppointment } from '@/server/domain/scheduling/appointments'
+
+export const GET = defineRoute({
+  method: 'GET',
+  path: '/v1/staff/appointments/{id}',
+  auth: 'staff',
+  summary: 'Um agendamento, com comissão e anotação interna quando quem lê é dono da agenda ou vê todas',
+  tag: 'Agenda da equipe',
+  params: z.object({ id: z.uuid() }),
+  response: staffAppointmentSchema,
+  handler: async ({ ctx, params }) => staffAppointment(await getAppointment(ctx, params.id)),
+})
+
+export const OPTIONS = preflight

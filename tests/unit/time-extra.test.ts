@@ -7,6 +7,7 @@ import {
   fromIsoInstant,
   toIsoInstant,
   dbDateToLocal,
+  isMinuteLabel,
   isoWeekRange,
   localToDbDate,
   minuteLabel,
@@ -58,6 +59,10 @@ describe('rótulos de minuto', () => {
     for (const bad of ['24:01', '9:5', '25:00', 'abc', '']) {
       expect(() => parseMinuteLabel(bad)).toThrow(RangeError)
     }
+  })
+  test('isMinuteLabel diz se o rótulo HH:mm existe, de 00:00 a 24:00', () => {
+    for (const ok of ['00:00', '09:05', '23:59', '24:00']) expect(isMinuteLabel(ok)).toBe(true)
+    for (const bad of ['24:01', '9:5', '25:00', '12:60', 'abc', '']) expect(isMinuteLabel(bad)).toBe(false)
   })
   test('minuteLabel recusa minuto fora de 0..1440 ou não inteiro', () => {
     expect(() => minuteLabel(1441)).toThrow(RangeError)

@@ -79,8 +79,8 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
   /** Limite da rota, além do limite geral por chave e IP. */
   limit?: LimitRule
   /**
-   * Com `'subject'`, o limite da rota conta por chave de app e cliente autenticado (não por IP); sem cliente autenticado
-   * (visitante), cai no IP. O limite é conferido depois de validar o token.
+   * Com `'subject'`, o limite da rota conta por chave de app e pessoa autenticada (cliente ou vínculo da equipe, não por IP);
+   * sem pessoa autenticada (visitante), cai no IP. O limite é conferido depois de validar o token.
    */
   limitBy?: 'subject'
   handler: (
@@ -243,10 +243,11 @@ async function enforceGeneralLimit(request: Request, key: ResolvedKey, now: Date
   if (!geral.allowed) throw new ApiRateLimitError(geral.retryAfterSec)
 }
 
-/** Limite da rota: por chave e IP, ou (com `limitBy: 'subject'` e cliente autenticado) por chave e cliente. */
+/** Limite da rota: por chave e IP, ou (com `limitBy: 'subject'` e pessoa autenticada) por chave e cliente ou vínculo da equipe. */
 async function enforceRouteLimit(def: AnyRouteDef, request: Request, key: ResolvedKey, claims: AccessClaims | null, now: Date): Promise<void> {
   if (!def.limit) return
-  const quem = def.limitBy === 'subject' && claims?.kind === 'customer' ? `${key.apiKeyId}:${claims.customerId}` : whoIs(request, key)
+  const subject = claims === null ? null : claims.kind === 'customer' ? claims.customerId : claims.membershipId
+  const quem = def.limitBy === 'subject' && subject !== null ? `${key.apiKeyId}:${subject}` : whoIs(request, key)
   const rota = await hitRateLimit(limitKey('api-rota', `${def.method} ${def.path}:${quem}`), def.limit, now)
   if (!rota.allowed) throw new ApiRateLimitError(rota.retryAfterSec)
 }

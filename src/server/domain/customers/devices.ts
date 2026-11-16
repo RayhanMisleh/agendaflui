@@ -1,6 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
-import { ownCustomerId } from '@/server/domain/customers/account'
-import { parse, z } from '@/server/domain/errors'
+import { DomainError, parse, z } from '@/server/domain/errors'
 
 /** Plataformas do app, como o app as informa (minúsculas). */
 export const DEVICE_PLATFORMS = ['ios', 'android', 'web'] as const
@@ -20,17 +19,27 @@ export const registerDeviceSchema = z.object({
 
 const MAX_ATTEMPTS = 3
 
+/** Dono do aparelho: o cliente (app do cliente) ou o vínculo do membro da equipe (app da equipe). Outro ator não tem aparelho. */
+type Owner = { customerId: string; membershipId: null } | { customerId: null; membershipId: string }
+
+function ownerOf(ctx: TenantContext): Owner {
+  const actor = ctx.actor
+  if (actor.kind === 'customer') return { customerId: actor.customerId, membershipId: null }
+  if (actor.kind === 'member') return { customerId: null, membershipId: actor.membershipId }
+  throw new DomainError('forbidden', 'Só o cliente ou a equipe, pelo app, podem registrar um aparelho.')
+}
+
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
 }
 
 /**
- * Registra o aparelho do cliente para receber notificações. O mesmo token na conta passa a pertencer ao último cliente
- * que o registrou (o aparelho trocou de dono). Duas chamadas simultâneas com o mesmo token deixam um registro só:
- * quem perde a corrida pela inserção refaz como atualização.
+ * Registra o aparelho de quem usa o app (cliente ou membro da equipe) para receber notificações. O mesmo token na conta
+ * passa a pertencer ao último que o registrou, seja cliente ou equipe (o aparelho trocou de dono). Duas chamadas
+ * simultâneas com o mesmo token deixam um registro só: quem perde a corrida pela inserção refaz como atualização.
  */
 export async function registerDevice(ctx: TenantContext, input: { platform: string; pushToken: string }): Promise<void> {
-  const customerId = ownCustomerId(ctx)
+  const owner = ownerOf(ctx)
   const i = parse(registerDeviceSchema, input)
   const now = ctx.clock()
   const platform = PLATFORM[i.platform]
@@ -38,8 +47,8 @@ export async function registerDevice(ctx: TenantContext, input: { platform: stri
     try {
       await ctx.db.device.upsert({
         where: { businessId_pushToken: { businessId: ctx.businessId, pushToken: i.pushToken } },
-        create: { businessId: ctx.businessId, customerId, membershipId: null, platform, pushToken: i.pushToken, lastSeenAt: now },
-        update: { customerId, membershipId: null, platform, lastSeenAt: now },
+        create: { businessId: ctx.businessId, ...owner, platform, pushToken: i.pushToken, lastSeenAt: now },
+        update: { ...owner, platform, lastSeenAt: now },
       })
       return
     } catch (err) {
@@ -48,9 +57,9 @@ export async function registerDevice(ctx: TenantContext, input: { platform: stri
   }
 }
 
-/** Remove o aparelho do cliente. Token que não é dele (ou não existe) não muda nada e não dá erro: não revela quem o tem. */
+/** Remove o aparelho de quem pede. Token que não é dele (ou não existe) não muda nada e não dá erro: não revela quem o tem. */
 export async function removeDevice(ctx: TenantContext, pushTokenValue: string): Promise<void> {
-  const customerId = ownCustomerId(ctx)
+  const owner = ownerOf(ctx)
   const { pushToken: token } = parse(z.object({ pushToken: pushTokenSchema }), { pushToken: pushTokenValue })
-  await ctx.db.device.deleteMany({ where: { customerId, pushToken: token } })
+  await ctx.db.device.deleteMany({ where: { ...owner, pushToken: token } })
 }

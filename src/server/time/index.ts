@@ -232,6 +232,16 @@ export function parseMinuteLabel(label: string): number {
   return total
 }
 
+/** `true` quando o texto é um rótulo `HH:mm` que existe (de 00:00 a 24:00). */
+export function isMinuteLabel(label: string): boolean {
+  try {
+    parseMinuteLabel(label)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** `Date` que o Prisma devolve para coluna `date` (meia-noite UTC do dia) em 'AAAA-MM-DD'. */
 export function dbDateToLocal(d: Date): string {
   const ms = d.getTime()
