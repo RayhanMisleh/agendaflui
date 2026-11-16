@@ -8,9 +8,10 @@ export const POST = defineRoute({
   method: 'POST',
   path: '/v1/staff/appointments/{id}/cancel',
   auth: 'staff',
-  summary: 'Cancela um agendamento pendente ou confirmado, sem prazo; envie {} quando não houver motivo',
+  summary: 'Cancela um agendamento pendente ou confirmado, sem prazo; o corpo com o motivo é opcional',
   tag: 'Agenda da equipe',
   params: idParams('o agendamento'),
+  bodyOptional: true,
   body: z.object({ reason: z.string().max(300).nullable().optional() }),
   response: staffAppointmentSchema,
   handler: async ({ ctx, params, body }) =>

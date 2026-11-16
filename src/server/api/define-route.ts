@@ -12,7 +12,6 @@ import { env } from '@/server/env'
 import { checkWireContract } from './contract'
 import { corsHeaders, isSyntacticOrigin, originAllowed, preflightHeaders } from './cors'
 import { ApiRateLimitError, BodyTooLargeError, buildResponse, errorResponse } from './errors'
-import { registerRoute, type AnyRouteDef } from './registry'
 import { toJson } from './serialize'
 
 /*
@@ -68,6 +67,11 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
   query?: z.ZodType<Q>
   body?: z.ZodType<B>
   /**
+   * Corpo opcional: sem corpo (ou vazio), o handler recebe `{}` e a validação segue normal. Sem esta opção, corpo ausente
+   * em rota com `body` é erro 422. No OpenAPI, `requestBody.required` fica `false`.
+   */
+  bodyOptional?: true
+  /**
    * Esquema da resposta de sucesso no FORMATO DE FIO (o JSON que sai): instantes como `isoInstant`, números como
    * `z.number()`, nunca `z.date()` nem `z.bigint()`. Fora de produção a resposta é conferida de forma estrita
    * (tipo errado ou campo a mais em qualquer nível vira erro de programação). Vira JSON Schema no OpenAPI.
@@ -89,7 +93,7 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
    * Cache HTTP explícito do sucesso (`public, max-age=N`), só para resposta pública e igual para todos (o documento OpenAPI).
    * Sem isto, toda resposta sai com `Cache-Control: no-store`. Erros nunca são guardados.
    */
-  cache?: { maxAgeSec: number }
+  cache?: A extends 'none' ? { maxAgeSec: number } : never
   handler: (
     c: AuthArgs<A> & {
       params: P
@@ -102,6 +106,9 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
     },
   ) => Promise<Serializable<R>>
 }
+
+/** A forma apagada de uma rota, como o manifesto e o documento OpenAPI a leem. */
+export type AnyRouteDef = RouteDef<RouteAuth, unknown, unknown, unknown, unknown>
 
 export type RouteHandler = (request: Request, seg: { params: Promise<Record<string, string | string[]>> }) => Promise<Response>
 
@@ -125,10 +132,11 @@ function isJsonType(contentType: string | null): boolean {
 }
 
 /** Lê o corpo como texto com teto de 100 KB medido em bytes (cabeçalho e leitura real). */
-async function readBodyText(request: Request): Promise<string> {
+async function readBodyText(request: Request, optional: boolean): Promise<string> {
   const declarado = request.headers.get('content-length')
   if (declarado !== null && /^\d+$/.test(declarado) && Number(declarado) > MAX_BODY_BYTES) throw new BodyTooLargeError(MAX_BODY_BYTES)
-  if (!isJsonType(request.headers.get('content-type'))) {
+  const semTipo = request.headers.get('content-type') === null
+  if (!(optional && semTipo) && !isJsonType(request.headers.get('content-type'))) {
     throw invalidBody('Envie o corpo em JSON, com o cabeçalho Content-Type: application/json.')
   }
   if (request.body === null) return ''
@@ -158,9 +166,15 @@ async function readBodyText(request: Request): Promise<string> {
   }
 }
 
-async function readJsonBody(request: Request): Promise<unknown> {
-  const texto = await readBodyText(request)
-  if (texto.trim() === '') throw invalidBody('O corpo está vazio. Envie um objeto JSON.')
+async function readJsonBody(request: Request, optional: boolean): Promise<unknown> {
+  const texto = await readBodyText(request, optional)
+  if (texto.trim() === '') {
+    if (optional) return {}
+    throw invalidBody('O corpo está vazio. Envie um objeto JSON.')
+  }
+  if (optional && request.headers.get('content-type') === null) {
+    throw invalidBody('Envie o corpo em JSON, com o cabeçalho Content-Type: application/json.')
+  }
   try {
     return JSON.parse(texto) as unknown
   } catch {
@@ -269,7 +283,9 @@ async function enforceRouteLimit(def: AnyRouteDef, request: Request, key: Resolv
  */
 export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P, Q, B, R>): DefinedRoute {
   const any = def as unknown as AnyRouteDef
-  registerRoute(any)
+  if (def.cache !== undefined && def.auth !== 'none') {
+    throw new Error(`${def.method} ${def.path}: "cache" só vale para rota sem autenticação (auth: 'none'), porque a resposta é guardada por caches compartilhados.`)
+  }
   const bodySchema = strictRoot(def.body)
   const querySchema = strictRoot(def.query)
   const status = def.status ?? 200
@@ -331,7 +347,7 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
         }
       }
       const query = querySchema ? await querySchema.parseAsync(consulta) : (undefined as Q)
-      const body = bodySchema ? await bodySchema.parseAsync(await readJsonBody(request)) : (undefined as B)
+      const body = bodySchema ? await bodySchema.parseAsync(await readJsonBody(request, def.bodyOptional === true)) : (undefined as B)
 
       let finalStatus: number = status
       const setStatus = (novo: 200 | 201 | 202): void => {

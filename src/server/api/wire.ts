@@ -32,7 +32,7 @@ export const localDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use uma data no formato AAAA-MM-DD.')
   .refine(isLocalDate, 'Use uma data que exista, no formato AAAA-MM-DD.')
-  .describe('Data local da conta, no formato AAAA-MM-DD.')
+  .meta({ description: 'Data local da conta, no formato AAAA-MM-DD.', format: 'date' })
 
 /** Hora local `HH:mm`, de 00:00 a 24:00 (o 24:00 só faz sentido como fim). */
 export const hourLabel = z
@@ -70,4 +70,4 @@ export const pageLimit = (max: number, fallback?: number) => {
 export const professionalIdQuery = z.string().max(64).describe('Id do profissional.')
 
 /** Data local da conta (AAAA-MM-DD) na consulta; o domínio confere se existe. */
-export const dateQuery = (descricao: string) => z.string().max(10).describe(descricao)
+export const dateQuery = (descricao: string) => z.string().max(10).meta({ description: descricao, format: 'date' })

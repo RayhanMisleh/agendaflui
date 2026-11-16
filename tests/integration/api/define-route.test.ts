@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { GET as healthGet } from '@/app/api/v1/health/route'
 import { defineRoute, preflight } from '@/server/api/define-route'
-import { registerRoute, registeredRoutes } from '@/server/api/registry'
 import { isoInstant, uuid } from '@/server/api/wire'
 import { signAccessToken } from '@/server/auth/api-tokens'
 import type { Business, Customer } from '@/server/db/generated/client'
@@ -680,7 +679,7 @@ describe('limite por sujeito e status escolhido pelo handler', () => {
   test('setStatus só aceita status declarado em status ou alternateStatuses: outro é erro de programação (500)', async () => {
     const r = await callRoute(statusNaoDeclarado, apiRequest('POST', '/v1/teste/status-nao-declarado', comChave()))
     expect(r.status).toBe(500)
-    expect(registeredRoutes().find((d) => d.path === '/v1/teste/status-dinamico')?.alternateStatuses).toEqual([200])
+    expect(statusDinamico.definition.alternateStatuses).toEqual([200])
   })
 
   test('setStatus troca o status de sucesso da rota (201 padrão, 200 quando o handler pede)', async () => {
@@ -975,27 +974,48 @@ describe('limites de requisições', () => {
   })
 })
 
-describe('registro', () => {
-  test('toda rota definida aparece no registro com método e caminho', () => {
-    const lista = registeredRoutes().map((r) => `${r.method} ${r.path}`)
-    expect(lista).toContain('GET /v1/teste/chave')
-    expect(lista).toContain('POST /v1/teste/eco')
-    expect(lista).toContain('GET /v1/health')
+describe('definição anexada ao handler', () => {
+  test('o handler carrega a definição da rota (método, caminho, autenticação)', () => {
+    expect(porChave.definition).toMatchObject({ method: 'GET', path: '/v1/teste/chave' })
+    expect(statusDinamico.definition).toMatchObject({ method: 'POST', path: '/v1/teste/status-dinamico' })
+  })
+})
+
+describe('corpo opcional e cache', () => {
+  const opcional = defineRoute({
+    method: 'POST',
+    path: '/v1/teste/corpo-opcional',
+    auth: 'key',
+    summary: 'Corpo opcional',
+    tag: 'teste',
+    bodyOptional: true,
+    body: z.object({ motivo: z.string().optional() }),
+    response: z.object({ motivo: z.string().nullable() }),
+    handler: async ({ body }) => ({ motivo: body.motivo ?? null }),
   })
 
-  test('registrar de novo o mesmo método e caminho: o último ganha, sem erro', () => {
-    const def = { ...registeredRoutes().find((r) => r.path === '/v1/teste/chave')! }
-    const nova = { ...def, path: '/v1/teste/registro' }
-    expect(() => registerRoute(nova)).not.toThrow()
-    expect(() => registerRoute({ ...nova, summary: 'Outra' })).not.toThrow()
-    expect(registeredRoutes().filter((r) => r.path === '/v1/teste/registro')).toHaveLength(1)
-    expect(registeredRoutes().find((r) => r.path === '/v1/teste/registro')?.summary).toBe('Outra')
+  test('sem corpo vira {}; com corpo válido vale; JSON ruim, tipo errado e campo desconhecido seguem 422', async () => {
+    const sem = await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave()))
+    expect(sem.status).toBe(200)
+    expect(sem.json).toEqual({ motivo: null })
+    const com = await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: { motivo: 'x' } })))
+    expect(com.json).toEqual({ motivo: 'x' })
+    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: '{ruim' })))).status).toBe(422)
+    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: { outro: 1 } })))).status).toBe(422)
+    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: 'texto', headers: { 'content-type': 'text/plain' } })))).status).toBe(422)
   })
 
-  test('o mesmo método e caminho com métodos diferentes convivem', () => {
-    const lista = registeredRoutes()
-    expect(lista.some((r) => r.method === 'POST' && r.path === '/v1/teste/criada')).toBe(true)
-    expect(lista.some((r) => r.method === 'DELETE' && r.path === '/v1/teste/apagada')).toBe(true)
+  test('sem a opção, corpo ausente continua 422', async () => {
+    const r = await callRoute(eco, apiRequest('POST', '/v1/teste/eco', comChave()))
+    expect(r.status).toBe(422)
+  })
+
+  test('cache só em rota sem autenticação: com chave ou token é erro de programação ao definir', () => {
+    const base = { method: 'GET', path: '/v1/teste/cache', summary: 'Cache', tag: 'teste', cache: { maxAgeSec: 60 }, response: z.object({}), handler: async () => ({}) }
+    for (const auth of ['key', 'key_or_customer', 'customer', 'staff']) {
+      expect(() => defineRoute({ ...base, auth } as unknown as Parameters<typeof defineRoute>[0]), auth).toThrow(/cache/)
+    }
+    expect(() => defineRoute({ ...base, auth: 'none' } as unknown as Parameters<typeof defineRoute>[0])).not.toThrow()
   })
 })
 
@@ -1031,10 +1051,8 @@ describe('contrato da resposta (formato de fio)', () => {
   })
 
   test('o esquema de resposta das rotas vira JSON Schema (teste e health)', () => {
-    for (const caminho of ['/v1/teste/data-iso', '/v1/teste/datas', '/v1/health']) {
-      const def = registeredRoutes().find((r) => r.path === caminho)
-      if (!def) throw new Error(`rota ${caminho} não registrada`)
-      const js = z.toJSONSchema(def.response)
+    for (const handler of [comDataIso, comDatas, healthGet]) {
+      const js = z.toJSONSchema(handler.definition.response)
       expect(js.type).toBe('object')
     }
   })

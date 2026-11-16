@@ -22,6 +22,7 @@ import { DELETE as apagarBloqueio } from '@/app/api/v1/staff/time-blocks/[id]/ro
 import { GET as listarBloqueios, POST as criarBloqueio } from '@/app/api/v1/staff/time-blocks/route'
 import { GET as lerExpediente, PUT as gravarExpediente } from '@/app/api/v1/staff/working-hours/[professionalId]/route'
 import { POST as registrarDispositivoCliente } from '@/app/api/v1/me/devices/route'
+import { ROUTE_MODULES, routeDefinitions } from '@/server/api/routes-manifest'
 import { prisma } from '@/server/db/client'
 import { addMinutes, toInstant, toIsoInstant } from '@/server/time'
 import { apiError, apiRequest, callRoute, jsonObject, staffToken, type CalledRoute } from '../../setup/api'
@@ -114,34 +115,16 @@ const acao = (handler: Parameters<typeof callRoute>[0], quem: Pessoa | string | 
 describe('autenticação', () => {
   test('sem token 401; token de cliente 403 wrong_token_kind em toda rota da equipe', async () => {
     const id = '11111111-1111-4111-8111-111111111111'
-    const rotas: [Parameters<typeof callRoute>[0], string, string, Record<string, string>][] = [
-      [agenda, 'GET', '/v1/staff/agenda', {}],
-      [resumo, 'GET', '/v1/staff/summary', {}],
-      [marcar, 'POST', '/v1/staff/appointments', {}],
-      [obterAgendamento, 'GET', `/v1/staff/appointments/${id}`, { id }],
-      [confirmar, 'POST', `/v1/staff/appointments/${id}/confirm`, { id }],
-      [concluir, 'POST', `/v1/staff/appointments/${id}/complete`, { id }],
-      [faltou, 'POST', `/v1/staff/appointments/${id}/no-show`, { id }],
-      [desfazer, 'POST', `/v1/staff/appointments/${id}/undo`, { id }],
-      [cancelar, 'POST', `/v1/staff/appointments/${id}/cancel`, { id }],
-      [remarcar, 'POST', `/v1/staff/appointments/${id}/reschedule`, { id }],
-      [ajustar, 'POST', `/v1/staff/appointments/${id}/adjust`, { id }],
-      [liberarCedo, 'POST', `/v1/staff/appointments/${id}/free-early`, { id }],
-      [listarClientes, 'GET', '/v1/staff/customers', {}],
-      [criarCliente, 'POST', '/v1/staff/customers', {}],
-      [obterCliente, 'GET', `/v1/staff/customers/${id}`, { id }],
-      [agendamentosDoCliente, 'GET', `/v1/staff/customers/${id}/appointments`, { id }],
-      [listarProfissionais, 'GET', '/v1/staff/professionals', {}],
-      [listarServicos, 'GET', '/v1/staff/services', {}],
-      [lerExpediente, 'GET', `/v1/staff/working-hours/${id}`, { professionalId: id }],
-      [gravarExpediente, 'PUT', `/v1/staff/working-hours/${id}`, { professionalId: id }],
-      [listarBloqueios, 'GET', '/v1/staff/time-blocks', {}],
-      [criarBloqueio, 'POST', '/v1/staff/time-blocks', {}],
-      [apagarBloqueio, 'DELETE', `/v1/staff/time-blocks/${id}`, { id }],
-      [registrarDispositivo, 'POST', '/v1/staff/devices', {}],
-      [removerDispositivo, 'DELETE', '/v1/staff/devices/token-qualquer-0123456789', { pushToken: 'token-qualquer-0123456789' }],
-    ]
-    for (const [handler, metodo, caminho, params] of rotas) {
+    const rotas = routeDefinitions()
+      .filter((d) => d.auth === 'staff')
+      .map((d) => ({
+        metodo: d.method,
+        caminho: d.path.replace(/\{([^}]+)\}/g, (_t, nome: string) => (nome === 'pushToken' ? 'token-qualquer-0123456789' : id)),
+        params: Object.fromEntries([...d.path.matchAll(/\{([^}]+)\}/g)].map((m) => [m[1] ?? '', m[1] === 'pushToken' ? 'token-qualquer-0123456789' : id])),
+        handler: (Object.values(ROUTE_MODULES).map((m) => m[d.method]).find((h) => (h as { definition?: unknown } | undefined)?.definition === d)) as Parameters<typeof callRoute>[0],
+      }))
+    expect(rotas.length).toBeGreaterThanOrEqual(25)
+    for (const { handler, metodo, caminho, params } of rotas) {
       const sem = await callRoute(handler, apiRequest(metodo, caminho, { key: c.key }), params)
       expect(sem.status, `${metodo} ${caminho} sem token`).toBe(401)
       const cliente = await callRoute(handler, apiRequest(metodo, caminho, { key: c.key, token: c.tokenCliente }), params)
@@ -308,6 +291,19 @@ describe('marcar e agir sobre agendamentos', () => {
     expect(jsonObject(cancelado.json)).toMatchObject({ status: 'CANCELED', cancelReason: 'Cliente pediu' })
   })
 
+  test('cancelar sem corpo (corpo opcional) cancela sem motivo; com JSON ruim continua 422', async () => {
+    const id = await marcado(c.dia(5), '15:00')
+    const ruim = await callRoute(
+      cancelar,
+      apiRequest('POST', `/v1/staff/appointments/${id}/cancel`, { key: c.key, token: gerente.token, body: '{nao-json', headers: { 'content-type': 'application/json' } }),
+      { id },
+    )
+    expect(ruim.status).toBe(422)
+    const r = await acao(cancelar, gerente, id, 'cancel')
+    expect(r.status, r.text).toBe(200)
+    expect(jsonObject(r.json)).toMatchObject({ status: 'CANCELED', cancelReason: null })
+  })
+
   test('remarcar muda o horário e o profissional pelo corpo', async () => {
     const id = await marcado(c.dia(5), '10:00')
     const r = await acao(remarcar, gerente, id, 'reschedule', { startsAt: inst(c.dia(5), '11:00'), professionalId: biaId })
@@ -437,6 +433,19 @@ describe('expediente', () => {
     expect((await enviar({ FUNDAY: [] })).status).toBe(422)
   })
 
+  test('erros de campo usam os nomes que o app envia (start, end), não os de minutos', async () => {
+    const enviar = async (corpo: unknown) => {
+      const r = await chamar(gravarExpediente, 'PUT', `/v1/staff/working-hours/${c.ana.id}`, gerente, { params: { professionalId: c.ana.id }, body: corpo })
+      expect(r.status).toBe(422)
+      return apiError(r.json).fields ?? {}
+    }
+    expect(await enviar({ MONDAY: [{ start: '12:00', end: '09:00' }] })).toHaveProperty(['MONDAY.0.end'])
+    const quebrado = await enviar({ MONDAY: [{ start: '09:03', end: '12:00' }] })
+    expect(quebrado).toHaveProperty(['MONDAY.0.start'])
+    expect(Object.keys(quebrado).join()).not.toContain('Min')
+    expect(await enviar({ MONDAY: [{ start: '09:00', end: '12:00' }, { start: '11:00', end: '13:00' }] })).toHaveProperty('MONDAY')
+  })
+
   test('o profissional grava o próprio expediente, mas não o de um colega', async () => {
     const proprio = await chamar(gravarExpediente, 'PUT', `/v1/staff/working-hours/${c.ana.id}`, ana, {
       params: { professionalId: c.ana.id },
@@ -501,6 +510,20 @@ describe('bloqueios', () => {
     expect((await enviar({ startDate: '2027-02-30' })).status).toBe(422)
   })
 
+  test('fim antes do início e bloqueio longo demais: erro no campo endTime (o nome do app)', async () => {
+    const enviar = async (extra: Record<string, unknown>) => {
+      const r = await chamar(criarBloqueio, 'POST', '/v1/staff/time-blocks', gerente, {
+        body: { professionalId: c.ana.id, startDate: c.dia(3), startTime: '09:00', endTime: '10:00', ...extra },
+      })
+      expect(r.status).toBe(422)
+      return apiError(r.json).fields ?? {}
+    }
+    expect(await enviar({ endTime: '08:00' })).toHaveProperty('endTime')
+    const longo = await enviar({ endDate: c.dia(80) })
+    expect(longo).toHaveProperty('endTime')
+    expect(Object.keys(longo)).not.toContain('endsAt')
+  })
+
   test('listar, apagar e permissões', async () => {
     const criado = await chamar(criarBloqueio, 'POST', '/v1/staff/time-blocks', ana, {
       body: { professionalId: c.ana.id, startDate: c.dia(3), startTime: '09:00', endTime: '10:00', reason: 'Dentista' },
@@ -562,5 +585,84 @@ describe('dispositivos da equipe', () => {
   test('token curto demais: 422', async () => {
     const r = await chamar(registrarDispositivo, 'POST', '/v1/staff/devices', gerente, { body: { platform: 'ios', pushToken: 'curto' } })
     expect(r.status).toBe(422)
+  })
+})
+
+describe('isolamento entre contas', () => {
+  test('com a chave e o token da conta A, ids da conta B dão 404 e nada de B muda', async () => {
+    const b = await montarCena()
+    const inicio = toInstant(b.dia(3), '10:00', b.business.timezone)
+    const agB = await makeAppointment(b.business.id, { customerId: b.cliente.id, professionalId: b.ana.id, serviceId: b.banho.id, startsAt: inicio })
+    const bloqueioB = await prisma.timeBlock.create({
+      data: { businessId: b.business.id, professionalId: b.ana.id, startsAt: inicio, endsAt: addMinutes(inicio, 60), createdByType: 'SYSTEM' },
+    })
+    const tokenB = 'token-de-aparelho-da-conta-b-0123'
+    await prisma.device.create({ data: { businessId: b.business.id, customerId: b.cliente.id, platform: 'IOS', pushToken: tokenB, lastSeenAt: new Date() } })
+    const foto = async () =>
+      JSON.stringify([
+        await prisma.appointment.findMany({ where: { businessId: b.business.id }, orderBy: { id: 'asc' } }),
+        await prisma.timeBlock.findMany({ where: { businessId: b.business.id }, orderBy: { id: 'asc' } }),
+        await prisma.workingHours.findMany({ where: { businessId: b.business.id }, orderBy: { id: 'asc' } }),
+        await prisma.customer.findMany({ where: { businessId: b.business.id }, orderBy: { id: 'asc' } }),
+        await prisma.notification.findMany({ where: { businessId: b.business.id } }),
+        await prisma.device.findMany({ where: { businessId: b.business.id } }),
+      ])
+    const antes = await foto()
+    const ag = agB.id
+
+    const acoes: [string, string][] = [
+      ['confirm', ''], ['complete', ''], ['no-show', ''], ['undo', ''], ['free-early', ''],
+      ['cancel', '{}'], ['reschedule', JSON.stringify({ startsAt: inst(c.dia(4), '10:00') })], ['adjust', JSON.stringify({ notes: 'x' })],
+    ]
+    const handlers = { confirm: confirmar, complete: concluir, 'no-show': faltou, undo: desfazer, 'free-early': liberarCedo, cancel: cancelar, reschedule: remarcar, adjust: ajustar }
+    for (const [nome, corpo] of acoes) {
+      const r = await acao(handlers[nome as keyof typeof handlers], gerente, ag, nome, corpo === '' ? undefined : JSON.parse(corpo))
+      expect(r.status, nome).toBe(404)
+    }
+    const lidas: [Parameters<typeof callRoute>[0], string, string, Record<string, string>][] = [
+      [obterAgendamento, 'GET', `/v1/staff/appointments/${ag}`, { id: ag }],
+      [obterCliente, 'GET', `/v1/staff/customers/${b.cliente.id}`, { id: b.cliente.id }],
+      [agendamentosDoCliente, 'GET', `/v1/staff/customers/${b.cliente.id}/appointments`, { id: b.cliente.id }],
+      [lerExpediente, 'GET', `/v1/staff/working-hours/${b.ana.id}`, { professionalId: b.ana.id }],
+    ]
+    for (const [handler, metodo, caminho, params] of lidas) {
+      expect((await chamar(handler, metodo, caminho, gerente, { params })).status, caminho).toBe(404)
+    }
+    const semana = await chamar(gravarExpediente, 'PUT', `/v1/staff/working-hours/${b.ana.id}`, gerente, { params: { professionalId: b.ana.id }, body: { MONDAY: [] } })
+    expect(semana.status).toBe(404)
+    const lista = await chamar(listarBloqueios, 'GET', '/v1/staff/time-blocks', gerente, { query: `?professionalId=${b.ana.id}&from=${b.dia(3)}&to=${b.dia(3)}` })
+    expect(lista.status).toBe(404)
+    const apagar = await chamar(apagarBloqueio, 'DELETE', `/v1/staff/time-blocks/${bloqueioB.id}`, gerente, { params: { id: bloqueioB.id } })
+    expect(apagar.status).toBe(404)
+    const criar = await chamar(criarBloqueio, 'POST', '/v1/staff/time-blocks', gerente, {
+      body: { professionalId: b.ana.id, startDate: c.dia(3), startTime: '09:00', endTime: '10:00' },
+    })
+    expect(criar.status).toBe(404)
+
+    const totalA = await prisma.appointment.count({ where: { businessId: c.business.id } })
+    const clienteAlheio = await marcarPor(gerente, c.dia(6), '10:00', { customerId: b.cliente.id })
+    expect([404, 422]).toContain(clienteAlheio.status)
+    const profissionalAlheio = await marcarPor(gerente, c.dia(6), '10:00', { professionalId: b.ana.id })
+    expect([404, 422]).toContain(profissionalAlheio.status)
+    expect(clienteAlheio.text + profissionalAlheio.text).not.toContain(b.cliente.name)
+    expect(await prisma.appointment.count({ where: { businessId: c.business.id } })).toBe(totalA)
+
+    const removido = await chamar(removerDispositivo, 'DELETE', `/v1/staff/devices/${tokenB}`, gerente, { params: { pushToken: tokenB } })
+    expect(removido.status).toBe(204)
+    expect(await prisma.device.count({ where: { businessId: b.business.id, pushToken: tokenB } })).toBe(1)
+
+    expect(await foto()).toBe(antes)
+  })
+})
+
+describe('rotas da equipe no manifesto', () => {
+  test('todo caminho /v1/staff/* pede token da equipe; as rotas de entrada /v1/auth/staff/* só a chave', () => {
+    const defs = routeDefinitions()
+    const staff = defs.filter((d) => d.path.startsWith('/v1/staff/'))
+    expect(staff.length).toBeGreaterThanOrEqual(25)
+    for (const d of staff) expect(d.auth, `${d.method} ${d.path}`).toBe('staff')
+    for (const d of defs.filter((x) => x.path.startsWith('/v1/auth/staff/'))) {
+      expect(['key', 'staff'], `${d.method} ${d.path}`).toContain(d.auth)
+    }
   })
 })

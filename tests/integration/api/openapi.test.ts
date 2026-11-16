@@ -37,12 +37,12 @@ const objeto = (v: unknown): Json => {
 /** Arquivos `route.ts` sob `src/app/api/v1`, relativos a ela. */
 function arquivosDeRota(): string[] {
   return (readdirSync(PASTA_V1, { recursive: true, encoding: 'utf8' }) as string[])
-    .filter((f) => f.endsWith('route.ts'))
+    .filter((f) => /(^|\/)route\.(ts|tsx|js)$/.test(f))
     .sort()
 }
 
 const caminhoDoArquivo = (arquivo: string): string =>
-  `/v1/${arquivo.replace(/\/?route\.ts$/, '').replace(/\[([^\]]+)\]/g, '{$1}')}`.replace(/\/$/, '')
+  `/v1/${arquivo.replace(/\/?route\.(ts|tsx|js)$/, '').replace(/\[([^\]]+)\]/g, '{$1}')}`.replace(/\/$/, '')
 
 describe('manifesto de rotas', () => {
   test('lista exatamente os arquivos route.ts de src/app/api/v1', () => {
@@ -76,7 +76,7 @@ describe('manifesto de rotas', () => {
   test('os arquivos novos de rota não escapam: cada route.ts tem import no manifesto', () => {
     const texto = readFileSync(join(RAIZ, 'src/server/api/routes-manifest.ts'), 'utf8')
     for (const arquivo of arquivosDeRota()) {
-      const alvo = `@/app/api/v1/${arquivo.replace(/\.ts$/, '')}`
+      const alvo = `@/app/api/v1/${arquivo.replace(/\.(ts|tsx|js)$/, '')}`
       expect(texto, arquivo).toContain(`'${alvo}'`)
     }
   })
@@ -171,7 +171,23 @@ function problemasDoDocumento(doc: Json): string[] {
 }
 
 /** Validador mínimo de JSON Schema (2020-12) para o que o Zod gera: tipos, enum, const, objetos, listas, anyOf, formatos e limites. */
+const IMPLEMENTADAS = new Set([
+  '$ref', 'type', 'const', 'enum', 'anyOf', 'pattern', 'format', 'minLength', 'maxLength', 'minimum', 'maximum',
+  'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minItems', 'maxItems', 'items', 'properties', 'required',
+  'additionalProperties', 'propertyNames',
+])
+const ANOTACOES = new Set(['description', 'default', 'title', '$schema', 'examples', 'deprecated'])
+const FORMATOS: Record<string, RegExp> = {
+  'date-time': /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/,
+  uuid: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+  date: /^\d{4}-\d{2}-\d{2}$/,
+}
+
 function validar(schema: Json, valor: unknown, doc: Json, caminho = '$'): string[] {
+  // Palavra-chave que o validador não implementa é erro: nunca finge que validou.
+  for (const chave of Object.keys(schema)) {
+    if (!IMPLEMENTADAS.has(chave) && !ANOTACOES.has(chave)) throw new Error(`O validador de contrato não implementa a palavra-chave "${chave}" (${caminho}).`)
+  }
   if (typeof schema.$ref === 'string') return validar(resolve(doc, schema.$ref), valor, doc, caminho)
   const erros: string[] = []
   const tipoDe = (v: unknown): string => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v)
@@ -187,12 +203,24 @@ function validar(schema: Json, valor: unknown, doc: Json, caminho = '$'): string
   }
   if (typeof valor === 'string') {
     if (typeof schema.pattern === 'string' && !new RegExp(schema.pattern).test(valor)) erros.push(`${caminho}: "${valor}" não casa com o padrão`)
+    if (typeof schema.format === 'string') {
+      const formato = FORMATOS[schema.format]
+      if (!formato) throw new Error(`O validador de contrato não implementa o formato "${schema.format}" (${caminho}).`)
+      if (!formato.test(valor)) erros.push(`${caminho}: "${valor}" não é ${schema.format}`)
+    }
     if (typeof schema.minLength === 'number' && valor.length < schema.minLength) erros.push(`${caminho}: curto demais`)
     if (typeof schema.maxLength === 'number' && valor.length > schema.maxLength) erros.push(`${caminho}: longo demais`)
   }
   if (typeof valor === 'number') {
     if (typeof schema.minimum === 'number' && valor < schema.minimum) erros.push(`${caminho}: abaixo do mínimo`)
     if (typeof schema.maximum === 'number' && valor > schema.maximum) erros.push(`${caminho}: acima do máximo`)
+    if (typeof schema.exclusiveMinimum === 'number' && valor <= schema.exclusiveMinimum) erros.push(`${caminho}: não passa do mínimo exclusivo`)
+    if (typeof schema.exclusiveMaximum === 'number' && valor >= schema.exclusiveMaximum) erros.push(`${caminho}: não fica abaixo do máximo exclusivo`)
+    if (typeof schema.multipleOf === 'number' && valor % schema.multipleOf !== 0) erros.push(`${caminho}: não é múltiplo de ${schema.multipleOf}`)
+  }
+  if (Array.isArray(valor)) {
+    if (typeof schema.minItems === 'number' && valor.length < schema.minItems) erros.push(`${caminho}: poucos itens`)
+    if (typeof schema.maxItems === 'number' && valor.length > schema.maxItems) erros.push(`${caminho}: itens demais`)
   }
   if (Array.isArray(valor) && schema.items !== undefined) {
     valor.forEach((item, i) => erros.push(...validar(objeto(schema.items), item, doc, `${caminho}[${i}]`)))
@@ -203,6 +231,7 @@ function validar(schema: Json, valor: unknown, doc: Json, caminho = '$'): string
       if (!(nome in valor)) erros.push(`${caminho}: falta a chave obrigatória "${String(nome)}"`)
     }
     for (const [nome, item] of Object.entries(valor)) {
+      if (schema.propertyNames !== undefined) erros.push(...validar(objeto(schema.propertyNames), nome, doc, `${caminho}.<chave ${nome}>`))
       if (nome in props) erros.push(...validar(objeto(props[nome]), item, doc, `${caminho}.${nome}`))
       else if (schema.additionalProperties === false) erros.push(`${caminho}: chave fora do contrato "${nome}"`)
       else if (typeof schema.additionalProperties === 'object' && schema.additionalProperties !== null) {
@@ -305,6 +334,36 @@ describe('documento OpenAPI', () => {
     expect(schema.required).toEqual(expect.arrayContaining(['serviceIds', 'startsAt']))
   })
 
+  test('respostas de erro: 413 com corpo, 404 em toda rota autenticada, 500 e 503 em todas', () => {
+    for (const def of routeDefinitions()) {
+      const respostas = objeto(objeto(doc.paths[def.path]?.[def.method.toLowerCase()]).responses)
+      const onde = `${def.method} ${def.path}`
+      expect(respostas['500'], onde).toBeDefined()
+      expect(respostas['503'], onde).toBeDefined()
+      if (def.auth !== 'none') expect(respostas['404'], onde).toBeDefined()
+      if (def.body) expect(respostas['413'], onde).toBeDefined()
+      else expect(respostas['413'], onde).toBeUndefined()
+    }
+  })
+
+  test('datas locais têm format date e horas HH:mm têm padrão', () => {
+    const parametros = (m: string, c: string) => objeto(doc.paths[c]?.[m]).parameters as Json[]
+    const schemaDe = (lista: Json[], nome: string) => objeto(lista.find((p) => p.name === nome)?.schema)
+    expect(schemaDe(parametros('get', '/v1/staff/agenda'), 'from')).toMatchObject({ format: 'date' })
+    expect(schemaDe(parametros('get', '/v1/availability'), 'date')).toMatchObject({ format: 'date' })
+    expect(schemaDe(parametros('get', '/v1/staff/time-blocks'), 'to')).toMatchObject({ format: 'date' })
+    const corpo = objeto(objeto(objeto(objeto(doc.paths['/v1/staff/time-blocks']?.post).requestBody).content)['application/json']).schema
+    const props = objeto(objeto(corpo).properties)
+    expect(objeto(props.startDate)).toMatchObject({ format: 'date' })
+    expect(objeto(props.endTime).pattern).toBe('^\\d{2}:\\d{2}$')
+  })
+
+  test('corpo opcional: requestBody.required é false só onde a rota declara bodyOptional', () => {
+    const requerido = (m: string, c: string) => objeto(objeto(doc.paths[c]?.[m]).requestBody).required
+    expect(requerido('post', '/v1/staff/appointments/{id}/cancel')).toBe(false)
+    expect(requerido('post', '/v1/appointments')).toBe(true)
+  })
+
   test('erros comuns referenciam o esquema de erro padrão, com a lista fechada de code e de reason', () => {
     const op = objeto(doc.paths['/v1/staff/time-blocks']?.post)
     const respostas = objeto(op.responses)
@@ -401,6 +460,70 @@ describe('contrato: a resposta real segue o esquema do documento', () => {
     expect(validar(esquema, { ...original, slug: 3 }, doc)).not.toEqual([])
     const semSlug = Object.fromEntries(Object.entries(original).filter(([chave]) => chave !== 'slug'))
     expect(validar(esquema, semSlug, doc)).not.toEqual([])
+  })
+})
+
+describe('validador de contrato do próprio teste', () => {
+  const vazio: Json = {}
+  const casos: [string, Json, unknown, unknown][] = [
+    ['type', { type: 'string' }, 1, 'a'],
+    ['const', { const: 'a' }, 'b', 'a'],
+    ['enum', { enum: ['a'] }, 'b', 'a'],
+    ['anyOf', { anyOf: [{ type: 'string' }, { type: 'null' }] }, 1, null],
+    ['pattern', { type: 'string', pattern: '^a$' }, 'b', 'a'],
+    ['format date-time', { type: 'string', format: 'date-time' }, '2027-01-01', '2027-01-01T10:00:00.000Z'],
+    ['format uuid', { type: 'string', format: 'uuid' }, 'x', '11111111-1111-4111-8111-111111111111'],
+    ['format date', { type: 'string', format: 'date' }, '01/01/2027', '2027-01-01'],
+    ['minLength', { type: 'string', minLength: 2 }, 'a', 'ab'],
+    ['maxLength', { type: 'string', maxLength: 1 }, 'ab', 'a'],
+    ['minimum', { type: 'number', minimum: 1 }, 0, 1],
+    ['maximum', { type: 'number', maximum: 1 }, 2, 1],
+    ['exclusiveMinimum', { type: 'number', exclusiveMinimum: 1 }, 1, 2],
+    ['exclusiveMaximum', { type: 'number', exclusiveMaximum: 1 }, 1, 0],
+    ['multipleOf', { type: 'number', multipleOf: 5 }, 3, 10],
+    ['minItems', { type: 'array', minItems: 1 }, [], [1]],
+    ['maxItems', { type: 'array', maxItems: 1 }, [1, 2], [1]],
+    ['items', { type: 'array', items: { type: 'string' } }, [1], ['a']],
+    ['properties e required', { type: 'object', properties: { a: { type: 'string' } }, required: ['a'] }, {}, { a: 'x' }],
+    ['additionalProperties false', { type: 'object', additionalProperties: false }, { a: 1 }, {}],
+    ['additionalProperties com esquema', { type: 'object', additionalProperties: { type: 'string' } }, { a: 1 }, { a: 'x' }],
+    ['propertyNames', { type: 'object', propertyNames: { pattern: '^a' } }, { b: 1 }, { a: 1 }],
+  ]
+  test.each(casos)('%s: reprova o valor ruim e aceita o bom', (_nome, schema, ruim, bom) => {
+    expect(validar(schema, ruim, vazio)).not.toEqual([])
+    expect(validar(schema, bom, vazio)).toEqual([])
+  })
+
+  test('$ref é resolvido dentro do documento', () => {
+    const d = { components: { schemas: { A: { type: 'string' } } } }
+    expect(validar({ $ref: '#/components/schemas/A' }, 1, d)).not.toEqual([])
+    expect(validar({ $ref: '#/components/schemas/A' }, 'x', d)).toEqual([])
+  })
+
+  test.each(['oneOf', 'allOf', 'not', 'patternProperties', 'uniqueItems', 'if', 'prefixItems', 'contains'])('palavra-chave não implementada (%s) lança erro', (palavra) => {
+    expect(() => validar({ [palavra]: [] }, 1, vazio)).toThrow(/não implementa/)
+  })
+
+  test('formato desconhecido lança erro', () => {
+    expect(() => validar({ type: 'string', format: 'email' }, 'a@b.c', vazio)).toThrow(/não implementa o formato/)
+  })
+
+  test('todos os esquemas de resposta do documento só usam palavras-chave que o validador conhece', () => {
+    const percorre = (schema: Json, onde: string): void => {
+      for (const chave of Object.keys(schema)) {
+        expect(IMPLEMENTADAS.has(chave) || ANOTACOES.has(chave), `${onde}: ${chave}`).toBe(true)
+      }
+      for (const filho of Object.values(objeto(schema.properties ?? {}))) percorre(objeto(filho), onde)
+      for (const ramo of Array.isArray(schema.anyOf) ? schema.anyOf : []) percorre(objeto(ramo), onde)
+      for (const chave of ['items', 'propertyNames', 'additionalProperties'] as const) {
+        const filho = schema[chave]
+        if (typeof filho === 'object' && filho !== null) percorre(objeto(filho), onde)
+      }
+    }
+    for (const def of routeDefinitions()) {
+      const sucesso = def.status ?? 200
+      if (sucesso !== 204) percorre(esquemaDaResposta(doc, def.method, def.path, sucesso), `${def.method} ${def.path}`)
+    }
   })
 })
 

@@ -1,9 +1,16 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
+import { withFieldNames, type FieldRename } from '@/server/api/field-names'
 import { dateQuery, hourLabel, isoInstant, localDate, professionalIdQuery, uuid } from '@/server/api/wire'
 import type { TenantContext } from '@/server/auth/actor'
-import { DomainError, z } from '@/server/domain/errors'
+import { z } from '@/server/domain/errors'
 import { createTimeBlock, listTimeBlocks, type TimeBlockView } from '@/server/domain/team/time-blocks'
-import { localParts, minuteToInstant, minutesBetween, parseMinuteLabel } from '@/server/time'
+import { localParts, minuteToInstant, parseMinuteLabel } from '@/server/time'
+
+/** O domínio fala em instantes; o app envia hora de início e de fim. */
+const FIELD_NAMES: readonly FieldRename[] = [
+  ['startsAt', 'startTime'],
+  ['endsAt', 'endTime'],
+]
 
 const timeBlockSchema = z.object({
   id: uuid,
@@ -58,16 +65,14 @@ export const POST = defineRoute({
   handler: async ({ ctx, body }) => {
     const startsAt = minuteToInstant(body.startDate, parseMinuteLabel(body.startTime), ctx.timeZone)
     const endsAt = minuteToInstant(body.endDate ?? body.startDate, parseMinuteLabel(body.endTime), ctx.timeZone)
-    if (minutesBetween(startsAt, endsAt) <= 0) {
-      const message = 'O fim do bloqueio deve ser depois do início.'
-      throw new DomainError('validation', message, { fields: { endTime: message } })
-    }
-    const created = await createTimeBlock(ctx, {
-      professionalId: body.professionalId,
-      startsAt,
-      endsAt,
-      ...(body.reason === undefined ? {} : { reason: body.reason }),
-    })
+    const created = await withFieldNames(FIELD_NAMES, () =>
+      createTimeBlock(ctx, {
+        professionalId: body.professionalId,
+        startsAt,
+        endsAt,
+        ...(body.reason === undefined ? {} : { reason: body.reason }),
+      }),
+    )
     return { ...withLocal(ctx, created), affectedAppointments: created.affectedAppointments }
   },
 })

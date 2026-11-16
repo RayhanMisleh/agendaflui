@@ -1,7 +1,7 @@
 import { areaLink } from '@/server/area-links'
 import { API_REASONS, DOMAIN_REASONS, z } from '@/server/domain/errors'
 import { API_ERROR_CODES } from './errors'
-import type { AnyRouteDef } from './registry'
+import type { AnyRouteDef } from './define-route'
 import { routeDefinitions } from './routes-manifest'
 
 /*
@@ -19,8 +19,11 @@ const ERROR_RESPONSES: Record<string, { name: string; description: string }> = {
   '403': { name: 'Forbidden', description: 'Sem permissão: origem não liberada, tipo de token errado ou papel sem acesso.' },
   '404': { name: 'NotFound', description: 'O registro não existe nesta conta (ou o módulo está desligado).' },
   '409': { name: 'Conflict', description: 'A regra de negócio impede a ação agora: veja `error.reason`.' },
+  '413': { name: 'PayloadTooLarge', description: 'O corpo passa de 100 KB: envie menos dados (`error.reason` é `body_too_large`).' },
   '422': { name: 'ValidationFailed', description: 'Os dados enviados não passaram na validação: veja `error.fields`.' },
   '429': { name: 'TooManyRequests', description: 'Limite de requisições estourado: espere o tempo de `Retry-After`.' },
+  '500': { name: 'InternalError', description: 'Algo deu errado do nosso lado: tente de novo em instantes.' },
+  '503': { name: 'ServiceUnavailable', description: 'A conta não está disponível agora: fale com o suporte.' },
 }
 
 const SUCCESS_TEXT: Record<number, string> = { 200: 'Sucesso.', 201: 'Criado.', 202: 'Aceito.', 204: 'Sucesso, sem corpo.' }
@@ -119,10 +122,12 @@ function operation(def: AnyRouteDef): Json {
   for (const status of def.alternateStatuses ?? []) responses[String(status)] = successResponse(status)
   const errors: string[] = []
   if (def.auth !== 'none') errors.push('401', '403')
-  if (def.params !== undefined) errors.push('404')
+  if (def.auth !== 'none' || def.params !== undefined) errors.push('404')
   if (def.method !== 'GET') errors.push('409')
+  if (def.body !== undefined) errors.push('413')
   if (hasInput) errors.push('422')
   if (def.auth !== 'none') errors.push('429')
+  errors.push('500', '503')
   for (const status of errors) responses[status] = errorRef(status)
 
   const params = [
@@ -139,7 +144,7 @@ function operation(def: AnyRouteDef): Json {
     security: security(def.auth),
     ...(params.length > 0 ? { parameters: params } : { parameters: [] }),
     ...(def.body
-      ? { requestBody: { required: true, content: { 'application/json': { schema: strictRoot(jsonSchema(def.body, 'input')) } } } }
+      ? { requestBody: { required: def.bodyOptional !== true, content: { 'application/json': { schema: strictRoot(jsonSchema(def.body, 'input')) } } } }
       : {}),
     responses,
   }

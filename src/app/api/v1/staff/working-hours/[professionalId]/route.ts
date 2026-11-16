@@ -1,4 +1,5 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
+import { withFieldNames, type FieldRename } from '@/server/api/field-names'
 import { hourLabel } from '@/server/api/wire'
 import { z } from '@/server/domain/errors'
 import { getWeekSchedule, setWeekSchedule, type DayRanges, type WeekSchedule } from '@/server/domain/team/working-hours'
@@ -44,6 +45,12 @@ function weekToWire(week: WeekSchedule) {
   }
 }
 
+/** O domínio fala em minutos; o app envia `start` e `end`. */
+const FIELD_NAMES: readonly FieldRename[] = [
+  ['.startMin', '.start'],
+  ['.endMin', '.end'],
+]
+
 const params = z.object({ professionalId: z.string().max(64).describe('Id do profissional.') })
 
 export const GET = defineRoute({
@@ -74,7 +81,7 @@ export const PUT = defineRoute({
         schedule[day] = ranges.map((r) => ({ startMin: parseMinuteLabel(r.start), endMin: parseMinuteLabel(r.end) }))
       }
     }
-    return weekToWire(await setWeekSchedule(ctx, p.professionalId, schedule))
+    return weekToWire(await withFieldNames(FIELD_NAMES, () => setWeekSchedule(ctx, p.professionalId, schedule)))
   },
 })
 

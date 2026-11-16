@@ -1,4 +1,4 @@
-import type { AnyRouteDef } from './registry'
+import type { AnyRouteDef } from './define-route'
 import * as r00 from '@/app/api/v1/appointments/[id]/cancel/route'
 import * as r01 from '@/app/api/v1/appointments/[id]/reschedule/route'
 import * as r02 from '@/app/api/v1/appointments/[id]/route'
