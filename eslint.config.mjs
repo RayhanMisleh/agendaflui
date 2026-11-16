@@ -58,6 +58,11 @@ const semPrismaCru = {
   message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
 }
 
+const semTenantDbNaRota = {
+  group: ['@/server/db/tenant', '**/db/tenant', '**/server/db/tenant'],
+  message: 'Rota e camada HTTP não usam tenantDb: o contexto da conta chega pronto e a regra de negócio fica em src/server/domain.',
+}
+
 const semInterface = {
   group: ['@/ui', '@/ui/**', '**/ui/**'],
   message: 'O servidor não importa da interface. O que for comum fica em src/shared.',
@@ -96,6 +101,14 @@ export default defineConfig([
   {
     files: ['src/server/**'],
     rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface] }] },
+  },
+  {
+    files: ['src/server/api/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface, semTenantDbNaRota] }] },
+  },
+  {
+    files: ['src/app/api/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semTenantDbNaRota] }] },
   },
   {
     files: ['src/shared/**'],
