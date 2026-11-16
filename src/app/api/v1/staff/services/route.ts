@@ -10,7 +10,10 @@ export const GET = defineRoute({
   auth: 'staff',
   summary: 'Serviços da conta na ordem de exibição; com includeInactive e includeArchived, também os desativados e arquivados',
   tag: 'Equipe',
-  query: z.object({ includeInactive: queryFlag.optional(), includeArchived: queryFlag.optional() }),
+  query: z.object({
+    includeInactive: queryFlag.optional().describe('`true` inclui os serviços desativados.'),
+    includeArchived: queryFlag.optional().describe('`true` inclui os serviços arquivados.'),
+  }),
   response: z.object({ items: z.array(serviceSchema) }),
   handler: async ({ ctx, query }) => ({ items: await listServices(ctx, query) }),
 })

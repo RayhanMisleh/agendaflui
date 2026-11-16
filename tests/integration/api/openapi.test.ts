@@ -1,0 +1,431 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { GET as obterOpenApi } from '@/app/api/v1/openapi.json/route'
+import { GET as agenda } from '@/app/api/v1/staff/agenda/route'
+import { GET as availability } from '@/app/api/v1/availability/route'
+import { GET as business } from '@/app/api/v1/business/route'
+import { POST as marcar } from '@/app/api/v1/appointments/route'
+import { buildOpenApi } from '@/server/api/openapi'
+import { ROUTE_MODULES, routeDefinitions } from '@/server/api/routes-manifest'
+import { preflight } from '@/server/api/define-route'
+import { API_ERROR_CODES } from '@/server/api/errors'
+import { env } from '@/server/env'
+import { API_REASONS, DOMAIN_REASONS } from '@/server/domain/errors'
+import { apiRequest, callRoute, jsonObject, staffToken } from '../../setup/api'
+import { montarCena, type Cena } from '../../setup/api-scene'
+import { resetDb } from '../../setup/db'
+import { makeMembership, makeUser } from '../../setup/factories'
+
+// A API roda atrás de um proxy confiável nestes testes: o IP vem do último endereço de X-Forwarded-For.
+vi.hoisted(() => {
+  process.env.TRUSTED_PROXY_HOPS = '1'
+})
+
+const RAIZ = process.cwd()
+const PASTA_V1 = join(RAIZ, 'src/app/api/v1')
+const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
+
+type Json = Record<string, unknown>
+type Doc = Json & { paths: Record<string, Record<string, Json>>; components: Json }
+
+const objeto = (v: unknown): Json => {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error(`Esperava um objeto, veio ${JSON.stringify(v)?.slice(0, 80)}`)
+  return v as Json
+}
+
+/** Arquivos `route.ts` sob `src/app/api/v1`, relativos a ela. */
+function arquivosDeRota(): string[] {
+  return (readdirSync(PASTA_V1, { recursive: true, encoding: 'utf8' }) as string[])
+    .filter((f) => f.endsWith('route.ts'))
+    .sort()
+}
+
+const caminhoDoArquivo = (arquivo: string): string =>
+  `/v1/${arquivo.replace(/\/?route\.ts$/, '').replace(/\[([^\]]+)\]/g, '{$1}')}`.replace(/\/$/, '')
+
+describe('manifesto de rotas', () => {
+  test('lista exatamente os arquivos route.ts de src/app/api/v1', () => {
+    expect(Object.keys(ROUTE_MODULES).sort()).toEqual(arquivosDeRota())
+  })
+
+  test('cada arquivo exporta OPTIONS = preflight e só handlers de defineRoute para os métodos', () => {
+    for (const [arquivo, modulo] of Object.entries(ROUTE_MODULES)) {
+      expect(modulo.OPTIONS, `${arquivo} sem OPTIONS = preflight`).toBe(preflight)
+      const metodos = METODOS.filter((m) => modulo[m] !== undefined)
+      expect(metodos.length, `${arquivo} sem método`).toBeGreaterThan(0)
+      const extras = Object.keys(modulo).filter((nome) => nome !== 'OPTIONS' && !(METODOS as readonly string[]).includes(nome))
+      expect(extras, `${arquivo} exporta algo que não é método`).toEqual([])
+      for (const m of metodos) {
+        const handler = modulo[m] as { definition?: { method: string; path: string } }
+        expect(handler.definition, `${arquivo} ${m} não foi criado por defineRoute`).toBeDefined()
+        expect(handler.definition?.method, arquivo).toBe(m)
+        expect(handler.definition?.path, arquivo).toBe(caminhoDoArquivo(arquivo))
+      }
+    }
+  })
+
+  test('método mais caminho não se repetem e todos os métodos exportados estão nas definições', () => {
+    const definicoes = routeDefinitions()
+    const chaves = definicoes.map((d) => `${d.method} ${d.path}`)
+    expect(new Set(chaves).size).toBe(chaves.length)
+    const exportados = Object.values(ROUTE_MODULES).reduce((n, m) => n + METODOS.filter((x) => m[x] !== undefined).length, 0)
+    expect(definicoes).toHaveLength(exportados)
+  })
+
+  test('os arquivos novos de rota não escapam: cada route.ts tem import no manifesto', () => {
+    const texto = readFileSync(join(RAIZ, 'src/server/api/routes-manifest.ts'), 'utf8')
+    for (const arquivo of arquivosDeRota()) {
+      const alvo = `@/app/api/v1/${arquivo.replace(/\.ts$/, '')}`
+      expect(texto, arquivo).toContain(`'${alvo}'`)
+    }
+  })
+})
+
+describe('motivos e códigos de erro', () => {
+  test('a lista de motivos da API não repete os do domínio e está ordenada', () => {
+    expect(API_REASONS.filter((r) => (DOMAIN_REASONS as readonly string[]).includes(r))).toEqual([])
+    expect([...API_REASONS]).toEqual([...API_REASONS].sort())
+    expect(new Set(API_REASONS).size).toBe(API_REASONS.length)
+  })
+
+  test('todo motivo lançado como texto no código está na lista', () => {
+    const achados: string[] = []
+    const varre = (pasta: string): void => {
+      for (const e of readdirSync(pasta, { withFileTypes: true })) {
+        const caminho = join(pasta, e.name)
+        if (e.isDirectory()) varre(caminho)
+        else if (/\.tsx?$/.test(e.name)) {
+          const texto = readFileSync(caminho, 'utf8')
+          for (const m of texto.matchAll(/new ApiAuthError\(\s*'[a-z_]+',\s*'([a-z_]+)'/g)) achados.push(m[1] ?? '')
+        }
+      }
+    }
+    varre(join(RAIZ, 'src'))
+    const erros = readFileSync(join(RAIZ, 'src/server/api/errors.ts'), 'utf8')
+    for (const m of erros.matchAll(/reason: '([a-z_]+)'/g)) achados.push(m[1] ?? '')
+    expect(achados.length).toBeGreaterThan(5)
+    for (const motivo of achados) expect(API_REASONS as readonly string[], motivo).toContain(motivo)
+  })
+})
+
+/** Resolve `#/a/b` dentro do documento. */
+function resolve(doc: Json, ref: string): Json {
+  if (!ref.startsWith('#/')) throw new Error(`$ref fora do documento: ${ref}`)
+  let atual: unknown = doc
+  for (const parte of ref.slice(2).split('/')) atual = objeto(atual)[parte.replace(/~1/g, '/').replace(/~0/g, '~')]
+  return objeto(atual)
+}
+
+function referencias(valor: unknown, achadas: string[] = []): string[] {
+  if (Array.isArray(valor)) valor.forEach((v) => referencias(v, achadas))
+  else if (typeof valor === 'object' && valor !== null) {
+    for (const [k, v] of Object.entries(valor)) {
+      if (k === '$ref' && typeof v === 'string') achadas.push(v)
+      else referencias(v, achadas)
+    }
+  }
+  return achadas
+}
+
+/** Checagem estrutural mínima de OpenAPI 3.1: campos obrigatórios e `$ref` resolvidos. Devolve os problemas. */
+function problemasDoDocumento(doc: Json): string[] {
+  const p: string[] = []
+  if (typeof doc.openapi !== 'string' || !doc.openapi.startsWith('3.1')) p.push('openapi deve ser 3.1.x')
+  const info = objeto(doc.info)
+  if (typeof info.title !== 'string' || typeof info.version !== 'string') p.push('info.title e info.version são obrigatórios')
+  if (!Array.isArray(doc.servers) || doc.servers.length === 0) p.push('servers vazio')
+  const caminhos = objeto(doc.paths)
+  if (Object.keys(caminhos).length === 0) p.push('paths vazio')
+  const esquemas = Object.keys(objeto(objeto(doc.components).securitySchemes))
+  const ids = new Set<string>()
+  for (const [caminho, item] of Object.entries(caminhos)) {
+    if (!caminho.startsWith('/')) p.push(`caminho sem barra: ${caminho}`)
+    const nomesNoCaminho = [...caminho.matchAll(/\{([^}]+)\}/g)].map((m) => m[1])
+    for (const [metodo, op] of Object.entries(objeto(item))) {
+      const onde = `${metodo.toUpperCase()} ${caminho}`
+      const o = objeto(op)
+      if (typeof o.operationId !== 'string' || !/^[a-z][A-Za-z0-9]*$/.test(o.operationId)) p.push(`${onde}: operationId inválido`)
+      else if (ids.has(o.operationId)) p.push(`${onde}: operationId repetido`)
+      else ids.add(o.operationId)
+      if (typeof o.summary !== 'string' || o.summary.trim() === '') p.push(`${onde}: sem resumo`)
+      if (!Array.isArray(o.tags) || o.tags.length === 0) p.push(`${onde}: sem tags`)
+      const responses = objeto(o.responses)
+      if (!Object.keys(responses).some((s) => /^2\d\d$/.test(s))) p.push(`${onde}: sem resposta 2xx`)
+      const parametros = (Array.isArray(o.parameters) ? o.parameters : []).map(objeto)
+      const doCaminho = parametros.filter((x) => x.in === 'path').map((x) => x.name)
+      if ([...doCaminho].sort().join() !== nomesNoCaminho.sort().join()) p.push(`${onde}: parâmetros de caminho não batem`)
+      for (const exigencia of Array.isArray(o.security) ? o.security : []) {
+        for (const nome of Object.keys(objeto(exigencia))) if (!esquemas.includes(nome)) p.push(`${onde}: esquema de segurança desconhecido ${nome}`)
+      }
+    }
+  }
+  for (const ref of referencias(doc)) {
+    try {
+      resolve(doc, ref)
+    } catch {
+      p.push(`$ref não resolvido: ${ref}`)
+    }
+  }
+  return p
+}
+
+/** Validador mínimo de JSON Schema (2020-12) para o que o Zod gera: tipos, enum, const, objetos, listas, anyOf, formatos e limites. */
+function validar(schema: Json, valor: unknown, doc: Json, caminho = '$'): string[] {
+  if (typeof schema.$ref === 'string') return validar(resolve(doc, schema.$ref), valor, doc, caminho)
+  const erros: string[] = []
+  const tipoDe = (v: unknown): string => (v === null ? 'null' : Array.isArray(v) ? 'array' : Number.isInteger(v) ? 'integer' : typeof v)
+  if (schema.type !== undefined) {
+    const aceitos = Array.isArray(schema.type) ? schema.type : [schema.type]
+    const t = tipoDe(valor)
+    if (!aceitos.includes(t) && !(t === 'integer' && aceitos.includes('number'))) return [`${caminho}: tipo ${t}, esperava ${aceitos.join('|')}`]
+  }
+  if (schema.const !== undefined && schema.const !== valor) erros.push(`${caminho}: valor diferente de ${JSON.stringify(schema.const)}`)
+  if (Array.isArray(schema.enum) && !schema.enum.includes(valor)) erros.push(`${caminho}: ${JSON.stringify(valor)} fora do enum`)
+  if (Array.isArray(schema.anyOf) && !schema.anyOf.some((s) => validar(objeto(s), valor, doc, caminho).length === 0)) {
+    erros.push(`${caminho}: nenhum ramo de anyOf aceita ${JSON.stringify(valor)?.slice(0, 60)}`)
+  }
+  if (typeof valor === 'string') {
+    if (typeof schema.pattern === 'string' && !new RegExp(schema.pattern).test(valor)) erros.push(`${caminho}: "${valor}" não casa com o padrão`)
+    if (typeof schema.minLength === 'number' && valor.length < schema.minLength) erros.push(`${caminho}: curto demais`)
+    if (typeof schema.maxLength === 'number' && valor.length > schema.maxLength) erros.push(`${caminho}: longo demais`)
+  }
+  if (typeof valor === 'number') {
+    if (typeof schema.minimum === 'number' && valor < schema.minimum) erros.push(`${caminho}: abaixo do mínimo`)
+    if (typeof schema.maximum === 'number' && valor > schema.maximum) erros.push(`${caminho}: acima do máximo`)
+  }
+  if (Array.isArray(valor) && schema.items !== undefined) {
+    valor.forEach((item, i) => erros.push(...validar(objeto(schema.items), item, doc, `${caminho}[${i}]`)))
+  }
+  if (typeof valor === 'object' && valor !== null && !Array.isArray(valor)) {
+    const props = schema.properties === undefined ? {} : objeto(schema.properties)
+    for (const nome of Array.isArray(schema.required) ? schema.required : []) {
+      if (!(nome in valor)) erros.push(`${caminho}: falta a chave obrigatória "${String(nome)}"`)
+    }
+    for (const [nome, item] of Object.entries(valor)) {
+      if (nome in props) erros.push(...validar(objeto(props[nome]), item, doc, `${caminho}.${nome}`))
+      else if (schema.additionalProperties === false) erros.push(`${caminho}: chave fora do contrato "${nome}"`)
+      else if (typeof schema.additionalProperties === 'object' && schema.additionalProperties !== null) {
+        erros.push(...validar(objeto(schema.additionalProperties), item, doc, `${caminho}.${nome}`))
+      }
+    }
+  }
+  return erros
+}
+
+/** Esquema JSON da resposta `status` da operação. */
+function esquemaDaResposta(doc: Doc, metodo: string, caminho: string, status: number): Json {
+  const resposta = objeto(objeto(doc.paths[caminho]?.[metodo.toLowerCase()]).responses)[String(status)]
+  return objeto(objeto(objeto(objeto(resposta).content)['application/json']).schema)
+}
+
+let doc: Doc
+
+beforeEach(() => {
+  doc = buildOpenApi() as Doc
+})
+
+describe('documento OpenAPI', () => {
+  test('é um OpenAPI 3.1 estruturalmente válido, com todos os $ref resolvidos', () => {
+    expect(problemasDoDocumento(doc)).toEqual([])
+  })
+
+  test('uma operação para cada método de cada rota, com operationId estável derivado de método e caminho', () => {
+    const esperadas = routeDefinitions().map((d) => `${d.method} ${d.path}`).sort()
+    const noDocumento = Object.entries(doc.paths).flatMap(([caminho, ops]) => Object.keys(ops).map((m) => `${m.toUpperCase()} ${caminho}`)).sort()
+    expect(noDocumento).toEqual(esperadas)
+    const id = (m: string, c: string) => objeto(doc.paths[c]?.[m]).operationId
+    expect(id('get', '/v1/health')).toBe('getHealth')
+    expect(id('post', '/v1/appointments')).toBe('postAppointments')
+    expect(id('post', '/v1/appointments/{id}/cancel')).toBe('postAppointmentsByIdCancel')
+    expect(id('post', '/v1/staff/appointments/{id}/no-show')).toBe('postStaffAppointmentsByIdNoShow')
+    expect(id('get', '/v1/openapi.json')).toBe('getOpenapiJson')
+    expect(id('put', '/v1/staff/working-hours/{professionalId}')).toBe('putStaffWorkingHoursByProfessionalId')
+  })
+
+  test('toda operação tem resumo em português, tag e esquema de resposta (sem corpo só no 204)', () => {
+    for (const def of routeDefinitions()) {
+      const op = objeto(doc.paths[def.path]?.[def.method.toLowerCase()])
+      expect(op.summary, `${def.method} ${def.path}`).toBe(def.summary)
+      expect(op.tags, `${def.method} ${def.path}`).toEqual([def.tag])
+      const sucesso = def.status ?? 200
+      const resposta = objeto(objeto(op.responses)[String(sucesso)])
+      if (sucesso === 204) expect(resposta.content).toBeUndefined()
+      else expect(objeto(objeto(resposta.content)['application/json']).schema, `${def.method} ${def.path}`).toBeDefined()
+      for (const alternativo of def.alternateStatuses ?? []) {
+        expect(esquemaDaResposta(doc, def.method, def.path, alternativo)).toEqual(esquemaDaResposta(doc, def.method, def.path, sucesso))
+      }
+    }
+  })
+
+  test('segurança: AppKey e Bearer declarados; rotas de cliente e de equipe pedem Bearer; health e openapi não pedem nada', () => {
+    const esquemas = objeto(objeto(doc.components).securitySchemes)
+    expect(esquemas.AppKey).toMatchObject({ type: 'apiKey', in: 'header', name: 'X-App-Key' })
+    expect(esquemas.Bearer).toMatchObject({ type: 'http', scheme: 'bearer' })
+    for (const def of routeDefinitions()) {
+      const op = objeto(doc.paths[def.path]?.[def.method.toLowerCase()])
+      const exigencias = (op.security as Json[]).map((s) => Object.keys(s))
+      if (def.auth === 'customer' || def.auth === 'staff') expect(exigencias, def.path).toEqual([['AppKey', 'Bearer']])
+      if (def.auth === 'key') expect(exigencias, def.path).toEqual([['AppKey']])
+      if (def.auth === 'key_or_customer') expect(exigencias, def.path).toEqual([['AppKey'], ['AppKey', 'Bearer']])
+      if (def.auth === 'none') expect(exigencias, def.path).toEqual([])
+    }
+  })
+
+  test('parâmetros: caminho e consulta com tipo e descrição de pelo menos um campo; cabeçalhos X-Business e Idempotency-Key onde valem', () => {
+    const op = (m: string, c: string) => objeto(doc.paths[c]?.[m])
+    const params = (m: string, c: string) => (op(m, c).parameters as Json[]).map((p) => `${String(p.in)}:${String(p.name)}`)
+    expect(params('get', '/v1/staff/agenda')).toEqual(expect.arrayContaining(['query:from', 'query:to', 'query:professionalId', 'header:X-Business']))
+    expect(params('post', '/v1/appointments')).toEqual(expect.arrayContaining(['header:Idempotency-Key', 'header:X-Business']))
+    expect(params('post', '/v1/staff/appointments')).toContain('header:Idempotency-Key')
+    expect(params('post', '/v1/appointments/{id}/cancel')).not.toContain('header:Idempotency-Key')
+    expect(params('get', '/v1/health')).toEqual([])
+    const id = (op('get', '/v1/staff/customers/{id}').parameters as Json[]).find((p) => p.name === 'id')
+    expect(id).toMatchObject({ in: 'path', required: true, schema: { type: 'string', format: 'uuid' } })
+    const limit = (op('get', '/v1/appointments').parameters as Json[]).find((p) => p.name === 'limit')
+    expect(limit).toMatchObject({ in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 50 } })
+    const semDescricao: string[] = []
+    for (const [caminho, ops] of Object.entries(doc.paths)) {
+      for (const [metodo, o] of Object.entries(ops)) {
+        for (const p of (objeto(o).parameters ?? []) as Json[]) {
+          if (String(p.description ?? '') === '') semDescricao.push(`${metodo} ${caminho} ${String(p.in)}:${String(p.name)}`)
+        }
+      }
+    }
+    expect(semDescricao).toEqual([])
+  })
+
+  test('corpo: o instante de entrada vira date-time com padrão e descrição; o corpo recusa chave desconhecida', () => {
+    const corpo = objeto(objeto(objeto(objeto(doc.paths['/v1/appointments']?.post).requestBody).content)['application/json']).schema
+    const schema = objeto(corpo)
+    expect(schema.additionalProperties).toBe(false)
+    expect(objeto(objeto(schema.properties).startsAt)).toMatchObject({ type: 'string', format: 'date-time' })
+    expect(typeof objeto(objeto(schema.properties).startsAt).pattern).toBe('string')
+    expect(String(objeto(objeto(schema.properties).startsAt).description)).toContain('Z')
+    expect(schema.required).toEqual(expect.arrayContaining(['serviceIds', 'startsAt']))
+  })
+
+  test('erros comuns referenciam o esquema de erro padrão, com a lista fechada de code e de reason', () => {
+    const op = objeto(doc.paths['/v1/staff/time-blocks']?.post)
+    const respostas = objeto(op.responses)
+    for (const status of ['401', '403', '409', '422', '429']) {
+      const ref = objeto(respostas[status]).$ref
+      expect(typeof ref, status).toBe('string')
+      const conteudo = objeto(objeto(resolve(doc, String(ref)).content)['application/json'])
+      expect(objeto(conteudo.schema).$ref).toBe('#/components/schemas/ErrorResponse')
+    }
+    expect(objeto(objeto(doc.paths['/v1/staff/time-blocks/{id}']?.delete).responses)['404']).toBeDefined()
+    expect(objeto(doc.paths['/v1/health']?.get).responses).not.toHaveProperty('401')
+    const erro = objeto(objeto(objeto(objeto(objeto(doc.components).schemas).ErrorResponse).properties).error)
+    const props = objeto(erro.properties)
+    expect(objeto(props.code).enum).toEqual([...API_ERROR_CODES])
+    expect(objeto(props.reason).enum).toEqual([...DOMAIN_REASONS, ...API_REASONS].sort())
+    expect(erro.required).toEqual(['code', 'message'])
+    expect(objeto(resolve(doc, '#/components/responses/TooManyRequests')).headers).toHaveProperty('Retry-After')
+  })
+
+  test('servidores vêm de API_HOST e nada interno vaza', () => {
+    expect(doc.servers).toEqual([{ url: `http://${env.API_HOST}`, description: expect.any(String) }])
+    const texto = JSON.stringify(doc)
+    for (const proibido of ['/Users/', 'src/app', 'src/server', 'node_modules', 'process.env', 'DATABASE_URL', 'APP_SECRET', 'at Object.', 'route.ts']) {
+      expect(texto, proibido).not.toContain(proibido)
+    }
+  })
+})
+
+describe('contrato: a resposta real segue o esquema do documento', () => {
+  let c: Cena
+
+  beforeEach(async () => {
+    await resetDb()
+    c = await montarCena()
+  })
+
+  const checar = (metodo: string, caminho: string, status: number, json: unknown) => {
+    expect(validar(esquemaDaResposta(doc, metodo, caminho, status), json, doc)).toEqual([])
+  }
+
+  test('GET /v1/business', async () => {
+    const r = await callRoute(business, apiRequest('GET', '/v1/business', { key: c.key }))
+    expect(r.status).toBe(200)
+    checar('get', '/v1/business', 200, r.json)
+  })
+
+  test('GET /v1/availability', async () => {
+    const r = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}`, { key: c.key }))
+    expect(r.status).toBe(200)
+    expect((jsonObject(r.json).slots as unknown[]).length).toBeGreaterThan(0)
+    checar('get', '/v1/availability', 200, r.json)
+  })
+
+  test('POST /v1/appointments (201)', async () => {
+    const disp = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}&professionalId=${c.ana.id}`, { key: c.key }))
+    const slot = (jsonObject(disp.json).slots as { startsAt: string }[])[0]
+    const r = await callRoute(
+      marcar,
+      apiRequest('POST', '/v1/appointments', { key: c.key, token: c.tokenCliente, body: { serviceIds: [c.banho.id], professionalId: c.ana.id, startsAt: slot?.startsAt } }),
+    )
+    expect(r.status, r.text).toBe(201)
+    checar('post', '/v1/appointments', 201, r.json)
+  })
+
+  test('GET /v1/staff/agenda (rota da equipe, com campos internos)', async () => {
+    const user = await makeUser()
+    const m = await makeMembership(c.business.id, user.id, 'OWNER')
+    const token = await staffToken(c.business.id, m.id, user.id)
+    const marcada = await callRoute(
+      marcar,
+      apiRequest('POST', '/v1/appointments', {
+        key: c.key,
+        token: c.tokenCliente,
+        body: {
+          serviceIds: [c.banho.id],
+          professionalId: c.ana.id,
+          startsAt: (jsonObject((await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(2)}&serviceIds=${c.banho.id}&professionalId=${c.ana.id}`, { key: c.key }))).json).slots as { startsAt: string }[])[0]?.startsAt,
+        },
+      }),
+    )
+    expect(marcada.status, marcada.text).toBe(201)
+    const r = await callRoute(agenda, apiRequest('GET', `/v1/staff/agenda?from=${c.dia(2)}&to=${c.dia(2)}`, { key: c.key, token }))
+    expect(r.status).toBe(200)
+    const dias = jsonObject(r.json).days as { professionals: { appointments: unknown[] }[] }[]
+    expect(dias[0]?.professionals.some((p) => p.appointments.length > 0)).toBe(true)
+    checar('get', '/v1/staff/agenda', 200, r.json)
+  })
+
+  test('o validador de contrato reprova de verdade: chave a mais, tipo errado e chave faltando', async () => {
+    const r = await callRoute(business, apiRequest('GET', '/v1/business', { key: c.key }))
+    const esquema = esquemaDaResposta(doc, 'get', '/v1/business', 200)
+    const original = jsonObject(r.json)
+    expect(validar(esquema, { ...original, interno: 1 }, doc)).not.toEqual([])
+    expect(validar(esquema, { ...original, slug: 3 }, doc)).not.toEqual([])
+    const semSlug = Object.fromEntries(Object.entries(original).filter(([chave]) => chave !== 'slug'))
+    expect(validar(esquema, semSlug, doc)).not.toEqual([])
+  })
+})
+
+describe('GET /v1/openapi.json', () => {
+  test('responde sem chave, com cache público de 5 minutos, e o corpo é o documento', async () => {
+    const r = await callRoute(obterOpenApi, apiRequest('GET', '/v1/openapi.json'))
+    expect(r.status).toBe(200)
+    expect(r.headers.get('cache-control')).toBe('public, max-age=300')
+    expect(r.headers.get('content-type')).toContain('application/json')
+    expect(r.headers.get('vary')).toContain('Origin')
+    expect(problemasDoDocumento(objeto(r.json))).toEqual([])
+    expect(r.json).toEqual(JSON.parse(JSON.stringify(buildOpenApi())))
+  })
+
+  test('com Origin válida devolve CORS; as outras respostas da API continuam sem cache', async () => {
+    const r = await callRoute(obterOpenApi, apiRequest('GET', '/v1/openapi.json', { origin: 'https://app.exemplo.test' }))
+    expect(r.headers.get('access-control-allow-origin')).toBe('https://app.exemplo.test')
+    expect(r.headers.get('cache-control')).toBe('public, max-age=300')
+    const semCache = await callRoute(business, apiRequest('GET', '/v1/business'))
+    expect(semCache.headers.get('cache-control')).toBe('no-store')
+  })
+
+  test('a própria rota aparece no documento, sem segurança', () => {
+    const op = objeto(doc.paths['/v1/openapi.json']?.get)
+    expect(op.security).toEqual([])
+    expect(op.operationId).toBe('getOpenapiJson')
+  })
+})

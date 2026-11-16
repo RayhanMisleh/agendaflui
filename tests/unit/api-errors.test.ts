@@ -46,9 +46,9 @@ describe('errorResponse', () => {
 
   test('ApiAuthError: unauthorized 401, forbidden 403, business_unavailable 503, com reason', async () => {
     for (const [code, status] of [['unauthorized', 401], ['forbidden', 403], ['business_unavailable', 503]] as const) {
-      const res = errorResponse(new ApiAuthError(code, 'motivo_x', 'Texto.'), req)
+      const res = errorResponse(new ApiAuthError(code, 'invalid_app_key', 'Texto.'), req)
       expect(res.status).toBe(status)
-      expect(apiError(await corpo(res))).toEqual({ code, reason: 'motivo_x', message: 'Texto.' })
+      expect(apiError(await corpo(res))).toEqual({ code, reason: 'invalid_app_key', message: 'Texto.' })
     }
   })
 

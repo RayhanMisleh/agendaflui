@@ -1,15 +1,20 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
+import { buildOpenApi } from '@/server/api/openapi'
 import { z } from '@/server/domain/errors'
 
-// Esqueleto: a Tarefa 11 gera o documento a partir das rotas registradas.
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/openapi.json',
   auth: 'none',
-  summary: 'Documento OpenAPI da API',
+  summary: 'Documento OpenAPI 3.1 da API, gerado das rotas (a referência para o app)',
   tag: 'Sistema',
-  response: z.object({ openapi: z.string() }),
-  handler: async () => ({ openapi: '3.1.0' }),
+  cache: { maxAgeSec: 300 },
+  response: z.looseObject({
+    openapi: z.string(),
+    info: z.looseObject({ title: z.string(), version: z.string() }),
+    paths: z.record(z.string(), z.unknown()),
+  }),
+  handler: async () => buildOpenApi(),
 })
 
 export const OPTIONS = preflight

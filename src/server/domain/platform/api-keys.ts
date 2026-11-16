@@ -6,7 +6,7 @@ import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
 import type { ApiKey, ApiKeyKind, Prisma } from '@/server/db/generated/client'
 import { addMinutes } from '@/server/time'
-import { DomainError, orNotFound, parse, z } from '../errors'
+import { DomainError, orNotFound, parse, z, type ApiReason } from '../errors'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
@@ -34,8 +34,8 @@ export type ResolvedKey = {
 /** Falha de autenticação da chave de app. As rotas HTTP mapeiam para 401, 403 e 503. */
 export class ApiAuthError extends Error {
   code: 'unauthorized' | 'forbidden' | 'business_unavailable'
-  reason: string
-  constructor(code: ApiAuthError['code'], reason: string, message: string) {
+  reason: ApiReason
+  constructor(code: ApiAuthError['code'], reason: ApiReason, message: string) {
     super(message)
     this.name = 'ApiAuthError'
     this.code = code

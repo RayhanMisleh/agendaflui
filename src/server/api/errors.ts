@@ -1,6 +1,6 @@
 import { AuthError } from '@/server/auth/actor'
 import { ApiAuthError } from '@/server/domain/platform/api-keys'
-import { DomainError, z, zodFields, type DomainErrorCode } from '@/server/domain/errors'
+import { DomainError, z, zodFields, type ApiReason, type DomainErrorCode, type DomainReason } from '@/server/domain/errors'
 import { toJson } from './serialize'
 
 /** Corpo acima do teto: 413. */
@@ -21,6 +21,20 @@ export class ApiRateLimitError extends Error {
   }
 }
 
+/** Lista fechada de `error.code` que a API devolve (cada um com seu status); o documento OpenAPI usa esta mesma lista. */
+export const API_ERROR_CODES = [
+  'validation',
+  'unauthorized',
+  'forbidden',
+  'not_found',
+  'conflict',
+  'rate_limited',
+  'module_disabled',
+  'business_unavailable',
+  'internal',
+] as const
+export type ApiErrorCode = (typeof API_ERROR_CODES)[number]
+
 const DOMAIN_STATUS: Record<DomainErrorCode, number> = {
   validation: 422,
   not_found: 404,
@@ -40,7 +54,7 @@ export type ErrorMeta = {
 }
 
 export type ErrorBody = {
-  error: { code: string; reason?: string; message: string; fields?: Record<string, string>; details?: Record<string, unknown> }
+  error: { code: ApiErrorCode; reason?: DomainReason | ApiReason; message: string; fields?: Record<string, string>; details?: Record<string, unknown> }
 }
 
 /** Resposta JSON padrão da API (corpo `null` = sem corpo), com os cabeçalhos que toda resposta leva. */
@@ -51,7 +65,7 @@ export function buildResponse(status: number, body: unknown, requestId: string, 
   return new Response(JSON.stringify(body), { status, headers })
 }
 
-function errorBody(code: string, message: string, extra: Omit<ErrorBody['error'], 'code' | 'message'> = {}): ErrorBody {
+function errorBody(code: ApiErrorCode, message: string, extra: Omit<ErrorBody['error'], 'code' | 'message'> = {}): ErrorBody {
   return { error: { code, ...extra, message } }
 }
 

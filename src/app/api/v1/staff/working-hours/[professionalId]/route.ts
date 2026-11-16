@@ -44,7 +44,7 @@ function weekToWire(week: WeekSchedule) {
   }
 }
 
-const params = z.object({ professionalId: z.string().max(64) })
+const params = z.object({ professionalId: z.string().max(64).describe('Id do profissional.') })
 
 export const GET = defineRoute({
   method: 'GET',

@@ -1,5 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { staffAppointment, staffAppointmentSchema } from '@/server/api/schemas/staff'
+import { idParams } from '@/server/api/wire'
 import { z } from '@/server/domain/errors'
 import { cancelAppointment } from '@/server/domain/scheduling/appointment-status-ops'
 
@@ -9,7 +10,7 @@ export const POST = defineRoute({
   auth: 'staff',
   summary: 'Cancela um agendamento pendente ou confirmado, sem prazo; envie {} quando não houver motivo',
   tag: 'Agenda da equipe',
-  params: z.object({ id: z.uuid() }),
+  params: idParams('o agendamento'),
   body: z.object({ reason: z.string().max(300).nullable().optional() }),
   response: staffAppointmentSchema,
   handler: async ({ ctx, params, body }) =>

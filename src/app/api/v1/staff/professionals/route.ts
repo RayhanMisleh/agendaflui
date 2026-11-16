@@ -18,7 +18,10 @@ export const GET = defineRoute({
   auth: 'staff',
   summary: 'Profissionais da conta; a comissão real só aparece para quem gere a equipe e na própria ficha (nas outras vem 0)',
   tag: 'Equipe',
-  query: z.object({ includeInactive: queryFlag.optional(), includeArchived: queryFlag.optional() }),
+  query: z.object({
+    includeInactive: queryFlag.optional().describe('`true` inclui os profissionais desativados.'),
+    includeArchived: queryFlag.optional().describe('`true` inclui os profissionais arquivados.'),
+  }),
   response: z.object({ items: z.array(staffProfessionalSchema) }),
   handler: async ({ ctx, query }) => ({ items: await listProfessionals(ctx, query) }),
 })

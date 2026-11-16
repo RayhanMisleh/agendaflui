@@ -1,7 +1,7 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { staffCustomer, staffCustomerSchema } from '@/server/api/schemas/staff'
+import { idParams } from '@/server/api/wire'
 import { getCustomer } from '@/server/domain/customers/customers'
-import { z } from '@/server/domain/errors'
 
 export const GET = defineRoute({
   method: 'GET',
@@ -9,7 +9,7 @@ export const GET = defineRoute({
   auth: 'staff',
   summary: 'Um cliente, com a anotação interna da equipe',
   tag: 'Clientes da equipe',
-  params: z.object({ id: z.uuid() }),
+  params: idParams('o cliente'),
   response: staffCustomerSchema,
   handler: async ({ ctx, params }) => staffCustomer(await getCustomer(ctx, params.id)),
 })

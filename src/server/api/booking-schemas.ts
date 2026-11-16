@@ -104,7 +104,7 @@ export const businessSchema = z.object({
 })
 
 /** Lista de ids separados por vírgula na consulta (`?serviceIds=a,b`). Cada id é validado pelo domínio. */
-export const idListText = z.string().max(500)
+export const idListText = z.string().max(500).describe('Ids dos serviços separados por vírgula.')
 
 export function splitIds(text: string): string[] {
   return text.split(',').map((id) => id.trim())

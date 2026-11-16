@@ -25,6 +25,7 @@ export const POST = defineRoute({
   response: staffAppointmentSchema,
   limit: LIMITS.booking,
   limitBy: 'subject',
+  idempotent: true,
   handler: async ({ ctx, body, request, setStatus }) => {
     const key = request.headers.get('idempotency-key')
     const { appointment, replayed } = await bookAppointmentWithOutcome(ctx, {

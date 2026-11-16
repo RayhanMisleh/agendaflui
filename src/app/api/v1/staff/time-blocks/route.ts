@@ -1,5 +1,5 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
-import { hourLabel, isoInstant, localDate, uuid } from '@/server/api/wire'
+import { dateQuery, hourLabel, isoInstant, localDate, professionalIdQuery, uuid } from '@/server/api/wire'
 import type { TenantContext } from '@/server/auth/actor'
 import { DomainError, z } from '@/server/domain/errors'
 import { createTimeBlock, listTimeBlocks, type TimeBlockView } from '@/server/domain/team/time-blocks'
@@ -27,7 +27,11 @@ export const GET = defineRoute({
   auth: 'staff',
   summary: 'Bloqueios de um profissional que tocam o intervalo de datas locais (até 92 dias); o motivo só aparece para o dono da ficha e para quem vê todas as agendas',
   tag: 'Equipe',
-  query: z.object({ professionalId: z.string().max(64), from: z.string().max(10), to: z.string().max(10) }),
+  query: z.object({
+    professionalId: professionalIdQuery,
+    from: dateQuery('Primeiro dia local da conta (AAAA-MM-DD).'),
+    to: dateQuery('Último dia local da conta (AAAA-MM-DD), no máximo 92 dias depois do primeiro.'),
+  }),
   response: z.object({ items: z.array(timeBlockSchema) }),
   handler: async ({ ctx, query }) => ({
     items: (await listTimeBlocks(ctx, query)).map((block) => withLocal(ctx, block)),

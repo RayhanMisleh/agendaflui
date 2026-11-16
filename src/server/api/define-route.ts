@@ -83,6 +83,13 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
    * sem pessoa autenticada (visitante), cai no IP. O limite é conferido depois de validar o token.
    */
   limitBy?: 'subject'
+  /** Só documentação (OpenAPI): a rota aceita o cabeçalho `Idempotency-Key`, que o handler repassa ao domínio. */
+  idempotent?: true
+  /**
+   * Cache HTTP explícito do sucesso (`public, max-age=N`), só para resposta pública e igual para todos (o documento OpenAPI).
+   * Sem isto, toda resposta sai com `Cache-Control: no-store`. Erros nunca são guardados.
+   */
+  cache?: { maxAgeSec: number }
   handler: (
     c: AuthArgs<A> & {
       params: P
@@ -97,6 +104,9 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
 }
 
 export type RouteHandler = (request: Request, seg: { params: Promise<Record<string, string | string[]>> }) => Promise<Response>
+
+/** O handler que o Next chama, com a definição da rota anexada (o manifesto lê dela para montar o documento OpenAPI). */
+export type DefinedRoute = RouteHandler & { readonly definition: AnyRouteDef }
 
 export const MAX_BODY_BYTES = 100 * 1024
 const MAX_USER_AGENT = 300
@@ -254,9 +264,10 @@ async function enforceRouteLimit(def: AnyRouteDef, request: Request, key: Resolv
 
 /**
  * Cria o handler de uma rota: chave de app, CORS, limites, token, validação, domínio, serialização e erros padronizados,
- * nessa ordem. A rota fica registrada para o documento OpenAPI.
+ * nessa ordem. A definição vai anexada ao handler devolvido (`.definition`): o manifesto de rotas (`routes-manifest.ts`)
+ * lê dela para montar o documento OpenAPI, sem depender de quais rotas o Next já carregou.
  */
-export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P, Q, B, R>): RouteHandler {
+export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P, Q, B, R>): DefinedRoute {
   const any = def as unknown as AnyRouteDef
   registerRoute(any)
   const bodySchema = strictRoot(def.body)
@@ -264,7 +275,7 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
   const status = def.status ?? 200
   const handle = def.handler as unknown as (c: Record<string, unknown>) => Promise<unknown>
 
-  return async (request, seg) => {
+  const handler: RouteHandler = async (request, seg) => {
     const requestId = crypto.randomUUID()
     let cors: Record<string, string> = {}
     const finish = (res: Response): Response => {
@@ -336,9 +347,11 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
         const problema = await checkWireContract(def.response, json)
         if (problema !== null) throw new Error(`A resposta de ${def.method} ${def.path} não segue o esquema "response": ${problema}.`)
       }
-      return finish(buildResponse(finalStatus, json, requestId))
+      const cache: Record<string, string> = def.cache ? { 'cache-control': `public, max-age=${def.cache.maxAgeSec}`, vary: 'Origin' } : {}
+      return finish(buildResponse(finalStatus, json, requestId, cache))
     } catch (err) {
       return finish(errorResponse(err, request, { requestId, route: def.path }))
     }
   }
+  return Object.assign(handler, { definition: any })
 }

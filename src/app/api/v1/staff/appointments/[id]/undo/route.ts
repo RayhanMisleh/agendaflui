@@ -1,6 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { staffAppointment, staffAppointmentSchema } from '@/server/api/schemas/staff'
-import { z } from '@/server/domain/errors'
+import { idParams } from '@/server/api/wire'
 import { undoOutcome } from '@/server/domain/scheduling/appointment-status-ops'
 
 export const POST = defineRoute({
@@ -9,7 +9,7 @@ export const POST = defineRoute({
   auth: 'staff',
   summary: 'Desfaz a conclusão ou a falta e volta o agendamento a confirmado',
   tag: 'Agenda da equipe',
-  params: z.object({ id: z.uuid() }),
+  params: idParams('o agendamento'),
   response: staffAppointmentSchema,
   handler: async ({ ctx, params }) => staffAppointment(await undoOutcome(ctx, params.id)),
 })

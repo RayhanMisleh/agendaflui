@@ -1,6 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { appointmentSchema } from '@/server/api/booking-schemas'
-import { z } from '@/server/domain/errors'
+import { idParams } from '@/server/api/wire'
 import { getAppointment } from '@/server/domain/scheduling/appointments'
 
 export const GET = defineRoute({
@@ -9,7 +9,7 @@ export const GET = defineRoute({
   auth: 'customer',
   summary: 'Um agendamento do cliente (de outro cliente: 404)',
   tag: 'Agendamentos',
-  params: z.object({ id: z.uuid() }),
+  params: idParams('o agendamento'),
   response: appointmentSchema,
   handler: async ({ ctx, params }) => getAppointment(ctx, params.id),
 })

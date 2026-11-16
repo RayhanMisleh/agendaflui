@@ -1,6 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { staffAppointment, staffAppointmentSchema } from '@/server/api/schemas/staff'
-import { isoInstant, uuid } from '@/server/api/wire'
+import { dateQuery, isoInstant, professionalIdQuery, uuid } from '@/server/api/wire'
 import { z } from '@/server/domain/errors'
 import { getAgenda } from '@/server/domain/scheduling/agenda'
 
@@ -40,9 +40,9 @@ export const GET = defineRoute({
   summary: 'Agenda por dia e por profissional (até 31 dias); quem não vê todas as agendas recebe só a própria coluna',
   tag: 'Agenda da equipe',
   query: z.object({
-    from: z.string().max(10),
-    to: z.string().max(10),
-    professionalId: z.string().max(64).optional(),
+    from: dateQuery('Primeiro dia local da conta (AAAA-MM-DD).'),
+    to: dateQuery('Último dia local da conta (AAAA-MM-DD), no máximo 31 dias depois do primeiro.'),
+    professionalId: professionalIdQuery.optional(),
   }),
   response: z.object({ days: z.array(agendaDaySchema) }),
   handler: async ({ ctx, query }) => {

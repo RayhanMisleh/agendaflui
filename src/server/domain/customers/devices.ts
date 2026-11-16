@@ -11,6 +11,7 @@ export const pushTokenSchema = z
   .string('Informe o token de notificação do aparelho.')
   .min(16, 'O token de notificação é curto demais. Confira o token enviado pelo sistema do aparelho.')
   .max(4096, 'O token de notificação é longo demais. Confira o token enviado pelo sistema do aparelho.')
+  .describe('Token de notificação do aparelho, como o sistema do aparelho o entrega.')
 
 export const registerDeviceSchema = z.object({
   platform: z.enum(DEVICE_PLATFORMS, 'Use ios, android ou web.'),

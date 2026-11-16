@@ -1,5 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { availableDaySchema, idListText, splitIds } from '@/server/api/booking-schemas'
+import { dateQuery, professionalIdQuery } from '@/server/api/wire'
 import { LIMITS } from '@/server/auth/rate-limit-db'
 import { z } from '@/server/domain/errors'
 import { listAvailableDays } from '@/server/domain/scheduling/availability'
@@ -12,10 +13,10 @@ export const GET = defineRoute({
   tag: 'Agenda',
   limit: LIMITS.availability,
   query: z.object({
-    from: z.string().max(10),
-    to: z.string().max(10),
+    from: dateQuery('Primeiro dia local da conta (AAAA-MM-DD).'),
+    to: dateQuery('Último dia local da conta (AAAA-MM-DD), no máximo 31 dias depois do primeiro.'),
     serviceIds: idListText,
-    professionalId: z.string().max(64).optional(),
+    professionalId: professionalIdQuery.optional(),
   }),
   response: z.object({ items: z.array(availableDaySchema) }),
   handler: async ({ ctx, query }) => ({

@@ -1,6 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { staffCustomer, staffCustomerSchema } from '@/server/api/schemas/staff'
-import { queryFlag } from '@/server/api/wire'
+import { pageCursor, pageLimit, queryFlag } from '@/server/api/wire'
 import { createCustomer, listCustomers } from '@/server/domain/customers/customers'
 import { z } from '@/server/domain/errors'
 
@@ -11,11 +11,11 @@ export const GET = defineRoute({
   summary: 'Clientes em ordem de nome, com busca (nome sem acento, e-mail ou telefone) e paginação por cursor',
   tag: 'Clientes da equipe',
   query: z.object({
-    search: z.string().max(80).optional(),
-    clubOnly: queryFlag.optional(),
-    includeArchived: queryFlag.optional(),
-    cursor: z.string().max(1024).optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional(),
+    search: z.string().max(80).optional().describe('Busca por nome (sem acento), e-mail ou telefone; a partir de 2 caracteres.'),
+    clubOnly: queryFlag.optional().describe('`true` lista só os sócios do clube.'),
+    includeArchived: queryFlag.optional().describe('`true` inclui os clientes arquivados.'),
+    cursor: pageCursor.optional(),
+    limit: pageLimit(100),
   }),
   response: z.object({ items: z.array(staffCustomerSchema), nextCursor: z.string().nullable() }),
   handler: async ({ ctx, query }) => {

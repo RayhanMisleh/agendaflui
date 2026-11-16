@@ -1,6 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { appointmentSchema } from '@/server/api/booking-schemas'
-import { requestInstant } from '@/server/api/wire'
+import { listScope, pageCursor, pageLimit, requestInstant } from '@/server/api/wire'
 import { LIMITS } from '@/server/auth/rate-limit-db'
 import { z } from '@/server/domain/errors'
 import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
@@ -14,9 +14,9 @@ export const GET = defineRoute({
   summary: 'Agendamentos do cliente: próximos (ordem crescente) ou histórico (ordem decrescente), com paginação por cursor',
   tag: 'Agendamentos',
   query: z.object({
-    scope: z.enum(['upcoming', 'past']).default('upcoming'),
-    cursor: z.string().max(1024).optional(),
-    limit: z.coerce.number().int().min(1).max(50).default(20),
+    scope: listScope,
+    cursor: pageCursor.optional(),
+    limit: pageLimit(50, 20),
   }),
   response: z.object({ items: z.array(appointmentSchema), nextCursor: z.string().nullable() }),
   handler: async ({ ctx, query }) =>
@@ -45,6 +45,7 @@ export const POST = defineRoute({
   response: appointmentSchema,
   limit: LIMITS.booking,
   limitBy: 'subject',
+  idempotent: true,
   handler: async ({ ctx, body, request, setStatus }) => {
     const key = request.headers.get('idempotency-key')
     const { appointment, replayed } = await bookAppointmentWithOutcome(ctx, {
