@@ -2,11 +2,12 @@ import type { TenantContext } from '@/server/auth/actor'
 import { NotificationKind } from '@/server/db/generated/enums'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
-import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
+import { authorize, DomainError, orNotFound, parse, z } from '@/server/domain/errors'
 
 export type ChannelToggle = { email: boolean; push: boolean }
 export type NotificationSettings = Record<NotificationKind, ChannelToggle>
 
+const MAX_ATTEMPTS = 5
 const KINDS: readonly NotificationKind[] = Object.values(NotificationKind)
 
 function allOn(): NotificationSettings {
@@ -57,31 +58,44 @@ export async function updateNotificationSettings(
   authorize(ctx, 'manage_settings')
   const input = parse(patchSchema, patch)
   return ctx.db.$transaction(async (tx) => {
-    const current = await getNotificationSettings(ctx, tx)
-    const next = resolveNotificationSettings(current)
-    const changed: NotificationKind[] = []
-    for (const kind of KINDS) {
-      const wanted = input[kind]
-      if (!wanted) continue
-      const merged: ChannelToggle = {
-        email: wanted.email ?? current[kind].email,
-        push: wanted.push ?? current[kind].push,
+    // Lê e grava só se o JSON ainda for o lido (comparação no próprio UPDATE): se outra alteração passou
+    // na frente, relê e tenta de novo, em vez de sobrescrevê-la.
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const stored = orNotFound(
+        await tx.businessSettings.findUnique({ where: { businessId: ctx.businessId }, select: { notifications: true } }),
+        'Configurações da conta',
+      )
+      const current = resolveNotificationSettings(stored.notifications)
+      const next: NotificationSettings = { ...current }
+      const changed: NotificationKind[] = []
+      for (const kind of KINDS) {
+        const wanted = input[kind]
+        if (!wanted) continue
+        const merged: ChannelToggle = {
+          email: wanted.email ?? current[kind].email,
+          push: wanted.push ?? current[kind].push,
+        }
+        next[kind] = merged
+        if (merged.email !== current[kind].email || merged.push !== current[kind].push) changed.push(kind)
       }
-      next[kind] = merged
-      if (merged.email !== current[kind].email || merged.push !== current[kind].push) changed.push(kind)
+      if (changed.length === 0) return current
+      const { count } = await tx.businessSettings.updateMany({
+        where: { businessId: ctx.businessId, notifications: { equals: stored.notifications ?? {} } },
+        data: { notifications: next },
+      })
+      if (count === 0) continue
+      await audit(
+        ctx,
+        {
+          action: 'notification_settings.updated',
+          targetType: 'BusinessSettings',
+          targetId: ctx.businessId,
+          metadata: { kinds: changed },
+        },
+        tx,
+      )
+      return next
     }
-    if (changed.length === 0) return current
-    await tx.businessSettings.update({ where: { businessId: ctx.businessId }, data: { notifications: next } })
-    await audit(
-      ctx,
-      {
-        action: 'notification_settings.updated',
-        targetType: 'BusinessSettings',
-        targetId: ctx.businessId,
-        metadata: { kinds: changed },
-      },
-      tx,
-    )
-    return next
+    throw new DomainError('conflict', 'As configurações mudaram enquanto você salvava. Tente de novo.', { reason: 'changed' })
   })
 }
