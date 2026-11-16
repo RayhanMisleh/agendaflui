@@ -50,10 +50,18 @@ async function main(): Promise<void> {
   try {
     const { prisma } = await import('../src/server/db/client')
     try {
-      if ((await prisma.business.count()) === 0) {
-        const { seed } = await import('../prisma/seed')
-        const { emails } = await seed(prisma, process.env)
+      const { seed, textoDoResumo } = await import('../prisma/seed')
+      const { DEMO_CONTAS } = await import('../prisma/seed-data')
+      // Banco vazio, ou conta de demonstração da Fase 1 ainda sem agenda: o seed só cria o que falta.
+      const faltaAgenda =
+        (await prisma.business.count()) === 0 ||
+        (await prisma.business.count({
+          where: { slug: { in: DEMO_CONTAS.map((c) => c.slug) }, services: { none: {} } },
+        })) > 0
+      if (faltaAgenda) {
+        const { emails, agenda } = await seed(prisma, process.env)
         console.log(`Dados de demonstração criados. Contas de acesso: ${emails.join(', ')}.`)
+        for (const resumo of agenda) console.log(textoDoResumo(resumo))
         console.log('As senhas de demonstração estão no .env.')
       }
     } finally {

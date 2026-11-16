@@ -7,7 +7,7 @@
     "node": ">=22.18"
   },
   "scripts": {
-    "dev": "tsx scripts/dev.ts",
+    "dev": "tsx --conditions=react-server scripts/dev.ts",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
@@ -18,7 +18,7 @@
     "db:start": "tsx scripts/db.ts start",
     "db:migrate": "prisma migrate deploy",
     "db:reset": "tsx scripts/db.ts reset",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "tsx --conditions=react-server prisma/seed.ts",
     "admin:create": "tsx scripts/admin-create.ts",
     "postinstall": "prisma generate"
   },
