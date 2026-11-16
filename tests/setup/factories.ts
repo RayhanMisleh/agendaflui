@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AuditLog, Business, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
@@ -116,6 +116,18 @@ export async function makeProfessional(
     })
   }
   return professional
+}
+
+/** Cliente direto no banco (origem balcão, telefone válido único, sem e-mail). */
+export async function makeCustomer(
+  businessId: string,
+  overrides: Partial<Omit<Prisma.CustomerUncheckedCreateInput, 'businessId'>> = {},
+): Promise<Customer> {
+  contador += 1
+  const phone = `5511${(900000000 + contador).toString()}`
+  return prisma.customer.create({
+    data: { name: `Cliente ${sufixo()}`, phone, origin: 'PANEL', ...overrides, businessId },
+  })
 }
 
 /** Intervalos de expediente de um dia da semana, direto no banco. */
