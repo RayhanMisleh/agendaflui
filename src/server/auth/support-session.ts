@@ -5,7 +5,7 @@ import { tenantDb } from '@/server/db/tenant'
 import { areaLink } from '@/server/area-links'
 import { DomainError } from '@/server/domain/errors'
 import { auditPlatform } from '@/server/domain/audit'
-import { addMinutes } from '@/server/time'
+import { addMinutes, fromEpochMs } from '@/server/time'
 import { AuthError, type TenantContext } from './actor'
 import { ipLimitKeyPart } from './client-ip'
 import { assertPlatformAdmin, requireActiveAdmin, type PlatformAdminActor } from './platform-actor'
@@ -172,4 +172,11 @@ export async function checkSupportLimit(ip: string | undefined, token: string, n
   const chave = ip ? limitKey('suporte:ip', ipLimitKeyPart(ip)) : limitKey('suporte:token', hashToken(token))
   const r = await hitRateLimit(chave, LIMITS.authIp, now)
   if (!r.allowed) throw new AuthError('rate_limited', r.retryAfterSec)
+}
+
+/** Apaga as passagens de suporte vencidas há mais de 1 dia (usadas ou não). Devolve quantas apagou. */
+export async function purgeSupportHandoffs(now: Date): Promise<number> {
+  const corte = fromEpochMs(now.getTime() - 24 * 60 * 60 * 1000)
+  const r = await prisma.supportHandoff.deleteMany({ where: { expiresAt: { lt: corte } } })
+  return r.count
 }

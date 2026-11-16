@@ -58,18 +58,23 @@ export function recordUsage(e: { apiKeyId: string; businessId: string; route: st
 }
 
 /**
- * Troca o acumulador por um vazio e grava o que havia. Se a gravação falhar, o lote se perde (sem reenfileirar) e só o
- * nome do erro é registrado. Devolve quantas linhas gravou.
+ * Troca o acumulador por um vazio e grava o que havia. Se a gravação falhar, o lote se perde (sem reenfileirar) e o erro sobe
+ * para quem chamou. Devolve quantas linhas gravou. O agendador usa esta forma para registrar a falha.
  */
-export async function flushUsage(): Promise<number> {
+export async function flushUsageOrThrow(): Promise<number> {
   const st = state()
   if (st.pending.size === 0) return 0
   const lote = [...st.pending.values()]
   st.pending = new Map()
   st.capWarned = false
+  await writeUsageRows(lote)
+  return lote.length
+}
+
+/** Como `flushUsageOrThrow`, mas a falha não sobe: só o nome do erro é registrado e devolve 0. */
+export async function flushUsage(): Promise<number> {
   try {
-    await writeUsageRows(lote)
-    return lote.length
+    return await flushUsageOrThrow()
   } catch (err) {
     logFailure('usage_flush_failed', err)
     return 0

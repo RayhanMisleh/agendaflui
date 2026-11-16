@@ -115,6 +115,45 @@ export function localDayRange(date: string, tz: string): { start: Date; end: Dat
   return { start: fromZoned(start), end: fromZoned(end) }
 }
 
+/** Início (inclusivo) e fim (exclusivo) do mês de calendário que contém a data (`AAAA-MM-DD`), no fuso informado. */
+export function localMonthRange(date: string, tz: string): { start: Date; end: Date } {
+  assertTimeZone(tz)
+  const first = parseDate(date).with({ day: 1 })
+  return { start: fromZoned(first.toZonedDateTime(tz)), end: fromZoned(first.add({ months: 1 }).toZonedDateTime(tz)) }
+}
+
+export type LocalPeriods = {
+  /** O dia local de `instant`. */
+  today: { start: Date; end: Date }
+  /** Do começo do mês local até o fim do dia local de `instant`. */
+  month: { start: Date; end: Date }
+  /** O mês local anterior, inteiro. */
+  previousMonth: { start: Date; end: Date }
+  /** Do começo do mês anterior até o mesmo dia do mês (inclusive) em que `instant` está; no mês mais curto, o mês inteiro. */
+  previousSamePeriod: { start: Date; end: Date }
+}
+
+/**
+ * Janelas de métricas no fuso da conta: hoje, o mês até hoje, o mês anterior inteiro e o trecho do mês anterior com o mesmo
+ * número de dias do mês até hoje (para comparar mês parcial com mês parcial). Tudo `[início, fim)`, com os deslocamentos de
+ * horário de verão de cada ponta.
+ */
+export function localPeriods(instant: Date, tz: string): LocalPeriods {
+  const z = toZoned(instant, tz)
+  const today = z.toPlainDate()
+  const previousFirst = today.with({ day: 1 }).subtract({ months: 1 })
+  const sameLast = Math.min(today.day, previousFirst.daysInMonth)
+  return {
+    today: { start: fromZoned(today.toZonedDateTime(tz)), end: fromZoned(today.add({ days: 1 }).toZonedDateTime(tz)) },
+    month: { start: fromZoned(today.with({ day: 1 }).toZonedDateTime(tz)), end: fromZoned(today.add({ days: 1 }).toZonedDateTime(tz)) },
+    previousMonth: { start: fromZoned(previousFirst.toZonedDateTime(tz)), end: fromZoned(previousFirst.add({ months: 1 }).toZonedDateTime(tz)) },
+    previousSamePeriod: {
+      start: fromZoned(previousFirst.toZonedDateTime(tz)),
+      end: fromZoned(previousFirst.add({ days: sameLast }).toZonedDateTime(tz)),
+    },
+  }
+}
+
 /**
  * Data + hora locais em instante. Hora inexistente (salto do horário de verão) avança;
  * hora repetida usa a primeira ocorrência (regra `compatible`).

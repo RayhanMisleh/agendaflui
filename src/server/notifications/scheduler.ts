@@ -1,7 +1,9 @@
-import { flushUsage } from '@/server/api/usage'
+import { flushUsageOrThrow } from '@/server/api/usage'
 import { purgeRefreshTokens } from '@/server/auth/api-tokens'
 import { purgeRateLimits } from '@/server/auth/rate-limit-db'
+import { purgeSupportHandoffs } from '@/server/auth/support-session'
 import { purgeVerificationCodes } from '@/server/auth/verification-code'
+import { failureSummary, purgeSchedulerRuns, recordSchedulerRun, summarize, type RunRecorder, type SchedulerKind } from './scheduler-runs'
 import { processDueNotifications } from './worker'
 
 const GUARD = '__agendafluiScheduler'
@@ -16,16 +18,24 @@ type Deps = {
   worker?: boolean
   run?: () => Promise<unknown>
   cleanup?: () => Promise<unknown>
-  /** Grava as métricas de uso da API (padrão: `flushUsage`). */
+  /** Grava as métricas de uso da API (padrão: `flushUsageOrThrow`, que devolve quantas linhas gravou). */
   flush?: () => Promise<unknown>
+  /** Grava cada execução em `scheduler_runs` (padrão: `recordSchedulerRun`). */
+  record?: RunRecorder
 }
 
-/** Limpeza periódica (idempotente: várias instâncias podem rodá-la ao mesmo tempo sem problema). */
-async function defaultCleanup(): Promise<void> {
-  const now = new Date()
-  await purgeRateLimits(now)
-  await purgeVerificationCodes(now)
-  await purgeRefreshTokens(now)
+/**
+ * Limpeza periódica (idempotente: várias instâncias podem rodá-la ao mesmo tempo sem problema). Devolve só contagens, que
+ * viram o resumo da execução.
+ */
+export async function cleanupRound(now: Date = new Date()): Promise<Record<string, number>> {
+  return {
+    limites: await purgeRateLimits(now),
+    codigos: await purgeVerificationCodes(now),
+    tokens: await purgeRefreshTokens(now),
+    execucoes: await purgeSchedulerRuns(now),
+    passagens: await purgeSupportHandoffs(now),
+  }
 }
 
 /** Registra só o nome do erro: a mensagem pode ter e-mail, token ou dado de conta. */
@@ -42,20 +52,48 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
   const existing = Reflect.get(globalThis, GUARD) as { stop: () => void; shutdown: () => Promise<void> } | undefined
   if (existing) return existing
   const run = deps.run ?? (() => processDueNotifications())
-  const cleanup = deps.cleanup ?? defaultCleanup
-  const flush = deps.flush ?? flushUsage
+  const cleanup = deps.cleanup ?? (() => cleanupRound())
+  const flush = deps.flush ?? flushUsageOrThrow
+  const record = deps.record ?? recordSchedulerRun
   let flushing = false
   let busy = false
   let cleaning = false
   let lastCleanup = Number.NEGATIVE_INFINITY
 
+  /**
+   * Roda uma tarefa e grava a execução (início, fim, `ok` e resumo sem dado pessoal). Erro da tarefa é registrado só pelo nome;
+   * falha ao gravar a execução também, e nunca derruba a rodada. `worth` decide se um resultado bem-sucedido merece linha.
+   */
+  const timed = async (
+    kind: SchedulerKind,
+    what: string,
+    task: () => Promise<unknown>,
+    worth: (result: unknown) => boolean = () => true,
+  ): Promise<void> => {
+    const startedAt = new Date()
+    let ok = true
+    let summary = ''
+    try {
+      const result = await task()
+      if (!worth(result)) return
+      summary = summarize(result)
+    } catch (err) {
+      report(what, err)
+      ok = false
+      summary = failureSummary(err)
+    }
+    try {
+      await record({ kind, startedAt, finishedAt: new Date(), ok, summary })
+    } catch (err) {
+      report('registro da execução', err)
+    }
+  }
+
   const tick = async (): Promise<void> => {
     if (busy) return
     busy = true
     try {
-      await run()
-    } catch (err) {
-      report('rodada de envio', err)
+      await timed('notifications', 'rodada de envio', run)
     } finally {
       busy = false
     }
@@ -64,9 +102,7 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
     cleaning = true
     lastCleanup = t
     try {
-      await cleanup()
-    } catch (err) {
-      report('limpeza', err)
+      await timed('cleanup', 'limpeza', cleanup)
     } finally {
       cleaning = false
     }
@@ -76,9 +112,8 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
     if (flushing) return
     flushing = true
     try {
-      await flush()
-    } catch (err) {
-      report('métricas de uso', err)
+      // 2.880 execuções por dia seriam ruído: só grava quando subiu alguma linha de uso (ou quando falhou).
+      await timed('usage_flush', 'métricas de uso', flush, (n) => typeof n === 'number' && n > 0)
     } finally {
       flushing = false
     }

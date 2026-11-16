@@ -225,6 +225,23 @@ model SupportHandoff {
   @@map("support_handoffs")
 }
 
+/// Uma execução do agendador (avisos, limpeza, métricas de uso). Tabela da plataforma: sem dado de conta nem pessoal no resumo.
+model SchedulerRun {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// `notifications`, `cleanup` ou `usage_flush` (lista fechada por CHECK no banco).
+  kind       String
+  startedAt  DateTime  @map("started_at") @db.Timestamptz(3)
+  finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
+  ok         Boolean
+  /// Contagens curtas ou o nome do erro; nunca dado pessoal.
+  summary    String    @default("")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([kind, startedAt])
+  @@index([startedAt])
+  @@map("scheduler_runs")
+}
+
 model Business {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug          String         @unique

@@ -23,6 +23,7 @@ export const DOMAIN_REASONS = [
   'invalid_status',
   'invalid_transition',
   'membership_taken',
+  'not_failed',
   'not_today',
   'slot_taken',
   'slot_unavailable',

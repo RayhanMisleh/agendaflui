@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:tz": "TZ=UTC vitest run tests/unit/time.test.ts tests/unit/time-extra.test.ts tests/unit/slots.test.ts && TZ=Asia/Tokyo vitest run tests/unit/time.test.ts tests/unit/time-extra.test.ts tests/unit/slots.test.ts && TZ=America/Sao_Paulo vitest run tests/unit/time.test.ts tests/unit/time-extra.test.ts tests/unit/slots.test.ts",
+    "test:tz": "TZ=UTC vitest run tests/unit/time.test.ts tests/unit/time-extra.test.ts tests/unit/time-periods.test.ts tests/unit/slots.test.ts && TZ=Asia/Tokyo vitest run tests/unit/time.test.ts tests/unit/time-extra.test.ts tests/unit/time-periods.test.ts tests/unit/slots.test.ts && TZ=America/Sao_Paulo vitest run tests/unit/time.test.ts tests/unit/time-extra.test.ts tests/unit/time-periods.test.ts tests/unit/slots.test.ts",
     "test:e2e": "playwright test",
     "db:start": "tsx scripts/db.ts start",
     "db:migrate": "prisma migrate deploy",
