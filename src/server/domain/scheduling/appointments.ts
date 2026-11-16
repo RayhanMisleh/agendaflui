@@ -13,6 +13,7 @@ import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { formatPhone } from '@/server/domain/customers/contact'
 import { DomainError, parse, z } from '@/server/domain/errors'
+import { enqueueAppointmentEvent } from '@/server/domain/notifications/outbox'
 import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import {
   computeFreeStarts,
@@ -27,6 +28,7 @@ import { ownProfessionalId } from '@/server/domain/team/professionals'
 import {
   addMinutes,
   formatTime,
+  fromEpochMs,
   localDayRange,
   localParts,
   minutesBetween,
@@ -112,8 +114,8 @@ type ChangeEvent =
   | 'adjusted'
 
 /**
- * Ponto único dos avisos de cada operação (a fila é da próxima tarefa). Roda dentro da transação,
- * depois da gravação, para o aviso nascer junto com a mudança ou não nascer.
+ * Ponto único dos avisos de cada operação. Roda dentro da transação, depois da gravação, para o aviso
+ * nascer junto com a mudança ou não nascer.
  */
 async function afterChange(
   tx: TenantTx,
@@ -122,7 +124,9 @@ async function afterChange(
   appointment: Row,
   extra: Record<string, string | number | null> = {},
 ): Promise<void> {
-  void [tx, ctx, event, appointment, extra]
+  if (event === 'adjusted') return
+  const previous = typeof extra.previousStartsAt === 'number' ? fromEpochMs(extra.previousStartsAt) : undefined
+  await enqueueAppointmentEvent(tx, ctx, event, appointment, previous ? { previousStartsAt: previous } : {})
 }
 
 function notFound(): DomainError {
@@ -711,7 +715,7 @@ export async function rescheduleAppointment(
         tx,
       )
       const updated = await reload(tx, id)
-      await afterChange(tx, ctx, 'rescheduled', updated, { previousStartsAt: toIsoInstant(row.startsAt) })
+      await afterChange(tx, ctx, 'rescheduled', updated, { previousStartsAt: row.startsAt.getTime() })
       return toView(ctx, updated)
     },
   )

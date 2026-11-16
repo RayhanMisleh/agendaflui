@@ -3,6 +3,7 @@ import type { Prisma } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
+import { cancelPendingForCustomer } from '@/server/domain/notifications/outbox'
 import { formatPhone, normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
 import { deleteUploadRecord, removeUploadFile, uploadUrl } from '@/server/storage/images'
 import { dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
@@ -342,6 +343,7 @@ export async function archiveCustomer(ctx: TenantContext, id: string): Promise<v
   try {
     await ctx.db.$transaction(async (tx) => {
       await tx.customer.update({ where: { id }, data: { archivedAt: ctx.clock() } })
+      await cancelPendingForCustomer(tx, id)
       await audit(ctx, { action: 'customer.archived', targetType: 'Customer', targetId: id }, tx)
     })
   } catch (err) {
@@ -394,6 +396,7 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
           archivedAt: current.archivedAt ?? now,
         },
       })
+      await cancelPendingForCustomer(tx, id)
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
     })
   } catch (err) {
