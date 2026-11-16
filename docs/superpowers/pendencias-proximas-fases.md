@@ -7,26 +7,14 @@
 
 Vindas da Fase 1:
 
-- Limitador de login: levar para o banco, limite por chave e por IP; ao passar do teto, não descartar primeiro as chaves bloqueadas; filtrar `x-forwarded-for` antes de usar o IP.
-- Mover `src/ui/theme/derive.ts` e `color.ts` para um módulo neutro antes da rota `business` da API (hoje o servidor importa de `ui/`).
-- `APP_SECRET`: quando passar a assinar tokens ou cifrar segredos, recusar o valor de exemplo em produção.
-- `proxy()` sem teste automatizado; `areaUrl` sem validar barra inicial.
+- `areaUrl` sem validar barra inicial.
 
 Vindas da revisão final da Fase 2A:
 
-- Cadastro de cliente pelo app: hoje `createCustomer` exige equipe e grava `origin: PANEL`. Falta o cadastro com senha e confirmação de e-mail, e o fluxo de "assumir" um cadastro feito no balcão com o mesmo e-mail (hoje dá `email_taken`).
-- `createCustomerContext`: conferir que o `customerId` do token existe, é da conta e não está arquivado nem anonimizado, a cada requisição.
-- Ator `system`: hoje não opera agendamentos. O envio de avisos e tarefas automáticas precisam de um caminho próprio, com cliente cru e `FOR UPDATE SKIP LOCKED`, numa pasta liberada no ESLint (`src/server/notifications/`).
-- Envio confere tudo antes de mandar: situação atual do agendamento (avisos de "pedido recebido" e "confirmado" pendentes sobrevivem a cancelar e remarcar), cadastro do cliente, preferências `notify_*`, vínculo ativo do membro; descarta avisos de agendamentos passados (o seed deixa cerca de 70). Para o membro do profissional novo, numa troca feita pelo cliente, o texto é de "novo agendamento".
-- Canal de desenvolvimento simulado (grava em `.local/mail`, sem push real): os telefones de demonstração são fictícios, mas não há faixa reservada no Brasil.
-- Anonimização completa: apagar tokens de renovação, dispositivos e códigos de verificação do cliente.
-- View do agendamento para o cliente traz o prazo de cancelar e remarcar já calculado (instante e rótulo); o app não faz conta de hora.
-- "Dias com horário livre num intervalo", para o calendário do app não fazer uma chamada por dia.
-- Erros para HTTP: `reason` como tipo fechado (vai para o OpenAPI); `details.nearest` com instantes serializados e `professionalIds`.
-- `source` do agendamento é decidido pelo tipo de ator: equipe usando a API grava `PANEL`. Decidir se a origem deve ser o canal (app × painel).
-- Separar observação escrita pelo cliente de observação interna da equipe, e motivo público de motivo interno do cancelamento (hoje o cliente escreve `notes` ao marcar e não lê de volta; `cancelReason` da equipe chega ao cliente).
-- Limite de taxa em disponibilidade e marcação; teto de linhas em `getAgenda`.
-- Testes negativos do aviso ao profissional antigo na troca de profissional.
+- Telefones de demonstração: são fictícios, mas não há faixa reservada no Brasil.
+- `details.nearest` do erro de horário ocupado não traz `professionalIds`.
+- Motivo do cancelamento: o `cancelReason` escrito pela equipe chega ao cliente; separar motivo público de motivo interno.
+- Teto de linhas em `getAgenda`.
 
 ## Fase 3 (painel dev)
 

@@ -34,6 +34,15 @@ Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Ca
 próprio link de entrada: `painel.localhost:3000/entrar/patas-e-cia`.
 A vitrine de componentes fica em `dev.localhost:3000/vitrine`.
 
+## API
+
+- A documentação OpenAPI está em `/v1/openapi.json` no host da API (`http://api.localhost:3000/v1/openapi.json`).
+- As chaves de app de demonstração (uma por conta e uma de plataforma) ficam em `.local/demo-keys.json`, criadas
+  pelo seed; mande a chave no cabeçalho `X-App-Key`. Se o arquivo sumir, `npm run db:reset` recria tudo.
+- Em desenvolvimento, e-mails caem em `.local/mail` e pushes em `.local/push`.
+- Variáveis (veja `.env.example`): `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
+- `npm run worker:once` roda uma rodada de envio de avisos e termina.
+
 ## Comandos
 
 | Comando | O que faz |
@@ -41,12 +50,13 @@ A vitrine de componentes fica em `dev.localhost:3000/vitrine`.
 | `npm run dev` | Banco, migrações, dados de demonstração e Next |
 | `npm run db:start` | Só o banco local |
 | `npm run db:migrate` | Aplica as migrações (o banco precisa estar no ar: `npm run db:start`) |
-| `npm run db:seed` | Cria os dados de demonstração (pode repetir sem duplicar) |
+| `npm run db:seed` | Cria os dados e as chaves de demonstração (pode repetir sem duplicar) |
 | `npm run db:reset` | Apaga o banco local e recria vazio |
 | `npm run admin:create` | Cria um administrador da plataforma |
 | `npm run typecheck` / `npm run lint` | Tipos e estilo |
 | `npm test` / `npm run test:tz` | Testes unitários e de integração; datas em vários fusos |
 | `npm run test:e2e` | Testes no navegador (sobem o `npm run dev` se preciso) |
+| `npm run worker:once` | Uma rodada de envio de avisos |
 | `npm run build` | Build de produção |
 
 ## Pastas

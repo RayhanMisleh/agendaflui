@@ -1,4 +1,7 @@
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { prisma } from '@/server/db/client'
+import { resolveAppKey } from '@/server/domain/platform/api-keys'
 import { createTenantContext } from '@/server/auth/context'
 import { getAgenda } from '@/server/domain/scheduling/agenda'
 import { fitsWorkingHours, overlaps } from '@/server/domain/scheduling/slots'
@@ -574,5 +577,101 @@ describe('agenda de demonstração num domingo', () => {
         for (const a of c.appointments) expect(a.professional.id).toBe(c.id)
       }
     }
+  })
+})
+
+describe('chaves de demonstração', () => {
+  let dir: string
+  let arquivo: string
+
+  beforeEach(async () => {
+    await resetDb()
+    dir = await mkdtemp(join(process.cwd(), '.local', 'demo-keys-test-'))
+    arquivo = join(dir, 'demo-keys.json')
+  })
+  afterEach(async () => {
+    vi.restoreAllMocks()
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  const lerChaves = async () => JSON.parse(await readFile(arquivo, 'utf8')) as Record<string, string>
+
+  test('cria uma chave por conta e uma de plataforma, com os segredos só no arquivo (modo 0600)', async () => {
+    const r = await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect(r.chaves).toEqual({ criadas: 3, aviso: null })
+    const chaves = await prisma.apiKey.findMany({ include: { business: true }, orderBy: { name: 'asc' } })
+    expect(chaves.map((k) => [k.kind, k.business?.slug ?? null]).sort()).toEqual([
+      ['ACCOUNT', 'navalha-de-ouro'],
+      ['ACCOUNT', 'patas-e-cia'],
+      ['PLATFORM', null],
+    ])
+    for (const k of chaves) expect(k.allowedOrigins.sort()).toEqual(['http://*.localhost:3000', 'http://localhost:3000'])
+    const segredos = await lerChaves()
+    expect(Object.keys(segredos).sort()).toEqual(['navalha-de-ouro', 'patas-e-cia', 'plataforma'])
+    expect((await stat(arquivo)).mode & 0o777).toBe(0o600)
+    // O banco, a auditoria e a saída não guardam nenhum segredo.
+    const banco = JSON.stringify([chaves, await prisma.auditLog.findMany()])
+    for (const segredo of Object.values(segredos)) expect(banco).not.toContain(segredo)
+    // Cada segredo abre a conta certa.
+    const patas = await resolveAppKey({ key: segredos['patas-e-cia'] ?? null, businessSlug: null })
+    expect(patas.businessSlug).toBe('patas-e-cia')
+    const navalha = await resolveAppKey({ key: segredos['navalha-de-ouro'] ?? null, businessSlug: null })
+    expect(navalha.businessSlug).toBe('navalha-de-ouro')
+    expect((await resolveAppKey({ key: segredos['plataforma'] ?? null, businessSlug: 'patas-e-cia' })).kind).toBe('PLATFORM')
+  })
+
+  test('rodar de novo não cria chaves nem troca os segredos', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const antes = await readFile(arquivo, 'utf8')
+    const r = await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect(r.chaves).toEqual({ criadas: 0, aviso: null })
+    expect(await prisma.apiKey.count()).toBe(3)
+    expect(await readFile(arquivo, 'utf8')).toBe(antes)
+  })
+
+  test('arquivo sumiu e as chaves existem: avisa em uma linha, não cria chave nova e não apaga nada', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    await rm(arquivo)
+    const r = await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect(r.chaves.criadas).toBe(0)
+    expect(r.chaves.aviso).toMatch(/npm run db:reset/)
+    expect(r.chaves.aviso).not.toContain('\n')
+    expect(await prisma.apiKey.count()).toBe(3)
+    await expect(stat(arquivo)).rejects.toThrow()
+  })
+
+  test('arquivo com segredo que não é da chave do banco conta como irrecuperável', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const segredos = await lerChaves()
+    await writeFile(arquivo, JSON.stringify({ ...segredos, 'patas-e-cia': 'afk_a_00000000_' + 'x'.repeat(43) }))
+    const r = await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect(r.chaves.aviso).toMatch(/npm run db:reset/)
+    expect(await prisma.apiKey.count()).toBe(3)
+  })
+
+  test('sem o caminho do arquivo, o seed não cria chaves (os outros testes não tocam o .local real)', async () => {
+    const r = await seed(prisma, ENV, { now: NOW })
+    expect(r.chaves).toEqual({ criadas: 0, aviso: null })
+    expect(await prisma.apiKey.count()).toBe(0)
+  })
+})
+
+describe('avisos do seed', () => {
+  beforeAll(async () => {
+    await resetDb()
+    await seed(prisma, ENV, { now: NOW })
+  })
+
+  test('nenhum aviso fica pendente para agendamento já terminado: viram SKIPPED com o motivo "seed"', async () => {
+    const avisos = await prisma.notification.findMany({ include: { appointment: true } })
+    const terminados = avisos.filter((a) => a.appointment && a.appointment.endsAt.getTime() <= NOW.getTime())
+    expect(terminados.length).toBeGreaterThan(0)
+    for (const a of terminados) {
+      expect(a.status).toBe('SKIPPED')
+      expect(a.skipReason).toBe('seed')
+    }
+    const futuros = avisos.filter((a) => a.appointment && a.appointment.endsAt.getTime() > NOW.getTime())
+    expect(futuros.some((a) => a.status === 'PENDING')).toBe(true)
+    for (const a of futuros) expect(a.skipReason).toBeNull()
   })
 })
