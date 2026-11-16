@@ -193,6 +193,24 @@ describe('bookAppointment pela equipe', () => {
     expect(b.local).toEqual({ date: '2026-11-16', start: '07:00', end: '07:30' })
   })
 
+  test('23:30 por 60 min atravessa a meia-noite: 00:15 do dia seguinte dá slot_taken e 00:30 é aceito', async () => {
+    const s = await montar()
+    const cli = await makeCustomer(s.b.id)
+    const noite = await bookAppointment(s.gerente, {
+      customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: hora(23, 30),
+    })
+    expect(noite.local).toEqual({ date: '2026-11-16', start: '23:30', end: '00:30' })
+    const cedo = await domainError(
+      bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(24, 15) }),
+    )
+    expect(cedo.reason).toBe('slot_taken')
+    const depois = await bookAppointment(s.gerente, {
+      customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(24, 30),
+    })
+    expect(depois.local).toEqual({ date: '2026-11-17', start: '00:30', end: '01:00' })
+    expect(await total(s.b.id)).toBe(2)
+  })
+
   test('mesmo sem autoConfirm a equipe marca CONFIRMED; folga não vale para a equipe', async () => {
     const s = await montar()
     await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { autoConfirm: false, bufferMin: 30 } })

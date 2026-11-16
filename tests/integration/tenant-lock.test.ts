@@ -138,4 +138,50 @@ describe('$lockKey', () => {
     })
     expect(await prisma.business.count()).toBeGreaterThan(0)
   })
+
+  test('$executeRaw junto com $lockKey na mesma transação continua bloqueado', async () => {
+    const b = await makeBusiness()
+    await expect(
+      tenantDb(b.id).$transaction(async (tx) => {
+        await Promise.all([tx.$lockKey('professional', PROF), tx.$executeRaw`select 1`])
+      }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+
+  test('$executeRaw numa terceira transação, enquanto outra espera a trava, continua bloqueado', async () => {
+    const b = await makeBusiness()
+    const db = tenantDb(b.id)
+    let soltar!: () => void
+    const segura = new Promise<void>((resolve) => (soltar = resolve))
+    let travou!: () => void
+    const primeiraTravou = new Promise<void>((resolve) => (travou = resolve))
+    const t1 = db.$transaction(async (tx) => {
+      await tx.$lockKey('professional', PROF)
+      travou()
+      await segura
+    })
+    await primeiraTravou
+    const t2 = db.$transaction((tx) => tx.$lockKey('professional', PROF))
+    const t3 = db.$transaction((tx) => tx.$executeRaw`select 1`)
+    await expect(t3).rejects.toThrow(TenantViolationError)
+    soltar()
+    await Promise.all([t1, t2])
+  })
+
+  test('depois de $lockKey, com um temporizador no meio, o $executeRaw seguinte continua bloqueado', async () => {
+    const b = await makeBusiness()
+    await expect(
+      tenantDb(b.id).$transaction(async (tx) => {
+        await tx.$lockKey('professional', PROF)
+        await pausa(0)
+        await tx.$executeRaw`select 1`
+      }),
+    ).rejects.toThrow(TenantViolationError)
+  })
+
+  test('$lockKey extraído, sem this, lança e não roda fora de transação', async () => {
+    const b = await makeBusiness()
+    const { $lockKey } = tenantDb(b.id)
+    await expect($lockKey('professional', PROF)).rejects.toThrow()
+  })
 })

@@ -1,7 +1,14 @@
 import { prisma } from '@/server/db/client'
-import { bookAppointment, type AppointmentView } from '@/server/domain/scheduling/appointments'
+import { DomainError } from '@/server/domain/errors'
+import {
+  bookAppointment,
+  cancelAppointment,
+  completeAppointment,
+  rescheduleAppointment,
+  type AppointmentView,
+} from '@/server/domain/scheduling/appointments'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService, makeWorkingHours } from '../setup/factories'
+import { makeAppointment, makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService, makeWorkingHours } from '../setup/factories'
 
 beforeEach(resetDb)
 
@@ -86,4 +93,58 @@ test('qualquer profissional com 2 profissionais e 3 pedidos no mesmo horário: 2
   expect(new Set(feitos.map((r) => r.value.professional.id)).size).toBe(2)
   expect(motivos(rs)).toEqual(['slot_taken'])
   expect(await prisma.appointment.count({ where: { businessId: s.b.id } })).toBe(2)
+})
+
+test('remarcações cruzadas A→B e B→A em paralelo, 10 vezes: sem deadlock, sem timeout e sem sobreposição', async () => {
+  for (let n = 0; n < 10; n++) {
+    const s = await montar(2)
+    const [ana, caio] = s.profs
+    if (!ana || !caio) throw new Error('faltam profissionais')
+    const gerente = await makeCtx(s.b, { now: AGORA })
+    const c1 = await makeCustomer(s.b.id)
+    const c2 = await makeCustomer(s.b.id)
+    const x = await makeAppointment(s.b.id, { customerId: c1.id, professionalId: ana.id, serviceId: s.tosa.id, startsAt: hora(10) })
+    const y = await makeAppointment(s.b.id, { customerId: c2.id, professionalId: caio.id, serviceId: s.tosa.id, startsAt: hora(10) })
+    const rs = await Promise.allSettled([
+      rescheduleAppointment(gerente, x.id, { startsAt: hora(11), professionalId: caio.id }),
+      rescheduleAppointment(gerente, y.id, { startsAt: hora(11), professionalId: ana.id }),
+    ])
+    for (const r of rs) {
+      if (r.status === 'rejected') {
+        const motivo = r.reason instanceof DomainError ? r.reason.message : String(r.reason)
+        throw new Error(`remarcação cruzada falhou na repetição ${n}: ${motivo}`)
+      }
+    }
+    const linhas = await prisma.appointment.findMany({ where: { businessId: s.b.id } })
+    expect(linhas.map((l) => [l.id, l.professionalId]).sort()).toEqual(
+      [[x.id, caio.id], [y.id, ana.id]].sort(),
+    )
+    for (const a of linhas) {
+      for (const o of linhas) {
+        if (a.id !== o.id && a.professionalId === o.professionalId) {
+          expect(a.startsAt.getTime() < o.endsAt.getTime() && o.startsAt.getTime() < a.endsAt.getTime()).toBe(false)
+        }
+      }
+    }
+  }
+})
+
+test('cancelar e concluir em paralelo sobre um agendamento confirmado e já iniciado: um vence e o outro recebe invalid_transition', async () => {
+  for (let n = 0; n < 10; n++) {
+    const s = await montar()
+    const profissional = s.profs[0]
+    if (!profissional) throw new Error('sem profissional')
+    const c = await makeCustomer(s.b.id)
+    const ag = await makeAppointment(s.b.id, { customerId: c.id, professionalId: profissional.id, serviceId: s.tosa.id, startsAt: hora(10) })
+    const depois = hora(11)
+    const a = await makeCtx(s.b, { now: depois })
+    const b = await makeCtx(s.b, { now: depois })
+    const rs = await Promise.allSettled([cancelAppointment(a, ag.id), completeAppointment(b, ag.id)])
+    expect(rs.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    expect(motivos(rs)).toEqual(['invalid_transition'])
+    const row = await prisma.appointment.findUniqueOrThrow({ where: { id: ag.id } })
+    expect(['CANCELED', 'COMPLETED']).toContain(row.status)
+    expect(row.status === 'COMPLETED').toBe(row.completedAt !== null)
+    expect(row.status === 'CANCELED').toBe(row.canceledAt !== null)
+  }
 })
