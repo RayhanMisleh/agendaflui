@@ -167,7 +167,7 @@ pagamentos, frete), `vouchers` (parceiros e vouchers), `settings`.
 
 Convenções: tabelas e colunas em inglês, `snake_case`; chave primária UUID gerada pelo
 banco; dinheiro em **centavos inteiros** (`*_cents`), nunca decimal flutuante; todo instante
-em `timestamptz`; horário de expediente em `time` (hora local, sem fuso); toda tabela com
+em `timestamptz`; horário de expediente em minutos desde a meia-noite local (inteiro, sem fuso); toda tabela com
 `created_at`/`updated_at`. Exclusão de registros com histórico (cliente, profissional,
 serviço) é arquivamento (`archived_at`), não remoção. Quando o próprio cliente pede a
 exclusão da conta pelo app (LGPD), o cadastro é **anonimizado**: nome, e-mail, telefone,
@@ -287,7 +287,8 @@ A equipe, pelo painel, pode marcar fora da grade e da antecedência; nunca em so
   traz `btree_gist`; se não trouxer, a restrição vai só na migração de produção e o teste
   de concorrência cobre a trava da transação.*
 - Situações seguem uma máquina de estados explícita; transição inválida é erro.
-  `PENDING → CONFIRMED → COMPLETED`; `PENDING/CONFIRMED → CANCELED`; `CONFIRMED → NO_SHOW`.
+  `PENDING → CONFIRMED → COMPLETED`; `PENDING/CONFIRMED → CANCELED`; `CONFIRMED → NO_SHOW`;
+  e a equipe pode desfazer um engano (`COMPLETED/NO_SHOW → CONFIRMED`).
   Concluir grava a comissão calculada naquele momento e credita pontos (uma vez só).
 - Teste de concorrência: 20 tentativas simultâneas no mesmo horário, exatamente 1 passa.
 
@@ -520,8 +521,10 @@ Cada fase tem seu próprio plano de implementação e termina funcionando e test
    seed, design system e vitrine. As tabelas de cada área nascem na fase que as usa, cada
    uma em sua migração.
    *Parada para aprovação do visual.*
-2. **Núcleo de agenda** — domínio e API `v1` de serviços, equipe, expediente, bloqueios,
-   horários livres, agendamentos, clientes e avisos.
+2. **Núcleo de agenda**, em duas partes: **2A** domínio (serviços, equipe, expediente,
+   bloqueios, fechamentos, clientes, horários livres, agendamentos e fila de avisos) e **2B**
+   API `v1` (chaves, login de cliente e de equipe, rotas, documentação OpenAPI) e envio dos
+   avisos.
 3. **Painel dev** — contas, personalização com prévia, chaves, entrar como, métricas,
    auditoria.
 4. **Painel do negócio** — entrada com marca, início, agenda, clientes, equipe, serviços,
