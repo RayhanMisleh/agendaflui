@@ -267,6 +267,17 @@ describe('archiveProfessional', () => {
     expect((await getProfessional(ctx, p.id)).archived).toBe(false)
   })
 
+  test('atendimento em andamento (começou e ainda não terminou) também impede o arquivamento', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b, { now: AGORA })
+    const s = await makeService(b.id)
+    const p = await makeProfessional(b.id, { serviceIds: [s.id] })
+    await agendar(b.id, p.id, new Date(AGORA.getTime() - 10 * 60_000), 'CONFIRMED')
+    const e = await domainError(archiveProfessional(ctx, p.id))
+    expect(e.reason).toBe('has_future_appointments')
+    expect(e.details?.count).toBe(1)
+  })
+
   test('arquiva com agendamento só no passado ou cancelado', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b, { now: AGORA })

@@ -12,7 +12,6 @@ import {
   actorKind,
   afterChange,
   assertProfessionalAllowed,
-  EDITABLE,
   forbidden,
   invalidTransition,
   loadForActor,
@@ -33,6 +32,7 @@ import {
   lockedTransaction,
   placeAppointment,
 } from '@/server/domain/scheduling/placement'
+import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { addMinutes, toIsoInstant } from '@/server/time'
 
 export {
@@ -219,7 +219,7 @@ export async function rescheduleAppointment(
   if (who === 'staff') assertStaffStart(ctx, input.startsAt)
   const scope = await staffScope(ctx, who)
   const before = await loadForActor(ctx, ctx.db, id, who, scope)
-  if (!EDITABLE.includes(before.status)) {
+  if (!OPEN_STATUSES.includes(before.status)) {
     throw invalidTransition('Só dá para remarcar agendamentos pendentes ou confirmados.')
   }
 
@@ -247,7 +247,7 @@ export async function rescheduleAppointment(
     }),
     async (tx) => {
       const row = await loadForActor(ctx, tx, id, who, scope)
-      if (!EDITABLE.includes(row.status)) {
+      if (!OPEN_STATUSES.includes(row.status)) {
         throw invalidTransition('Só dá para remarcar agendamentos pendentes ou confirmados.')
       }
       assertProfessionalUnchanged(row, lockIds)
@@ -335,7 +335,7 @@ export async function adjustAppointment(
   const input = parse(adjustSchema, { totalCents: i.totalCents, notes: i.notes })
   const scope = await staffScope(ctx, who)
   const before = await loadForActor(ctx, ctx.db, id, who, scope)
-  if (!EDITABLE.includes(before.status)) {
+  if (!OPEN_STATUSES.includes(before.status)) {
     throw invalidTransition('Só dá para ajustar agendamentos pendentes ou confirmados.')
   }
   const pre = i.serviceIds !== undefined ? await resolveServices(ctx, i.serviceIds) : null
@@ -352,7 +352,7 @@ export async function adjustAppointment(
     async (tx) => {
       const row = await loadForActor(ctx, tx, id, who, scope)
       assertProfessionalUnchanged(row, [before.professionalId])
-      if (!EDITABLE.includes(row.status)) {
+      if (!OPEN_STATUSES.includes(row.status)) {
         throw invalidTransition('Só dá para ajustar agendamentos pendentes ou confirmados.')
       }
       const data: Prisma.AppointmentUncheckedUpdateInput = {}

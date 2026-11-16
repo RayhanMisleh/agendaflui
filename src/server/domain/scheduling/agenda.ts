@@ -2,6 +2,7 @@ import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import type { AppointmentStatus, Prisma, Professional } from '@/server/db/generated/client'
 import { authorize, DomainError, parse, z } from '@/server/domain/errors'
+import { ACTIVE_STATUSES, OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { listClosures } from '@/server/domain/settings/closures'
 import {
   actorKind,
@@ -58,8 +59,7 @@ export type DaySummary = {
 const MAX_DAYS = 31
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
-const UPCOMING: AppointmentStatus[] = ['PENDING', 'CONFIRMED']
-const BOOKED: readonly AppointmentStatus[] = ['PENDING', 'CONFIRMED', 'COMPLETED']
+const UPCOMING: AppointmentStatus[] = [...OPEN_STATUSES]
 
 const localDate = z.string().refine(isLocalDate, 'Use uma data válida no formato AAAA-MM-DD.')
 const idSchema = z.uuid()
@@ -393,7 +393,7 @@ export async function getDaySummary(
   for (const row of rows) {
     summary.total += 1
     summary.byStatus[row.status] += 1
-    if (BOOKED.includes(row.status)) summary.bookedMinutes += row.totalDurationMin
+    if (ACTIVE_STATUSES.includes(row.status)) summary.bookedMinutes += row.totalDurationMin
     if (row.status === 'COMPLETED') summary.revenueCents += row.totalCents
   }
 

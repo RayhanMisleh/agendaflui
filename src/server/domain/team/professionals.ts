@@ -5,6 +5,7 @@ import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
+import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { uploadUrl } from '@/server/storage/images'
 
 export type ProfessionalView = {
@@ -246,12 +247,10 @@ export async function archiveProfessional(ctx: TenantContext, id: string): Promi
   if (current.archivedAt !== null) return
   try {
     await ctx.db.$transaction(async (tx) => {
+      // A trava serializa com as marcações; atendimento em andamento (ainda não terminou) também impede.
+      await tx.$lockKey('professional', id)
       const count = await tx.appointment.count({
-        where: {
-          professionalId: id,
-          status: { in: ['PENDING', 'CONFIRMED'] },
-          startsAt: { gte: ctx.clock() },
-        },
+        where: { professionalId: id, status: { in: [...OPEN_STATUSES] }, endsAt: { gt: ctx.clock() } },
       })
       if (count > 0) {
         const quantos = count === 1 ? 'Há 1 agendamento futuro' : `Há ${count} agendamentos futuros`

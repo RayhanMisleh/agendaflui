@@ -43,8 +43,6 @@ export type Scope = { all: boolean; ownId: string | null }
 
 export type Row = Appointment & { items: AppointmentItem[]; customer: Customer; professional: Professional }
 
-export const EDITABLE: readonly AppointmentStatus[] = ['PENDING', 'CONFIRMED']
-
 const idSchema = z.uuid()
 
 export const optionalText = (max: number) =>
