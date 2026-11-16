@@ -4,6 +4,9 @@ export type DemoPapel = 'dono' | 'gerente' | 'profissional'
 
 const DOMINIO = 'agendaflui.localhost'
 
+/** Motivo do fechamento de demonstração: ele é gravado por último e marca a agenda como completa. */
+export const DEMO_CLOSURE_REASON = 'Feriado (demonstração)'
+
 /** E-mail de demonstração de cada papel numa conta ("patas" ou "navalha"). */
 export function demoEmail(conta: 'patas' | 'navalha', papel: DemoPapel): string {
   return `${papel}.${conta}@${DOMINIO}`

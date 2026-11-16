@@ -3,7 +3,9 @@ import { createTenantContext } from '@/server/auth/context'
 import { getAgenda } from '@/server/domain/scheduling/agenda'
 import { fitsWorkingHours, overlaps } from '@/server/domain/scheduling/slots'
 import { dbDateToLocal, localParts, todayIn, weekdayOf, type Weekday } from '@/server/time'
-import { diaUtil, seed, type SeedEnv } from '../../prisma/seed'
+import { DEMO_CLOSURE_REASON } from '../../prisma/seed-data'
+import { diaUtil } from '../../prisma/seed-plan'
+import { seed, type SeedEnv } from '../../prisma/seed'
 import { resetDb } from '../setup/db'
 
 const ENV: SeedEnv = {
@@ -132,6 +134,20 @@ describe('agenda de demonstração', () => {
 
   async function contaDe(slug: string) {
     return prisma.business.findUniqueOrThrow({ where: { slug } })
+  }
+
+  async function limparAgenda(businessId: string) {
+    const filtro = { businessId }
+    await prisma.notification.deleteMany({ where: filtro })
+    await prisma.appointmentItem.deleteMany({ where: filtro })
+    await prisma.appointment.deleteMany({ where: filtro })
+    await prisma.timeBlock.deleteMany({ where: filtro })
+    await prisma.businessClosure.deleteMany({ where: filtro })
+    await prisma.workingHours.deleteMany({ where: filtro })
+    await prisma.professionalService.deleteMany({ where: filtro })
+    await prisma.professional.deleteMany({ where: filtro })
+    await prisma.service.deleteMany({ where: filtro })
+    await prisma.customer.deleteMany({ where: filtro })
   }
 
   async function agendaDaConta(slug: string) {
@@ -324,7 +340,7 @@ describe('agenda de demonstração', () => {
       const fechamentos = await prisma.businessClosure.findMany({ where: { businessId: conta.id } })
       expect(fechamentos).toHaveLength(1)
       const f = fechamentos[0]
-      expect(f?.reason).toBe('Feriado')
+      expect(f?.reason).toBe(DEMO_CLOSURE_REASON)
       const data = f ? dbDateToLocal(f.startDate) : ''
       expect(data >= '2026-11-20' && data <= '2026-11-26').toBe(true)
       expect(f ? dbDateToLocal(f.endDate) : '').toBe(data)
@@ -428,16 +444,7 @@ describe('agenda de demonstração', () => {
   test('uma conta sem serviços (banco da Fase 1) recebe a agenda sem mexer na outra', async () => {
     const navalha = await contaDe('navalha-de-ouro')
     const filtro = { businessId: navalha.id }
-    await prisma.notification.deleteMany({ where: filtro })
-    await prisma.appointmentItem.deleteMany({ where: filtro })
-    await prisma.appointment.deleteMany({ where: filtro })
-    await prisma.timeBlock.deleteMany({ where: filtro })
-    await prisma.businessClosure.deleteMany({ where: filtro })
-    await prisma.workingHours.deleteMany({ where: filtro })
-    await prisma.professionalService.deleteMany({ where: filtro })
-    await prisma.professional.deleteMany({ where: filtro })
-    await prisma.service.deleteMany({ where: filtro })
-    await prisma.customer.deleteMany({ where: filtro })
+    await limparAgenda(navalha.id)
     const usuarios = await prisma.user.count()
     const vinculos = await prisma.membership.count()
 
@@ -452,11 +459,34 @@ describe('agenda de demonstração', () => {
     expect(resultado.agenda.map((r) => r.slug)).toEqual(['navalha-de-ouro'])
   })
 
+  test('execução interrompida (só os serviços) dá erro com o nome da conta, e conta completa não faz nada', async () => {
+    const navalha = await contaDe('navalha-de-ouro')
+    await limparAgenda(navalha.id)
+    await prisma.service.create({ data: { businessId: navalha.id, name: 'Corte', priceCents: 5000, durationMin: 30 } })
+    await expect(seed(prisma, ENV, { now: NOW })).rejects.toThrow(
+      'Os dados de demonstração de Navalha de Ouro ficaram incompletos. Rode npm run db:reset e inicie de novo.',
+    )
+    expect(await prisma.appointment.count({ where: { businessId: navalha.id } })).toBe(0)
+    await limparAgenda(navalha.id)
+    await seed(prisma, ENV, { now: NOW })
+    expect(await prisma.appointment.count({ where: { businessId: navalha.id } })).toBe(23)
+    await expect(seed(prisma, ENV, { now: NOW })).resolves.toMatchObject({ agenda: [] })
+  })
+
+  test('o seed recusa rodar em produção, a menos que SEED_ALLOW_PRODUCTION=1', async () => {
+    await expect(seed(prisma, { ...ENV, NODE_ENV: 'production' }, { now: NOW })).rejects.toThrow(
+      'O seed de demonstração não roda em produção.',
+    )
+    await expect(seed(prisma, { ...ENV, NODE_ENV: 'production', SEED_ALLOW_PRODUCTION: '1' }, { now: NOW })).resolves.toMatchObject({
+      agenda: [],
+    })
+  })
+
   test('a distribuição é a mesma para o mesmo relógio', async () => {
     const retrato = async () =>
-      (await prisma.appointment.findMany({ include: { items: true, professional: true, customer: true } }))
+      (await prisma.appointment.findMany({ include: { items: true, professional: true, customer: true, business: true } }))
         .map((a) => [
-          a.businessId.length,
+          a.business.slug,
           a.startsAt.toISOString(),
           a.endsAt.toISOString(),
           a.status,
@@ -469,5 +499,47 @@ describe('agenda de demonstração', () => {
     await resetDb()
     await seed(prisma, ENV, { now: NOW })
     expect(await retrato()).toEqual(primeiro)
+  })
+})
+
+describe('agenda de demonstração num domingo', () => {
+  // Domingo: a barbearia (terça a sábado) e o pet shop (segunda a sábado) não abrem; "hoje" útil é adiante.
+  const DOMINGO = new Date('2026-11-22T15:00:00Z')
+
+  beforeAll(async () => {
+    await resetDb()
+    await seed(prisma, ENV, { now: DOMINGO })
+  })
+
+  test('cada conta tem 23 agendamentos sem sobreposição e getAgenda do dia útil traz os 8 de hoje', async () => {
+    const admin = await prisma.platformAdmin.findFirstOrThrow()
+    for (const [slug, hojeUtil] of [
+      ['patas-e-cia', '2026-11-23'],
+      ['navalha-de-ouro', '2026-11-24'],
+    ] as const) {
+      const conta = await prisma.business.findUniqueOrThrow({ where: { slug } })
+      const agendamentos = await prisma.appointment.findMany({ where: { businessId: conta.id } })
+      expect(agendamentos).toHaveLength(23)
+      const ativos = agendamentos.filter((a) => a.status !== 'CANCELED')
+      for (const [i, a] of ativos.entries()) {
+        for (const b of ativos.slice(i + 1)) {
+          if (a.professionalId === b.professionalId) {
+            expect(overlaps({ start: a.startsAt, end: a.endsAt }, { start: b.startsAt, end: b.endsAt })).toBe(false)
+          }
+        }
+      }
+      const ctx = await createTenantContext({
+        businessId: conta.id,
+        actor: { kind: 'impersonator', adminId: admin.id, name: 'Teste' },
+        clock: () => DOMINGO,
+      })
+      const [dia] = await getAgenda(ctx, { from: hojeUtil, to: hojeUtil })
+      const doDia = (dia?.professionals ?? []).flatMap((c) => c.appointments)
+      expect(doDia).toHaveLength(8)
+      expect(doDia.every((a) => a.status === 'CONFIRMED')).toBe(true)
+      for (const c of dia?.professionals ?? []) {
+        for (const a of c.appointments) expect(a.professional.id).toBe(c.id)
+      }
+    }
   })
 })

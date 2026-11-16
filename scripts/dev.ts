@@ -51,15 +51,10 @@ async function main(): Promise<void> {
     const { prisma } = await import('../src/server/db/client')
     try {
       const { seed, textoDoResumo } = await import('../prisma/seed')
-      const { DEMO_CONTAS } = await import('../prisma/seed-data')
-      // Banco vazio, ou conta de demonstração da Fase 1 ainda sem agenda: o seed só cria o que falta.
-      const faltaAgenda =
-        (await prisma.business.count()) === 0 ||
-        (await prisma.business.count({
-          where: { slug: { in: DEMO_CONTAS.map((c) => c.slug) }, services: { none: {} } },
-        })) > 0
-      if (faltaAgenda) {
-        const { emails, agenda } = await seed(prisma, process.env)
+      // O seed só cria o que falta; num banco completo não faz nada (e não imprime nada).
+      const vazio = (await prisma.business.count()) === 0
+      const { emails, agenda } = await seed(prisma, process.env)
+      if (vazio || agenda.length > 0) {
         console.log(`Dados de demonstração criados. Contas de acesso: ${emails.join(', ')}.`)
         for (const resumo of agenda) console.log(textoDoResumo(resumo))
         console.log('As senhas de demonstração estão no .env.')
@@ -68,7 +63,9 @@ async function main(): Promise<void> {
       await prisma.$disconnect()
     }
   } catch (err) {
-    console.error(`Não foi possível criar os dados de demonstração: ${frase(err)}`)
+    // Seed incompleto já vem com a frase pronta (e a ação a tomar).
+    const pronta = err instanceof Error && err.name === 'SeedIncompletoError'
+    console.error(pronta ? frase(err) : `Não foi possível criar os dados de demonstração: ${frase(err)}`)
     await parar(db)
     process.exitCode = 1
     return
