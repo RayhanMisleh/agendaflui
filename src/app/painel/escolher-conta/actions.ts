@@ -10,6 +10,8 @@ const idSchema = z.uuid()
 /** Define a conta ativa da sessão. Só aceita contas de que a pessoa é membro ativo. */
 export async function chooseBusiness(form: FormData): Promise<void> {
   const session = await requireMemberSession()
+  // Suporte não escolhe conta: a conta é a da sessão.
+  if (session.kind === 'support') redirect('/')
   const token = await readCookie(PAINEL_COOKIE)
   const id = idSchema.safeParse(form.get('businessId'))
   const vinculo = id.success ? session.memberships.find((m) => m.businessId === id.data) : undefined

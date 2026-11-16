@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { prisma } from '@/server/db/client'
-import { tenantDb, TenantViolationError } from '@/server/db/tenant'
+import { lockKeyRaw, tenantDb, TenantViolationError } from '@/server/db/tenant'
 import { resetDb } from '../setup/db'
 import { makeBusiness } from '../setup/factories'
 
@@ -203,6 +203,56 @@ describe('$lockKey', () => {
         pausa(300).then(() => 'preso'),
       ])
       expect(mesmo).toBe('preso')
+    })
+  })
+})
+
+describe('as duas portas da trava', () => {
+  const MEMBRO = '0b9d6f2e-1c3a-4e57-8a64-5d7c9e1f3a20'
+  type Porta = 'tenant' | 'cru'
+
+  async function seguraEEspera(primeira: Porta, segunda: Porta, businessId: string, escopo: 'membership' | 'business_owners') {
+    let soltar!: () => void
+    const solta = new Promise<void>((resolve) => (soltar = resolve))
+    let primeiraTravou!: () => void
+    const travou = new Promise<void>((resolve) => (primeiraTravou = resolve))
+    let segundaPegou = false
+    const pegar = async (porta: Porta, tx: unknown, depois: () => void) => {
+      if (porta === 'tenant') await (tx as { $lockKey: (e: string, i: string) => Promise<void> }).$lockKey(escopo, MEMBRO)
+      else await lockKeyRaw(tx as Parameters<typeof lockKeyRaw>[0], businessId, escopo, MEMBRO)
+      depois()
+    }
+    const abrir = (porta: Porta, fn: (tx: never) => Promise<void>) =>
+      porta === 'tenant' ? tenantDb(businessId).$transaction((tx) => fn(tx as never)) : prisma.$transaction((tx) => fn(tx as never))
+    const t1 = abrir(primeira, async (tx) => {
+      await pegar(primeira, tx, primeiraTravou)
+      await solta
+    })
+    await travou
+    const t2 = abrir(segunda, async (tx) => {
+      await pegar(segunda, tx, () => (segundaPegou = true))
+    })
+    await pausa(300)
+    expect(segundaPegou).toBe(false)
+    soltar()
+    await Promise.all([t1, t2])
+    expect(segundaPegou).toBe(true)
+  }
+
+  test.each([
+    ['tenant', 'cru'],
+    ['cru', 'tenant'],
+  ] as const)('%s segura e %s espera (mesma chave)', async (a, b) => {
+    const conta = await makeBusiness()
+    await seguraEEspera(a, b, conta.id, 'membership')
+  })
+
+  test('o escopo business_owners existe nas duas portas e não colide com membership', async () => {
+    const conta = await makeBusiness()
+    await seguraEEspera('tenant', 'cru', conta.id, 'business_owners')
+    await tenantDb(conta.id).$transaction(async (tx) => {
+      await tx.$lockKey('membership', MEMBRO)
+      await tx.$lockKey('business_owners', MEMBRO)
     })
   })
 })

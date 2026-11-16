@@ -41,7 +41,7 @@ export async function PainelFrame({
   const papel =
     ctx.actor.kind === 'member' ? roleLabel(ctx.actor.role, termos.termProfessionalSingular) : 'Suporte'
   const suporte = ctx.actor.kind === 'impersonator'
-  const nome = ctx.actor.kind === 'member' || ctx.actor.kind === 'impersonator' ? ctx.actor.name : session.user.name
+  const nome = ctx.actor.kind === 'member' || ctx.actor.kind === 'impersonator' ? ctx.actor.name : session.kind === 'member' ? session.user.name : ''
 
   return (
     <PainelShell
@@ -54,7 +54,7 @@ export async function PainelFrame({
       actions={
         suporte ? null : (
           <>
-            {session.memberships.length > 1 ? <LinkButton href="/escolher-conta">Trocar de conta</LinkButton> : null}
+            {session.kind === 'member' && session.memberships.length > 1 ? <LinkButton href="/escolher-conta">Trocar de conta</LinkButton> : null}
             <SairDaConta />
           </>
         )

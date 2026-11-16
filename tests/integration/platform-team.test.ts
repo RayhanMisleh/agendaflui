@@ -129,6 +129,27 @@ describe('inviteMember', () => {
   })
 })
 
+describe('conta arquivada ou suspensa', () => {
+  test('conta arquivada recusa convite e reenvio com business_unavailable e nada é criado nem enviado', async () => {
+    const m = await inviteMember(actor, businessId, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' }, AGORA)
+    mail.sent.length = 0
+    await prisma.business.update({ where: { id: businessId }, data: { status: 'ARCHIVED' } })
+    const e = await domainError(inviteMember(actor, businessId, { name: 'Caio', email: 'caio@exemplo.test', role: 'MANAGER' }, AGORA))
+    expect(e.code).toBe('business_unavailable')
+    expect(e.message).toBe('Esta conta está arquivada. Reative a conta antes de convidar alguém.')
+    expect((await domainError(resendInvite(actor, m.membershipId, AGORA))).code).toBe('business_unavailable')
+    expect(await prisma.user.count({ where: { email: 'caio@exemplo.test' } })).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  test('conta suspensa continua aceitando convite e reenvio', async () => {
+    await prisma.business.update({ where: { id: businessId }, data: { status: 'SUSPENDED' } })
+    const m = await inviteMember(actor, businessId, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' }, AGORA)
+    await resendInvite(actor, m.membershipId, AGORA)
+    expect(mail.sent).toHaveLength(2)
+  })
+})
+
 describe('listTeam', () => {
   test('lista a equipe da conta com ficha de profissional, senha e último acesso', async () => {
     const dono = await makeUser({ name: 'Dora Dona', password: 'senha-bem-longa' })

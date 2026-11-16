@@ -7,20 +7,24 @@ import { DomainError } from '@/server/domain/errors'
 import { createTenantContext } from './context'
 import { fakePasswordHash, verifyPassword } from './password'
 import { checkLoginLimit, clearLoginLimit } from './login-limit'
-import { findSupportSession, getSupportContext } from './support-session'
+import { endSupportByToken, findSupportSession, getSupportContext, revokeCookieSession } from './support-session'
 import { generateToken, hashToken } from './tokens'
 
 const SESSAO_MINUTOS = 30 * 24 * 60
 
-export type MemberSession = {
-  user: { id: string; name: string; email: string }
-  memberships: { businessId: string; businessName: string; slug: string; role: MembershipRole }[]
-  activeBusinessId: string | null
-  /** Só na sessão de suporte (admin da plataforma "entrando como"): sem vínculos, com a conta aberta. */
-  support: { adminId: string; adminName: string; businessName: string } | null
-}
+export type MemberSession =
+  | {
+      kind: 'member'
+      user: { id: string; name: string; email: string }
+      memberships: { businessId: string; businessName: string; slug: string; role: MembershipRole }[]
+      activeBusinessId: string | null
+    }
+  /** Admin da plataforma "entrando como": não é usuário, não tem vínculos; a conta aberta é sempre a da sessão. */
+  | { kind: 'support'; admin: { id: string; name: string }; activeBusinessId: string; businessName: string }
 
-async function listMemberships(userId: string): Promise<MemberSession['memberships']> {
+export type MemberUserSession = Extract<MemberSession, { kind: 'member' }>
+
+async function listMemberships(userId: string): Promise<MemberUserSession['memberships']> {
   const rows = await prisma.membership.findMany({
     where: { userId, active: true, business: { status: 'ACTIVE' } },
     include: { business: true },
@@ -52,7 +56,7 @@ export async function loginUser(i: {
   userAgent?: string
   /** Token da sessão que o navegador já tem no cookie: é revogado no login novo. */
   previousToken?: string
-}): Promise<{ token: string; expiresAt: Date; session: MemberSession }> {
+}): Promise<{ token: string; expiresAt: Date; session: MemberUserSession }> {
   const email = i.email.trim().toLowerCase()
   const now = new Date()
   await checkLoginLimit('painel', email, i.ip, now)
@@ -68,19 +72,17 @@ export async function loginUser(i: {
 
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, SESSAO_MINUTOS)
-  await prisma.$transaction([
-    prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: now } }),
-    prisma.session.create({
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: now } })
+    await tx.session.create({
       data: { userId: user.id, activeBusinessId, tokenHash: hash, expiresAt, ip: i.ip, userAgent: i.userAgent },
-    }),
-    ...(i.previousToken
-      ? [prisma.session.updateMany({ where: { tokenHash: hashToken(i.previousToken), revokedAt: null }, data: { revokedAt: now } })]
-      : []),
-  ])
+    })
+    await revokeCookieSession(tx, i.previousToken, now)
+  })
   return {
     token,
     expiresAt,
-    session: { user: { id: user.id, name: user.name, email: user.email }, memberships, activeBusinessId, support: null },
+    session: { kind: 'member', user: { id: user.id, name: user.name, email: user.email }, memberships, activeBusinessId },
   }
 }
 
@@ -89,20 +91,15 @@ export async function getMemberSession(token: string | undefined, now: Date = ne
   if (!session) {
     const suporte = await findSupportSession(token, now)
     if (!suporte) return null
-    return {
-      user: { id: suporte.admin.id, name: suporte.admin.name, email: '' },
-      memberships: [],
-      activeBusinessId: suporte.business.id,
-      support: { adminId: suporte.admin.id, adminName: suporte.admin.name, businessName: suporte.business.name },
-    }
+    return { kind: 'support', admin: suporte.admin, activeBusinessId: suporte.business.id, businessName: suporte.business.name }
   }
   const memberships = await listMemberships(session.userId)
   const active = memberships.some((m) => m.businessId === session.activeBusinessId)
   return {
+    kind: 'member',
     user: { id: session.user.id, name: session.user.name, email: session.user.email },
     memberships,
     activeBusinessId: active ? session.activeBusinessId : null,
-    support: null,
   }
 }
 
@@ -142,8 +139,10 @@ export async function getTenantContext(token: string | undefined, now: Date = ne
 }
 
 export async function logoutUser(token: string): Promise<void> {
-  await prisma.session.updateMany({
-    where: { tokenHash: hashToken(token), revokedAt: null },
-    data: { revokedAt: new Date() },
+  const now = new Date()
+  await prisma.$transaction(async (tx) => {
+    // Sessão de suporte: o fim vai para a auditoria da conta; sessão de membro: só é revogada.
+    if (await endSupportByToken(tx, token, now)) return
+    await tx.session.updateMany({ where: { tokenHash: hashToken(token), revokedAt: null }, data: { revokedAt: now } })
   })
 }

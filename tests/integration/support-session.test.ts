@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
 import { can, CAPABILITIES } from '@/server/auth/capabilities'
 import { getMemberSession, getTenantContext, loginUser } from '@/server/auth/member-auth'
+import { chooseBusiness } from '@/app/painel/escolher-conta/actions'
+import { logoutUser } from '@/server/auth/member-auth'
 import { checkSupportLimit, endSupport, redeemSupport, startSupport } from '@/server/auth/support-session'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
@@ -72,9 +74,10 @@ describe('startSupport', () => {
     expect(linha).toMatchObject({ adminId: admin.id, businessId: business.id, tokenHash: hashToken(token), usedAt: null })
     expect(linha.expiresAt).toEqual(addMinutes(AGORA, 1))
     expect(JSON.stringify(await prisma.$queryRaw`SELECT to_jsonb(t) AS j FROM support_handoffs t`)).not.toContain(token)
-    const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId: business.id, action: 'support.started' } })
+    const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId: business.id, action: 'support.link_issued' } })
     expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: admin.id, actorName: 'Ana Admin' })
     expect(JSON.stringify(log)).not.toContain(token)
+    expect(await prisma.auditLog.count({ where: { action: 'support.started' } })).toBe(0)
   })
 
   test('quem não é admin, admin desativado e conta arquivada ou inexistente são recusados', async () => {
@@ -103,6 +106,9 @@ describe('redeemSupport', () => {
     expect(JSON.stringify(await prisma.$queryRaw`SELECT to_jsonb(t) AS j FROM sessions t`)).not.toContain(r?.sessionToken ?? 'x')
     expect(await redeemSupport(token, {}, addMinutes(AGORA, 0.6))).toBeNull()
     expect(await prisma.session.count()).toBe(1)
+    const iniciados = await prisma.auditLog.findMany({ where: { action: 'support.started' } })
+    expect(iniciados).toHaveLength(1)
+    expect(iniciados[0]).toMatchObject({ businessId: business.id, actorId: admin.id, actorName: 'Ana Admin', onBehalf: false })
   })
 
   test('token vencido (61 s), desconhecido ou vazio devolve null; com 59 s ainda vale', async () => {
@@ -131,6 +137,7 @@ describe('redeemSupport', () => {
     await prisma.business.update({ where: { id: business.id }, data: { status: 'ARCHIVED' } })
     expect(await redeemSupport(b, {}, AGORA)).toBeNull()
     expect(await prisma.session.count()).toBe(0)
+    expect(await prisma.auditLog.count({ where: { action: 'support.started' } })).toBe(0)
   })
 
   test('conta suspensa: o suporte entra', async () => {
@@ -165,8 +172,8 @@ describe('a sessão de suporte', () => {
     expect(CAPABILITIES.every((c) => can(ctx.actor, c))).toBe(true)
     expect((await ctx.db.business.findMany()).map((b) => b.id)).toEqual([business.id])
     const sessao = await getMemberSession(sessionToken, AGORA)
-    expect(sessao).toMatchObject({ activeBusinessId: business.id, support: { adminId: admin.id, businessName: 'Barbearia Central' } })
-    expect(sessao?.memberships).toEqual([])
+    expect(sessao).toEqual({ kind: 'support', admin: { id: admin.id, name: 'Ana Admin' }, activeBusinessId: business.id, businessName: 'Barbearia Central' })
+    expect(sessao).not.toHaveProperty('user')
   })
 
   test('vale por 60 minutos sem renovação deslizante', async () => {
@@ -228,7 +235,7 @@ describe('a sessão de suporte', () => {
 
 describe('endSupport', () => {
   test('apaga a sessão, audita o fim com o nome do admin e é idempotente', async () => {
-    const { sessionToken } = await abrir()
+    const { sessionToken } = await abrir(new Date())
     await endSupport(sessionToken)
     expect(await prisma.session.count()).toBe(0)
     expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
@@ -245,6 +252,58 @@ describe('endSupport', () => {
     const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.2' })
     await endSupport(membro.token)
     expect(await getTenantContext(membro.token, AGORA)).not.toBeNull()
+  })
+})
+
+describe('suporte encerrado por outro caminho', () => {
+  const fim = () => prisma.auditLog.findMany({ where: { businessId: business.id, action: 'support.ended' } })
+
+  test('Sair pelo caminho de membro grava support.ended uma vez; Encerrar depois não duplica', async () => {
+    const { sessionToken } = await abrir(new Date())
+    await logoutUser(sessionToken)
+    expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
+    const linhas = await fim()
+    expect(linhas).toHaveLength(1)
+    expect(linhas[0]).toMatchObject({ actorId: admin.id, actorName: 'Ana Admin' })
+    await endSupport(sessionToken)
+    await logoutUser(sessionToken)
+    expect(await fim()).toHaveLength(1)
+  })
+
+  test('novo login e nova troca de token que revogam a sessão do cookie gravam support.ended', async () => {
+    const user = await makeUser({ password: 'senha-bem-longa' })
+    await makeMembership(business.id, user.id, 'OWNER')
+    const a = await abrir(new Date())
+    await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.3', previousToken: a.sessionToken })
+    expect(await fim()).toHaveLength(1)
+    const b = await abrir(new Date())
+    await abrir(new Date(), { previousToken: b.sessionToken })
+    expect(await fim()).toHaveLength(2)
+    expect(await prisma.session.count({ where: { userId: null } })).toBe(1)
+  })
+
+  test('sessão de suporte que apenas vence não grava nada; sessão de membro no logout também não', async () => {
+    const { sessionToken } = await abrir()
+    await logoutUser(sessionToken).catch(() => undefined)
+    await prisma.auditLog.deleteMany({ where: { action: 'support.ended' } })
+    const outra = await abrir()
+    expect(await getTenantContext(outra.sessionToken, addMinutes(AGORA, 61))).toBeNull()
+    expect(await fim()).toHaveLength(0)
+    const user = await makeUser({ password: 'senha-bem-longa' })
+    await makeMembership(business.id, user.id, 'OWNER')
+    const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.4' })
+    await logoutUser(membro.token)
+    expect(await fim()).toHaveLength(0)
+  })
+
+  test('em sessão de suporte, escolher conta redireciona para /', async () => {
+    const { sessionToken, expiresAt } = await abrir(new Date())
+    jar.set('af_painel_session', { value: sessionToken, options: { expires: expiresAt } })
+    const form = new FormData()
+    form.set('businessId', business.id)
+    await expect(chooseBusiness(form)).rejects.toMatchObject({ to: '/' })
+    const { default: Pagina } = await import('@/app/painel/escolher-conta/page')
+    await expect(Pagina()).rejects.toMatchObject({ to: '/' })
   })
 })
 

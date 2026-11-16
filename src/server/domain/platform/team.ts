@@ -61,6 +61,9 @@ function paraMembro(m: Bruto): TeamMember {
   }
 }
 
+const contaArquivada = (): DomainError =>
+  new DomainError('business_unavailable', 'Esta conta está arquivada. Reative a conta antes de convidar alguém.')
+
 const contaInexistente = (): DomainError => new DomainError('not_found', 'Conta não encontrada.')
 const vinculoInexistente = (): DomainError => new DomainError('not_found', 'Acesso da equipe não encontrado.')
 
@@ -111,9 +114,10 @@ export async function inviteMember(
       const feito = await prisma.$transaction(async (tx) => {
         await requireActiveAdmin(tx, actor)
         const conta = UUID.test(businessId)
-          ? await tx.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, slug: true } })
+          ? await tx.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, slug: true, status: true } })
           : null
         if (!conta) throw contaInexistente()
+        if (conta.status === 'ARCHIVED') throw contaArquivada()
         let usuario = await tx.user.findUnique({ where: { email: i.email }, select: { id: true, name: true, passwordHash: true } })
         const existente = usuario !== null
         if (usuario === null) {
@@ -175,7 +179,7 @@ export async function inviteMember(
 type Alteracao = (atual: { role: MembershipRole; active: boolean }) => { role: MembershipRole; active: boolean }
 
 /**
- * Altera papel ou situação de um vínculo numa transação sob a trava dos donos da conta e a trava do vínculo (nesta ordem,
+ * Altera papel ou situação de um vínculo numa transação sob a trava dos donos da conta (`business_owners`) e a trava do vínculo (nesta ordem,
  * sempre). Dono ativo que deixaria de ser dono ativo exige outro dono ativo, conferido aqui dentro: duas operações
  * simultâneas sobre os dois últimos donos se serializam e só uma passa. Quando o acesso diminui (desativar ou rebaixar),
  * revoga as sessões do painel do usuário cuja conta ativa é esta e os tokens do app do vínculo; reativar não devolve nada.
@@ -192,7 +196,7 @@ async function alterarVinculo(
   if (!previo) throw vinculoInexistente()
   const { businessId } = previo
   return prisma.$transaction(async (tx) => {
-    await lockKeyRaw(tx, businessId, 'membership', businessId)
+    await lockKeyRaw(tx, businessId, 'business_owners', businessId)
     await lockKeyRaw(tx, businessId, 'membership', membershipId)
     await requireActiveAdmin(tx, actor)
     const atual = await tx.membership.findUnique({ where: { id: membershipId }, select: SELECAO })
@@ -200,6 +204,8 @@ async function alterarVinculo(
     const novo = alterar({ role: atual.role, active: atual.active })
     if (novo.role === atual.role && novo.active === atual.active) return paraMembro(atual)
 
+    // Dono com convite pendente (ainda sem senha) conta como dono ativo: a conta não fica órfã, porque o admin pode reenviar
+    // o convite (`resendInvite`) ou entrar em suporte. Por isso o filtro abaixo olha só vínculo e papel, não a senha.
     const deixaDeSerDonoAtivo = atual.role === 'OWNER' && atual.active && !(novo.role === 'OWNER' && novo.active)
     if (deixaDeSerDonoAtivo) {
       const outros = await tx.membership.count({ where: { businessId, role: 'OWNER', active: true, id: { not: membershipId } } })
@@ -276,9 +282,10 @@ export async function resendInvite(actor: PlatformAdminActor, membershipId: stri
     await requireActiveAdmin(tx, actor)
     const m = await tx.membership.findUnique({
       where: { id: membershipId },
-      select: { id: true, role: true, active: true, business: { select: { name: true } }, user: { select: { id: true, name: true, email: true, passwordHash: true } } },
+      select: { id: true, role: true, active: true, business: { select: { name: true, status: true } }, user: { select: { id: true, name: true, email: true, passwordHash: true } } },
     })
     if (!m) throw vinculoInexistente()
+    if (m.business.status === 'ARCHIVED') throw contaArquivada()
     if (!m.active) throw new DomainError('conflict', 'Este acesso está desativado. Reative-o antes de mandar um convite.')
     if (m.user.passwordHash !== null) {
       throw new DomainError('conflict', 'Esta pessoa já definiu a senha. Convite só vale para quem ainda não tem senha.')

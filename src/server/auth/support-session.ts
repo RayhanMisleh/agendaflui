@@ -34,13 +34,38 @@ export type SupportSession = {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-/** Revoga a sessão do painel que o navegador já tinha no cookie (login novo ou troca de suporte). */
+/**
+ * Ponto único que encerra uma sessão de suporte viva (por qualquer caminho: Encerrar, Sair, login novo, nova troca de
+ * token): apaga a linha e grava `support.ended` na auditoria da conta, com o nome do admin. O DELETE condicional garante
+ * uma única linha mesmo com chamadas simultâneas. Sessão que já venceu só é apagada, sem auditoria (vencer não é encerrar).
+ * Token que não é de uma sessão de suporte: nada acontece. Devolve se encerrou uma sessão.
+ */
+export async function endSupportByToken(tx: Pick<Prisma.TransactionClient, 'session' | 'auditLog'>, token: string, now: Date): Promise<boolean> {
+  const s = await tx.session.findFirst({
+    where: { tokenHash: hashToken(token), userId: null, impersonatorAdminId: { not: null } },
+    include: { impersonator: { select: { id: true, name: true } } },
+  })
+  if (!s?.impersonator) return false
+  const apagada = await tx.session.deleteMany({ where: { id: s.id } })
+  if (apagada.count !== 1) return false
+  if (s.revokedAt !== null || s.expiresAt.getTime() <= now.getTime() || !s.activeBusinessId) return false
+  await auditPlatform(tx, { kind: 'platform_admin', adminId: s.impersonator.id, name: s.impersonator.name }, {
+    businessId: s.activeBusinessId,
+    action: 'support.ended',
+    targetType: 'business',
+    targetId: s.activeBusinessId,
+  })
+  return true
+}
+
+/** Revoga a sessão do painel que o navegador já tinha no cookie (login novo ou troca de suporte); se era de suporte, grava o fim. */
 export async function revokeCookieSession(
-  tx: Pick<Prisma.TransactionClient, 'session'>,
+  tx: Pick<Prisma.TransactionClient, 'session' | 'auditLog'>,
   previousToken: string | undefined,
   now: Date,
 ): Promise<void> {
   if (!previousToken) return
+  if (await endSupportByToken(tx, previousToken, now)) return
   await tx.session.updateMany({ where: { tokenHash: hashToken(previousToken), revokedAt: null }, data: { revokedAt: now } })
 }
 
@@ -61,7 +86,7 @@ export async function startSupport(actor: PlatformAdminActor, businessId: string
     await tx.supportHandoff.create({
       data: { adminId: actor.adminId, businessId: conta.id, tokenHash: hash, expiresAt: addMinutes(now, HANDOFF_SECONDS / 60) },
     })
-    await auditPlatform(tx, actor, { businessId: conta.id, action: 'support.started', targetType: 'business', targetId: conta.id })
+    await auditPlatform(tx, actor, { businessId: conta.id, action: 'support.link_issued', targetType: 'business', targetId: conta.id })
   })
   return { url: areaLink('painel', `/suporte/${token}`) }
 }
@@ -86,7 +111,7 @@ export async function redeemSupport(
     if (gasto.count !== 1) return null
     const passagem = await tx.supportHandoff.findUniqueOrThrow({ where: { tokenHash }, select: { adminId: true, businessId: true } })
     const [admin, conta] = await Promise.all([
-      tx.platformAdmin.findUnique({ where: { id: passagem.adminId }, select: { active: true } }),
+      tx.platformAdmin.findUnique({ where: { id: passagem.adminId }, select: { active: true, name: true } }),
       tx.business.findUnique({ where: { id: passagem.businessId }, select: { status: true, slug: true } }),
     ])
     if (!admin?.active || !conta || conta.status === 'ARCHIVED') return null
@@ -103,6 +128,12 @@ export async function redeemSupport(
       },
     })
     await revokeCookieSession(tx, meta.previousToken, now)
+    await auditPlatform(tx, { kind: 'platform_admin', adminId: passagem.adminId, name: admin.name }, {
+      businessId: passagem.businessId,
+      action: 'support.started',
+      targetType: 'business',
+      targetId: passagem.businessId,
+    })
     return { sessionToken: sessao.token, expiresAt, slug: conta.slug }
   })
 }
@@ -142,26 +173,12 @@ export async function getSupportContext(token: string | undefined, now: Date = n
 }
 
 /**
- * Encerra o suporte: apaga a sessão e grava na auditoria da conta, com o nome do admin. A credencial é o próprio token
- * da sessão (vem do cookie do painel), então não há ator a conferir. Token que não é de suporte, ou já apagado: nada.
+ * Encerra o suporte (botão Encerrar): apaga a sessão e grava o fim na auditoria. A credencial é o próprio token da sessão
+ * (vem do cookie do painel), então não há ator a conferir. Token que não é de suporte, ou já apagado: nada.
  */
-export async function endSupport(sessionToken: string): Promise<void> {
+export async function endSupport(sessionToken: string, now: Date = new Date()): Promise<void> {
   if (typeof sessionToken !== 'string' || sessionToken === '') return
-  await prisma.$transaction(async (tx) => {
-    const s = await tx.session.findFirst({
-      where: { tokenHash: hashToken(sessionToken), userId: null, impersonatorAdminId: { not: null } },
-      include: { impersonator: { select: { id: true, name: true } } },
-    })
-    if (!s?.impersonator) return
-    const apagada = await tx.session.deleteMany({ where: { id: s.id } })
-    if (apagada.count !== 1 || !s.activeBusinessId) return
-    await auditPlatform(tx, { kind: 'platform_admin', adminId: s.impersonator.id, name: s.impersonator.name }, {
-      businessId: s.activeBusinessId,
-      action: 'support.ended',
-      targetType: 'business',
-      targetId: s.activeBusinessId,
-    })
-  })
+  await prisma.$transaction((tx) => endSupportByToken(tx, sessionToken, now))
 }
 
 /**

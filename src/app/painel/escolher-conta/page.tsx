@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
 import { requireMemberSession } from '@/server/auth/guards'
 import { roleLabel } from '@/server/auth/role-labels'
@@ -18,6 +19,8 @@ const THEME = deriveTheme(AGENDAFLUI_BRAND)
 
 export default async function EscolherContaPage() {
   const session = await requireMemberSession()
+  // Suporte não escolhe conta: a conta é a da sessão.
+  if (session.kind === 'support') redirect('/')
   const contas = await Promise.all(
     session.memberships.map(async (m) => {
       const [marca, termos] = await Promise.all([
