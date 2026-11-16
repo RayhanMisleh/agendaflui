@@ -119,7 +119,7 @@ describe('audit', () => {
     expect(s.actorType).toBe('SYSTEM')
     const c = await prisma.auditLog.findFirstOrThrow({ where: { businessId: a.id, action: 'c.a' } })
     expect(c.actorType).toBe('SYSTEM')
-    expect(c.actorName).toBe('Cli')
+    expect(c.actorName).toBe('Cliente')
     expect(c.metadata).toEqual({ z: 1, customerId: cid })
   })
 })
