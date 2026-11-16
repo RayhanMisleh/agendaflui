@@ -11,18 +11,23 @@ import {
   restoreCustomer,
   updateCustomer,
 } from '@/server/domain/customers/customers'
+import { bookAppointment } from '@/server/domain/scheduling/appointments'
 import { createLocalDiskStorage } from '@/server/storage/local-disk'
 import type { Storage } from '@/server/storage/storage'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
   ctxWithRole,
+  makeAppointment,
   makeBusiness,
   makeCtx,
   makeCustomer,
+  makeMembership,
   makeProfessional,
   makeService,
   makeUpload,
+  makeUser,
+  memberOf,
 } from '../setup/factories'
 
 let storage: Storage
@@ -421,7 +426,7 @@ describe('arquivar, restaurar e anonimizar', () => {
 
   test('anonimizar zera os dados, mantém o agendamento e pode ser repetido', async () => {
     const b = await makeBusiness()
-    const ctx = await makeCtx(b)
+    const ctx = await makeCtx(b, { now: new Date('2026-11-16T15:00:00Z') })
     const upload = await makeUpload(b.id)
     await storage.put(upload.path, Buffer.from('foto'), 'image/png')
     const c = await makeCustomer(b.id, {
@@ -457,7 +462,8 @@ describe('arquivar, restaurar e anonimizar', () => {
     const logs = await auditorias(b.id, 'customer.anonymized')
     expect(logs).toHaveLength(1)
     expect(JSON.stringify(logs[0]?.metadata)).not.toMatch(/Ana|ana@|segredo/)
-    expect(logs[0]?.metadata).toMatchObject({ avatarRemoved: true })
+    expect(logs[0]?.metadata).toMatchObject({ hadAvatar: true, canceledAppointments: 1 })
+    expect(await auditorias(b.id, 'customer.avatar_file_orphaned')).toHaveLength(0)
   })
 
   test('se o arquivo da foto não sair do storage, o registro já saiu e a auditoria avisa', async () => {
@@ -469,16 +475,20 @@ describe('arquivar, restaurar e anonimizar', () => {
     await anonymizeCustomer(ctx, c.id)
     expect(await prisma.upload.findUnique({ where: { id: upload.id } })).toBeNull()
     const logs = await auditorias(b.id, 'customer.anonymized')
-    expect(logs[0]?.metadata).toMatchObject({ avatarRemoved: false })
+    expect(logs[0]?.metadata).toMatchObject({ hadAvatar: true })
+    const orfas = await auditorias(b.id, 'customer.avatar_file_orphaned')
+    expect(orfas).toHaveLength(1)
+    expect(orfas[0]?.targetId).toBe(c.id)
   })
 
-  test('sem foto, a auditoria registra avatarRemoved falso', async () => {
+  test('sem foto, a auditoria registra hadAvatar falso', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
     const c = await makeCustomer(b.id)
     await anonymizeCustomer(ctx, c.id)
     const logs = await auditorias(b.id, 'customer.anonymized')
-    expect(logs[0]?.metadata).toMatchObject({ avatarRemoved: false })
+    expect(logs[0]?.metadata).toMatchObject({ hadAvatar: false, canceledAppointments: 0 })
+    expect(await auditorias(b.id, 'customer.avatar_file_orphaned')).toHaveLength(0)
   })
 
   test('anonimizado não pode ser restaurado nem alterado', async () => {
@@ -609,5 +619,122 @@ describe('e-mail verificado, avatar e busca avançada', () => {
     const ctx = await ctxCliente(b, c.id)
     expect((await domainError(updateCustomer(ctx, c.id, { notes: null }))).code).toBe('forbidden')
     expect((await prisma.customer.findUniqueOrThrow({ where: { id: c.id } })).notes).toBe('interna')
+  })
+})
+
+describe('cliente com agendamentos futuros', () => {
+  const AGORA = new Date('2026-11-16T15:00:00Z')
+  const EM_2_DIAS = new Date('2026-11-18T13:00:00Z')
+  const EM_3_DIAS = new Date('2026-11-19T13:00:00Z')
+
+  async function cenario() {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b, { now: AGORA })
+    const tosa = await makeService(b.id, { durationMin: 30 })
+    const c = await makeCustomer(b.id)
+    return { b, ctx, tosa, c }
+  }
+
+  test('arquivar com 2 agendamentos futuros recusa e diz quantos', async () => {
+    const { b, ctx, tosa, c } = await cenario()
+    const p1 = await makeProfessional(b.id, { serviceIds: [tosa.id] })
+    const p2 = await makeProfessional(b.id, { serviceIds: [tosa.id] })
+    await makeAppointment(b.id, { customerId: c.id, professionalId: p1.id, serviceId: tosa.id, startsAt: EM_2_DIAS, status: 'CONFIRMED' })
+    await makeAppointment(b.id, { customerId: c.id, professionalId: p2.id, serviceId: tosa.id, startsAt: EM_3_DIAS, status: 'PENDING' })
+    const e = await domainError(archiveCustomer(ctx, c.id))
+    expect(e.code).toBe('conflict')
+    expect(e.reason).toBe('has_future_appointments')
+    expect(e.details?.count).toBe(2)
+    expect(e.message).toContain('2')
+    expect((await getCustomer(ctx, c.id)).archived).toBe(false)
+  })
+
+  test('arquivar só com agendamentos passados, cancelados ou concluídos funciona', async () => {
+    const { b, ctx, tosa, c } = await cenario()
+    const p = await makeProfessional(b.id, { serviceIds: [tosa.id] })
+    const base = { customerId: c.id, professionalId: p.id, serviceId: tosa.id }
+    await makeAppointment(b.id, { ...base, startsAt: new Date('2026-11-10T13:00:00Z'), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, startsAt: EM_2_DIAS, status: 'CANCELED' })
+    await makeAppointment(b.id, { ...base, startsAt: EM_3_DIAS, status: 'NO_SHOW' })
+    await archiveCustomer(ctx, c.id)
+    expect((await getCustomer(ctx, c.id)).archived).toBe(true)
+  })
+
+  test('atendimento em andamento conta como futuro', async () => {
+    const { b, ctx, tosa, c } = await cenario()
+    const p = await makeProfessional(b.id, { serviceIds: [tosa.id] })
+    await makeAppointment(b.id, {
+      customerId: c.id,
+      professionalId: p.id,
+      serviceId: tosa.id,
+      startsAt: new Date(AGORA.getTime() - 10 * 60_000),
+      status: 'CONFIRMED',
+    })
+    const e = await domainError(archiveCustomer(ctx, c.id))
+    expect(e.details?.count).toBe(1)
+    await anonymizeCustomer(ctx, c.id)
+    expect((await prisma.appointment.findFirstOrThrow({ where: { customerId: c.id } })).status).toBe('CANCELED')
+  })
+
+  test('anonimizar cancela os futuros de profissionais diferentes, libera o horário e avisa a equipe', async () => {
+    const { b, ctx, tosa, c } = await cenario()
+    const donoA = await makeUser()
+    const donoB = await makeUser()
+    const mA = await makeMembership(b.id, donoA.id, 'PROFESSIONAL')
+    const mB = await makeMembership(b.id, donoB.id, 'PROFESSIONAL')
+    const p1 = await makeProfessional(b.id, { serviceIds: [tosa.id], membershipId: mA.id })
+    const p2 = await makeProfessional(b.id, { serviceIds: [tosa.id], membershipId: mB.id })
+    const a1 = await bookAppointment(ctx, { customerId: c.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS })
+    const a2 = await bookAppointment(ctx, { customerId: c.id, professionalId: p2.id, serviceIds: [tosa.id], startsAt: EM_3_DIAS })
+    const passado = await makeAppointment(b.id, {
+      customerId: c.id,
+      professionalId: p1.id,
+      serviceId: tosa.id,
+      startsAt: new Date('2026-11-10T13:00:00Z'),
+      status: 'COMPLETED',
+    })
+    expect(await prisma.notification.count({ where: { customerId: c.id, status: 'PENDING' } })).toBeGreaterThan(0)
+
+    await anonymizeCustomer(ctx, c.id)
+
+    const depois = await prisma.appointment.findMany({ where: { customerId: c.id }, orderBy: { startsAt: 'asc' } })
+    expect(depois.map((x) => x.status)).toEqual(['COMPLETED', 'CANCELED', 'CANCELED'])
+    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: passado.id } })).status).toBe('COMPLETED')
+    for (const x of depois.filter((y) => y.status === 'CANCELED')) {
+      expect(x.canceledAt).toEqual(AGORA)
+      expect(x.canceledByType).toBe('MEMBER')
+      expect(x.canceledById).toBe(memberOf(ctx).userId)
+      expect(x.cancelReason).toBe('Cadastro removido a pedido do cliente.')
+    }
+    expect(await auditorias(b.id, 'appointment.canceled')).toHaveLength(2)
+    // O cliente não recebe nada; os lembretes pendentes saem da fila.
+    expect(await prisma.notification.count({ where: { customerId: c.id, status: 'PENDING' } })).toBe(0)
+    expect(await prisma.notification.count({ where: { customerId: c.id, kind: 'APPOINTMENT_CANCELED' } })).toBe(0)
+    // Cada profissional vinculado é avisado do seu agendamento.
+    const avisos = await prisma.notification.findMany({ where: { kind: 'STAFF_APPOINTMENT_CANCELED' } })
+    expect(new Set(avisos.map((n) => n.membershipId))).toEqual(new Set([mA.id, mB.id]))
+    expect(new Set(avisos.map((n) => n.appointmentId))).toEqual(new Set([a1.id, a2.id]))
+    // O horário ficou livre para outro cliente.
+    const outro = await makeCustomer(b.id)
+    await bookAppointment(ctx, { customerId: outro.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS })
+    const logs = await auditorias(b.id, 'customer.anonymized')
+    expect(logs).toHaveLength(1)
+    expect(logs[0]?.metadata).toMatchObject({ hadAvatar: false, canceledAppointments: 2 })
+  })
+
+  test('o próprio cliente que se anonimiza também cancela os futuros, sem prazo mínimo', async () => {
+    const { b, tosa, c } = await cenario()
+    const p = await makeProfessional(b.id, { serviceIds: [tosa.id] })
+    const ag = await makeAppointment(b.id, {
+      customerId: c.id,
+      professionalId: p.id,
+      serviceId: tosa.id,
+      startsAt: new Date(AGORA.getTime() + 30 * 60_000),
+      status: 'CONFIRMED',
+    })
+    await anonymizeCustomer(await ctxCliente(b, c.id, AGORA), c.id)
+    const depois = await prisma.appointment.findUniqueOrThrow({ where: { id: ag.id } })
+    expect(depois.status).toBe('CANCELED')
+    expect(depois.canceledByType).toBe('CUSTOMER')
   })
 })

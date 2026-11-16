@@ -395,6 +395,8 @@ describe('cancelPendingForCustomer e cadastro', () => {
 
   test('arquivar cancela os avisos pendentes do cliente', async () => {
     const s = await comAvisos()
+    // Arquivar exige que não haja agendamento futuro; os avisos pendentes ficam na fila.
+    await prisma.appointment.update({ where: { id: s.v.id }, data: { status: 'CANCELED' } })
     await archiveCustomer(s.gerente, s.cliente.id)
     expect(await fila(s.b.id, { customerId: s.cliente.id, status: 'PENDING' })).toHaveLength(0)
     expect(await fila(s.b.id, { customerId: s.cliente.id, status: 'CANCELED' })).toHaveLength(5)

@@ -77,6 +77,7 @@ export async function afterChange(
   const previous = typeof extra.previousStartsAt === 'number' ? fromEpochMs(extra.previousStartsAt) : undefined
   const professional = typeof extra.previousProfessionalId === 'string' ? extra.previousProfessionalId : undefined
   await enqueueAppointmentEvent(tx, ctx, event, appointment, {
+    ...(extra.notifyProfessional === 1 ? { notifyProfessional: true } : {}),
     ...(previous ? { previousStartsAt: previous } : {}),
     ...(professional ? { previousProfessionalId: professional } : {}),
   })

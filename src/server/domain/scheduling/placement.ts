@@ -12,7 +12,7 @@ import { addMinutes, formatTime, localDayRange, localParts, minutesBetween } fro
 export const STAFF_RANGE_DAYS = 366
 
 /** Muitos pedidos podem esperar a mesma trava; o tempo cobre a fila de um horário disputado. */
-const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 }
+export const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 }
 
 /** Prefere o campo `constraint` do erro do Postgres; o texto da mensagem fica como alternativa. */
 function namesOverlapConstraint(cause: object): boolean {
@@ -266,6 +266,8 @@ export async function placeAppointment(ctx: TenantContext, tx: TenantTx, p: Plac
 
 /**
  * Transação com trava por profissional (em ordem crescente de id, para não travar em deadlock).
+ * Com `customerId`, a trava do cliente vem antes de todas (marcar, arquivar e anonimizar o mesmo cliente
+ * se serializam; a ordem é sempre cliente, depois profissionais).
  * A violação da restrição do banco vira `slot_taken`; a lista dos próximos horários é calculada fora da
  * transação, que a violação já abortou.
  */
@@ -274,10 +276,12 @@ export async function lockedTransaction<T>(
   lockIds: string[],
   overlapInfo: () => { startsAt: Date; durationMin: number; professionalIds: string[]; ignoreAppointmentId?: string },
   fn: (tx: TenantTx) => Promise<T>,
+  opts: { customerId?: string } = {},
 ): Promise<T> {
   const ordered = [...new Set(lockIds)].sort()
   try {
     return await ctx.db.$transaction(async (tx) => {
+      if (opts.customerId) await tx.$lockKey('customer', opts.customerId)
       for (const id of ordered) await tx.$lockKey('professional', id)
       return fn(tx)
     }, TX_OPTIONS)

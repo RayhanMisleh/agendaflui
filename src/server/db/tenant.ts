@@ -167,7 +167,7 @@ function bloquearSqlCru(operacao: string): never {
 }
 
 /** Escopos aceitos por `$lockKey`: lista fechada. */
-const ESCOPOS_DE_TRAVA = ['professional'] as const
+const ESCOPOS_DE_TRAVA = ['professional', 'customer'] as const
 export type LockScope = (typeof ESCOPOS_DE_TRAVA)[number]
 
 /**
@@ -186,6 +186,9 @@ function criarExtensao(businessId: string) {
        * seria solta na hora e daria falsa segurança.
        */
       async $lockKey(scope: LockScope, id: string): Promise<void> {
+        if (this === undefined || this === null) {
+          throw new TenantViolationError('$lockKey precisa ser chamado pelo cliente da transação, sem extrair o método.')
+        }
         const cliente = Prisma.getExtensionContext(this)
         if (!ESCOPOS_DE_TRAVA.includes(scope)) {
           throw new TenantViolationError(`$lockKey: escopo "${String(scope)}" não é permitido.`)

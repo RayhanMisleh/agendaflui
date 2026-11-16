@@ -3,6 +3,11 @@ import type { Prisma } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
+import {
+  cancelOpenAppointmentsOfCustomer,
+  openAppointmentsOfCustomer,
+  withCustomerAppointmentsLocked,
+} from '@/server/domain/scheduling/customer-appointments'
 import { cancelPendingForCustomer } from '@/server/domain/notifications/outbox'
 import { formatPhone, normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
 import { deleteUploadRecord, removeUploadFile, uploadUrl } from '@/server/storage/images'
@@ -34,6 +39,7 @@ export type CustomerInput = {
 }
 
 const ANONYMIZED_NAME = 'Cliente removido'
+const CANCEL_REASON = 'Cadastro removido a pedido do cliente.'
 const REMOVED_MESSAGE = 'Este cadastro foi removido a pedido do cliente e não pode mais ser alterado.'
 const MIN_BIRTH_DATE = '1900-01-01'
 type CustomerRow = Prisma.CustomerGetPayload<{ include: { avatar: true } }>
@@ -342,6 +348,17 @@ export async function archiveCustomer(ctx: TenantContext, id: string): Promise<v
   if (current.archivedAt !== null) return
   try {
     await ctx.db.$transaction(async (tx) => {
+      // A trava do cliente serializa com as marcações dele; atendimento em andamento também impede.
+      await tx.$lockKey('customer', id)
+      const count = (await openAppointmentsOfCustomer(ctx, tx, id)).length
+      if (count > 0) {
+        const quantos = count === 1 ? 'Há 1 agendamento futuro' : `Há ${count} agendamentos futuros`
+        throw new DomainError(
+          'conflict',
+          `${quantos} com este cliente. Cancele os agendamentos antes de arquivar o cadastro.`,
+          { reason: 'has_future_appointments', details: { count } },
+        )
+      }
       await tx.customer.update({ where: { id }, data: { archivedAt: ctx.clock() } })
       await cancelPendingForCustomer(tx, id)
       await audit(ctx, { action: 'customer.archived', targetType: 'Customer', targetId: id }, tx)
@@ -370,7 +387,10 @@ export async function restoreCustomer(ctx: TenantContext, id: string): Promise<C
   }
 }
 
-/** Remove os dados pessoais e mantém o cadastro vazio, para os agendamentos continuarem ligados. */
+/**
+ * Remove os dados pessoais e mantém o cadastro vazio, para os agendamentos continuarem ligados. Os
+ * agendamentos futuros são cancelados na mesma transação (sem aviso ao cliente, que está saindo).
+ */
 export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise<void> {
   if (ctx.actor.kind === 'customer') assertOwnRecord(ctx, id)
   else authorize(ctx, 'manage_clients')
@@ -379,7 +399,7 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
   const now = ctx.clock()
   let avatarPath: string | null = null
   try {
-    await ctx.db.$transaction(async (tx) => {
+    await withCustomerAppointmentsLocked(ctx, id, async (tx, open) => {
       await tx.customer.update({
         where: { id },
         data: {
@@ -396,14 +416,27 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
           archivedAt: current.archivedAt ?? now,
         },
       })
+      // Cancela depois de anonimizar: o cliente já não recebe aviso nenhum.
+      const canceled = await cancelOpenAppointmentsOfCustomer(tx, ctx, open, CANCEL_REASON)
       await cancelPendingForCustomer(tx, id)
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
+      await audit(
+        ctx,
+        {
+          action: 'customer.anonymized',
+          targetType: 'Customer',
+          targetId: id,
+          metadata: { hadAvatar: current.avatarUploadId !== null, canceledAppointments: canceled },
+        },
+        tx,
+      )
     })
   } catch (err) {
     if (isRecordNotFound(err)) throw notFound()
     throw err
   }
-  // O arquivo só sai depois do commit; se falhar, a auditoria registra.
-  const avatarRemoved = avatarPath === null ? false : (await removeUploadFile(avatarPath)).fileRemoved
-  await audit(ctx, { action: 'customer.anonymized', targetType: 'Customer', targetId: id, metadata: { avatarRemoved } })
+  // O arquivo só sai depois do commit, em melhor esforço; se falhar, a auditoria registra e nada é lançado.
+  if (avatarPath !== null && !(await removeUploadFile(avatarPath)).fileRemoved) {
+    await audit(ctx, { action: 'customer.avatar_file_orphaned', targetType: 'Customer', targetId: id })
+  }
 }

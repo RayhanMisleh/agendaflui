@@ -206,6 +206,7 @@ export async function bookAppointment(
       await afterChange(tx, ctx, 'booked', row)
       return toView(ctx, row)
     },
+    { customerId },
   )
 }
 

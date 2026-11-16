@@ -35,6 +35,37 @@ type StatusChange = {
   /** Campos extras a gravar; pode recusar a mudança. */
   prepare?: (tx: TenantTx, row: Row) => Promise<Prisma.AppointmentUncheckedUpdateInput>
   metadata?: (row: Row, extra: Prisma.AppointmentUncheckedUpdateInput) => Record<string, string | number | null>
+  /** Dados a mais para os avisos do evento (ver `afterChange`). */
+  eventExtra?: Record<string, string | number | null>
+}
+
+function assertTransition(row: Row, spec: StatusChange): void {
+  if (!canTransition(row.status, spec.to) || (spec.from && !spec.from.includes(row.status))) {
+    throw invalidTransition(spec.invalid)
+  }
+}
+
+/**
+ * Aplica a mudança de situação dentro de uma transação que já tem a trava do profissional: confere a
+ * transição, grava, audita e enfileira os avisos. Não confere prazo nem permissão de quem pede.
+ */
+async function applyChange(tx: TenantTx, ctx: TenantContext, row: Row, spec: StatusChange): Promise<Row> {
+  assertTransition(row, spec)
+  const extra = spec.prepare ? await spec.prepare(tx, row) : {}
+  await tx.appointment.update({ where: { id: row.id }, data: { status: spec.to, ...extra } })
+  await audit(
+    ctx,
+    {
+      action: spec.action,
+      targetType: 'Appointment',
+      targetId: row.id,
+      metadata: { from: row.status, to: spec.to, ...(spec.metadata?.(row, extra) ?? {}) },
+    },
+    tx,
+  )
+  const updated = await reload(tx, row.id)
+  await afterChange(tx, ctx, spec.event, updated, { from: row.status, ...(spec.eventExtra ?? {}) })
+  return updated
 }
 
 async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange): Promise<AppointmentView> {
@@ -50,29 +81,31 @@ async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange):
     async (tx) => {
       const row = await loadForActor(ctx, tx, id, who, scope)
       assertProfessionalUnchanged(row, [before.professionalId])
-      if (!canTransition(row.status, spec.to) || (spec.from && !spec.from.includes(row.status))) {
-        throw invalidTransition(spec.invalid)
-      }
+      assertTransition(row, spec)
       if (who === 'customer') {
         assertCustomerWindow(ctx, await getSchedulingRules(ctx, tx), row.startsAt, spec.customerVerb ?? '')
       }
-      const extra = spec.prepare ? await spec.prepare(tx, row) : {}
-      await tx.appointment.update({ where: { id }, data: { status: spec.to, ...extra } })
-      await audit(
-        ctx,
-        {
-          action: spec.action,
-          targetType: 'Appointment',
-          targetId: id,
-          metadata: { from: row.status, to: spec.to, ...(spec.metadata?.(row, extra) ?? {}) },
-        },
-        tx,
-      )
-      const updated = await reload(tx, id)
-      await afterChange(tx, ctx, spec.event, updated, { from: row.status })
-      return toView(ctx, updated)
+      return toView(ctx, await applyChange(tx, ctx, row, spec))
     },
   )
+}
+
+function cancelSpec(ctx: TenantContext, reason: string | null, eventExtra?: StatusChange['eventExtra']): StatusChange {
+  const by = party(ctx)
+  return {
+    to: 'CANCELED',
+    action: 'appointment.canceled',
+    event: 'canceled',
+    invalid: 'Só dá para cancelar agendamentos pendentes ou confirmados.',
+    customerVerb: 'cancelar',
+    ...(eventExtra ? { eventExtra } : {}),
+    prepare: async () => ({
+      canceledAt: ctx.clock(),
+      canceledByType: by.type,
+      canceledById: by.id,
+      cancelReason: reason,
+    }),
+  }
 }
 
 export async function cancelAppointment(
@@ -81,20 +114,15 @@ export async function cancelAppointment(
   i: { reason?: string | null } = {},
 ): Promise<AppointmentView> {
   const { reason } = parse(cancelSchema, i)
-  const by = party(ctx)
-  return changeStatus(ctx, id, {
-    to: 'CANCELED',
-    action: 'appointment.canceled',
-    event: 'canceled',
-    invalid: 'Só dá para cancelar agendamentos pendentes ou confirmados.',
-    customerVerb: 'cancelar',
-    prepare: async () => ({
-      canceledAt: ctx.clock(),
-      canceledByType: by.type,
-      canceledById: by.id,
-      cancelReason: reason ?? null,
-    }),
-  })
+  return changeStatus(ctx, id, cancelSpec(ctx, reason ?? null))
+}
+
+/**
+ * Cancela um agendamento dentro de uma transação que já tem a trava do profissional (cadastro removido).
+ * Sem prazo do cliente; o membro do profissional é avisado, qualquer que seja quem cancela.
+ */
+export async function cancelWithinTransaction(tx: TenantTx, ctx: TenantContext, id: string, reason: string): Promise<void> {
+  await applyChange(tx, ctx, await reload(tx, id), cancelSpec(ctx, reason, { notifyProfessional: 1 }))
 }
 
 export function confirmAppointment(ctx: TenantContext, id: string): Promise<AppointmentView> {

@@ -87,7 +87,7 @@ describe('$lockKey', () => {
     const b = await makeBusiness()
     const db = tenantDb(b.id)
     await expect(
-      db.$transaction((tx) => tx.$lockKey('customer' as 'professional', PROF)),
+      db.$transaction((tx) => tx.$lockKey('service' as 'professional', PROF)),
     ).rejects.toThrow(TenantViolationError)
     await expect(db.$transaction((tx) => tx.$lockKey('professional', 'x'))).rejects.toThrow(TenantViolationError)
     await expect(
@@ -182,6 +182,6 @@ describe('$lockKey', () => {
   test('$lockKey extraído, sem this, lança e não roda fora de transação', async () => {
     const b = await makeBusiness()
     const { $lockKey } = tenantDb(b.id)
-    await expect($lockKey('professional', PROF)).rejects.toThrow()
+    await expect($lockKey('professional', PROF)).rejects.toThrow(TenantViolationError)
   })
 })

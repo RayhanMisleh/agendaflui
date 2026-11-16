@@ -158,7 +158,7 @@ export async function enqueueAppointmentEvent(
   ctx: TenantContext,
   event: AppointmentEvent,
   appt: EventAppointment,
-  opts: { previousStartsAt?: Date; previousProfessionalId?: string } = {},
+  opts: { previousStartsAt?: Date; previousProfessionalId?: string; notifyProfessional?: boolean } = {},
 ): Promise<void> {
   if (event === 'outcome_undone') return
   const side = sideOf(ctx)
@@ -206,7 +206,7 @@ export async function enqueueAppointmentEvent(
       if (side === 'staff' && customerOk) {
         rows.push(...rowsFor(plan, 'APPOINTMENT_CANCELED', toCustomer, { scheduledFor: now }))
       }
-      if (side === 'customer') {
+      if (side === 'customer' || opts.notifyProfessional) {
         staff('STAFF_APPOINTMENT_CANCELED', await membershipOf(tx, appt.professionalId, appt.professional), { scheduledFor: now })
       }
       break
