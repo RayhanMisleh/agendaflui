@@ -43,9 +43,9 @@ const SEGUNDA_10H = new Date('2026-11-16T13:00:00Z')
 const QUINTA_10H = new Date('2026-11-19T13:00:00Z')
 const QUINTA_11H = new Date('2026-11-19T14:00:00Z')
 
-async function montar(o: { now?: Date; comVinculo?: boolean } = {}) {
+async function montar(o: { now?: Date; comVinculo?: boolean; autoConfirm?: boolean } = {}) {
   const b = await makeBusiness()
-  await prisma.businessSettings.update({ where: { businessId: b.id }, data: { slotStepMin: 30, minLeadMin: 0 } })
+  await prisma.businessSettings.update({ where: { businessId: b.id }, data: { slotStepMin: 30, minLeadMin: 0, ...(o.autoConfirm === false ? { autoConfirm: false } : {}) } })
   const tosa = await makeService(b.id, { name: 'Tosa', durationMin: 30, priceCents: 5000 })
   const user = await makeUser()
   const vinculo = await makeMembership(b.id, user.id, 'PROFESSIONAL')
@@ -243,7 +243,8 @@ describe('fila ao cancelar, remarcar e concluir', () => {
     const aviso = rows.find((r) => r.kind === 'APPOINTMENT_RESCHEDULED' && r.channel === 'EMAIL')
     expect(aviso?.customerId).toBe(s.cliente.id)
     expect(aviso?.payload).toEqual({ appointmentId: v.id, startsAt: '2026-11-19T14:00:00.000Z', previousStartsAt: '2026-11-19T13:00:00.000Z' })
-    expect(aviso?.dedupeKey).toBe(`APPOINTMENT_RESCHEDULED:EMAIL:${v.id}:${QUINTA_11H.getTime()}`)
+    const depois = await prisma.appointment.findUniqueOrThrow({ where: { id: v.id } })
+    expect(aviso?.dedupeKey).toBe(`APPOINTMENT_RESCHEDULED:EMAIL:${v.id}:${depois.updatedAt.getTime()}`)
     expect(rows.filter((r) => r.kind === 'STAFF_APPOINTMENT_RESCHEDULED')).toHaveLength(0)
   })
 
@@ -311,20 +312,62 @@ describe('fila ao cancelar, remarcar e concluir', () => {
     expect(await prisma.notification.count({ where: { businessId: s.b.id } })).toBe(antes)
   })
 
-  test('confirmar um pendente cria a confirmação e os lembretes que faltam, sem duplicar', async () => {
-    const s = await montar()
-    const appt = await makeAppointment(s.b.id, {
-      customerId: s.cliente.id, professionalId: s.ana.id, serviceId: s.tosa.id, startsAt: QUINTA_10H, status: 'PENDING',
-    })
-    await confirmAppointment(s.gerente, appt.id)
-    expect(resumo(await fila(s.b.id))).toEqual(
-      [...ambos('APPOINTMENT_CONFIRMED'), ...ambos('APPOINTMENT_REMINDER_24H'), ...ambos('APPOINTMENT_REMINDER_1H')].sort(),
-    )
-    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_11H })
-    const antes = await prisma.notification.count({ where: { appointmentId: v.id } })
-    await prisma.appointment.update({ where: { id: v.id }, data: { status: 'PENDING' } })
+  test('conta sem autoConfirm: o pedido avisa "recebido", sem lembrete; confirmar envia a confirmação e os lembretes', async () => {
+    const s = await montar({ autoConfirm: false })
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    expect(v.status).toBe('PENDING')
+    expect(resumo(await fila(s.b.id))).toEqual([...ambos('APPOINTMENT_REQUESTED'), ...ambos('STAFF_NEW_APPOINTMENT')].sort())
+    expect((await fila(s.b.id, { kind: 'APPOINTMENT_REQUESTED' })).every((r) => r.customerId === s.cliente.id)).toBe(true)
     await confirmAppointment(s.gerente, v.id)
-    expect(await prisma.notification.count({ where: { appointmentId: v.id } })).toBe(antes)
+    const rows = await fila(s.b.id)
+    expect(resumo(rows)).toEqual(
+      [
+        ...ambos('APPOINTMENT_REQUESTED'),
+        ...ambos('STAFF_NEW_APPOINTMENT'),
+        ...ambos('APPOINTMENT_CONFIRMED'),
+        ...ambos('APPOINTMENT_REMINDER_24H'),
+        ...ambos('APPOINTMENT_REMINDER_1H'),
+      ].sort(),
+    )
+    await confirmAppointment(s.gerente, v.id).catch(() => undefined)
+    expect(await prisma.notification.count({ where: { businessId: s.b.id } })).toBe(10)
+  })
+
+  test('remarcar um pendente continua sem lembretes', async () => {
+    const s = await montar({ autoConfirm: false })
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    await rescheduleAppointment(s.gerente, v.id, { startsAt: QUINTA_11H })
+    expect(await fila(s.b.id, { kind: { in: ['APPOINTMENT_REMINDER_24H', 'APPOINTMENT_REMINDER_1H'] } })).toHaveLength(0)
+  })
+
+  test('A -> B -> A -> B: quatro avisos de remarcação por canal, o último com o horário B', async () => {
+    const s = await montar()
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_11H })
+    for (const alvo of [QUINTA_10H, QUINTA_11H, QUINTA_10H, QUINTA_11H]) {
+      await rescheduleAppointment(s.gerente, v.id, { startsAt: alvo })
+    }
+    const emails = await fila(s.b.id, { kind: 'APPOINTMENT_RESCHEDULED', channel: 'EMAIL' })
+    expect(emails).toHaveLength(4)
+    expect(await fila(s.b.id, { kind: 'APPOINTMENT_RESCHEDULED', channel: 'PUSH' })).toHaveLength(4)
+    const ultimo = [...emails].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id)).at(-1)
+    expect(ultimo?.payload).toMatchObject({ startsAt: QUINTA_11H.toISOString(), previousStartsAt: QUINTA_10H.toISOString() })
+  })
+
+  test('cliente remarca trocando de profissional: o membro antigo recebe o cancelamento do horário antigo', async () => {
+    const s = await montar()
+    const userCaio = await makeUser()
+    const vinculoCaio = await makeMembership(s.b.id, userCaio.id, 'PROFESSIONAL')
+    const caio = await makeProfessional(s.b.id, { name: 'Caio', serviceIds: [s.tosa.id], membershipId: vinculoCaio.id })
+    await makeWorkingHours(s.b.id, caio.id, 'THURSDAY', [MANHA])
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    await rescheduleAppointment(s.clienteCtx, v.id, { startsAt: QUINTA_11H, professionalId: caio.id })
+    const antigo = await fila(s.b.id, { kind: 'STAFF_APPOINTMENT_CANCELED' })
+    expect(resumo(antigo)).toEqual(ambos('STAFF_APPOINTMENT_CANCELED'))
+    expect(antigo.every((r) => r.membershipId === s.vinculo.id)).toBe(true)
+    expect(antigo[0]?.payload).toEqual({ appointmentId: v.id, startsAt: QUINTA_10H.toISOString() })
+    const novo = await fila(s.b.id, { kind: 'STAFF_APPOINTMENT_RESCHEDULED' })
+    expect(resumo(novo)).toEqual(ambos('STAFF_APPOINTMENT_RESCHEDULED'))
+    expect(novo.every((r) => r.membershipId === vinculoCaio.id)).toBe(true)
   })
 })
 
@@ -388,8 +431,9 @@ describe('notifyProfessionalFreeEarly', () => {
     expect(rows[0]?.scheduledFor.toISOString()).toBe(SEGUNDA_08H.toISOString())
     expect(rows[0]?.dedupeKey).toBe(`PROFESSIONAL_FREE_EARLY:${rows[0]?.channel}:${s.appt.id}`)
     const audits = await prisma.auditLog.findMany({ where: { businessId: s.b.id, action: 'appointment.free_early_notified' } })
-    expect(audits.length).toBeGreaterThanOrEqual(1)
-    expect(audits[0]?.targetId).toBe(s.appt.id)
+    expect(audits).toHaveLength(2)
+    expect(audits.every((a) => a.targetId === s.appt.id)).toBe(true)
+    expect(audits.map((a) => (a.metadata as { queued: number }).queued).sort()).toEqual([0, 2])
   })
 
   test('o próprio profissional pode; outro profissional não', async () => {
@@ -412,11 +456,14 @@ describe('notifyProfessionalFreeEarly', () => {
 
   test('recusa agendamento pendente, de outro dia ou já iniciado', async () => {
     const pendente = await hoje({ status: 'PENDING' })
-    expect((await domainError(notifyProfessionalFreeEarly(pendente.gerente, pendente.appt.id))).code).toBe('conflict')
+    const e1 = await domainError(notifyProfessionalFreeEarly(pendente.gerente, pendente.appt.id))
+    expect([e1.code, e1.reason]).toEqual(['conflict', 'invalid_status'])
     const amanha = await hoje({ startsAt: new Date('2026-11-17T13:00:00Z') })
-    expect((await domainError(notifyProfessionalFreeEarly(amanha.gerente, amanha.appt.id))).code).toBe('conflict')
+    const e2 = await domainError(notifyProfessionalFreeEarly(amanha.gerente, amanha.appt.id))
+    expect([e2.code, e2.reason]).toEqual(['conflict', 'not_today'])
     const iniciado = await hoje({ startsAt: new Date('2026-11-16T10:00:00Z') })
-    expect((await domainError(notifyProfessionalFreeEarly(iniciado.gerente, iniciado.appt.id))).code).toBe('conflict')
+    const e3 = await domainError(notifyProfessionalFreeEarly(iniciado.gerente, iniciado.appt.id))
+    expect([e3.code, e3.reason]).toEqual(['conflict', 'already_started'])
     expect(await prisma.notification.count()).toBe(0)
   })
 
@@ -458,6 +505,20 @@ describe('configurações de avisos', () => {
     await updateNotificationSettings(gerente, { APPOINTMENT_CONFIRMED: { email: true } })
     await updateNotificationSettings(gerente, {})
     expect(await prisma.auditLog.count({ where: { businessId: b.id, action: 'notification_settings.updated' } })).toBe(0)
+  })
+
+  test('duas alterações simultâneas de tipos diferentes não se perdem', async () => {
+    const b = await makeBusiness()
+    const gerente = await ctxWithRole(b, 'MANAGER')
+    await Promise.all([
+      updateNotificationSettings(gerente, { APPOINTMENT_CANCELED: { email: false } }),
+      updateNotificationSettings(gerente, { APPOINTMENT_COMPLETED: { push: false } }),
+      updateNotificationSettings(gerente, { PROFESSIONAL_FREE_EARLY: { email: false } }),
+    ])
+    const s = await getNotificationSettings(gerente)
+    expect(s.APPOINTMENT_CANCELED.email).toBe(false)
+    expect(s.APPOINTMENT_COMPLETED.push).toBe(false)
+    expect(s.PROFESSIONAL_FREE_EARLY.email).toBe(false)
   })
 
   test('JSON estragado no banco não derruba a leitura', async () => {

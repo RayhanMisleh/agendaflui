@@ -316,7 +316,10 @@ export async function rescheduleAppointment(
         tx,
       )
       const updated = await reload(tx, id)
-      await afterChange(tx, ctx, 'rescheduled', updated, { previousStartsAt: row.startsAt.getTime() })
+      await afterChange(tx, ctx, 'rescheduled', updated, {
+        previousStartsAt: row.startsAt.getTime(),
+        previousProfessionalId: row.professionalId,
+      })
       return toView(ctx, updated)
     },
   )

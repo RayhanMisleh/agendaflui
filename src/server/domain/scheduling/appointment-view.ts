@@ -77,7 +77,11 @@ export async function afterChange(
 ): Promise<void> {
   if (event === 'adjusted') return
   const previous = typeof extra.previousStartsAt === 'number' ? fromEpochMs(extra.previousStartsAt) : undefined
-  await enqueueAppointmentEvent(tx, ctx, event, appointment, previous ? { previousStartsAt: previous } : {})
+  const professional = typeof extra.previousProfessionalId === 'string' ? extra.previousProfessionalId : undefined
+  await enqueueAppointmentEvent(tx, ctx, event, appointment, {
+    ...(previous ? { previousStartsAt: previous } : {}),
+    ...(professional ? { previousProfessionalId: professional } : {}),
+  })
 }
 
 export function notFound(): DomainError {

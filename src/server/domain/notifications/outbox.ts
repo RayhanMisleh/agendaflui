@@ -22,12 +22,16 @@ export type AppointmentEvent =
   | 'outcome_undone'
   | 'no_show'
 
+/** `customer` e `professional` são opcionais: quem já os carregou evita duas consultas dentro da trava. */
 type EventAppointment = {
   id: string
   customerId: string
   professionalId: string
   startsAt: Date
+  updatedAt: Date
   status: AppointmentStatus
+  customer?: { archivedAt: Date | null; anonymizedAt: Date | null }
+  professional?: { membershipId: string | null }
 }
 
 type Row = Prisma.NotificationCreateManyInput
@@ -38,7 +42,6 @@ const REMINDERS: readonly { kind: NotificationKind; minutesBefore: number }[] = 
 ]
 const REMINDER_KINDS: NotificationKind[] = REMINDERS.map((r) => r.kind)
 const CHANNELS: readonly NotificationChannel[] = ['EMAIL', 'PUSH']
-const REMINDABLE: readonly AppointmentStatus[] = ['PENDING', 'CONFIRMED']
 
 type Side = 'staff' | 'customer' | null
 
@@ -64,21 +67,25 @@ type Plan = {
   enabled: Awaited<ReturnType<typeof getNotificationSettings>>
 }
 
-function payloadOf(appt: EventAppointment, previousStartsAt?: Date): Prisma.InputJsonObject {
+function payloadOf(appt: EventAppointment, startsAt: Date, previousStartsAt?: Date): Prisma.InputJsonObject {
   return {
     appointmentId: appt.id,
-    startsAt: toIsoInstant(appt.startsAt),
+    startsAt: toIsoInstant(startsAt),
     ...(previousStartsAt ? { previousStartsAt: toIsoInstant(previousStartsAt) } : {}),
   }
 }
 
-/** Uma linha por canal ligado na conta. `withStart` põe o início na chave, para o aviso valer por horário. */
-function rowsFor(
-  plan: Plan,
-  kind: NotificationKind,
-  to: Recipient,
-  o: { scheduledFor: Date; withStart: boolean; previousStartsAt?: Date },
-): Row[] {
+type RowOptions = {
+  scheduledFor: Date
+  /** Sufixo da chave de deduplicação; sem ele, o aviso vale uma vez por agendamento. */
+  suffix?: number
+  /** Início que vai no payload (padrão: o atual). */
+  startsAt?: Date
+  previousStartsAt?: Date
+}
+
+/** Uma linha por canal ligado na conta. */
+function rowsFor(plan: Plan, kind: NotificationKind, to: Recipient, o: RowOptions): Row[] {
   const toggle = plan.enabled[kind]
   return CHANNELS.filter((channel) => (channel === 'EMAIL' ? toggle.email : toggle.push)).map((channel) => ({
     businessId: plan.ctx.businessId,
@@ -87,8 +94,8 @@ function rowsFor(
     ...to,
     appointmentId: plan.appt.id,
     scheduledFor: o.scheduledFor,
-    payload: payloadOf(plan.appt, o.previousStartsAt),
-    dedupeKey: `${kind}:${channel}:${plan.appt.id}${o.withStart ? `:${plan.appt.startsAt.getTime()}` : ''}`,
+    payload: payloadOf(plan.appt, o.startsAt ?? plan.appt.startsAt, o.previousStartsAt),
+    dedupeKey: `${kind}:${channel}:${plan.appt.id}${o.suffix === undefined ? '' : `:${o.suffix}`}`,
   }))
 }
 
@@ -99,15 +106,17 @@ async function insert(tx: TenantTx, rows: Row[]): Promise<number> {
   return count
 }
 
-async function customerCanReceive(tx: TenantTx, customerId: string): Promise<boolean> {
+async function customerCanReceive(tx: TenantTx, appt: EventAppointment): Promise<boolean> {
+  if (appt.customer) return appt.customer.archivedAt === null && appt.customer.anonymizedAt === null
   const customer = await tx.customer.findFirst({
-    where: { id: customerId, archivedAt: null, anonymizedAt: null },
+    where: { id: appt.customerId, archivedAt: null, anonymizedAt: null },
     select: { id: true },
   })
   return customer !== null
 }
 
-async function professionalMembership(tx: TenantTx, professionalId: string): Promise<string | null> {
+async function membershipOf(tx: TenantTx, professionalId: string, loaded?: { membershipId: string | null }): Promise<string | null> {
+  if (loaded) return loaded.membershipId
   const professional = await tx.professional.findUnique({ where: { id: professionalId }, select: { membershipId: true } })
   return professional?.membershipId ?? null
 }
@@ -119,19 +128,20 @@ async function cancelPendingReminders(tx: TenantTx, appointmentId: string): Prom
   })
 }
 
-/** Cria os lembretes que ainda estão no futuro; um lembrete cancelado do mesmo horário volta a valer. */
-async function ensureReminders(plan: Plan): Promise<void> {
-  const { tx, ctx, appt } = plan
-  if (!REMINDABLE.includes(appt.status)) return
-  const now = ctx.clock()
-  const rows: Row[] = []
-  for (const { kind, minutesBefore } of REMINDERS) {
+/** Lembretes que ainda estão no futuro; só agendamento confirmado tem lembrete. */
+function reminderRows(plan: Plan): Row[] {
+  const { ctx, appt } = plan
+  if (appt.status !== 'CONFIRMED') return []
+  const now = ctx.clock().getTime()
+  return REMINDERS.flatMap(({ kind, minutesBefore }) => {
     const scheduledFor = addMinutes(appt.startsAt, -minutesBefore)
-    if (scheduledFor.getTime() > now.getTime()) {
-      rows.push(...rowsFor(plan, kind, { customerId: appt.customerId }, { scheduledFor, withStart: true }))
-    }
-  }
-  await insert(tx, rows)
+    if (scheduledFor.getTime() <= now) return []
+    return rowsFor(plan, kind, { customerId: appt.customerId }, { scheduledFor, suffix: appt.startsAt.getTime() })
+  })
+}
+
+/** Um lembrete cancelado do mesmo horário (A -> B -> A) volta a valer. */
+async function reviveReminders(tx: TenantTx, rows: Row[]): Promise<void> {
   if (rows.length === 0) return
   await tx.notification.updateMany({
     where: { dedupeKey: { in: rows.map((r) => r.dedupeKey) }, status: 'CANCELED' },
@@ -148,78 +158,91 @@ export async function enqueueAppointmentEvent(
   ctx: TenantContext,
   event: AppointmentEvent,
   appt: EventAppointment,
-  opts: { previousStartsAt?: Date } = {},
+  opts: { previousStartsAt?: Date; previousProfessionalId?: string } = {},
 ): Promise<void> {
   if (event === 'outcome_undone') return
-  const plan: Plan = { tx, ctx, appt, enabled: await getNotificationSettings(ctx, tx) }
-  const now = ctx.clock()
   const side = sideOf(ctx)
-  const customerOk = event === 'no_show' ? false : await customerCanReceive(tx, appt.customerId)
+  const now = ctx.clock()
   const toCustomer = { customerId: appt.customerId }
+
+  if (event === 'no_show') {
+    await cancelPendingReminders(tx, appt.id)
+    return
+  }
+  if (event === 'canceled' || event === 'completed') await cancelPendingReminders(tx, appt.id)
+  let moved = false
+  if (event === 'rescheduled') {
+    moved = opts.previousStartsAt === undefined || opts.previousStartsAt.getTime() !== appt.startsAt.getTime()
+    if (moved) await cancelPendingReminders(tx, appt.id)
+  }
+
+  const plan: Plan = { tx, ctx, appt, enabled: await getNotificationSettings(ctx, tx) }
+  const customerOk = await customerCanReceive(tx, appt)
+  const rows: Row[] = []
+  const staff = (kind: NotificationKind, membershipId: string | null, o: RowOptions) => {
+    if (membershipId) rows.push(...rowsFor(plan, kind, { membershipId }, o))
+  }
+  let reminders: Row[] = []
 
   switch (event) {
     case 'booked': {
-      const rows: Row[] = []
       if (customerOk) {
-        rows.push(...rowsFor(plan, 'APPOINTMENT_CONFIRMED', toCustomer, { scheduledFor: now, withStart: true }))
+        const kind = appt.status === 'PENDING' ? 'APPOINTMENT_REQUESTED' : 'APPOINTMENT_CONFIRMED'
+        rows.push(...rowsFor(plan, kind, toCustomer, { scheduledFor: now, suffix: appt.startsAt.getTime() }))
+        reminders = reminderRows(plan)
       }
       if (side === 'customer') {
-        const membershipId = await professionalMembership(tx, appt.professionalId)
-        if (membershipId) rows.push(...rowsFor(plan, 'STAFF_NEW_APPOINTMENT', { membershipId }, { scheduledFor: now, withStart: false }))
+        staff('STAFF_NEW_APPOINTMENT', await membershipOf(tx, appt.professionalId, appt.professional), { scheduledFor: now })
       }
-      await insert(tx, rows)
-      if (customerOk) await ensureReminders(plan)
-      return
+      break
     }
     case 'confirmed': {
       if (!customerOk) return
-      await insert(tx, rowsFor(plan, 'APPOINTMENT_CONFIRMED', toCustomer, { scheduledFor: now, withStart: true }))
-      await ensureReminders(plan)
-      return
+      rows.push(...rowsFor(plan, 'APPOINTMENT_CONFIRMED', toCustomer, { scheduledFor: now, suffix: appt.startsAt.getTime() }))
+      reminders = reminderRows(plan)
+      break
     }
     case 'canceled': {
-      await cancelPendingReminders(tx, appt.id)
-      const rows: Row[] = []
       if (side === 'staff' && customerOk) {
-        rows.push(...rowsFor(plan, 'APPOINTMENT_CANCELED', toCustomer, { scheduledFor: now, withStart: false }))
+        rows.push(...rowsFor(plan, 'APPOINTMENT_CANCELED', toCustomer, { scheduledFor: now }))
       }
       if (side === 'customer') {
-        const membershipId = await professionalMembership(tx, appt.professionalId)
-        if (membershipId) rows.push(...rowsFor(plan, 'STAFF_APPOINTMENT_CANCELED', { membershipId }, { scheduledFor: now, withStart: false }))
+        staff('STAFF_APPOINTMENT_CANCELED', await membershipOf(tx, appt.professionalId, appt.professional), { scheduledFor: now })
       }
-      await insert(tx, rows)
-      return
+      break
     }
     case 'rescheduled': {
-      const moved = opts.previousStartsAt === undefined || opts.previousStartsAt.getTime() !== appt.startsAt.getTime()
-      if (moved) await cancelPendingReminders(tx, appt.id)
-      const rows: Row[] = []
-      const extra = opts.previousStartsAt ? { previousStartsAt: opts.previousStartsAt } : {}
+      const unique = appt.updatedAt.getTime()
+      const previous = opts.previousStartsAt ? { previousStartsAt: opts.previousStartsAt } : {}
       if (side === 'staff' && customerOk) {
-        rows.push(...rowsFor(plan, 'APPOINTMENT_RESCHEDULED', toCustomer, { scheduledFor: now, withStart: true, ...extra }))
+        rows.push(...rowsFor(plan, 'APPOINTMENT_RESCHEDULED', toCustomer, { scheduledFor: now, suffix: unique, ...previous }))
       }
       if (side === 'customer') {
-        const membershipId = await professionalMembership(tx, appt.professionalId)
-        if (membershipId) {
-          rows.push(...rowsFor(plan, 'STAFF_APPOINTMENT_RESCHEDULED', { membershipId }, { scheduledFor: now, withStart: true, ...extra }))
+        const current = await membershipOf(tx, appt.professionalId, appt.professional)
+        staff('STAFF_APPOINTMENT_RESCHEDULED', current, { scheduledFor: now, suffix: unique, ...previous })
+        const before = opts.previousProfessionalId
+        if (before !== undefined && before !== appt.professionalId) {
+          const old = await membershipOf(tx, before)
+          if (old !== current) {
+            staff('STAFF_APPOINTMENT_CANCELED', old, {
+              scheduledFor: now,
+              suffix: unique,
+              startsAt: opts.previousStartsAt ?? appt.startsAt,
+            })
+          }
         }
       }
-      await insert(tx, rows)
-      if (customerOk) await ensureReminders(plan)
-      return
+      if (customerOk) reminders = reminderRows(plan)
+      break
     }
     case 'completed': {
-      await cancelPendingReminders(tx, appt.id)
-      if (customerOk) {
-        await insert(tx, rowsFor(plan, 'APPOINTMENT_COMPLETED', toCustomer, { scheduledFor: now, withStart: false }))
-      }
-      return
-    }
-    case 'no_show': {
-      await cancelPendingReminders(tx, appt.id)
-      return
+      if (customerOk) rows.push(...rowsFor(plan, 'APPOINTMENT_COMPLETED', toCustomer, { scheduledFor: now }))
+      break
     }
   }
+
+  await insert(tx, [...rows, ...reminders])
+  if (event === 'rescheduled' && moved) await reviveReminders(tx, reminders)
 }
 
 /** Cancela os avisos ainda pendentes do cliente (arquivado ou anonimizado não recebe mais nada). */
@@ -256,10 +279,10 @@ export async function notifyProfessionalFreeEarly(ctx: TenantContext, appointmen
       throw new DomainError('conflict', 'Este atendimento já começou. Não há mais o que antecipar.', { reason: 'already_started' })
     }
     const plan: Plan = { tx, ctx, appt, enabled: await getNotificationSettings(ctx, tx) }
-    const queued = (await customerCanReceive(tx, appt.customerId))
+    const queued = (await customerCanReceive(tx, appt))
       ? await insert(
           tx,
-          rowsFor(plan, 'PROFESSIONAL_FREE_EARLY', { customerId: appt.customerId }, { scheduledFor: now, withStart: false }),
+          rowsFor(plan, 'PROFESSIONAL_FREE_EARLY', { customerId: appt.customerId }, { scheduledFor: now }),
         )
       : 0
     await audit(
