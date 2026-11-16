@@ -57,5 +57,6 @@ export function areaUrl(
   cfg: HostConfig,
   protocol: 'http' | 'https',
 ): string {
+  if (!path.startsWith('/')) throw new RangeError('O caminho da URL precisa começar com barra (/).')
   return `${protocol}://${cfg[area]}${path}`
 }

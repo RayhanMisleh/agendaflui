@@ -208,6 +208,7 @@ model Business {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug          String         @unique
   name          String
+  legalName     String?        @map("legal_name")
   segment       String?
   document      String?
   email         String?
@@ -219,6 +220,10 @@ model Business {
   timezone      String         @default("America/Sao_Paulo")
   status        BusinessStatus @default(ACTIVE)
   internalNotes String?        @map("internal_notes")
+  /// Controle de edição: cada gravação pelo painel dev exige a versão lida e a incrementa.
+  version       Int            @default(1)
+  /// Nome sem acentos e em minúsculas, para a busca da lista de contas.
+  searchName    String         @default("") @map("search_name")
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -318,6 +323,8 @@ model User {
   name           String
   email          String    @unique
   passwordHash   String?   @map("password_hash")
+  /// Nome sem acentos e em minúsculas, para a busca de donos na lista de contas.
+  searchName     String    @default("") @map("search_name")
   avatarUploadId String?   @map("avatar_upload_id") @db.Uuid
   lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)

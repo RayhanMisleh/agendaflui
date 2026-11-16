@@ -22,6 +22,7 @@ export async function makeBusiness(overrides: Partial<Prisma.BusinessUncheckedCr
     data: {
       slug,
       name: `Conta ${slug}`,
+      searchName: `conta ${slug}`,
       branding: { create: { displayName: `Conta ${slug}` } },
       modules: { create: {} },
       settings: { create: {} },
@@ -43,6 +44,7 @@ export async function makeUser(overrides: MakeUserInput = {}): Promise<User> {
   return prisma.user.create({
     data: {
       name: `Usuário ${id}`,
+      searchName: `usuario ${id}`,
       email: `usuario-${id}@exemplo.test`,
       passwordHash: password === null ? null : await hashPassword(password),
       ...rest,

@@ -227,7 +227,7 @@ let cached: { url: string; document: OpenApiDocument } | null = null
 
 /** O documento OpenAPI 3.1 de todas as rotas do manifesto, com o servidor montado a partir de `API_HOST`. Guardado por servidor. */
 export function buildOpenApi(): OpenApiDocument {
-  const url = areaLink('api', '')
+  const url = areaLink('api', '/').replace(/\/$/, '')
   if (cached?.url !== url) cached = { url, document: build(url) }
   return cached.document
 }

@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
+import { searchKey } from '../src/server/domain/customers/contact'
 import type { MembershipRole, PrismaClient } from '../src/server/db/generated/client'
 import { DEMO_CLOSURE_REASON, DEMO_CONTAS, DEMO_MULTI_NOME, demoEmail, type DemoAgenda, type DemoPapel } from './seed-data'
 import { planejarAgenda } from './seed-plan'
@@ -251,7 +252,7 @@ export async function seed(
     emails.push(normalizado)
     if (existente) return existente.id
     const criado = await prisma.user.create({
-      data: { name, email: normalizado, passwordHash: await hashPassword(env.SEED_USER_PASSWORD) },
+      data: { name, searchName: searchKey(name), email: normalizado, passwordHash: await hashPassword(env.SEED_USER_PASSWORD) },
     })
     return criado.id
   }
@@ -272,6 +273,7 @@ export async function seed(
       create: {
         slug: conta.slug,
         name: conta.nome,
+        searchName: searchKey(conta.nome),
         segment: conta.segmento,
         timezone: conta.fuso,
         branding: { create: { displayName: conta.nome, ...conta.marca } },

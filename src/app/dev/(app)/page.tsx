@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { BookOpen } from 'lucide-react'
 import { requirePlatformAdmin } from '@/server/auth/guards'
-import { areaLink } from '@/server/area-links'
 import { listBusinesses } from '@/server/domain/platform/businesses'
 import { LinkButton } from '@/ui/components'
 import { ContasLista } from './ContasLista'
@@ -11,7 +10,8 @@ export const metadata: Metadata = { title: 'Visão geral | AgendaFlui' }
 
 export default async function VisaoGeralPage() {
   const admin = await requirePlatformAdmin()
-  const contas = (await listBusinesses()).map((c) => ({ ...c, entrada: areaLink('painel', `/entrar/${c.slug}`) }))
+  const { items } = await listBusinesses(admin, { limit: 100 })
+  const contas = items.map((c) => ({ id: c.id, name: c.name, slug: c.slug, status: c.status, entrada: c.entryUrl }))
   return (
     <DevFrame admin={admin} title="Visão geral">
       <div className="af-home">

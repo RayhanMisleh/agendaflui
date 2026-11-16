@@ -26,6 +26,7 @@ export const DOMAIN_REASONS = [
   'not_today',
   'slot_taken',
   'slot_unavailable',
+  'stale_version',
   'too_early',
   'too_late',
   'wrong_password',

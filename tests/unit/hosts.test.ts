@@ -43,4 +43,10 @@ describe('hosts', () => {
     expect(areaUrl('painel', '/entrar/minha-loja', cfg, 'http')).toBe('http://painel.localhost:3000/entrar/minha-loja')
     expect(areaUrl('api', '/v1', cfg, 'https')).toBe('https://api.localhost:3000/v1')
   })
+  test('areaUrl recusa caminho sem barra inicial, para o host não se misturar com o caminho', () => {
+    expect(() => areaUrl('painel', 'entrar', cfg, 'http')).toThrow(/barra/)
+    expect(() => areaUrl('painel', '', cfg, 'http')).toThrow(/barra/)
+    expect(() => areaUrl('painel', '.evil.com/x', cfg, 'http')).toThrow(/barra/)
+    expect(areaUrl('painel', '/', cfg, 'http')).toBe('http://painel.localhost:3000/')
+  })
 })

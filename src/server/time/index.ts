@@ -1,4 +1,5 @@
 import { Temporal } from 'temporal-polyfill'
+import { DomainError } from '@/server/domain/errors'
 
 /**
  * Único lugar do sistema com conversão de fuso horário.
@@ -45,6 +46,19 @@ export function isValidTimeZone(tz: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * Nome canônico de um fuso IANA ('america/sao_paulo' vira 'America/Sao_Paulo'), para gravar sempre na mesma grafia.
+ * Fuso inexistente ou com deslocamento fixo lança `DomainError` de validação no campo `timeZone`.
+ */
+export function canonicalTimeZone(input: string): string {
+  const texto = typeof input === 'string' ? input.trim() : ''
+  if (isValidTimeZone(texto)) {
+    return Temporal.Instant.fromEpochMilliseconds(0).toZonedDateTimeISO(texto).timeZoneId
+  }
+  const msg = 'Informe um fuso horário da lista, por exemplo America/Sao_Paulo.'
+  throw new DomainError('validation', msg, { fields: { timeZone: msg } })
 }
 
 function assertTimeZone(tz: string): void {
