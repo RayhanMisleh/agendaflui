@@ -1,0 +1,49 @@
+import type { Metadata } from 'next'
+import { Paper } from '@/ui/components'
+import { getCustomization } from '@/server/domain/platform/customization'
+import { timeZoneChoices } from '@/server/time'
+import { FUSOS } from '../../nova/fields'
+import { carregarConta } from '../_data'
+import { AvisosForm, RegrasForm } from '../Simple'
+import { AVISOS } from '../forms'
+
+export const metadata: Metadata = { title: 'Regras da conta | AgendaFlui' }
+
+export default async function RegrasPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { admin, conta } = await carregarConta(id)
+  const { rules, timeZone, notifications } = await getCustomization(admin, conta.id)
+  const { top, rest } = timeZoneChoices(FUSOS.map((f) => f.value))
+  const fusos = { top: FUSOS.filter((f) => top.includes(f.value)), rest }
+  const avisos: Record<string, string> = { businessId: conta.id }
+  for (const a of AVISOS) {
+    const canais = notifications[a.kind as keyof typeof notifications]
+    avisos[`${a.kind}__email`] = canais?.email ? 'on' : ''
+    avisos[`${a.kind}__push`] = canais?.push ? 'on' : ''
+  }
+  return (
+    <>
+      <Paper raised={1} className="af-listpanel">
+        <h2 className="af-section__title">Regras de agenda e fuso</h2>
+        <RegrasForm
+          fusos={fusos}
+          valores={{
+            businessId: conta.id,
+            slotStepMin: String(rules.slotStepMin),
+            minLeadMin: String(rules.minLeadMin),
+            maxAdvanceDays: String(rules.maxAdvanceDays),
+            customerChangeWindowMin: String(rules.customerChangeWindowMin),
+            bufferMin: String(rules.bufferMin),
+            autoConfirm: rules.autoConfirm ? 'on' : '',
+            timeZone,
+          }}
+        />
+      </Paper>
+      <Paper raised={1} className="af-listpanel">
+        <h2 className="af-section__title">Avisos por tipo e canal</h2>
+        <p className="af-section__help">Desmarcar um canal para de mandar aquele aviso por ele nesta conta.</p>
+        <AvisosForm valores={avisos} />
+      </Paper>
+    </>
+  )
+}

@@ -49,6 +49,22 @@ export function isValidTimeZone(tz: string): boolean {
 }
 
 /**
+ * Fusos para um seletor: `top` são os pedidos (em ordem, só os que existem) e `rest` são todos os outros fusos IANA,
+ * em ordem alfabética e sem repetir os de cima.
+ */
+export function timeZoneChoices(top: readonly string[]): { top: string[]; rest: string[] } {
+  const fixos: string[] = []
+  for (const t of top) {
+    if (isValidTimeZone(t) && !fixos.includes(t)) fixos.push(t)
+  }
+  const todos = new Set<string>()
+  for (const t of Intl.supportedValuesOf('timeZone')) {
+    if (isValidTimeZone(t) && !fixos.includes(t)) todos.add(t)
+  }
+  return { top: fixos, rest: [...todos].sort() }
+}
+
+/**
  * Nome canônico de um fuso IANA ('america/sao_paulo' vira 'America/Sao_Paulo'), para gravar sempre na mesma grafia.
  * Fuso inexistente ou com deslocamento fixo lança `DomainError` de validação no campo `timeZone`.
  */

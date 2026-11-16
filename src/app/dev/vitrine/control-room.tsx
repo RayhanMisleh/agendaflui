@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Activity, Building2, KeyRound, LayoutDashboard, ScrollText, ShieldCheck } from 'lucide-react'
-import { BrandPreview, Button, ColorField, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, MaterialPicker, Pagination, Paper, SearchBar, Stamp, StatusLamp, StepRail } from '@/ui/components'
+import { BrandPreview, Button, ColorField, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, MaterialPicker, NavTabs, Pagination, Paper, SearchBar, SecretBox, Stamp, StatusLamp, StepRail } from '@/ui/components'
 import type { CoverMaterial } from '@/shared/theme/derive'
 import type { DataColumn, LampState, Tone } from '@/ui/components'
 import { DevShell } from '@/ui/shells'
@@ -124,6 +124,15 @@ function PecasDasTelas() {
               Arquivar conta
             </Button>
           </div>
+          <NavTabs
+            label="Abas da conta (exemplo)"
+            items={[
+              { id: 'resumo', label: 'Resumo', href: '/vitrine', exact: true },
+              { id: 'marca', label: 'Marca', href: '/vitrine?aba=marca' },
+              { id: 'equipe', label: 'Equipe', href: '/vitrine?aba=equipe' },
+            ]}
+          />
+          <SecretBox name="App Pata Viva" secret="afk_a_exemplo_nao_e_uma_chave_de_verdade" />
           <Pagination basePath="/vitrine" params={{ search: 'pata' }} cursor="atual" nextCursor="proximo" />
         </div>
       </Paper>

@@ -19,7 +19,21 @@ const DEV_COOKIE = 'af_dev_session'
 const MARCAS_DE_ERRO = ['__next_error__', 'Application error', /Digest: \d+/]
 
 /** Páginas pedidas. `{conta}` vira o id da primeira conta do seed. Acrescente aqui as telas novas de cada tarefa. */
-const PAGINAS = ['/', '/contas', '/contas?search=x&status=ACTIVE', '/contas/nova', '/contas/{conta}', '/vitrine']
+const PAGINAS = [
+  '/',
+  '/contas',
+  '/contas?search=x&status=ACTIVE',
+  '/contas/nova',
+  '/contas/{conta}',
+  '/contas/{conta}/marca',
+  '/contas/{conta}/termos',
+  '/contas/{conta}/modulos',
+  '/contas/{conta}/regras',
+  '/contas/{conta}/equipe',
+  '/contas/{conta}/chaves',
+  '/contas/{conta}/auditoria',
+  '/vitrine',
+]
 
 type Resposta = { status: number; corpo: string }
 
