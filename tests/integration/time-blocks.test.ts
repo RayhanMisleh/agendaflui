@@ -4,9 +4,12 @@ import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
   ctxWithRole,
+  makeAppointment,
   makeBusiness,
   makeCtx,
+  makeCustomer,
   makeProfessional,
+  makeService,
   memberOf,
 } from '../setup/factories'
 
@@ -15,13 +18,40 @@ beforeEach(resetDb)
 const INICIO = new Date('2026-11-17T02:00:00Z')
 const FIM = new Date('2026-11-17T04:00:00Z')
 
+describe('createTimeBlock: agendamentos afetados', () => {
+  test('conta os pendentes e confirmados do profissional no intervalo, sem recusar o bloqueio', async () => {
+    const b = await makeBusiness({ timezone: 'America/Sao_Paulo' })
+    const ctx = await makeCtx(b)
+    const s = await makeService(b.id, { durationMin: 60 })
+    const p = await makeProfessional(b.id, { serviceIds: [s.id] })
+    const outro = await makeProfessional(b.id, { serviceIds: [s.id] })
+    const c = await makeCustomer(b.id)
+    const base = { customerId: c.id, serviceId: s.id }
+    const inicio = new Date('2026-11-20T13:00:00Z')
+    const em = (min: number) => new Date(inicio.getTime() + min * 60_000)
+    // Começa antes do bloqueio e termina dentro dele: também conta.
+    await makeAppointment(b.id, { ...base, professionalId: p.id, startsAt: em(-30), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, professionalId: p.id, startsAt: em(30), status: 'PENDING' })
+    await makeAppointment(b.id, { ...base, professionalId: p.id, startsAt: em(90), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, professionalId: p.id, startsAt: em(120), status: 'CANCELED' })
+    await makeAppointment(b.id, { ...base, professionalId: p.id, startsAt: em(180), status: 'COMPLETED' })
+    // Começa exatamente quando o bloqueio termina: fora.
+    await makeAppointment(b.id, { ...base, professionalId: p.id, startsAt: em(240), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, professionalId: outro.id, startsAt: em(0), status: 'CONFIRMED' })
+    const bloco = await createTimeBlock(ctx, { professionalId: p.id, startsAt: em(0), endsAt: em(240) })
+    expect(bloco.affectedAppointments).toBe(3)
+    expect(await prisma.timeBlock.count({ where: { businessId: b.id } })).toBe(1)
+    expect(await prisma.appointment.count({ where: { businessId: b.id, status: 'CANCELED' } })).toBe(1)
+  })
+})
+
 describe('createTimeBlock e listTimeBlocks', () => {
   test('cria, grava o autor e lista por datas locais no fuso da conta', async () => {
     const b = await makeBusiness({ timezone: 'America/Sao_Paulo' })
     const ctx = await ctxWithRole(b, 'MANAGER')
     const p = await makeProfessional(b.id)
     const bloco = await createTimeBlock(ctx, { professionalId: p.id, startsAt: INICIO, endsAt: FIM, reason: '  Médico  ' })
-    expect(bloco).toEqual({ id: bloco.id, professionalId: p.id, startsAt: INICIO, endsAt: FIM, reason: 'Médico' })
+    expect(bloco).toEqual({ id: bloco.id, professionalId: p.id, startsAt: INICIO, endsAt: FIM, reason: 'Médico', affectedAppointments: 0 })
     const gravado = await prisma.timeBlock.findUniqueOrThrow({ where: { id: bloco.id } })
     expect(gravado.createdByType).toBe('MEMBER')
     expect(gravado.createdById).toBe(memberOf(ctx).userId)

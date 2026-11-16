@@ -2,9 +2,13 @@ import type { TenantContext } from '@/server/auth/actor'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
-import { compareLocalDates, daysBetween, dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
+import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
+import { compareLocalDates, daysBetween, dbDateToLocal, isLocalDate, localDayRange, localToDbDate, todayIn } from '@/server/time'
 
 export type ClosureView = { id: string; startDate: string; endDate: string; reason: string | null }
+
+/** Fechamento recém-criado, com quantos agendamentos pendentes ou confirmados da conta caem nos dias dele (não os cancela). */
+export type CreatedClosure = ClosureView & { affectedAppointments: number }
 
 const MAX_CLOSURE_DAYS = 366
 
@@ -56,7 +60,7 @@ export async function listClosures(ctx: TenantContext, q: { from?: string; to?: 
 export async function createClosure(
   ctx: TenantContext,
   i: { startDate: string; endDate: string; reason?: string | null },
-): Promise<ClosureView> {
+): Promise<CreatedClosure> {
   authorize(ctx, 'manage_settings')
   const data = parse(createSchema, i)
   if (compareLocalDates(data.startDate, data.endDate) > 0) {
@@ -88,9 +92,16 @@ export async function createClosure(
       },
       tx,
     )
-    return closure
+    const affectedAppointments = await tx.appointment.count({
+      where: {
+        status: { in: [...OPEN_STATUSES] },
+        startsAt: { lt: localDayRange(data.endDate, ctx.timeZone).end },
+        endsAt: { gt: localDayRange(data.startDate, ctx.timeZone).start },
+      },
+    })
+    return { closure, affectedAppointments }
   })
-  return toView(created)
+  return { ...toView(created.closure), affectedAppointments: created.affectedAppointments }
 }
 
 export async function deleteClosure(ctx: TenantContext, id: string): Promise<void> {

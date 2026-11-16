@@ -2,16 +2,39 @@ import { prisma } from '@/server/db/client'
 import { createClosure, deleteClosure, isClosedOn, listClosures } from '@/server/domain/settings/closures'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx } from '../setup/factories'
+import { ctxWithRole, makeAppointment, makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService } from '../setup/factories'
 
 beforeEach(resetDb)
+
+describe('createClosure: agendamentos afetados', () => {
+  test('conta pendentes e confirmados de toda a conta nos dias do fechamento, no fuso local, sem recusar', async () => {
+    const b = await makeBusiness({ timezone: 'America/Sao_Paulo' })
+    const ctx = await makeCtx(b)
+    const s = await makeService(b.id, { durationMin: 30 })
+    const ana = await makeProfessional(b.id, { serviceIds: [s.id] })
+    const caio = await makeProfessional(b.id, { serviceIds: [s.id] })
+    const c = await makeCustomer(b.id)
+    const base = { customerId: c.id, serviceId: s.id }
+    // Fechamento de 24 a 25/12 em São Paulo (UTC-3): de 24/12 03:00Z até 26/12 03:00Z.
+    await makeAppointment(b.id, { ...base, professionalId: ana.id, startsAt: new Date('2026-12-24T13:00:00Z'), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, professionalId: caio.id, startsAt: new Date('2026-12-25T13:00:00Z'), status: 'PENDING' })
+    // 25/12 23:30 local ainda é dentro; 26/12 00:00 local (03:00Z) já é fora.
+    await makeAppointment(b.id, { ...base, professionalId: ana.id, startsAt: new Date('2026-12-26T02:30:00Z'), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, professionalId: caio.id, startsAt: new Date('2026-12-26T03:00:00Z'), status: 'CONFIRMED' })
+    await makeAppointment(b.id, { ...base, professionalId: ana.id, startsAt: new Date('2026-12-24T14:00:00Z'), status: 'CANCELED' })
+    await makeAppointment(b.id, { ...base, professionalId: ana.id, startsAt: new Date('2026-12-23T13:00:00Z'), status: 'CONFIRMED' })
+    const f = await createClosure(ctx, { startDate: '2026-12-24', endDate: '2026-12-25', reason: 'Natal' })
+    expect(f.affectedAppointments).toBe(3)
+    expect(await prisma.businessClosure.count({ where: { businessId: b.id } })).toBe(1)
+  })
+})
 
 describe('createClosure e isClosedOn', () => {
   test('fechado no primeiro e no último dia, aberto antes e depois', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
     const f = await createClosure(ctx, { startDate: '2026-12-24', endDate: '2026-12-26', reason: '  Natal  ' })
-    expect(f).toEqual({ id: f.id, startDate: '2026-12-24', endDate: '2026-12-26', reason: 'Natal' })
+    expect(f).toEqual({ id: f.id, startDate: '2026-12-24', endDate: '2026-12-26', reason: 'Natal', affectedAppointments: 0 })
     expect(await isClosedOn(ctx, '2026-12-23')).toBe(false)
     expect(await isClosedOn(ctx, '2026-12-24')).toBe(true)
     expect(await isClosedOn(ctx, '2026-12-25')).toBe(true)

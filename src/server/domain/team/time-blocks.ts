@@ -3,6 +3,7 @@ import type { PartyType } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
 import { can } from '@/server/auth/capabilities'
+import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import {
   assertCanManageProfessional,
   assertCanReadSchedule,
@@ -18,6 +19,9 @@ export type TimeBlockView = {
   endsAt: Date
   reason: string | null
 }
+
+/** Bloco recém-criado, com quantos agendamentos pendentes ou confirmados ele cobre (o bloqueio não os cancela). */
+export type CreatedTimeBlock = TimeBlockView & { affectedAppointments: number }
 
 const MAX_BLOCK_DAYS = 60
 const MAX_QUERY_DAYS = 92
@@ -101,7 +105,7 @@ export async function listTimeBlocks(
 export async function createTimeBlock(
   ctx: TenantContext,
   i: { professionalId: string; startsAt: Date; endsAt: Date; reason?: string | null },
-): Promise<TimeBlockView> {
+): Promise<CreatedTimeBlock> {
   const data = parse(createSchema, i)
   await assertCanWriteSchedule(ctx, data.professionalId)
   if (minutesBetween(data.startsAt, data.endsAt) <= 0) {
@@ -135,9 +139,17 @@ export async function createTimeBlock(
       },
       tx,
     )
-    return block
+    const affectedAppointments = await tx.appointment.count({
+      where: {
+        professionalId: data.professionalId,
+        status: { in: [...OPEN_STATUSES] },
+        startsAt: { lt: data.endsAt },
+        endsAt: { gt: data.startsAt },
+      },
+    })
+    return { block, affectedAppointments }
   })
-  return toView(created)
+  return { ...toView(created.block), affectedAppointments: created.affectedAppointments }
 }
 
 export async function deleteTimeBlock(ctx: TenantContext, id: string): Promise<void> {
