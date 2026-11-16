@@ -175,6 +175,14 @@ function assertProfessionalAllowed(who: Who, scope: Scope, professionalId: strin
   }
 }
 
+/** Prefere o campo `constraint` do erro do Postgres; o texto da mensagem fica como alternativa. */
+function namesOverlapConstraint(cause: object): boolean {
+  if ('constraint' in cause && typeof cause.constraint === 'string') {
+    return cause.constraint === 'appointments_no_overlap'
+  }
+  return 'message' in cause && typeof cause.message === 'string' && cause.message.includes('appointments_no_overlap')
+}
+
 function isOverlapViolation(err: unknown): boolean {
   if (typeof err !== 'object' || err === null || !('code' in err) || err.code !== 'P2039') return false
   const meta = 'meta' in err ? err.meta : undefined
@@ -187,9 +195,7 @@ function isOverlapViolation(err: unknown): boolean {
     cause !== null &&
     'code' in cause &&
     cause.code === '23P01' &&
-    'message' in cause &&
-    typeof cause.message === 'string' &&
-    cause.message.includes('appointments_no_overlap')
+    namesOverlapConstraint(cause)
   )
 }
 
@@ -335,6 +341,7 @@ async function slotTaken(
   db: Db,
   i: { startsAt: Date; durationMin: number; professionalIds: string[]; ignoreAppointmentId?: string },
 ): Promise<DomainError> {
+  // `nearest` usa as regras do cliente (grade e folga) também quando quem pede é a equipe.
   let nearest: { startsAt: Date; label: string }[] = []
   try {
     const rules = await getSchedulingRules(ctx, db)
@@ -361,6 +368,55 @@ async function slotTaken(
     reason: 'slot_taken',
     details: { nearest },
   })
+}
+
+/** Equipe: devolve os profissionais livres no intervalo (sem folga). Nenhum livre vira `blocked` ou `slot_taken`. */
+async function assertFreeForStaff(
+  ctx: TenantContext,
+  tx: TenantTx,
+  i: {
+    professionalIds: string[]
+    specific: boolean
+    startsAt: Date
+    endsAt: Date
+    durationMin: number
+    bufferMin: number
+    ignoreAppointmentId?: string
+  },
+): Promise<string[]> {
+  const ignore = i.ignoreAppointmentId ? { ignoreAppointmentId: i.ignoreAppointmentId } : {}
+  const states = await conflictsOf(ctx, tx, {
+    professionalIds: i.professionalIds,
+    startsAt: i.startsAt,
+    endsAt: i.endsAt,
+    bufferMin: i.bufferMin,
+    ...ignore,
+  })
+  const free = i.professionalIds.filter((id) => states.get(id) === null)
+  if (free.length > 0) return free
+  const only = i.professionalIds.length === 1 ? states.get(i.professionalIds[0] ?? '') : undefined
+  if (i.specific && only === 'blocked') {
+    throw new DomainError(
+      'conflict',
+      'A agenda deste profissional está bloqueada nesse horário. Escolha outro horário ou outro profissional.',
+      { reason: 'blocked' },
+    )
+  }
+  throw await slotTaken(ctx, tx, {
+    startsAt: i.startsAt,
+    durationMin: i.durationMin,
+    professionalIds: i.professionalIds,
+    ...ignore,
+  })
+}
+
+/** O agendamento relido sob a trava ainda é do profissional que foi travado; senão ele mudou nesse meio-tempo. */
+function assertProfessionalUnchanged(row: Row, lockedIds: readonly string[]): void {
+  if (!lockedIds.includes(row.professionalId)) {
+    throw new DomainError('conflict', 'Este agendamento mudou enquanto você o editava. Abra-o de novo.', {
+      reason: 'changed',
+    })
+  }
 }
 
 type Place = {
@@ -407,19 +463,15 @@ async function placeAppointment(ctx: TenantContext, tx: TenantTx, p: Place): Pro
       })
     }
   } else {
-    const states = await conflicts()
-    free = ids.filter((id) => states.get(id) === null)
-    if (free.length === 0) {
-      const only = ids.length === 1 ? states.get(ids[0] ?? '') : undefined
-      if (p.specific && only === 'blocked') {
-        throw new DomainError(
-          'conflict',
-          'A agenda deste profissional está bloqueada nesse horário. Escolha outro horário ou outro profissional.',
-          { reason: 'blocked' },
-        )
-      }
-      throw await taken()
-    }
+    free = await assertFreeForStaff(ctx, tx, {
+      professionalIds: ids,
+      specific: p.specific,
+      startsAt: p.startsAt,
+      endsAt: p.endsAt,
+      durationMin: p.durationMin,
+      bufferMin: p.rules.bufferMin,
+      ...ignore,
+    })
   }
 
   const [first] = free
@@ -646,18 +698,15 @@ export async function rescheduleAppointment(
       if (!EDITABLE.includes(row.status)) {
         throw invalidTransition('Só dá para remarcar agendamentos pendentes ou confirmados.')
       }
-      if (!lockIds.includes(row.professionalId)) {
-        throw new DomainError('conflict', 'Este agendamento mudou enquanto você o editava. Abra-o de novo.', {
-          reason: 'changed',
-        })
-      }
+      assertProfessionalUnchanged(row, lockIds)
       const rules = await getSchedulingRules(ctx, tx)
       if (who === 'customer') assertCustomerWindow(ctx, rules, row.startsAt, 'remarcar')
 
       const services = changesServices ? await resolveServices(ctx, i.serviceIds ?? [], tx) : null
       const durationMin = services?.durationMin ?? row.totalDurationMin
       const endsAt = addMinutes(input.startsAt, durationMin)
-      const needsCandidateCheck = services !== null || specificId !== row.professionalId
+      // O atalho vale só para a equipe: o cliente do app sempre confere se o profissional ainda atende.
+      const needsCandidateCheck = who === 'customer' || services !== null || specificId !== row.professionalId
       let eligible: Candidate[]
       if (specificId) {
         if (needsCandidateCheck) {
@@ -746,6 +795,7 @@ async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange):
     () => ({ startsAt: before.startsAt, durationMin: before.totalDurationMin, professionalIds: [before.professionalId], ignoreAppointmentId: id }),
     async (tx) => {
       const row = await loadForActor(ctx, tx, id, who, scope)
+      assertProfessionalUnchanged(row, [before.professionalId])
       if (!canTransition(row.status, spec.to) || (spec.from && !spec.from.includes(row.status))) {
         throw invalidTransition(spec.invalid)
       }
@@ -817,13 +867,9 @@ export function completeAppointment(ctx: TenantContext, id: string): Promise<App
     action: 'appointment.completed',
     event: 'completed',
     invalid: 'Só dá para concluir agendamentos confirmados.',
-    prepare: async (tx, row) => {
+    prepare: async (_tx, row) => {
       assertStarted(ctx, row, 'concluir o atendimento')
-      const professional = await tx.professional.findUnique({
-        where: { id: row.professionalId },
-        select: { commissionBps: true },
-      })
-      const bps = professional?.commissionBps ?? 0
+      const bps = row.professional.commissionBps
       return { completedAt: ctx.clock(), commissionCents: Math.round((row.totalCents * bps) / 10_000) }
     },
     metadata: (_row, extra) => ({ commissionCents: typeof extra.commissionCents === 'number' ? extra.commissionCents : null }),
@@ -880,6 +926,7 @@ export async function adjustAppointment(
     }),
     async (tx) => {
       const row = await loadForActor(ctx, tx, id, who, scope)
+      assertProfessionalUnchanged(row, [before.professionalId])
       if (!EDITABLE.includes(row.status)) {
         throw invalidTransition('Só dá para ajustar agendamentos pendentes ou confirmados.')
       }
@@ -894,30 +941,15 @@ export async function adjustAppointment(
         }
         const endsAt = addMinutes(row.startsAt, services.durationMin)
         const rules = await getSchedulingRules(ctx, tx)
-        const state = (
-          await conflictsOf(ctx, tx, {
-            professionalIds: [row.professionalId],
-            startsAt: row.startsAt,
-            endsAt,
-            bufferMin: rules.bufferMin,
-            ignoreAppointmentId: id,
-          })
-        ).get(row.professionalId)
-        if (state === 'busy') {
-          throw await slotTaken(ctx, tx, {
-            startsAt: row.startsAt,
-            durationMin: services.durationMin,
-            professionalIds: [row.professionalId],
-            ignoreAppointmentId: id,
-          })
-        }
-        if (state === 'blocked') {
-          throw new DomainError(
-            'conflict',
-            'A agenda deste profissional está bloqueada nesse horário. Escolha outros serviços ou desbloqueie a agenda.',
-            { reason: 'blocked' },
-          )
-        }
+        await assertFreeForStaff(ctx, tx, {
+          professionalIds: [row.professionalId],
+          specific: true,
+          startsAt: row.startsAt,
+          endsAt,
+          durationMin: services.durationMin,
+          bufferMin: rules.bufferMin,
+          ignoreAppointmentId: id,
+        })
         data.endsAt = endsAt
         data.totalCents = services.totalCents
         data.totalDurationMin = services.durationMin

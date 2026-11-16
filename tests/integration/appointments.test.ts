@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db/client'
+import { DomainError } from '@/server/domain/errors'
 import {
   adjustAppointment,
   bookAppointment,
@@ -521,6 +522,112 @@ describe('remarcar', () => {
     const a = await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ, status: 'CANCELED' })
     const e = await domainError(rescheduleAppointment(s.gerente, a.id, { startsAt: hora(14) }))
     expect(e.reason).toBe('invalid_transition')
+  })
+})
+
+describe('remarcar com o profissional que mudou depois da marcação', () => {
+  type Mudanca = 'inativo' | 'arquivado' | 'sem o serviço'
+  const casos: Mudanca[] = ['inativo', 'arquivado', 'sem o serviço']
+  async function alterar(s: Awaited<ReturnType<typeof montar>>, como: Mudanca) {
+    if (como === 'inativo') await prisma.professional.update({ where: { id: s.ana.id }, data: { active: false } })
+    if (como === 'arquivado') await prisma.professional.update({ where: { id: s.ana.id }, data: { archivedAt: new Date('2026-11-10T00:00:00Z') } })
+    if (como === 'sem o serviço') {
+      await prisma.professionalService.deleteMany({ where: { professionalId: s.ana.id, serviceId: s.banho.id } })
+    }
+  }
+
+  for (const como of casos) {
+    test(`profissional ${como}: o cliente do app não remarca (validation em professionalId) e a equipe remarca`, async () => {
+      const s = await montar()
+      const v = await bookAppointment(s.cliente, { professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
+      await alterar(s, como)
+      const e = await domainError(rescheduleAppointment(s.cliente, v.id, { startsAt: hora(14) }))
+      expect(e.code).toBe('validation')
+      expect(e.fields).toHaveProperty('professionalId')
+      expect((await getAppointment(s.gerente, v.id)).local.start).toBe('10:00')
+      const g = await rescheduleAppointment(s.gerente, v.id, { startsAt: hora(14) })
+      expect(g.local.start).toBe('14:00')
+      expect(g.professional.id).toBe(s.ana.id)
+    })
+  }
+})
+
+describe('agendamento que mudou de profissional entre a leitura e a trava', () => {
+  /** Segura a trava de Ana, deixa a operação ler e esperar, move o agendamento para Caio e solta. */
+  async function moverEnquantoEspera(s: Awaited<ReturnType<typeof montar>>, id: string, operacao: () => Promise<unknown>) {
+    let soltar!: () => void
+    const segura = new Promise<void>((resolve) => (soltar = resolve))
+    let travou!: () => void
+    const travada = new Promise<void>((resolve) => (travou = resolve))
+    const dono = s.gerente.db.$transaction(async (tx) => {
+      await tx.$lockKey('professional', s.ana.id)
+      travou()
+      await segura
+      await tx.appointment.update({ where: { id }, data: { professionalId: s.caio.id } })
+    })
+    await travada
+    const op = operacao().then(
+      () => null,
+      (e: unknown) => e,
+    )
+    await new Promise<void>((resolve) => setTimeout(resolve, 300))
+    soltar()
+    await dono
+    return op
+  }
+
+  test('ajustar, cancelar e concluir recebem conflict changed e nada é gravado', async () => {
+    const s = await montar({ now: hora(12) })
+    const cli = await makeCustomer(s.b.id)
+    const casos: [string, (id: string) => Promise<unknown>][] = [
+      ['ajustar', (id) => adjustAppointment(s.gerente, id, { serviceIds: [s.banho.id, s.tosa.id] })],
+      ['cancelar', (id) => cancelAppointment(s.gerente, id)],
+      ['concluir', (id) => completeAppointment(s.gerente, id)],
+    ]
+    for (const [nome, operacao] of casos) {
+      const ag = await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ })
+      const erro = await moverEnquantoEspera(s, ag.id, () => operacao(ag.id))
+      expect(erro, nome).toBeInstanceOf(DomainError)
+      expect((erro as DomainError).code, nome).toBe('conflict')
+      expect((erro as DomainError).reason, nome).toBe('changed')
+      const row = await prisma.appointment.findUniqueOrThrow({ where: { id: ag.id }, include: { items: true } })
+      expect([row.status, row.professionalId, row.items.length], nome).toEqual(['CONFIRMED', s.caio.id, 1])
+      await prisma.appointment.delete({ where: { id: ag.id } })
+    }
+  })
+
+  test('ajustar e remarcar para outro profissional em paralelo: ajusta certo ou recebe changed', async () => {
+    for (let n = 0; n < 10; n++) {
+      const s = await montar()
+      const cli = await makeCustomer(s.b.id)
+      const ag = await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ })
+      await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: hora(11) })
+      const rs = await Promise.allSettled([
+        adjustAppointment(s.gerente, ag.id, { serviceIds: [s.banho.id, s.tosa.id] }),
+        rescheduleAppointment(s.gerente, ag.id, { startsAt: DEZ, professionalId: s.caio.id }),
+      ])
+      for (const r of rs) {
+        if (r.status === 'rejected') {
+          expect(r.reason).toBeInstanceOf(DomainError)
+          // Se o ajuste vence a corrida, a ocupação de Ana (agendamento às 11:00) o recusa; senão o agendamento já mudou.
+          expect(['changed', 'slot_taken']).toContain((r.reason as DomainError).reason)
+        }
+      }
+      expect(rs[1].status).toBe('fulfilled')
+      const todos = await prisma.appointment.findMany({ where: { businessId: s.b.id }, orderBy: { startsAt: 'asc' } })
+      for (const a of todos) {
+        for (const o of todos) {
+          if (a.id !== o.id && a.professionalId === o.professionalId) {
+            expect(a.startsAt.getTime() < o.endsAt.getTime() && o.startsAt.getTime() < a.endsAt.getTime()).toBe(false)
+          }
+        }
+      }
+      const row = await prisma.appointment.findUniqueOrThrow({ where: { id: ag.id }, include: { items: true } })
+      expect(row.professionalId).toBe(s.caio.id)
+      const duracao = row.items.reduce((sum, i) => sum + i.durationMin, 0)
+      expect(row.totalDurationMin).toBe(duracao)
+      expect(row.endsAt.getTime() - row.startsAt.getTime()).toBe(duracao * 60_000)
+    }
   })
 })
 
