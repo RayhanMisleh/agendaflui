@@ -3,6 +3,7 @@ import { can } from '@/server/auth/capabilities'
 import type { Prisma } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
+import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
 import { uploadUrl } from '@/server/storage/images'
 
@@ -71,10 +72,6 @@ type ProfessionalRow = Prisma.ProfessionalGetPayload<{
 
 const withRelations = { avatar: true, services: { select: { serviceId: true } } } as const
 
-function isCustomer(ctx: TenantContext): boolean {
-  return ctx.actor.kind === 'customer'
-}
-
 function toView(ctx: TenantContext, row: ProfessionalRow): ProfessionalView {
   const customer = isCustomer(ctx)
   return {
@@ -103,11 +100,6 @@ async function loadRow(ctx: TenantContext, id: string): Promise<ProfessionalRow>
   )
   if (isCustomer(ctx) && (!row.active || row.archivedAt !== null)) throw notFound()
   return row
-}
-
-/** Remove as chaves que o chamador não enviou, para o Prisma não tratá-las como alteração. */
-function definedOnly<T extends Record<string, unknown>>(data: T): Partial<T> {
-  return Object.fromEntries(Object.entries(data).filter(([, valor]) => valor !== undefined)) as Partial<T>
 }
 
 type Db = TenantClient | TenantTx

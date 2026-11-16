@@ -145,3 +145,23 @@ export async function makeCtx(
   const now = opts.now
   return createTenantContext({ businessId: business.id, actor, ...(now ? { clock: () => now } : {}) })
 }
+
+/** Contexto de um membro com o papel dado: cria o usuário e o vínculo. */
+export async function ctxWithRole(
+  business: { id: string },
+  role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL',
+  opts: { now?: Date } = {},
+): Promise<TenantContext> {
+  const user = await makeUser()
+  const membership = await makeMembership(business.id, user.id, role)
+  return makeCtx(business, {
+    actor: { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role },
+    ...(opts.now ? { now: opts.now } : {}),
+  })
+}
+
+/** O ator membro de um contexto criado por `ctxWithRole` (ids do usuário e do vínculo). */
+export function memberOf(ctx: TenantContext): Extract<Actor, { kind: 'member' }> {
+  if (ctx.actor.kind !== 'member') throw new Error('O ator do contexto não é um membro.')
+  return ctx.actor
+}

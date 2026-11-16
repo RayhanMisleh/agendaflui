@@ -5,16 +5,8 @@ import { createTenantContext } from '@/server/auth/context'
 import { TenantViolationError } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { DomainError } from '@/server/domain/errors'
+import { domainError } from '../setup/expect'
 import { makeBusiness, makeCtx } from '../setup/factories'
-
-async function erroDe(p: Promise<unknown>): Promise<unknown> {
-  try {
-    await p
-  } catch (e) {
-    return e
-  }
-  return undefined
-}
 
 describe('createTenantContext', () => {
   test('traz o fuso da conta e um db que só enxerga a conta', async () => {
@@ -31,14 +23,14 @@ describe('createTenantContext', () => {
 
   test('conta suspensa lança business_unavailable', async () => {
     const a = await makeBusiness({ status: 'SUSPENDED' })
-    const e = await erroDe(createTenantContext({ businessId: a.id, actor: { kind: 'system' } }))
+    const e = await domainError(createTenantContext({ businessId: a.id, actor: { kind: 'system' } }))
     expect(e).toBeInstanceOf(DomainError)
     expect((e as DomainError).code).toBe('business_unavailable')
     expect((e as DomainError).message).toBe('Esta conta não está disponível agora. Fale com o suporte.')
   })
 
   test('conta inexistente lança not_found', async () => {
-    const e = await erroDe(
+    const e = await domainError(
       createTenantContext({ businessId: '00000000-0000-4000-8000-000000000000', actor: { kind: 'system' } }),
     )
     expect(e).toBeInstanceOf(DomainError)
@@ -48,7 +40,7 @@ describe('createTenantContext', () => {
 
   test('conta arquivada lança business_unavailable', async () => {
     const a = await makeBusiness({ status: 'ARCHIVED' })
-    const e = await erroDe(createTenantContext({ businessId: a.id, actor: { kind: 'system' } }))
+    const e = await domainError(createTenantContext({ businessId: a.id, actor: { kind: 'system' } }))
     expect((e as DomainError).code).toBe('business_unavailable')
   })
 

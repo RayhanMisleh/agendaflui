@@ -1,5 +1,4 @@
 import { prisma } from '@/server/db/client'
-import { DomainError } from '@/server/domain/errors'
 import {
   archiveService,
   createService,
@@ -10,27 +9,10 @@ import {
   updateService,
 } from '@/server/domain/catalog/services'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCtx, makeMembership, makeService, makeUser } from '../setup/factories'
+import { domainError } from '../setup/expect'
+import { ctxWithRole, makeBusiness, makeCtx, makeService } from '../setup/factories'
 
 beforeEach(resetDb)
-
-async function erroDe(p: Promise<unknown>): Promise<DomainError> {
-  try {
-    await p
-  } catch (e) {
-    expect(e).toBeInstanceOf(DomainError)
-    return e as DomainError
-  }
-  throw new Error('Era esperado um erro, mas a chamada terminou sem erro.')
-}
-
-async function ctxComPapel(business: { id: string }, role: 'MANAGER' | 'PROFESSIONAL') {
-  const user = await makeUser()
-  const m = await makeMembership(business.id, user.id, role)
-  return makeCtx(business, {
-    actor: { kind: 'member', userId: user.id, membershipId: m.id, name: user.name, role },
-  })
-}
 
 function ctxCliente(business: { id: string }) {
   return makeCtx(business, { actor: { kind: 'customer', customerId: crypto.randomUUID(), name: 'Cliente' } })
@@ -87,11 +69,14 @@ describe('createService e getService', () => {
       [{ priceCents: -1 }, 'priceCents'],
       [{ priceCents: 1.5 }, 'priceCents'],
       [{ rewardPoints: -1 }, 'rewardPoints'],
+      [{ priceCents: 10_000_001 }, 'priceCents'],
+      [{ rewardPoints: 100_001 }, 'rewardPoints'],
       [{ icon: '' }, 'icon'],
+      [{ icon: 'x'.repeat(41) }, 'icon'],
       [{ description: 'x'.repeat(501) }, 'description'],
     ]
     for (const [troca, campo] of casos) {
-      const e = await erroDe(createService(ctx, { ...base, ...troca }))
+      const e = await domainError(createService(ctx, { ...base, ...troca }))
       expect(e.code).toBe('validation')
       expect(Object.keys(e.fields ?? {})).toContain(campo)
     }
@@ -112,19 +97,26 @@ describe('createService e getService', () => {
 describe('permissões', () => {
   test('profissional não cria nem altera, mas lista', async () => {
     const b = await makeBusiness()
-    const prof = await ctxComPapel(b, 'PROFESSIONAL')
+    const prof = await ctxWithRole(b, 'PROFESSIONAL')
     const s = await makeService(b.id)
-    expect((await erroDe(createService(prof, { name: 'X', priceCents: 1, durationMin: 5 }))).code).toBe('forbidden')
-    expect((await erroDe(updateService(prof, s.id, { name: 'Y' }))).code).toBe('forbidden')
-    expect((await erroDe(archiveService(prof, s.id))).code).toBe('forbidden')
-    expect((await erroDe(restoreService(prof, s.id))).code).toBe('forbidden')
-    expect((await erroDe(reorderServices(prof, [s.id]))).code).toBe('forbidden')
+    expect((await domainError(createService(prof, { name: 'X', priceCents: 1, durationMin: 5 }))).code).toBe('forbidden')
+    expect((await domainError(updateService(prof, s.id, { name: 'Y' }))).code).toBe('forbidden')
+    expect((await domainError(archiveService(prof, s.id))).code).toBe('forbidden')
+    expect((await domainError(restoreService(prof, s.id))).code).toBe('forbidden')
+    expect((await domainError(reorderServices(prof, [s.id]))).code).toBe('forbidden')
     expect((await listServices(prof)).map((x) => x.id)).toEqual([s.id])
+  })
+
+  test('ator cliente não cria', async () => {
+    const b = await makeBusiness()
+    const cliente = await ctxCliente(b)
+    const e = await domainError(createService(cliente, { name: 'X', priceCents: 1, durationMin: 5 }))
+    expect(e.code).toBe('forbidden')
   })
 
   test('gerente cria', async () => {
     const b = await makeBusiness()
-    const gerente = await ctxComPapel(b, 'MANAGER')
+    const gerente = await ctxWithRole(b, 'MANAGER')
     const s = await createService(gerente, { name: 'X', priceCents: 1, durationMin: 5 })
     expect(s.name).toBe('X')
   })
@@ -138,8 +130,8 @@ describe('permissões', () => {
     const lista = await listServices(cliente, { includeInactive: true, includeArchived: true })
     expect(lista.map((x) => x.id)).toEqual([ativo.id])
     expect((await getService(cliente, ativo.id)).id).toBe(ativo.id)
-    expect((await erroDe(getService(cliente, inativo.id))).code).toBe('not_found')
-    expect((await erroDe(getService(cliente, arquivado.id))).code).toBe('not_found')
+    expect((await domainError(getService(cliente, inativo.id))).code).toBe('not_found')
+    expect((await domainError(getService(cliente, arquivado.id))).code).toBe('not_found')
   })
 })
 
@@ -149,11 +141,11 @@ describe('serviço de outra conta', () => {
     const b = await makeBusiness()
     const ctxA = await makeCtx(a)
     const deB = await makeService(b.id)
-    expect((await erroDe(getService(ctxA, deB.id))).code).toBe('not_found')
-    expect((await erroDe(updateService(ctxA, deB.id, { name: 'Invadido' }))).code).toBe('not_found')
-    expect((await erroDe(archiveService(ctxA, deB.id))).code).toBe('not_found')
-    expect((await erroDe(restoreService(ctxA, deB.id))).code).toBe('not_found')
-    expect((await erroDe(reorderServices(ctxA, [deB.id]))).code).toBe('validation')
+    expect((await domainError(getService(ctxA, deB.id))).code).toBe('not_found')
+    expect((await domainError(updateService(ctxA, deB.id, { name: 'Invadido' }))).code).toBe('not_found')
+    expect((await domainError(archiveService(ctxA, deB.id))).code).toBe('not_found')
+    expect((await domainError(restoreService(ctxA, deB.id))).code).toBe('not_found')
+    expect((await domainError(reorderServices(ctxA, [deB.id]))).code).toBe('validation')
     const intacto = await prisma.service.findUniqueOrThrow({ where: { id: deB.id } })
     expect(intacto.name).toBe(deB.name)
     expect(intacto.archivedAt).toBeNull()
@@ -162,9 +154,10 @@ describe('serviço de outra conta', () => {
   test('id malformado dá not_found', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
-    expect((await erroDe(getService(ctx, 'abc'))).code).toBe('not_found')
-    expect((await erroDe(updateService(ctx, 'abc', { name: 'x' }))).code).toBe('not_found')
-    expect((await erroDe(archiveService(ctx, 'abc'))).code).toBe('not_found')
+    expect((await domainError(getService(ctx, 'abc'))).code).toBe('not_found')
+    expect((await domainError(updateService(ctx, 'abc', { name: 'x' }))).code).toBe('not_found')
+    expect((await domainError(archiveService(ctx, 'abc'))).code).toBe('not_found')
+    expect((await domainError(restoreService(ctx, 'abc'))).code).toBe('not_found')
   })
 })
 
@@ -206,7 +199,7 @@ describe('updateService', () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
     const s = await makeService(b.id)
-    const e = await erroDe(updateService(ctx, s.id, { durationMin: 7 }))
+    const e = await domainError(updateService(ctx, s.id, { durationMin: 7 }))
     expect(e.code).toBe('validation')
     expect(Object.keys(e.fields ?? {})).toEqual(['durationMin'])
   })
@@ -215,7 +208,7 @@ describe('updateService', () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
     const s = await makeService(b.id, { archivedAt: new Date() })
-    const e = await erroDe(updateService(ctx, s.id, { name: 'Novo nome' }))
+    const e = await domainError(updateService(ctx, s.id, { name: 'Novo nome' }))
     expect(e.code).toBe('conflict')
     expect(e.message).toContain('Restaure')
   })
@@ -267,9 +260,25 @@ describe('reorderServices', () => {
     const s2 = await makeService(b.id, { displayOrder: 2 })
     const arq = await makeService(b.id, { displayOrder: 3, archivedAt: new Date() })
     for (const ids of [[s1.id], [s1.id, s2.id, arq.id], [s1.id, s1.id], [s1.id, 'abc']]) {
-      expect((await erroDe(reorderServices(ctx, ids))).code).toBe('validation')
+      expect((await domainError(reorderServices(ctx, ids))).code).toBe('validation')
     }
     expect((await listServices(ctx)).map((x) => x.id)).toEqual([s1.id, s2.id])
+  })
+
+  test('entrada que não é lista dá erro em orderedIds', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    // @ts-expect-error entrada inválida de propósito
+    const e = await domainError(reorderServices(ctx, 'abc'))
+    expect(e.code).toBe('validation')
+    expect(Object.keys(e.fields ?? {})).toEqual(['orderedIds'])
+  })
+
+  test('lista vazia numa conta sem serviços não grava nem audita', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    await reorderServices(ctx, [])
+    expect(await auditorias(b.id, 'service.reordered')).toHaveLength(0)
   })
 
   test('lista completa muda a ordem e audita', async () => {

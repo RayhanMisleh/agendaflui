@@ -1,6 +1,7 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { Service } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
+import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
 
 export type ServiceView = {
@@ -76,7 +77,7 @@ const listOptionsSchema = z.object({
 })
 
 const idSchema = z.uuid()
-const idListSchema = z.array(z.string())
+const reorderSchema = z.object({ orderedIds: z.array(z.string()) })
 
 function toView(service: Service): ServiceView {
   return {
@@ -98,15 +99,10 @@ function notFound(): DomainError {
   return new DomainError('not_found', 'Serviço não encontrado.')
 }
 
-/** O cliente do app só enxerga serviço ativo e não arquivado. */
-function seenByCustomer(ctx: TenantContext): boolean {
-  return ctx.actor.kind === 'customer'
-}
-
 async function loadService(ctx: TenantContext, id: string): Promise<Service> {
   if (!idSchema.safeParse(id).success) throw notFound()
   const service = orNotFound(await ctx.db.service.findUnique({ where: { id } }), 'Serviço')
-  if (seenByCustomer(ctx) && (!service.active || service.archivedAt !== null)) throw notFound()
+  if (isCustomer(ctx) && (!service.active || service.archivedAt !== null)) throw notFound()
   return service
 }
 
@@ -114,17 +110,12 @@ function archivedConflict(): DomainError {
   return new DomainError('conflict', 'Este serviço está arquivado. Restaure o serviço antes de alterá-lo.')
 }
 
-/** Remove as chaves que o chamador não enviou, para o Prisma não tratá-las como alteração. */
-function definedOnly<T extends Record<string, unknown>>(data: T): Partial<T> {
-  return Object.fromEntries(Object.entries(data).filter(([, valor]) => valor !== undefined)) as Partial<T>
-}
-
 export async function listServices(
   ctx: TenantContext,
   opts: { includeInactive?: boolean; includeArchived?: boolean } = {},
 ): Promise<ServiceView[]> {
   const { includeInactive, includeArchived } = parse(listOptionsSchema, opts)
-  const customer = seenByCustomer(ctx)
+  const customer = isCustomer(ctx)
   const services = await ctx.db.service.findMany({
     where: {
       ...(customer || !includeInactive ? { active: true } : {}),
@@ -221,19 +212,20 @@ export async function restoreService(ctx: TenantContext, id: string): Promise<Se
 /** A lista precisa ter exatamente os serviços não arquivados da conta, cada um uma vez. */
 export async function reorderServices(ctx: TenantContext, orderedIds: string[]): Promise<void> {
   authorize(ctx, 'manage_catalog')
-  const ids = parse(idListSchema, orderedIds)
-  const existing = await ctx.db.service.findMany({ where: { archivedAt: null }, select: { id: true } })
-  const expected = new Set(existing.map((s) => s.id))
-  const received = new Set(ids)
-  const exact = received.size === ids.length && received.size === expected.size && ids.every((x) => expected.has(x))
-  if (!exact) {
-    throw new DomainError(
-      'validation',
-      'A lista de serviços está desatualizada. Recarregue a página e ordene de novo.',
-      { fields: { orderedIds: 'Envie todos os serviços não arquivados, cada um uma vez.' } },
-    )
-  }
+  const { orderedIds: ids } = parse(reorderSchema, { orderedIds })
   await ctx.db.$transaction(async (tx) => {
+    const existing = await tx.service.findMany({ where: { archivedAt: null }, select: { id: true } })
+    const expected = new Set(existing.map((s) => s.id))
+    const received = new Set(ids)
+    const exact = received.size === ids.length && received.size === expected.size && ids.every((x) => expected.has(x))
+    if (!exact) {
+      throw new DomainError(
+        'validation',
+        'A lista de serviços está desatualizada. Recarregue a página e ordene de novo.',
+        { fields: { orderedIds: 'Envie todos os serviços não arquivados, cada um uma vez.' } },
+      )
+    }
+    if (ids.length === 0) return
     for (const [index, id] of ids.entries()) {
       await tx.service.update({ where: { id }, data: { displayOrder: index + 1 } })
     }

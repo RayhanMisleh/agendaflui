@@ -1,6 +1,7 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { BusinessSettings } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
+import { definedOnly } from '@/server/domain/input'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
 
 export type SchedulingRules = {
@@ -72,7 +73,7 @@ export async function updateSchedulingRules(
 ): Promise<SchedulingRules> {
   authorize(ctx, 'manage_settings')
   const parsed = parse(rulesSchema, input)
-  const data = Object.fromEntries(Object.entries(parsed).filter(([, valor]) => valor !== undefined))
+  const data = definedOnly(parsed)
   const fields = Object.keys(data)
   if (fields.length === 0) return getSchedulingRules(ctx)
   const updated = await ctx.db.$transaction(async (tx) => {

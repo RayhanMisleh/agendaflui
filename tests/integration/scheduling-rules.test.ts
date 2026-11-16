@@ -1,28 +1,10 @@
 import { prisma } from '@/server/db/client'
-import { DomainError } from '@/server/domain/errors'
 import { getSchedulingRules, updateSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCtx, makeMembership, makeUser } from '../setup/factories'
+import { domainError } from '../setup/expect'
+import { ctxWithRole, makeBusiness, makeCtx } from '../setup/factories'
 
 beforeEach(resetDb)
-
-async function erroDe(p: Promise<unknown>): Promise<DomainError> {
-  try {
-    await p
-  } catch (e) {
-    expect(e).toBeInstanceOf(DomainError)
-    return e as DomainError
-  }
-  throw new Error('Era esperado um erro, mas a chamada terminou sem erro.')
-}
-
-async function ctxComPapel(business: { id: string }, role: 'MANAGER' | 'PROFESSIONAL') {
-  const user = await makeUser()
-  const m = await makeMembership(business.id, user.id, role)
-  return makeCtx(business, {
-    actor: { kind: 'member', userId: user.id, membershipId: m.id, name: user.name, role },
-  })
-}
 
 const PADRAO = {
   slotStepMin: 15,
@@ -41,12 +23,12 @@ describe('regras de agenda', () => {
 
   test('qualquer ator da conta lê, inclusive profissional', async () => {
     const b = await makeBusiness()
-    expect(await getSchedulingRules(await ctxComPapel(b, 'PROFESSIONAL'))).toEqual(PADRAO)
+    expect(await getSchedulingRules(await ctxWithRole(b, 'PROFESSIONAL'))).toEqual(PADRAO)
   })
 
   test('gerente altera, grava e audita; o resto fica como estava', async () => {
     const b = await makeBusiness()
-    const gerente = await ctxComPapel(b, 'MANAGER')
+    const gerente = await ctxWithRole(b, 'MANAGER')
     const novo = await updateSchedulingRules(gerente, { slotStepMin: 30, bufferMin: 10, autoConfirm: false })
     expect(novo).toEqual({ ...PADRAO, slotStepMin: 30, bufferMin: 10, autoConfirm: false })
     expect(await getSchedulingRules(gerente)).toEqual(novo)
@@ -63,8 +45,8 @@ describe('regras de agenda', () => {
 
   test('profissional não altera', async () => {
     const b = await makeBusiness()
-    const prof = await ctxComPapel(b, 'PROFESSIONAL')
-    expect((await erroDe(updateSchedulingRules(prof, { bufferMin: 5 }))).code).toBe('forbidden')
+    const prof = await ctxWithRole(b, 'PROFESSIONAL')
+    expect((await domainError(updateSchedulingRules(prof, { bufferMin: 5 }))).code).toBe('forbidden')
     expect(await getSchedulingRules(prof)).toEqual(PADRAO)
   })
 
@@ -90,7 +72,7 @@ describe('regras de agenda', () => {
       [{ autoConfirm: 'sim' }, 'autoConfirm'],
     ]
     for (const [input, campo] of casos) {
-      const e = await erroDe(updateSchedulingRules(ctx, input))
+      const e = await domainError(updateSchedulingRules(ctx, input))
       expect(e.code).toBe('validation')
       expect(Object.keys(e.fields ?? {})).toContain(campo)
     }

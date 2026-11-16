@@ -1,37 +1,18 @@
 import { prisma } from '@/server/db/client'
-import { DomainError } from '@/server/domain/errors'
 import { getWeekSchedule, setWeekSchedule } from '@/server/domain/team/working-hours'
 import { WEEKDAYS } from '@/server/time'
 import { resetDb } from '../setup/db'
+import { domainError } from '../setup/expect'
 import {
+  ctxWithRole,
   makeBusiness,
   makeCtx,
-  makeMembership,
   makeProfessional,
-  makeUser,
   makeWorkingHours,
+  memberOf,
 } from '../setup/factories'
 
 beforeEach(resetDb)
-
-async function erroDe(p: Promise<unknown>): Promise<DomainError> {
-  try {
-    await p
-  } catch (e) {
-    expect(e).toBeInstanceOf(DomainError)
-    return e as DomainError
-  }
-  throw new Error('Era esperado um erro, mas a chamada terminou sem erro.')
-}
-
-async function membroComPapel(business: { id: string }, role: 'MANAGER' | 'PROFESSIONAL') {
-  const user = await makeUser()
-  const m = await makeMembership(business.id, user.id, role)
-  const ctx = await makeCtx(business, {
-    actor: { kind: 'member', userId: user.id, membershipId: m.id, name: user.name, role },
-  })
-  return { ctx, membership: m }
-}
 
 const MANHA = { startMin: 540, endMin: 720 }
 const TARDE = { startMin: 780, endMin: 1080 }
@@ -55,17 +36,17 @@ describe('getWeekSchedule', () => {
     const p = await makeProfessional(b.id)
     const alheio = await makeProfessional(outra.id)
     const cliente = await makeCtx(b, { actor: { kind: 'customer', customerId: crypto.randomUUID(), name: 'C' } })
-    expect((await erroDe(getWeekSchedule(cliente, p.id))).code).toBe('forbidden')
+    expect((await domainError(getWeekSchedule(cliente, p.id))).code).toBe('forbidden')
     const ctx = await makeCtx(b)
-    expect((await erroDe(getWeekSchedule(ctx, alheio.id))).code).toBe('not_found')
-    expect((await erroDe(getWeekSchedule(ctx, 'xyz'))).code).toBe('not_found')
+    expect((await domainError(getWeekSchedule(ctx, alheio.id))).code).toBe('not_found')
+    expect((await domainError(getWeekSchedule(ctx, 'xyz'))).code).toBe('not_found')
   })
 
   test('qualquer membro da equipe lê a escala de um colega', async () => {
     const b = await makeBusiness()
     const p = await makeProfessional(b.id)
     await makeWorkingHours(b.id, p.id, 'FRIDAY', [MANHA])
-    const { ctx: prof } = await membroComPapel(b, 'PROFESSIONAL')
+    const prof = await ctxWithRole(b, 'PROFESSIONAL')
     expect((await getWeekSchedule(prof, p.id)).FRIDAY).toEqual([MANHA])
   })
 })
@@ -111,25 +92,25 @@ describe('setWeekSchedule', () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
     const p = await makeProfessional(b.id)
-    const sobre = await erroDe(
+    const sobre = await domainError(
       setWeekSchedule(ctx, p.id, { MONDAY: [MANHA, { startMin: 700, endMin: 800 }] }),
     )
     expect(sobre.code).toBe('validation')
     expect(sobre.fields).toHaveProperty('MONDAY')
-    expect((await erroDe(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 547, endMin: 600 }] }))).code).toBe(
+    expect((await domainError(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 547, endMin: 600 }] }))).code).toBe(
       'validation',
     )
-    expect((await erroDe(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 600, endMin: 1441 }] }))).code).toBe(
+    expect((await domainError(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 600, endMin: 1441 }] }))).code).toBe(
       'validation',
     )
-    expect((await erroDe(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 600, endMin: 600 }] }))).code).toBe(
+    expect((await domainError(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 600, endMin: 600 }] }))).code).toBe(
       'validation',
     )
-    expect((await erroDe(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: -5, endMin: 60 }] }))).code).toBe(
+    expect((await domainError(setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: -5, endMin: 60 }] }))).code).toBe(
       'validation',
     )
     const sete = Array.from({ length: 7 }, (_, i) => ({ startMin: i * 60, endMin: i * 60 + 30 }))
-    expect((await erroDe(setWeekSchedule(ctx, p.id, { MONDAY: sete }))).code).toBe('validation')
+    expect((await domainError(setWeekSchedule(ctx, p.id, { MONDAY: sete }))).code).toBe('validation')
     expect(await prisma.workingHours.count({ where: { businessId: b.id } })).toBe(0)
   })
 
@@ -138,18 +119,18 @@ describe('setWeekSchedule', () => {
     const ctx = await makeCtx(b)
     const p = await makeProfessional(b.id)
     await setWeekSchedule(ctx, p.id, { MONDAY: [MANHA] })
-    await erroDe(setWeekSchedule(ctx, p.id, { MONDAY: [TARDE], TUESDAY: [{ startMin: 1, endMin: 60 }] }))
+    await domainError(setWeekSchedule(ctx, p.id, { MONDAY: [TARDE], TUESDAY: [{ startMin: 1, endMin: 60 }] }))
     expect((await getWeekSchedule(ctx, p.id)).MONDAY).toEqual([MANHA])
   })
 
   test('profissional altera o próprio expediente mas não o do colega; gerente altera qualquer um', async () => {
     const b = await makeBusiness()
-    const { ctx: prof, membership } = await membroComPapel(b, 'PROFESSIONAL')
-    const meu = await makeProfessional(b.id, { membershipId: membership.id })
+    const prof = await ctxWithRole(b, 'PROFESSIONAL')
+    const meu = await makeProfessional(b.id, { membershipId: memberOf(prof).membershipId })
     const colega = await makeProfessional(b.id)
     expect((await setWeekSchedule(prof, meu.id, { MONDAY: [MANHA] })).MONDAY).toEqual([MANHA])
-    expect((await erroDe(setWeekSchedule(prof, colega.id, { MONDAY: [MANHA] }))).code).toBe('forbidden')
-    const { ctx: gerente } = await membroComPapel(b, 'MANAGER')
+    expect((await domainError(setWeekSchedule(prof, colega.id, { MONDAY: [MANHA] }))).code).toBe('forbidden')
+    const gerente = await ctxWithRole(b, 'MANAGER')
     expect((await setWeekSchedule(gerente, colega.id, { MONDAY: [MANHA] })).MONDAY).toEqual([MANHA])
   })
 })
