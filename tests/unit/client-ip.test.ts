@@ -57,3 +57,12 @@ test('ipLimitKeyPart: IPv6 vira o /64 expandido, igual dentro do mesmo /64', () 
   expect(ipLimitKeyPart('2001:0db8:85a3:0000:0000:8a2e:0370:7334')).toBe('2001:db8:85a3:0::/64')
   expect(ipLimitKeyPart('1:2:3:4:5:6:7:8')).toBe('1:2:3:4::/64')
 })
+
+test('endereço com zone id (%) é recusado e ipLimitKeyPart nunca lança', () => {
+  expect(clientIp(com('fe80::1%eth0'), 1)).toBeNull()
+  expect(clientIp(com('1:2:3:4:5:6:7:8%a::b'), 1)).toBeNull()
+  expect(ipLimitKeyPart('fe80::1%eth0')).toBe('fe80::1%eth0')
+  expect(ipLimitKeyPart('1:2:3:4:5:6:7:8%a::b')).toBe('1:2:3:4:5:6:7:8%a::b')
+  expect(ipLimitKeyPart('lixo')).toBe('lixo')
+  expect(ipLimitKeyPart('')).toBe('')
+})

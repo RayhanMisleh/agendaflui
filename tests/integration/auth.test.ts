@@ -175,13 +175,13 @@ test('painel: ao barrar, o erro traz a espera e a mensagem traz os minutos', asy
 
 test('painel: o limite fica no banco, com chave legível, e vale por e-mail normalizado', async () => {
   await loginUser({ email: '  Z@X.Test ', password: ERRADA }).catch(() => {})
-  expect(await chavesDeLimite()).toEqual(['login:painel:email:z@x.test'])
-  expect((await prisma.rateLimitBucket.findUniqueOrThrow({ where: { key: 'login:painel:email:z@x.test' } })).count).toBe(1)
+  expect(await chavesDeLimite()).toEqual(['login:painel:email-sem-ip:z@x.test'])
+  expect((await prisma.rateLimitBucket.findUniqueOrThrow({ where: { key: 'login:painel:email-sem-ip:z@x.test' } })).count).toBe(1)
 })
 
 test('painel: sem IP só conta por e-mail; com IP conta também por IP e barra na 21ª tentativa de e-mails diferentes', async () => {
   await loginUser({ email: 'a@x.test', password: ERRADA }).catch(() => {})
-  expect(await chavesDeLimite()).toEqual(['login:painel:email:a@x.test'])
+  expect(await chavesDeLimite()).toEqual(['login:painel:email-sem-ip:a@x.test'])
   for (let i = 0; i < 20; i++) await loginUser({ email: `u${i}@x.test`, password: ERRADA, ip: '203.0.113.9' }).catch(() => {})
   expect(await chavesDeLimite()).toContain('login:painel:ip:203.0.113.9')
   await expect(loginUser({ email: 'novo@x.test', password: ERRADA, ip: '203.0.113.9' })).rejects.toMatchObject({ code: 'rate_limited' })
@@ -211,7 +211,7 @@ test('admin: usa o banco com chaves próprias, barra com minutos e o sucesso zer
     'login:dev:email:dev@agendaflui.test',
     'login:dev:ip:198.51.100.7',
   ])
-  const erro = await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA }).catch((e: unknown) => e)
+  const erro = await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA, ip: '198.51.100.7' }).catch((e: unknown) => e)
   expect(erro).toMatchObject({ code: 'rate_limited' })
   expect((erro as AuthError).retryAfterSec).toBeGreaterThanOrEqual(1)
   expect((erro as AuthError).message).toMatch(/Tente de novo em \d+ minutos\./)
@@ -261,4 +261,24 @@ test('painel com IPv6: endereços do mesmo /64 dividem o limite', async () => {
   for (let i = 0; i < 5; i++) await loginUser({ email: 'v6@x.test', password: ERRADA, ip: `2001:db8:0:0::${i + 1}` }).catch(() => {})
   await expect(loginUser({ email: 'v6@x.test', password: ERRADA, ip: '2001:db8::ffff' })).rejects.toMatchObject({ code: 'rate_limited' })
   expect(await chavesDeLimite()).toContain('login:painel:ip:2001:db8:0:0::/64')
+})
+
+test('painel com IP: quem já está bloqueado não consome o teto largo; outro IP ainda entra', async () => {
+  await makeUser({ email: 'dono@x.test', password: SENHA })
+  for (let i = 0; i < 40; i++) await loginUser({ email: 'dono@x.test', password: ERRADA, ip: '203.0.113.1' }).catch(() => {})
+  const largo = await prisma.rateLimitBucket.findUniqueOrThrow({ where: { key: 'login:painel:email:dono@x.test' } })
+  expect(largo.count).toBe(5)
+  await expect(loginUser({ email: 'dono@x.test', password: SENHA, ip: '203.0.113.2' })).resolves.toBeDefined()
+})
+
+test('painel: sem IP e com IP usam contadores de e-mail separados', async () => {
+  await makeUser({ email: 'dono@x.test', password: SENHA })
+  for (let i = 0; i < 5; i++) await loginUser({ email: 'dono@x.test', password: ERRADA }).catch(() => {})
+  expect(await chavesDeLimite()).toEqual(['login:painel:email-sem-ip:dono@x.test'])
+  await expect(loginUser({ email: 'dono@x.test', password: ERRADA })).rejects.toMatchObject({ code: 'rate_limited' })
+  await expect(loginUser({ email: 'dono@x.test', password: SENHA, ip: '203.0.113.5' })).resolves.toBeDefined()
+  await prisma.rateLimitBucket.deleteMany()
+  for (let i = 0; i < 5; i++) await loginUser({ email: 'dono@x.test', password: ERRADA, ip: `203.0.113.${i + 20}` }).catch(() => {})
+  expect((await prisma.rateLimitBucket.findUniqueOrThrow({ where: { key: 'login:painel:email:dono@x.test' } })).count).toBe(5)
+  await expect(loginUser({ email: 'dono@x.test', password: SENHA })).resolves.toBeDefined()
 })

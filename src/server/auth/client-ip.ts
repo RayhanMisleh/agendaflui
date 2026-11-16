@@ -14,6 +14,7 @@ function normalizar(bruto: string): string | null {
     if (comPorta?.[1]) e = comPorta[1]
   }
   e = e.toLowerCase()
+  if (e.includes('%')) return null // zone id (fe80::1%eth0) não é um endereço de cliente
   const mapeado = IPV4_MAPEADO.exec(e)
   if (mapeado?.[1]) e = mapeado[1]
   return isIP(e) === 0 ? null : e
@@ -55,6 +56,10 @@ function gruposIpv6(ip: string): number[] {
  * (`2001:db8:0:0::/64`), para quem tem um /64 inteiro não escapar trocando de endereço.
  */
 export function ipLimitKeyPart(ip: string): string {
-  if (isIP(ip) !== 6) return ip
-  return `${gruposIpv6(ip).slice(0, 4).map((g) => g.toString(16)).join(':')}::/64`
+  if (ip.includes('%') || isIP(ip) !== 6) return ip
+  try {
+    return `${gruposIpv6(ip).slice(0, 4).map((g) => g.toString(16)).join(':')}::/64`
+  } catch {
+    return ip
+  }
 }
