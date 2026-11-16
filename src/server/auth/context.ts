@@ -13,6 +13,32 @@ export const isUuid = (v: string): boolean => UUID.test(v)
 export const sessionInvalid = (): ApiAuthError =>
   new ApiAuthError('unauthorized', 'session_invalid', 'Sua sessão não é mais válida. Entre de novo.')
 
+/**
+ * Contexto de conta para o admin da plataforma ajustar a conta pelo painel dev. Diferente do contexto comum, aceita conta
+ * suspensa ou arquivada (o admin cuida delas); só `not_found` se a conta não existe. O ator é conferido aqui: quem não é
+ * admin da plataforma recebe `forbidden`.
+ */
+export async function createPlatformAdminContext(i: {
+  businessId: string
+  actor: Extract<Actor, { kind: 'platform_admin' }>
+  clock?: () => Date
+  request?: RequestInfo
+}): Promise<TenantContext> {
+  if (i.actor?.kind !== 'platform_admin') throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
+  if (!isUuid(i.businessId)) throw new DomainError('not_found', 'Conta não encontrada.')
+  const business = await prisma.business.findUnique({ where: { id: i.businessId }, select: { id: true, timezone: true } })
+  if (!business) throw new DomainError('not_found', 'Conta não encontrada.')
+  return {
+    businessId: business.id,
+    timeZone: business.timezone,
+    actor: i.actor,
+    db: tenantDb(business.id),
+    clock: i.clock ?? (() => new Date()),
+    request: i.request ?? { ip: null, userAgent: null },
+    channel: 'panel',
+  }
+}
+
 /** Monta o contexto da conta: lê a conta (fuso e situação) e cria o cliente por conta uma vez. */
 export async function createTenantContext(i: {
   businessId: string

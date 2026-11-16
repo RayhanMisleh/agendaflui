@@ -5,6 +5,32 @@ export type CoverMaterial = 'LEATHER' | 'LINEN' | 'WOOD' | 'ENAMEL'
 export type PaperTone = 'WHITE' | 'CREAM' | 'GRAY'
 export type FontPair = 'CLASSIC' | 'MODERN' | 'FRIENDLY'
 
+/** Opções curadas (listas fechadas): o formulário e a validação do servidor usam estas mesmas. */
+export const COVER_MATERIALS = ['LEATHER', 'LINEN', 'WOOD', 'ENAMEL'] as const satisfies readonly CoverMaterial[]
+export const PAPER_TONES = ['WHITE', 'CREAM', 'GRAY'] as const satisfies readonly PaperTone[]
+export const FONT_PAIRS = ['CLASSIC', 'MODERN', 'FRIENDLY'] as const satisfies readonly FontPair[]
+
+/**
+ * Sinais objetivos do motor, na ordem em que saem:
+ * - `text_adjusted`: a cor principal foi trocada (escurecida) para o texto sobre a capa chegar a 4,5 de contraste;
+ * - `accent_adjusted`: o mesmo com a cor de destaque;
+ * - `relief_collapsed`: a capa perdeu o relevo (ver `RELIEF_MIN_DELTA_L`).
+ */
+export type ThemeWarning = 'text_adjusted' | 'accent_adjusted' | 'relief_collapsed'
+
+/**
+ * Diferença mínima de luminosidade (L do OKLCH, de 0 a 100) entre a capa e o seu realce (`--cover-hi`) e entre a capa e a
+ * sua sombra (`--cover-lo`). O motor pede 8 pontos; abaixo da metade o relevo some (branco e amarelo neon não têm para
+ * onde clarear, preto não tem para onde escurecer, e a capa fica chapada).
+ */
+export const RELIEF_MIN_DELTA_L = 4
+
+export const THEME_WARNING_TEXT: Record<ThemeWarning, string> = {
+  text_adjusted: 'A cor principal foi escurecida para o texto ficar legível.',
+  accent_adjusted: 'A cor de destaque foi escurecida para o texto ficar legível.',
+  relief_collapsed: 'Com esta cor principal o relevo da capa quase some. Escolha uma cor menos clara ou menos escura para a capa ter volume.',
+}
+
 export type BrandInput = {
   primary: string
   accent: string
@@ -24,6 +50,8 @@ export type ThemeTokens = {
   material: 'leather' | 'linen' | 'wood' | 'enamel'
   fontPair: 'classic' | 'modern' | 'friendly'
   warnings: string[]
+  /** Os mesmos avisos como códigos estáveis (para a prévia e para testes). */
+  signals: ThemeWarning[]
 }
 
 export const PAPER: Record<PaperTone, string> = {
@@ -78,13 +106,13 @@ const MATERIALS = { LEATHER: 'leather', LINEN: 'linen', WOOD: 'wood', ENAMEL: 'e
 const FONTS = { CLASSIC: 'classic', MODERN: 'modern', FRIENDLY: 'friendly' } as const
 
 export function deriveTheme(input: BrandInput): ThemeTokens {
-  const warnings: string[] = []
+  const signals: ThemeWarning[] = []
   const paper = PAPER[input.paper]
 
   const cover = fitSurface(normalizeHex(input.primary))
-  if (cover.changed) warnings.push('A cor principal foi escurecida para o texto ficar legível.')
+  if (cover.changed) signals.push('text_adjusted')
   const accent = fitSurface(normalizeHex(input.accent))
-  if (accent.changed) warnings.push('A cor de destaque foi escurecida para o texto ficar legível.')
+  if (accent.changed) signals.push('accent_adjusted')
 
   const accentInk = darkenUntil(accent.color, (c) => contrastRatio(c, paper) >= MIN_TEXT).color
 
@@ -92,10 +120,16 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
   const line = shiftLightness(paper, -7)
   const sunk = shiftLightness(paper, -4)
 
+  const coverHi = shiftLightness(cover.color, 8)
+  const coverLo = shiftLightness(cover.color, -8)
+  const coverL = hexToOklch(cover.color).l
+  const relief = Math.min(hexToOklch(coverHi).l - coverL, coverL - hexToOklch(coverLo).l)
+  if (relief < RELIEF_MIN_DELTA_L) signals.push('relief_collapsed')
+
   const vars: ThemeTokens['vars'] = {
     '--cover': cover.color,
-    '--cover-hi': shiftLightness(cover.color, 8),
-    '--cover-lo': shiftLightness(cover.color, -8),
+    '--cover-hi': coverHi,
+    '--cover-lo': coverLo,
     '--cover-deep': shiftLightness(cover.color, -18),
     '--on-cover': cover.on,
     '--on-cover-soft': softenTo(cover.on, cover.color, [cover.color], SOFT_ON_COVER),
@@ -116,5 +150,11 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
     '--bad': '#B3261E',
   }
 
-  return { vars, material: MATERIALS[input.material], fontPair: FONTS[input.fontPair], warnings }
+  return {
+    vars,
+    material: MATERIALS[input.material],
+    fontPair: FONTS[input.fontPair],
+    warnings: signals.map((s) => THEME_WARNING_TEXT[s]),
+    signals,
+  }
 }

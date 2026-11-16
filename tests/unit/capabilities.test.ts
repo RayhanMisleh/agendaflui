@@ -15,8 +15,8 @@ test('dono e suporte têm tudo', () => {
   expect(CAPABILITIES.every((c) => can(member('OWNER'), c))).toBe(true)
   expect(CAPABILITIES.every((c) => can({ kind: 'impersonator', adminId: 'a', name: 'n' }, c))).toBe(true)
 })
-test('admin da plataforma fora de uma conta não tem capacidade de conta', () => {
-  expect(CAPABILITIES.some((c) => can({ kind: 'platform_admin', adminId: 'a', name: 'n' }, c))).toBe(false)
+test('admin da plataforma só tem a capacidade de ajustar as configurações da conta (marca, regras e avisos)', () => {
+  expect(CAPABILITIES.filter((c) => can({ kind: 'platform_admin', adminId: 'a', name: 'n' }, c))).toEqual(['manage_settings'])
 })
 test('sistema não tem capacidade de conta', () => {
   expect(CAPABILITIES.some((c) => can({ kind: 'system' }, c))).toBe(false)

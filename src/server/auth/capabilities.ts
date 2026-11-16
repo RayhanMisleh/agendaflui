@@ -33,6 +33,9 @@ export function can(actor: Actor, capability: Capability): boolean {
     case 'impersonator':
       return true
     case 'platform_admin':
+      // Só o que o painel dev precisa fazer numa conta: regras, avisos e afins (`manage_settings`). Equipe, catálogo,
+      // clientes e a conta em si ficam de fora; para isso o admin entra como suporte.
+      return capability === 'manage_settings'
     case 'customer':
     case 'system':
     case 'guest':

@@ -48,8 +48,8 @@ describe('saveImage', () => {
   test('grava logo como webp dentro do limite', async () => {
     const up = await saveImage({ businessId: biz.id, data: await png(2400, 1200), purpose: 'logo', createdBy }, storage)
     expect(up.mimeType).toBe('image/webp')
-    expect(up.width).toBe(800)
-    expect(up.height).toBe(400)
+    expect(up.width).toBe(1200)
+    expect(up.height).toBe(600)
     expect(up.path.startsWith(`${biz.id}/`)).toBe(true)
     expect(await storage.get(up.path)).not.toBeNull()
     expect(uploadUrl(up)).toBe(`/arquivos/${up.path}`)
@@ -63,11 +63,11 @@ describe('saveImage', () => {
     const up = await saveImage({ businessId: biz.id, data: await png(900, 600), purpose: 'symbol', createdBy }, storage)
     expect([up.width, up.height]).toEqual([512, 512])
   })
-  test('favicon sai PNG 96x96', async () => {
+  test('favicon sai PNG 64x64', async () => {
     const up = await saveImage({ businessId: biz.id, data: await png(300, 200), purpose: 'favicon', createdBy }, storage)
     expect(up.mimeType).toBe('image/png')
     expect(up.path.endsWith('.png')).toBe(true)
-    expect([up.width, up.height]).toEqual([96, 96])
+    expect([up.width, up.height]).toEqual([64, 64])
     const salvo = await storage.get(up.path)
     expect(salvo?.contentType).toBe('image/png')
     expect((await sharp(salvo!.data).metadata()).format).toBe('png')

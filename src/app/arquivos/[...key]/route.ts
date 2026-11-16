@@ -11,13 +11,8 @@ function naoEncontrado(): Response {
 
 async function servir(ctx: { params: Promise<{ key: string[] }> }, comCorpo: boolean): Promise<Response> {
   const { key } = await ctx.params
-  const chave = key.map((parte) => {
-    try {
-      return decodeURIComponent(parte)
-    } catch {
-      return '\0'
-    }
-  }).join('/')
+  // O Next já decodificou cada segmento uma vez. Decodificar de novo transformaria `%252e%252e` em `..` e `%252f` em `/`.
+  const chave = key.join('/')
   let arquivo
   try {
     arquivo = await getStorage().get(chave)

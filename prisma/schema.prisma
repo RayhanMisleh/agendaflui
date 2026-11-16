@@ -267,6 +267,8 @@ model BusinessBranding {
   coverMaterial      CoverMaterial @default(ENAMEL) @map("cover_material")
   paperTone          PaperTone     @default(WHITE) @map("paper_tone")
   fontPair           FontPair      @default(CLASSIC) @map("font_pair")
+  /// Controle de edição da marca pelo painel dev: cada gravação exige a versão lida e a incrementa.
+  version            Int           @default(1)
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 

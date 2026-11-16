@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Storage } from './storage'
@@ -43,19 +43,45 @@ export function createLocalDiskStorage(rootDir: string): Storage {
     return alvo
   }
 
+  let raizReal: Promise<string> | undefined
+
+  /**
+   * `true` se `alvo` (e o seu `.meta`) é o que a chave diz: nenhum link simbólico no caminho, nem na pasta nem no arquivo.
+   * Comparar o caminho real com o caminho esperado pega as duas coisas; o que não existe vira `null` no chamador.
+   */
+  async function semLinks(alvo: string): Promise<boolean> {
+    raizReal ??= realpath(raiz)
+    const base = await raizReal
+    const esperado = resolve(base, relative(raiz, alvo))
+    return (await realpath(alvo)) === esperado
+  }
+
   return {
     async put(chave, dados, tipo) {
       const alvo = caminho(chave)
+      const meta = `${alvo}${SUFIXO_META}`
+      const id = randomUUID()
+      const dadosTmp = `${alvo}.${id}.tmp`
+      const metaTmp = `${meta}.${id}.tmp`
       await mkdir(dirname(alvo), { recursive: true })
-      // Grava o conteúdo por último: leitura só vê arquivo com tipo já registrado.
-      const temporario = `${alvo}.${randomUUID()}.tmp`
-      await writeFile(`${alvo}${SUFIXO_META}`, JSON.stringify({ contentType: tipo }))
-      await writeFile(temporario, dados)
-      await rename(temporario, alvo)
+      const existia = await stat(alvo).then((e) => e.isFile(), () => false)
+      try {
+        await writeFile(metaTmp, JSON.stringify({ contentType: tipo }))
+        await writeFile(dadosTmp, dados)
+        // Conteúdo primeiro, tipo por último: leitura só vê arquivo com tipo registrado, e nada de `.meta` fica solto.
+        await rename(dadosTmp, alvo)
+        await rename(metaTmp, meta)
+      } catch (erro) {
+        // Não sobra rastro: some o que esta chamada criou. Arquivo que já existia antes continua como estava.
+        await Promise.all([dadosTmp, metaTmp].map((f) => rm(f, { force: true }).catch(() => undefined)))
+        if (!existia) await rm(alvo, { force: true }).catch(() => undefined)
+        throw erro
+      }
     },
     async get(chave) {
       const alvo = caminho(chave)
       try {
+        if (!(await semLinks(alvo)) || !(await semLinks(`${alvo}${SUFIXO_META}`))) return null
         const [dados, meta] = await Promise.all([readFile(alvo), readFile(`${alvo}${SUFIXO_META}`, 'utf8')])
         const parsed: unknown = JSON.parse(meta)
         const tipo =

@@ -8,7 +8,7 @@ import { getStorage, type Storage } from './storage'
 
 export type ImagePurpose = 'logo' | 'symbol' | 'favicon' | 'login' | 'avatar' | 'generic'
 
-export type ImageErrorCode = 'too_large' | 'not_an_image' | 'unsupported_format' | 'too_many_pixels'
+export type ImageErrorCode = 'too_large' | 'not_an_image' | 'unsupported_format' | 'too_many_pixels' | 'too_small'
 
 export class ImageError extends Error {
   readonly code: ImageErrorCode
@@ -23,12 +23,17 @@ const MAX_BYTES = 8 * 1024 * 1024
 const MAX_PIXELS = 40_000_000
 const FORMATOS = new Set(['jpeg', 'png', 'webp'])
 
-type Regra = { w: number; h: number; square: boolean; png?: boolean }
-const REGRAS: Record<ImagePurpose, Regra> = {
-  logo: { w: 800, h: 400, square: false },
-  symbol: { w: 512, h: 512, square: true },
-  favicon: { w: 96, h: 96, square: true, png: true },
-  login: { w: 2000, h: 2000, square: false },
+/**
+ * Limites de cada espaço de imagem. `w`/`h`: caixa máxima da saída (sem ampliar). `square`: recorta ao centro num quadrado
+ * (o lado é o menor entre `w`, a largura e a altura da origem, ou exatamente `w` com `png`). `min`: menor lado aceito na origem.
+ * `png`: sai PNG (favicon); os demais saem WebP.
+ */
+type Regra = { w: number; h: number; square: boolean; png?: boolean; min?: number }
+export const REGRAS: Record<ImagePurpose, Regra> = {
+  logo: { w: 1200, h: 600, square: false },
+  symbol: { w: 512, h: 512, square: true, min: 64 },
+  favicon: { w: 64, h: 64, square: true, png: true },
+  login: { w: 2400, h: 2400, square: false },
   avatar: { w: 512, h: 512, square: true },
   generic: { w: 1600, h: 1600, square: false },
 }
@@ -50,11 +55,12 @@ export async function saveImage(input: SaveImageInput, storage: Storage = getSto
     throw new ImageError('too_large', 'A imagem passa de 8 MB. Envie um arquivo menor.')
   }
 
+  // Só o cabeçalho é lido aqui (nenhum pixel é alocado), então o limite de pixels é conferido por nós, pelas dimensões,
+  // e não pela mensagem de erro do `sharp`. A decodificação lá embaixo mantém o limite como segunda barreira.
   let meta: Metadata
   try {
-    meta = await sharp(data, { limitInputPixels: MAX_PIXELS }).metadata()
-  } catch (erro) {
-    if (erro instanceof Error && erro.message.includes('pixel limit')) throw erroDePixels()
+    meta = await sharp(data, { limitInputPixels: false }).metadata()
+  } catch {
     throw new ImageError('not_an_image', 'O arquivo não é uma imagem. Envie uma imagem JPEG, PNG ou WebP.')
   }
   if (!meta.format || !FORMATOS.has(meta.format)) {
@@ -74,6 +80,9 @@ export async function saveImage(input: SaveImageInput, storage: Storage = getSto
   const girada = (meta.orientation ?? 1) >= 5
   const w = girada ? altura : largura
   const h = girada ? largura : altura
+  if (regra.min !== undefined && Math.min(w, h) < regra.min) {
+    throw new ImageError('too_small', `A imagem é pequena demais (${w}x${h}). Envie uma imagem de pelo menos ${regra.min} x ${regra.min} pixels.`)
+  }
 
   // Só o primeiro quadro (imagem animada): sharp lê a página 0 por padrão.
   let pipeline = sharp(data, { limitInputPixels: MAX_PIXELS }).rotate()
