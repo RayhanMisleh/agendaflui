@@ -102,6 +102,16 @@ describe('bookAppointment pelo cliente', () => {
     expect((await getAppointment(s.gerente, feito.id)).notes).toBe('cão bravo')
   })
 
+  test('a auditoria de uma ação do cliente grava "Cliente" como autor, sem o nome real, e o customerId em metadata', async () => {
+    const s = await montar()
+    const v = await bookAppointment(s.cliente, { professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
+    const [log] = await audits(s.b.id, 'appointment.booked')
+    expect(log?.actorName).toBe('Cliente')
+    expect(log?.actorType).toBe('SYSTEM')
+    expect(log?.targetId).toBe(v.id)
+    expect(log?.metadata).toMatchObject({ customerId: idDe(s.cliente) })
+  })
+
   test('alterar o preço do serviço depois não muda o agendamento', async () => {
     const s = await montar()
     const v = await bookAppointment(s.cliente, { professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
@@ -614,7 +624,7 @@ describe('agendamento que mudou de profissional entre a leitura e a trava', () =
     }
   })
 
-  test('ajustar e remarcar para outro profissional em paralelo: ajusta certo ou recebe changed', async () => {
+  test('ajustar e remarcar para outro profissional em paralelo: o ajuste é sempre recusado e a remarcação passa', async () => {
     for (let n = 0; n < 10; n++) {
       const s = await montar()
       const cli = await makeCustomer(s.b.id)
@@ -624,12 +634,11 @@ describe('agendamento que mudou de profissional entre a leitura e a trava', () =
         adjustAppointment(s.gerente, ag.id, { serviceIds: [s.banho.id, s.tosa.id] }),
         rescheduleAppointment(s.gerente, ag.id, { startsAt: DEZ, professionalId: s.caio.id }),
       ])
-      for (const r of rs) {
-        if (r.status === 'rejected') {
-          expect(r.reason).toBeInstanceOf(DomainError)
-          // Se o ajuste vence a corrida, a ocupação de Ana (agendamento às 11:00) o recusa; senão o agendamento já mudou.
-          expect(['changed', 'slot_taken']).toContain((r.reason as DomainError).reason)
-        }
+      // O ajuste (90 min) invade o agendamento de Ana às 11:00 ou encontra o agendamento já movido: nunca passa.
+      expect(rs[0].status).toBe('rejected')
+      if (rs[0].status === 'rejected') {
+        expect(rs[0].reason).toBeInstanceOf(DomainError)
+        expect(['changed', 'slot_taken']).toContain((rs[0].reason as DomainError).reason)
       }
       expect(rs[1].status).toBe('fulfilled')
       const todos = await prisma.appointment.findMany({ where: { businessId: s.b.id }, orderBy: { startsAt: 'asc' } })
@@ -734,6 +743,21 @@ describe('adjustAppointment', () => {
     expect(invalido.code).toBe('validation')
     expect((await domainError(adjustAppointment(s.gerente, v.id, { totalCents: 10_000_001 }))).code).toBe('validation')
     expect((await adjustAppointment(s.gerente, v.id, { totalCents: 0 })).totalCents).toBe(0)
+  })
+
+  test('trocar serviços para um que invade bloqueio da agenda: blocked, com mensagem própria do ajuste', async () => {
+    const s = await montar()
+    const cli = await makeCustomer(s.b.id)
+    const v = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: DEZ })
+    await prisma.timeBlock.create({
+      data: { businessId: s.b.id, professionalId: s.ana.id, startsAt: hora(10, 30), endsAt: hora(12), createdByType: 'SYSTEM' },
+    })
+    const e = await domainError(adjustAppointment(s.gerente, v.id, { serviceIds: [s.banho.id] }))
+    expect(e.code).toBe('conflict')
+    expect(e.reason).toBe('blocked')
+    expect(e.message).toBe(
+      'Com esses serviços o atendimento invade um bloqueio da agenda. Escolha outros serviços ou remova o bloqueio.',
+    )
   })
 
   test('trocar serviços refaz itens, total e fim; observações até 2000 caracteres', async () => {

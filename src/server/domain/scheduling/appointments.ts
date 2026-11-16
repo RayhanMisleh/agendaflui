@@ -379,6 +379,8 @@ export async function adjustAppointment(
           durationMin: services.durationMin,
           bufferMin: rules.bufferMin,
           ignoreAppointmentId: id,
+          blockedMessage:
+            'Com esses serviços o atendimento invade um bloqueio da agenda. Escolha outros serviços ou remova o bloqueio.',
         })
         data.endsAt = endsAt
         data.totalCents = services.totalCents

@@ -147,6 +147,8 @@ export async function assertFreeForStaff(
     durationMin: number
     bufferMin: number
     ignoreAppointmentId?: string
+    /** Texto do erro `blocked`, quando a operação não é uma marcação (ajuste de serviços). */
+    blockedMessage?: string
   },
 ): Promise<string[]> {
   const ignore = i.ignoreAppointmentId ? { ignoreAppointmentId: i.ignoreAppointmentId } : {}
@@ -163,7 +165,8 @@ export async function assertFreeForStaff(
   if (i.specific && only === 'blocked') {
     throw new DomainError(
       'conflict',
-      'A agenda deste profissional está bloqueada nesse horário. Escolha outro horário ou outro profissional.',
+      i.blockedMessage ??
+        'A agenda deste profissional está bloqueada nesse horário. Escolha outro horário ou outro profissional.',
       { reason: 'blocked' },
     )
   }

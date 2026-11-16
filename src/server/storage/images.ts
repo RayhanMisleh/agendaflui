@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import sharp, { type Metadata, type OutputInfo } from 'sharp'
 import type { AuditActorType, Upload } from '@/server/db/generated/client'
-import type { TenantContext } from '@/server/auth/actor'
 import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
 import { createPlatformUpload } from '@/server/db/uploads'
 import { getStorage, type Storage } from './storage'
@@ -136,15 +135,4 @@ export async function removeUploadFile(path: string, storage: Storage = getStora
   } catch {
     return { fileRemoved: false }
   }
-}
-
-/** Apaga o registro (só da própria conta) e depois o arquivo. */
-export async function deleteUpload(
-  ctx: TenantContext,
-  uploadId: string,
-  storage: Storage = getStorage(),
-): Promise<{ fileRemoved: boolean }> {
-  const path = await deleteUploadRecord(ctx.db, uploadId)
-  if (path === null) return { fileRemoved: false }
-  return removeUploadFile(path, storage)
 }

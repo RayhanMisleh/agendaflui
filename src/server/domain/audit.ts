@@ -22,7 +22,8 @@ function autor(actor: Actor): Autor {
       return {
         actorType: 'SYSTEM',
         actorId: null,
-        actorName: actor.name,
+        // O nome real do cliente não vai para a auditoria; o `customerId` em `metadata` identifica quem foi.
+        actorName: 'Cliente',
         onBehalf: false,
         extra: { customerId: actor.customerId },
       }
