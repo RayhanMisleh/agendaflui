@@ -3,7 +3,22 @@ import type { Prisma } from './generated/client'
 type Modelos = readonly Prisma.ModelName[]
 
 /** `business_id` obrigatório: todo acesso é filtrado pela conta. */
-export const TENANT_MODELS: Modelos = ['Membership', 'BusinessBranding', 'BusinessModules', 'BusinessSettings']
+export const TENANT_MODELS: Modelos = [
+  'Membership',
+  'BusinessBranding',
+  'BusinessModules',
+  'BusinessSettings',
+  'Customer',
+  'Professional',
+  'Service',
+  'ProfessionalService',
+  'WorkingHours',
+  'TimeBlock',
+  'BusinessClosure',
+  'Appointment',
+  'AppointmentItem',
+  'Notification',
+]
 
 /**
  * `business_id` anulável. Dentro de `tenantDb` valem as mesmas regras dos modelos tenant;

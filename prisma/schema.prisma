@@ -63,6 +63,83 @@ enum UserTokenPurpose {
   @@map("user_token_purpose")
 }
 
+enum Weekday {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+
+  @@map("weekday")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELED
+  NO_SHOW
+
+  @@map("appointment_status")
+}
+
+enum AppointmentSource {
+  APP
+  PANEL
+
+  @@map("appointment_source")
+}
+
+enum PartyType {
+  CUSTOMER
+  MEMBER
+  PLATFORM_ADMIN
+  SYSTEM
+
+  @@map("party_type")
+}
+
+enum NotificationKind {
+  APPOINTMENT_CONFIRMED
+  APPOINTMENT_CANCELED
+  APPOINTMENT_RESCHEDULED
+  APPOINTMENT_REMINDER_24H
+  APPOINTMENT_REMINDER_1H
+  APPOINTMENT_COMPLETED
+  PROFESSIONAL_FREE_EARLY
+  STAFF_NEW_APPOINTMENT
+  STAFF_APPOINTMENT_CANCELED
+  STAFF_APPOINTMENT_RESCHEDULED
+
+  @@map("notification_kind")
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+
+  @@map("notification_channel")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELED
+  SKIPPED
+
+  @@map("notification_status")
+}
+
+enum CustomerOrigin {
+  APP
+  PANEL
+
+  @@map("customer_origin")
+}
+
 model PlatformAdmin {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name         String
@@ -121,6 +198,17 @@ model Business {
   sessions    Session[]
   uploads     Upload[]
   auditLogs   AuditLog[]
+
+  customers            Customer[]
+  professionals        Professional[]
+  services             Service[]
+  professionalServices ProfessionalService[]
+  workingHours         WorkingHours[]
+  timeBlocks           TimeBlock[]
+  closures             BusinessClosure[]
+  appointments         Appointment[]
+  appointmentItems     AppointmentItem[]
+  notifications        Notification[]
 
   @@map("businesses")
 }
@@ -219,6 +307,10 @@ model Membership {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  professionals Professional[]
+  notifications Notification[]
+
+  @@unique([businessId, id])
   @@unique([businessId, userId])
   @@index([userId])
   @@map("memberships")
@@ -283,6 +375,8 @@ model Upload {
   brandingFavicons    BusinessBranding[] @relation("BrandingFavicon")
   brandingLoginImages BusinessBranding[] @relation("BrandingLoginImage")
   userAvatars         User[]             @relation("UserAvatar")
+  customerAvatars     Customer[]         @relation("CustomerAvatar")
+  professionalAvatars Professional[]     @relation("ProfessionalAvatar")
 
   @@unique([businessId, id])
   @@index([businessId])
@@ -307,4 +401,254 @@ model AuditLog {
 
   @@index([businessId, createdAt])
   @@map("audit_logs")
+}
+
+model Customer {
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId              String         @map("business_id") @db.Uuid
+  name                    String
+  email                   String?
+  phone                   String?
+  passwordHash            String?        @map("password_hash")
+  emailVerifiedAt         DateTime?      @map("email_verified_at") @db.Timestamptz(3)
+  avatarUploadId          String?        @map("avatar_upload_id") @db.Uuid
+  birthDate               DateTime?      @map("birth_date") @db.Date
+  notes                   String?
+  isClubMember            Boolean        @default(false) @map("is_club_member")
+  notifyPushAppointments  Boolean        @default(true) @map("notify_push_appointments")
+  notifyEmailAppointments Boolean        @default(true) @map("notify_email_appointments")
+  notifyPushMarketing     Boolean        @default(true) @map("notify_push_marketing")
+  notifyEmailMarketing    Boolean        @default(false) @map("notify_email_marketing")
+  origin                  CustomerOrigin
+  archivedAt              DateTime?      @map("archived_at") @db.Timestamptz(3)
+  anonymizedAt            DateTime?      @map("anonymized_at") @db.Timestamptz(3)
+  createdAt               DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  avatar   Upload?  @relation("CustomerAvatar", fields: [avatarUploadId], references: [id], onDelete: SetNull)
+
+  appointments  Appointment[]
+  notifications Notification[]
+
+  @@unique([businessId, id])
+  @@index([businessId, phone])
+  @@index([businessId, name])
+  @@map("customers")
+}
+
+model Professional {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String    @map("business_id") @db.Uuid
+  membershipId   String?   @map("membership_id") @db.Uuid
+  name           String
+  avatarUploadId String?   @map("avatar_upload_id") @db.Uuid
+  bio            String?
+  commissionBps  Int       @default(0) @map("commission_bps")
+  active         Boolean   @default(true)
+  displayOrder   Int       @default(0) @map("display_order")
+  archivedAt     DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  membership Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+  avatar     Upload?     @relation("ProfessionalAvatar", fields: [avatarUploadId], references: [id], onDelete: SetNull)
+
+  services     ProfessionalService[]
+  workingHours WorkingHours[]
+  timeBlocks   TimeBlock[]
+  appointments Appointment[]
+
+  @@unique([businessId, id])
+  @@map("professionals")
+}
+
+model Service {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String    @map("business_id") @db.Uuid
+  name         String
+  description  String?
+  icon         String    @default("sparkles")
+  priceCents   Int       @map("price_cents")
+  durationMin  Int       @map("duration_min")
+  rewardPoints Int       @default(0) @map("reward_points")
+  clubOnly     Boolean   @default(false) @map("club_only")
+  active       Boolean   @default(true)
+  displayOrder Int       @default(0) @map("display_order")
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  professionals ProfessionalService[]
+  items         AppointmentItem[]
+
+  @@unique([businessId, id])
+  @@map("services")
+}
+
+model ProfessionalService {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  professionalId String   @map("professional_id") @db.Uuid
+  serviceId      String   @map("service_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@unique([professionalId, serviceId])
+  @@index([serviceId])
+  @@map("professional_services")
+}
+
+model WorkingHours {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  professionalId String   @map("professional_id") @db.Uuid
+  weekday        Weekday
+  startMin       Int      @map("start_min")
+  endMin         Int      @map("end_min")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@index([businessId, professionalId, weekday])
+  @@map("working_hours")
+}
+
+model TimeBlock {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String    @map("business_id") @db.Uuid
+  professionalId String    @map("professional_id") @db.Uuid
+  startsAt       DateTime  @map("starts_at") @db.Timestamptz(3)
+  endsAt         DateTime  @map("ends_at") @db.Timestamptz(3)
+  reason         String?
+  createdByType  PartyType @map("created_by_type")
+  createdById    String?   @map("created_by_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@index([businessId, professionalId, startsAt])
+  @@map("time_blocks")
+}
+
+model BusinessClosure {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  startDate  DateTime @map("start_date") @db.Date
+  endDate    DateTime @map("end_date") @db.Date
+  reason     String?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@index([businessId, startDate])
+  @@map("business_closures")
+}
+
+model Appointment {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String            @map("business_id") @db.Uuid
+  customerId       String            @map("customer_id") @db.Uuid
+  professionalId   String            @map("professional_id") @db.Uuid
+  startsAt         DateTime          @map("starts_at") @db.Timestamptz(3)
+  endsAt           DateTime          @map("ends_at") @db.Timestamptz(3)
+  status           AppointmentStatus
+  source           AppointmentSource
+  totalCents       Int               @map("total_cents")
+  totalDurationMin Int               @map("total_duration_min")
+  commissionCents  Int?              @map("commission_cents")
+  notes            String?
+  createdByType    PartyType         @map("created_by_type")
+  createdById      String?           @map("created_by_id") @db.Uuid
+  canceledAt       DateTime?         @map("canceled_at") @db.Timestamptz(3)
+  canceledByType   PartyType?        @map("canceled_by_type")
+  canceledById     String?           @map("canceled_by_id") @db.Uuid
+  cancelReason     String?           @map("cancel_reason")
+  completedAt      DateTime?         @map("completed_at") @db.Timestamptz(3)
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+
+  items         AppointmentItem[]
+  notifications Notification[]
+
+  @@unique([businessId, id])
+  @@index([businessId, startsAt])
+  @@index([businessId, professionalId, startsAt])
+  @@index([businessId, customerId, startsAt])
+  @@map("appointments")
+}
+
+model AppointmentItem {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  appointmentId String   @map("appointment_id") @db.Uuid
+  serviceId     String   @map("service_id") @db.Uuid
+  name          String
+  priceCents    Int      @map("price_cents")
+  durationMin   Int      @map("duration_min")
+  rewardPoints  Int      @map("reward_points")
+  position      Int
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service     Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, id])
+  @@unique([appointmentId, position])
+  @@index([serviceId])
+  @@map("appointment_items")
+}
+
+model Notification {
+  id            String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String              @map("business_id") @db.Uuid
+  kind          NotificationKind
+  channel       NotificationChannel
+  customerId    String?             @map("customer_id") @db.Uuid
+  membershipId  String?             @map("membership_id") @db.Uuid
+  appointmentId String?             @map("appointment_id") @db.Uuid
+  scheduledFor  DateTime            @map("scheduled_for") @db.Timestamptz(3)
+  status        NotificationStatus  @default(PENDING)
+  attempts      Int                 @default(0)
+  lastError     String?             @map("last_error")
+  sentAt        DateTime?           @map("sent_at") @db.Timestamptz(3)
+  payload       Json                @default("{}")
+  dedupeKey     String              @map("dedupe_key")
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  membership  Membership?  @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@unique([businessId, dedupeKey])
+  @@index([status, scheduledFor])
+  @@index([customerId])
+  @@index([membershipId])
+  @@index([appointmentId])
+  @@map("notifications")
 }
