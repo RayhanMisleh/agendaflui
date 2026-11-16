@@ -2,7 +2,13 @@ import type { TenantContext } from '@/server/auth/actor'
 import type { PartyType } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
-import { assertCanManageProfessional, assertCanReadSchedule } from '@/server/domain/team/professionals'
+import { can } from '@/server/auth/capabilities'
+import {
+  assertCanManageProfessional,
+  assertCanReadSchedule,
+  assertCanWriteSchedule,
+  ownProfessionalId,
+} from '@/server/domain/team/professionals'
 import { compareLocalDates, daysBetween, isLocalDate, localDayRange, minutesBetween } from '@/server/time'
 
 export type TimeBlockView = {
@@ -87,7 +93,9 @@ export async function listTimeBlocks(
     where: { professionalId, startsAt: { lt: end }, endsAt: { gt: start } },
     orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
   })
-  return rows.map(toView)
+  // O motivo é dado do dono da ficha e de quem vê todas as agendas.
+  const seesReason = can(ctx.actor, 'view_all_agendas') || (await ownProfessionalId(ctx)) === professionalId
+  return rows.map((row) => toView(seesReason ? row : { ...row, reason: null }))
 }
 
 export async function createTimeBlock(
@@ -95,8 +103,8 @@ export async function createTimeBlock(
   i: { professionalId: string; startsAt: Date; endsAt: Date; reason?: string | null },
 ): Promise<TimeBlockView> {
   const data = parse(createSchema, i)
-  await assertCanManageProfessional(ctx, data.professionalId)
-  if (data.startsAt.getTime() >= data.endsAt.getTime()) {
+  await assertCanWriteSchedule(ctx, data.professionalId)
+  if (minutesBetween(data.startsAt, data.endsAt) <= 0) {
     throw new DomainError('validation', 'O fim do bloqueio deve ser depois do início.', {
       fields: { endsAt: 'Escolha um fim depois do início.' },
     })

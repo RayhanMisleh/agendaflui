@@ -1,7 +1,7 @@
 import type { TenantContext } from '@/server/auth/actor'
 import { audit } from '@/server/domain/audit'
 import { DomainError, parse, z } from '@/server/domain/errors'
-import { assertCanManageProfessional, assertCanReadSchedule } from '@/server/domain/team/professionals'
+import { assertCanReadSchedule, assertCanWriteSchedule } from '@/server/domain/team/professionals'
 import { WEEKDAYS, type Weekday } from '@/server/time'
 
 export type DayRanges = { startMin: number; endMin: number }[]
@@ -71,7 +71,7 @@ export async function setWeekSchedule(
   professionalId: string,
   schedule: Partial<WeekSchedule>,
 ): Promise<WeekSchedule> {
-  await assertCanManageProfessional(ctx, professionalId)
+  await assertCanWriteSchedule(ctx, professionalId)
   const parsed = parse(scheduleSchema, schedule)
   const days: { weekday: Weekday; ranges: DayRanges }[] = []
   for (const weekday of WEEKDAYS) {

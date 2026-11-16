@@ -1,4 +1,5 @@
 import { prisma } from '@/server/db/client'
+import { DomainError } from '@/server/domain/errors'
 import {
   archiveProfessional,
   assertCanManageProfessional,
@@ -319,5 +320,64 @@ describe('ownProfessionalId e assertCanManageProfessional', () => {
     const alheio = await makeProfessional(outra.id)
     expect((await domainError(assertCanManageProfessional(ctx, alheio.id))).code).toBe('not_found')
     expect((await domainError(assertCanManageProfessional(ctx, 'xyz'))).code).toBe('not_found')
+  })
+})
+
+describe('vínculo único (índice do banco)', () => {
+  test('arquivar libera o vínculo: dá para cadastrar outro profissional com o mesmo acesso', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const u = await makeUser()
+    const m = await makeMembership(b.id, u.id, 'PROFESSIONAL')
+    const antigo = await createProfessional(ctx, { name: 'Antigo', membershipId: m.id })
+    await archiveProfessional(ctx, antigo.id)
+    expect((await prisma.professional.findUniqueOrThrow({ where: { id: antigo.id } })).membershipId).toBeNull()
+    const novo = await createProfessional(ctx, { name: 'Novo', membershipId: m.id })
+    expect(novo.membershipId).toBe(m.id)
+  })
+
+  test('duas criações em paralelo com o mesmo vínculo: uma passa, a outra dá conflict membership_taken', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const u = await makeUser()
+    const m = await makeMembership(b.id, u.id, 'PROFESSIONAL')
+    const resultados = await Promise.allSettled([
+      createProfessional(ctx, { name: 'A', membershipId: m.id }),
+      createProfessional(ctx, { name: 'B', membershipId: m.id }),
+    ])
+    expect(resultados.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    const rejeitado = resultados.find((r) => r.status === 'rejected')
+    expect(rejeitado?.status).toBe('rejected')
+    const erro = (rejeitado as PromiseRejectedResult).reason
+    expect(erro).toBeInstanceOf(DomainError)
+    expect(erro).toMatchObject({ code: 'conflict', reason: 'membership_taken' })
+    expect((erro as DomainError).fields).toHaveProperty('membershipId')
+    expect(await prisma.professional.count({ where: { businessId: b.id } })).toBe(1)
+  })
+
+  test('conflito por vínculo já usado traz reason membership_taken na criação e na alteração', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const u = await makeUser()
+    const m = await makeMembership(b.id, u.id, 'PROFESSIONAL')
+    await makeProfessional(b.id, { membershipId: m.id })
+    const outro = await makeProfessional(b.id)
+    const e1 = await domainError(createProfessional(ctx, { name: 'X', membershipId: m.id }))
+    expect(e1).toMatchObject({ code: 'conflict', reason: 'membership_taken' })
+    const e2 = await domainError(updateProfessional(ctx, outro.id, { membershipId: m.id }))
+    expect(e2).toMatchObject({ code: 'conflict', reason: 'membership_taken' })
+  })
+})
+
+describe('listProfessionals com serviceIds inválidos', () => {
+  test('id malformado ou lista grande demais dá validation em serviceIds', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const e1 = await domainError(listProfessionals(ctx, { serviceIds: ['abc'] }))
+    expect(e1.code).toBe('validation')
+    expect(e1.fields).toHaveProperty('serviceIds')
+    const onze = Array.from({ length: 11 }, () => crypto.randomUUID())
+    expect((await domainError(listProfessionals(ctx, { serviceIds: onze }))).code).toBe('validation')
+    expect(await listProfessionals(ctx, { serviceIds: onze.slice(0, 10) })).toEqual([])
   })
 })

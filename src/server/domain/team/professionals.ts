@@ -58,13 +58,17 @@ const createSchema = z.object({
 
 const updateSchema = createSchema.partial()
 
+const idSchema = z.uuid()
+
 const listOptionsSchema = z.object({
   includeInactive: z.boolean().optional(),
   includeArchived: z.boolean().optional(),
-  serviceIds: z.array(z.string()).optional(),
+  serviceIds: z
+    .array(z.string())
+    .max(10, 'Filtre por no máximo 10 serviços.')
+    .refine((ids) => ids.every((id) => idSchema.safeParse(id).success), 'Escolha serviços válidos.')
+    .optional(),
 })
-
-const idSchema = z.uuid()
 
 type ProfessionalRow = Prisma.ProfessionalGetPayload<{
   include: { avatar: true; services: { select: { serviceId: true } } }
@@ -116,7 +120,19 @@ async function assertServicesExist(db: Db, serviceIds: string[]): Promise<void> 
   }
 }
 
-/** O vínculo precisa ser ativo, da conta e sem outro profissional (não arquivado). */
+function membershipTaken(): DomainError {
+  return new DomainError('conflict', 'Este acesso já está ligado a outro profissional. Escolha outro acesso.', {
+    reason: 'membership_taken',
+    fields: { membershipId: 'Este acesso já está ligado a outro profissional.' },
+  })
+}
+
+/** Violação de índice único do Prisma (P2002). */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
+}
+
+/** O vínculo precisa ser ativo, da conta e sem outro profissional (arquivar solta o vínculo). */
 async function assertMembershipFree(db: Db, membershipId: string, selfId: string | null): Promise<void> {
   const membership = await db.membership.findFirst({ where: { id: membershipId, active: true } })
   if (!membership) {
@@ -125,11 +141,9 @@ async function assertMembershipFree(db: Db, membershipId: string, selfId: string
     })
   }
   const taken = await db.professional.findFirst({
-    where: { membershipId, archivedAt: null, ...(selfId ? { id: { not: selfId } } : {}) },
+    where: { membershipId, ...(selfId ? { id: { not: selfId } } : {}) },
   })
-  if (taken) {
-    throw new DomainError('conflict', 'Este acesso já está ligado a outro profissional. Escolha outro acesso.')
-  }
+  if (taken) throw membershipTaken()
 }
 
 async function replaceServices(tx: TenantTx, ctx: TenantContext, professionalId: string, serviceIds: string[]) {
@@ -186,6 +200,9 @@ export async function createProfessional(ctx: TenantContext, input: Professional
     await replaceServices(tx, ctx, professional.id, linked)
     await audit(ctx, { action: 'professional.created', targetType: 'Professional', targetId: professional.id }, tx)
     return professional.id
+  }).catch((err: unknown) => {
+    if (data.membershipId && isUniqueViolation(err)) throw membershipTaken()
+    throw err
   })
   return toView(ctx, await loadRow(ctx, id))
 }
@@ -217,6 +234,7 @@ export async function updateProfessional(
     })
   } catch (err) {
     if (isRecordNotFound(err)) throw notFound()
+    if (data.membershipId && isUniqueViolation(err)) throw membershipTaken()
     throw err
   }
   return toView(ctx, await loadRow(ctx, id))
@@ -243,7 +261,7 @@ export async function archiveProfessional(ctx: TenantContext, id: string): Promi
           { reason: 'has_future_appointments', details: { count } },
         )
       }
-      await tx.professional.update({ where: { id }, data: { archivedAt: ctx.clock() } })
+      await tx.professional.update({ where: { id }, data: { archivedAt: ctx.clock(), membershipId: null } })
       await audit(ctx, { action: 'professional.archived', targetType: 'Professional', targetId: id }, tx)
     })
   } catch (err) {
@@ -270,6 +288,18 @@ export async function assertCanManageProfessional(ctx: TenantContext, profession
   if (can(ctx.actor, 'manage_team')) return
   if (can(ctx.actor, 'manage_own_availability') && (await ownProfessionalId(ctx)) === professionalId) return
   throw new DomainError('forbidden', 'Você não tem permissão para alterar a agenda deste profissional.')
+}
+
+/** Escrita de expediente ou bloqueio: como `assertCanManageProfessional`, e a ficha não pode estar arquivada. */
+export async function assertCanWriteSchedule(ctx: TenantContext, professionalId: string): Promise<void> {
+  await assertCanManageProfessional(ctx, professionalId)
+  const row = orNotFound(
+    await ctx.db.professional.findUnique({ where: { id: professionalId }, select: { archivedAt: true } }),
+    'Profissional',
+  )
+  if (row.archivedAt !== null) {
+    throw new DomainError('conflict', 'Este profissional está arquivado. Restaure a ficha antes de alterar a agenda.')
+  }
 }
 
 /** Leitura da escala (expediente e bloqueios): livre para a equipe, nunca para o cliente. */

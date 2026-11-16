@@ -134,3 +134,26 @@ describe('setWeekSchedule', () => {
     expect((await setWeekSchedule(gerente, colega.id, { MONDAY: [MANHA] })).MONDAY).toEqual([MANHA])
   })
 })
+
+describe('setWeekSchedule: casos extras', () => {
+  test('sobreposição com intervalos fora de ordem no mesmo pedido dá validation', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const p = await makeProfessional(b.id)
+    const e = await domainError(
+      setWeekSchedule(ctx, p.id, { MONDAY: [{ startMin: 700, endMin: 800 }, { startMin: 540, endMin: 720 }] }),
+    )
+    expect(e.code).toBe('validation')
+    expect(e.fields).toHaveProperty('MONDAY')
+  })
+
+  test('profissional arquivado: conflict', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const p = await makeProfessional(b.id, { archivedAt: new Date() })
+    const e = await domainError(setWeekSchedule(ctx, p.id, { MONDAY: [MANHA] }))
+    expect(e.code).toBe('conflict')
+    expect(e.message).toContain('arquivad')
+    expect(await prisma.workingHours.count({ where: { businessId: b.id } })).toBe(0)
+  })
+})

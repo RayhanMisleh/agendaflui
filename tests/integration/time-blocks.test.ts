@@ -159,3 +159,32 @@ describe('deleteTimeBlock', () => {
     expect(await prisma.timeBlock.count({ where: { id: alheio.id } })).toBe(1)
   })
 })
+
+describe('fichas arquivadas e motivo reservado', () => {
+  test('createTimeBlock em profissional arquivado dá conflict; deleteTimeBlock continua permitido', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const p = await makeProfessional(b.id)
+    const bloco = await createTimeBlock(ctx, { professionalId: p.id, startsAt: INICIO, endsAt: FIM })
+    await prisma.professional.update({ where: { id: p.id }, data: { archivedAt: new Date() } })
+    const e = await domainError(createTimeBlock(ctx, { professionalId: p.id, startsAt: INICIO, endsAt: FIM }))
+    expect(e.code).toBe('conflict')
+    expect(e.message).toContain('arquivad')
+    await deleteTimeBlock(ctx, bloco.id)
+    expect(await prisma.timeBlock.count({ where: { businessId: b.id } })).toBe(0)
+  })
+
+  test('reason só aparece para quem vê todas as agendas ou para o dono da ficha', async () => {
+    const b = await makeBusiness({ timezone: 'America/Sao_Paulo' })
+    const prof = await ctxWithRole(b, 'PROFESSIONAL')
+    const meu = await makeProfessional(b.id, { membershipId: memberOf(prof).membershipId })
+    const colega = await makeProfessional(b.id)
+    const gerente = await ctxWithRole(b, 'MANAGER')
+    await createTimeBlock(gerente, { professionalId: meu.id, startsAt: INICIO, endsAt: FIM, reason: 'Consulta' })
+    await createTimeBlock(gerente, { professionalId: colega.id, startsAt: INICIO, endsAt: FIM, reason: 'Exame' })
+    const q = (professionalId: string) => ({ professionalId, from: '2026-11-17', to: '2026-11-17' })
+    expect((await listTimeBlocks(prof, q(colega.id))).map((x) => x.reason)).toEqual([null])
+    expect((await listTimeBlocks(prof, q(meu.id))).map((x) => x.reason)).toEqual(['Consulta'])
+    expect((await listTimeBlocks(gerente, q(colega.id))).map((x) => x.reason)).toEqual(['Exame'])
+  })
+})
