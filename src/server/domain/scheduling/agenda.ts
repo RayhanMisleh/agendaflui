@@ -10,6 +10,7 @@ import {
   forbidden,
   staffScope,
   toView,
+  viewScope,
   type AppointmentView,
   type Row,
   type Scope,
@@ -218,7 +219,7 @@ export async function getAgenda(
     const date = localParts(row.startsAt, ctx.timeZone).date
     const columns = byDay.get(date) ?? new Map<string, AppointmentView[]>()
     const list = columns.get(row.professionalId) ?? []
-    list.push(toView(ctx, row))
+    list.push(toView(ctx, row, scope))
     columns.set(row.professionalId, list)
     byDay.set(date, columns)
   }
@@ -334,6 +335,7 @@ export async function listCustomerAppointments(
     })
   }
   const direction = upcoming ? 'asc' : 'desc'
+  const viewer = await viewScope(ctx)
   const rows: Row[] = await ctx.db.appointment.findMany({
     where: { AND: conditions },
     include,
@@ -343,7 +345,7 @@ export async function listCustomerAppointments(
   const page = rows.slice(0, limit)
   const last = page[page.length - 1]
   return {
-    items: page.map((row) => toView(ctx, row)),
+    items: page.map((row) => toView(ctx, row, viewer)),
     nextCursor: rows.length > limit && last ? encodeCursor(last) : null,
   }
 }
@@ -355,7 +357,7 @@ export async function getNextAppointment(ctx: TenantContext, customerId?: string
     include,
     orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
   })
-  return row ? toView(ctx, row) : null
+  return row ? toView(ctx, row, await viewScope(ctx)) : null
 }
 
 function emptySummary(): DaySummary {

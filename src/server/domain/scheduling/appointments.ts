@@ -1,4 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
+import { can } from '@/server/auth/capabilities'
 import type { Prisma } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { DomainError, parse, z } from '@/server/domain/errors'
@@ -204,7 +205,7 @@ export async function bookAppointment(
       )
       const row = await reload(tx, created.id)
       await afterChange(tx, ctx, 'booked', row)
-      return toView(ctx, row)
+      return toView(ctx, row, scope)
     },
     { customerId },
   )
@@ -321,7 +322,7 @@ export async function rescheduleAppointment(
         previousStartsAt: row.startsAt.getTime(),
         previousProfessionalId: row.professionalId,
       })
-      return toView(ctx, updated)
+      return toView(ctx, updated, scope)
     },
   )
 }
@@ -334,6 +335,9 @@ export async function adjustAppointment(
   const who = actorKind(ctx)
   if (who === 'customer') throw forbidden()
   const input = parse(adjustSchema, { totalCents: i.totalCents, notes: i.notes })
+  if (input.totalCents !== undefined && !can(ctx.actor, 'view_all_agendas')) {
+    throw forbidden('Só quem vê todas as agendas pode alterar o valor do atendimento.')
+  }
   const scope = await staffScope(ctx, who)
   const before = await loadForActor(ctx, ctx.db, id, who, scope)
   if (!OPEN_STATUSES.includes(before.status)) {
@@ -389,7 +393,7 @@ export async function adjustAppointment(
         data.notes = input.notes
         fields.push('notes')
       }
-      if (fields.length === 0) return toView(ctx, row)
+      if (fields.length === 0) return toView(ctx, row, scope)
 
       await tx.appointment.update({ where: { id }, data })
       if (services) {
@@ -403,7 +407,7 @@ export async function adjustAppointment(
       )
       const updated = await reload(tx, id)
       await afterChange(tx, ctx, 'adjusted', updated, { fields: fields.join(',') })
-      return toView(ctx, updated)
+      return toView(ctx, updated, scope)
     },
   )
 }
@@ -411,5 +415,5 @@ export async function adjustAppointment(
 export async function getAppointment(ctx: TenantContext, id: string): Promise<AppointmentView> {
   const who = actorKind(ctx)
   const scope = await staffScope(ctx, who)
-  return toView(ctx, await loadForActor(ctx, ctx.db, id, who, scope))
+  return toView(ctx, await loadForActor(ctx, ctx.db, id, who, scope), scope)
 }

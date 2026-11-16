@@ -129,8 +129,25 @@ export function assertProfessionalAllowed(who: Who, scope: Scope, professionalId
   }
 }
 
-export function toView(ctx: TenantContext, row: Row): AppointmentView {
-  const customerView = ctx.actor.kind === 'customer'
+/** Escopo de quem só vê o próprio: o cliente do app, que nunca tem agenda de equipe. */
+const NO_AGENDA: Scope = { all: false, ownId: null }
+
+/** Escopo de leitura de quem pede, para `toView`: o da equipe, ou nenhum para o cliente do app. */
+export async function viewScope(ctx: TenantContext): Promise<Scope> {
+  return ctx.actor.kind === 'customer' ? NO_AGENDA : staffScope(ctx, actorKind(ctx))
+}
+
+/**
+ * Única regra de "este ator vê os campos internos (comissão e observações) deste agendamento?":
+ * quem tem `view_all_agendas` (inclui o suporte) ou o profissional dono do agendamento. Cliente nunca.
+ */
+export function canSeeInternals(ctx: TenantContext, scope: Scope, professionalId: string): boolean {
+  if (ctx.actor.kind === 'customer') return false
+  return scope.all || (scope.ownId !== null && scope.ownId === professionalId)
+}
+
+export function toView(ctx: TenantContext, row: Row, scope: Scope): AppointmentView {
+  const internals = canSeeInternals(ctx, scope, row.professionalId)
   return {
     id: row.id,
     status: row.status,
@@ -158,8 +175,8 @@ export function toView(ctx: TenantContext, row: Row): AppointmentView {
       })),
     totalCents: row.totalCents,
     totalDurationMin: row.totalDurationMin,
-    commissionCents: customerView ? null : row.commissionCents,
-    notes: customerView ? null : row.notes,
+    commissionCents: internals ? row.commissionCents : null,
+    notes: internals ? row.notes : null,
     canceledAt: row.canceledAt,
     cancelReason: row.cancelReason,
     completedAt: row.completedAt,

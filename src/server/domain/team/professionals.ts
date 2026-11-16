@@ -77,14 +77,20 @@ type ProfessionalRow = Prisma.ProfessionalGetPayload<{
 
 const withRelations = { avatar: true, services: { select: { serviceId: true } } } as const
 
-function toView(ctx: TenantContext, row: ProfessionalRow): ProfessionalView {
+/** A comissão real só aparece para quem gere a equipe (inclui o suporte) e na ficha do próprio profissional. */
+function seesCommission(ctx: TenantContext, row: ProfessionalRow, ownId: string | null): boolean {
+  if (isCustomer(ctx)) return false
+  return can(ctx.actor, 'manage_team') || (ownId !== null && ownId === row.id)
+}
+
+function toView(ctx: TenantContext, row: ProfessionalRow, ownId: string | null = null): ProfessionalView {
   const customer = isCustomer(ctx)
   return {
     id: row.id,
     name: row.name,
     bio: row.bio,
     avatarUrl: uploadUrl(row.avatar),
-    commissionBps: customer ? 0 : row.commissionBps,
+    commissionBps: seesCommission(ctx, row, ownId) ? row.commissionBps : 0,
     active: row.active,
     displayOrder: row.displayOrder,
     archived: row.archivedAt !== null,
@@ -174,11 +180,13 @@ export async function listProfessionals(
     include: withRelations,
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
   })
-  return rows.map((row) => toView(ctx, row))
+  const ownId = await ownProfessionalId(ctx)
+  return rows.map((row) => toView(ctx, row, ownId))
 }
 
 export async function getProfessional(ctx: TenantContext, id: string): Promise<ProfessionalView> {
-  return toView(ctx, await loadRow(ctx, id))
+  const row = await loadRow(ctx, id)
+  return toView(ctx, row, await ownProfessionalId(ctx))
 }
 
 export async function createProfessional(ctx: TenantContext, input: ProfessionalInput): Promise<ProfessionalView> {

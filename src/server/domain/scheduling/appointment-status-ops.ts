@@ -85,7 +85,7 @@ async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange):
       if (who === 'customer') {
         assertCustomerWindow(ctx, await getSchedulingRules(ctx, tx), row.startsAt, spec.customerVerb ?? '')
       }
-      return toView(ctx, await applyChange(tx, ctx, row, spec))
+      return toView(ctx, await applyChange(tx, ctx, row, spec), scope)
     },
   )
 }
