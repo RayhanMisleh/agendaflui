@@ -19,3 +19,12 @@ export const verificationSentSchema = z.object({ status: z.literal('verification
 
 /** Texto de campo de credencial: a validação de verdade (formato, tamanho mínimo) é do domínio; aqui só um teto. */
 export const credentialText = z.string().max(500)
+
+/** Quem entrou no app da equipe (resposta do login). */
+export const staffMemberSchema = z.object({
+  userId: uuid,
+  membershipId: uuid,
+  name: z.string(),
+  role: z.enum(['OWNER', 'MANAGER', 'PROFESSIONAL']),
+  professionalId: uuid.nullable(),
+})
