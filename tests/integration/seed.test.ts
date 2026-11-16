@@ -143,6 +143,7 @@ describe('agenda de demonstração', () => {
     await prisma.appointment.deleteMany({ where: filtro })
     await prisma.timeBlock.deleteMany({ where: filtro })
     await prisma.businessClosure.deleteMany({ where: filtro })
+    await prisma.auditLog.deleteMany({ where: { businessId, action: 'seed.demo_completed' } })
     await prisma.workingHours.deleteMany({ where: filtro })
     await prisma.professionalService.deleteMany({ where: filtro })
     await prisma.professional.deleteMany({ where: filtro })
@@ -471,6 +472,38 @@ describe('agenda de demonstração', () => {
     await seed(prisma, ENV, { now: NOW })
     expect(await prisma.appointment.count({ where: { businessId: navalha.id } })).toBe(23)
     await expect(seed(prisma, ENV, { now: NOW })).resolves.toMatchObject({ agenda: [] })
+  })
+
+  test('o marcador de conclusão é uma auditoria gravada por último, uma por conta', async () => {
+    for (const slug of ['patas-e-cia', 'navalha-de-ouro']) {
+      const conta = await contaDe(slug)
+      const marcadores = await prisma.auditLog.findMany({ where: { businessId: conta.id, action: 'seed.demo_completed' } })
+      expect(marcadores).toHaveLength(1)
+      const depois = await prisma.auditLog.count({
+        where: { businessId: conta.id, createdAt: { gt: marcadores[0]?.createdAt ?? new Date(0) } },
+      })
+      expect(depois).toBe(0)
+      expect(await prisma.businessClosure.count({ where: { businessId: conta.id, reason: DEMO_CLOSURE_REASON } })).toBe(1)
+    }
+  })
+
+  test('apagar o fechamento de demonstração pela tela não faz o seed seguinte falhar', async () => {
+    const navalha = await contaDe('navalha-de-ouro')
+    await prisma.businessClosure.deleteMany({ where: { businessId: navalha.id } })
+    await expect(seed(prisma, ENV, { now: NOW })).resolves.toMatchObject({ agenda: [] })
+    expect(await prisma.businessClosure.count({ where: { businessId: navalha.id } })).toBe(0)
+  })
+
+  test('com serviços e sem o marcador, o seed acusa dados incompletos', async () => {
+    const navalha = await contaDe('navalha-de-ouro')
+    await prisma.auditLog.deleteMany({ where: { businessId: navalha.id, action: 'seed.demo_completed' } })
+    try {
+      await expect(seed(prisma, ENV, { now: NOW })).rejects.toThrow('ficaram incompletos')
+    } finally {
+      await prisma.auditLog.create({
+        data: { businessId: navalha.id, actorType: 'SYSTEM', actorName: 'Sistema', action: 'seed.demo_completed' },
+      })
+    }
   })
 
   test('o seed recusa rodar em produção, a menos que SEED_ALLOW_PRODUCTION=1', async () => {

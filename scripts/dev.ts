@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
 import { DEV_DB, startDb, type RunningDb } from './db'
+import { planSeed } from './seed-policy'
 
 try {
   process.loadEnvFile()
@@ -51,13 +52,17 @@ async function main(): Promise<void> {
     const { prisma } = await import('../src/server/db/client')
     try {
       const { seed, textoDoResumo } = await import('../prisma/seed')
+      const contas = await prisma.business.count()
+      const plano = planSeed(process.env, contas)
+      if ('error' in plano) throw new Error(plano.error)
       // O seed só cria o que falta; num banco completo não faz nada (e não imprime nada).
-      const vazio = (await prisma.business.count()) === 0
-      const { emails, agenda } = await seed(prisma, process.env)
-      if (vazio || agenda.length > 0) {
-        console.log(`Dados de demonstração criados. Contas de acesso: ${emails.join(', ')}.`)
-        for (const resumo of agenda) console.log(textoDoResumo(resumo))
-        console.log('As senhas de demonstração estão no .env.')
+      if (plano.run) {
+        const { emails, agenda } = await seed(prisma, process.env)
+        if (contas === 0 || agenda.length > 0) {
+          console.log(`Dados de demonstração criados. Contas de acesso: ${emails.join(', ')}.`)
+          for (const resumo of agenda) console.log(textoDoResumo(resumo))
+          console.log('As senhas de demonstração estão no .env.')
+        }
       }
     } finally {
       await prisma.$disconnect()

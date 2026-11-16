@@ -30,7 +30,7 @@ function lerEnv(env: SeedEnv): z.infer<typeof envSchema> {
 
 export type AgendaResumo = { slug: string; nome: string; servicos: number; profissionais: number; clientes: number; agendamentos: number }
 
-/** Execução interrompida: a conta tem serviços, mas o fechamento de demonstração (o último passo) não existe. */
+/** Execução interrompida: a conta tem serviços, mas a auditoria de conclusão (o último passo) não existe. */
 export class SeedIncompletoError extends Error {
   constructor(conta: string) {
     super(`Os dados de demonstração de ${conta} ficaram incompletos. Rode npm run db:reset e inicie de novo.`)
@@ -38,10 +38,13 @@ export class SeedIncompletoError extends Error {
   }
 }
 
+const SEED_DONE_ACTION = 'seed.demo_completed'
+
 export type SeedResult = { emails: string[]; agenda: AgendaResumo[] }
 
 async function dominio() {
-  const [contexto, catalogo, equipe, horarios, bloqueios, fechamentos, clientes, agendamentos] = await Promise.all([
+  const [auditoria, contexto, catalogo, equipe, horarios, bloqueios, fechamentos, clientes, agendamentos] = await Promise.all([
+    import('../src/server/domain/audit'),
     import('../src/server/auth/context'),
     import('../src/server/domain/catalog/services'),
     import('../src/server/domain/team/professionals'),
@@ -51,7 +54,7 @@ async function dominio() {
     import('../src/server/domain/customers/customers'),
     import('../src/server/domain/scheduling/appointments'),
   ])
-  return { ...contexto, ...catalogo, ...equipe, ...horarios, ...bloqueios, ...fechamentos, ...clientes, ...agendamentos }
+  return { ...auditoria, ...contexto, ...catalogo, ...equipe, ...horarios, ...bloqueios, ...fechamentos, ...clientes, ...agendamentos }
 }
 
 /**
@@ -135,8 +138,10 @@ async function semearAgenda(
     else if (m.desfecho === 'faltar') await d.markNoShow(ctx, marcado.id)
     else if (m.desfecho === 'cancelar') await d.cancelAppointment(ctx, marcado.id, { reason: 'Cliente avisou que não poderá comparecer.' })
   }
-  // Por último: é o marcador de que a agenda desta conta ficou completa.
   await d.createClosure(ctx, { startDate: plano.fechamento, endDate: plano.fechamento, reason: DEMO_CLOSURE_REASON })
+  // Por último: o marcador de que a agenda desta conta ficou completa. O fechamento não serve, porque o
+  // usuário pode apagá-lo pela tela.
+  await d.audit(ctx, { action: SEED_DONE_ACTION })
 
   return {
     slug: negocio.slug,
@@ -211,7 +216,7 @@ export async function seed(prisma: PrismaClient, rawEnv: SeedEnv, opts: { now?: 
     await vinculo(negocio.id, multiId, 'OWNER')
     if ((await prisma.service.count({ where: { businessId: negocio.id } })) === 0) {
       agenda.push(await semearAgenda(prisma, conta, negocio, admin.id, now))
-    } else if (!(await prisma.businessClosure.findFirst({ where: { businessId: negocio.id, reason: DEMO_CLOSURE_REASON } }))) {
+    } else if (!(await prisma.auditLog.findFirst({ where: { businessId: negocio.id, action: SEED_DONE_ACTION } }))) {
       throw new SeedIncompletoError(negocio.name)
     }
   }
