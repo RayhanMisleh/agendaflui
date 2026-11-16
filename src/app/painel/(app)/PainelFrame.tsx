@@ -3,7 +3,6 @@ import { CalendarDays, ChartNoAxesColumn, House, Scissors, Settings, UserRound, 
 import { requireMemberSession } from '@/server/auth/guards'
 import type { TenantContext } from '@/server/auth/actor'
 import { roleLabel } from '@/server/auth/role-labels'
-import { tenantDb } from '@/server/db/tenant'
 import { getPublicBrandById } from '@/server/domain/platform/branding'
 import { LinkButton } from '@/ui/components'
 import { PainelShell } from '@/ui/shells'
@@ -24,7 +23,7 @@ export async function PainelFrame({
   const [session, marca, termos] = await Promise.all([
     requireMemberSession(),
     getPublicBrandById(ctx.businessId),
-    tenantDb(ctx.businessId).businessSettings.findFirst(),
+    ctx.db.businessSettings.findFirst(),
   ])
   if (!marca || !termos) redirect('/escolher-conta')
 

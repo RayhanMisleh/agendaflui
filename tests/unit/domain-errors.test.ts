@@ -1,6 +1,5 @@
-import { z } from 'zod'
 import type { TenantContext } from '@/server/auth/actor'
-import { authorize, DomainError, isRecordNotFound, orNotFound, parse } from '@/server/domain/errors'
+import { authorize, DomainError, z, isRecordNotFound, orNotFound, parse } from '@/server/domain/errors'
 
 const schema = z.object({ name: z.string().min(1, 'Informe o nome.'), price: z.number().int() })
 
@@ -67,4 +66,13 @@ test('isRecordNotFound reconhece P2025', () => {
   expect(isRecordNotFound({ code: 'P2002' })).toBe(false)
   expect(isRecordNotFound(new Error('x'))).toBe(false)
   expect(isRecordNotFound(null)).toBe(false)
+})
+
+test('mensagens do Zod saem em português e erro na raiz vai para _', () => {
+  const e = capturar(() => parse(z.object({ price: z.number().int() }), { price: 1.5 })) as DomainError
+  expect(e.fields?.['price']).toBeDefined()
+  expect(e.fields?.['price']).not.toMatch(/expected|invalid|received/i)
+  const raiz = capturar(() => parse(z.string(), 5)) as DomainError
+  expect(raiz.fields?.['_']).toBeDefined()
+  expect(raiz.fields?.['']).toBeUndefined()
 })

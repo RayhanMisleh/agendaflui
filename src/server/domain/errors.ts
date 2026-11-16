@@ -1,6 +1,11 @@
-import type { z } from 'zod'
+import { z } from 'zod'
 import type { TenantContext } from '@/server/auth/actor'
 import { can, type Capability } from '@/server/auth/capabilities'
+
+// Mensagens padrão do Zod em português, para todo esquema validado por `parse`.
+// Os esquemas de domínio importam `z` daqui, não de 'zod'.
+z.config(z.locales.pt())
+export { z }
 
 export type DomainErrorCode =
   | 'validation'
@@ -43,7 +48,7 @@ export function parse<T>(schema: z.ZodType<T>, input: unknown): T {
   if (result.success) return result.data
   const fields: Record<string, string> = {}
   for (const issue of result.error.issues) {
-    const path = issue.path.map(String).join('.')
+    const path = issue.path.map(String).join('.') || '_'
     if (!(path in fields)) fields[path] = issue.message
   }
   throw new DomainError('validation', 'Confira os campos informados e tente de novo.', { fields })

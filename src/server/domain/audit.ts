@@ -1,4 +1,5 @@
 import type { Prisma } from '@/server/db/generated/client'
+import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import type { Actor, TenantContext } from '@/server/auth/actor'
 
 type Autor = {
@@ -6,7 +7,7 @@ type Autor = {
   actorId: string | null
   actorName: string
   onBehalf: boolean
-  extra: Record<string, unknown>
+  extra: Prisma.InputJsonObject
 }
 
 function autor(actor: Actor): Autor {
@@ -33,10 +34,11 @@ function autor(actor: Actor): Autor {
 /** Registra uma ação na auditoria da conta (o `businessId` entra pelo `ctx.db`). */
 export async function audit(
   ctx: TenantContext,
-  entry: { action: string; targetType?: string; targetId?: string; metadata?: Record<string, unknown> },
+  entry: { action: string; targetType?: string; targetId?: string; metadata?: Prisma.InputJsonObject },
+  db: Pick<TenantClient | TenantTx, 'auditLog'> = ctx.db,
 ): Promise<void> {
   const a = autor(ctx.actor)
-  await ctx.db.auditLog.create({
+  await db.auditLog.create({
     data: {
       actorType: a.actorType,
       actorId: a.actorId,
@@ -45,7 +47,7 @@ export async function audit(
       action: entry.action,
       targetType: entry.targetType ?? null,
       targetId: entry.targetId ?? null,
-      metadata: { ...entry.metadata, ...a.extra } as Prisma.InputJsonObject,
+      metadata: { ...entry.metadata, ...a.extra },
       ip: ctx.request.ip,
     },
   })

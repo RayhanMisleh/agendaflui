@@ -3,6 +3,7 @@ import { prisma } from '@/server/db/client'
 import type { MembershipRole } from '@/server/db/generated/client'
 import { addMinutes } from '@/server/time'
 import { AuthError, type TenantContext } from './actor'
+import { DomainError } from '@/server/domain/errors'
 import { createTenantContext } from './context'
 import { hashPassword, verifyPassword } from './password'
 import { createRateLimiter } from './rate-limit'
@@ -108,19 +109,24 @@ export async function getTenantContext(token: string | undefined): Promise<Tenan
   // Papel, vínculo e situação da conta são relidos a cada chamada.
   const membership = await prisma.membership.findFirst({
     where: { userId: session.userId, businessId: session.activeBusinessId, active: true, business: { status: 'ACTIVE' } },
-    include: { business: true },
   })
   if (!membership) return null
-  return createTenantContext({
-    businessId: membership.businessId,
-    actor: {
-      kind: 'member',
-      userId: session.user.id,
-      membershipId: membership.id,
-      name: session.user.name,
-      role: membership.role,
-    },
-  })
+  try {
+    return await createTenantContext({
+      businessId: membership.businessId,
+      actor: {
+        kind: 'member',
+        userId: session.user.id,
+        membershipId: membership.id,
+        name: session.user.name,
+        role: membership.role,
+      },
+    })
+  } catch (e) {
+    // A conta pode ter saído do ar entre a leitura do vínculo e a do contexto.
+    if (e instanceof DomainError && (e.code === 'business_unavailable' || e.code === 'not_found')) return null
+    throw e
+  }
 }
 
 export async function logoutUser(token: string): Promise<void> {

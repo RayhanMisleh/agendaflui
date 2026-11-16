@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation'
 import { emailDigitado, lerCampos, mensagemDeLogin, SEM_DADOS } from '@/app/_lib/login-form'
 import type { LoginState } from '@/app/_lib/login-form'
-import { requestInfo } from '@/app/_lib/request-info'
+import { requestInfo } from '@/server/auth/request-info'
 import { AuthError } from '@/server/auth/actor'
 import { DEV_COOKIE, setSessionCookie } from '@/server/auth/guards'
 import { loginPlatformAdmin } from '@/server/auth/platform-auth'

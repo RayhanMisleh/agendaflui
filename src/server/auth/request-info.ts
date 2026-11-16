@@ -1,3 +1,4 @@
+import 'server-only'
 import { headers } from 'next/headers'
 
 /** IP e navegador da requisição, para gravar na sessão. */

@@ -182,6 +182,9 @@ function criarExtensao(businessId: string) {
 
 export type TenantClient = ReturnType<typeof criarExtensao>
 
+/** Cliente recebido no callback de `ctx.db.$transaction(async (tx) => …)`. */
+export type TenantTx = Parameters<Parameters<TenantClient['$transaction']>[0]>[0]
+
 /** Única porta do código de negócio para dados de uma conta. */
 export function tenantDb(businessId: string): TenantClient {
   if (typeof businessId !== 'string' || !UUID.test(businessId)) {

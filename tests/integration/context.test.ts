@@ -46,6 +46,12 @@ describe('createTenantContext', () => {
     expect((e as DomainError).message).toBe('Conta não encontrada.')
   })
 
+  test('conta arquivada lança business_unavailable', async () => {
+    const a = await makeBusiness({ status: 'ARCHIVED' })
+    const e = await erroDe(createTenantContext({ businessId: a.id, actor: { kind: 'system' } }))
+    expect((e as DomainError).code).toBe('business_unavailable')
+  })
+
   test('usa o relógio e os dados da requisição injetados', async () => {
     const a = await makeBusiness()
     const now = new Date('2026-11-16T12:00:00.000Z')
@@ -126,6 +132,24 @@ describe('audit', () => {
   })
 })
 
+describe('audit em transação', () => {
+  test('reverte junto com a operação e persiste sem erro', async () => {
+    const a = await makeBusiness()
+    const ctx = await makeCtx(a)
+    await expect(
+      ctx.db.$transaction(async (tx) => {
+        await audit(ctx, { action: 'tx.rollback' }, tx)
+        throw new Error('falha')
+      }),
+    ).rejects.toThrow('falha')
+    expect(await prisma.auditLog.count({ where: { businessId: a.id, action: 'tx.rollback' } })).toBe(0)
+    await ctx.db.$transaction(async (tx) => {
+      await audit(ctx, { action: 'tx.ok' }, tx)
+    })
+    expect(await prisma.auditLog.count({ where: { businessId: a.id, action: 'tx.ok' } })).toBe(1)
+  })
+})
+
 describe('Business em tenantDb: campos permitidos', () => {
   test('situação, slug, fuso e observações internas lançam; name funciona', async () => {
     const a = await makeBusiness()
@@ -140,6 +164,13 @@ describe('Business em tenantDb: campos permitidos', () => {
       await expect(ctx.db.business.updateMany({ data })).rejects.toThrow(TenantViolationError)
       await expect(ctx.db.business.updateManyAndReturn({ data })).rejects.toThrow(TenantViolationError)
     }
+    await expect(ctx.db.business.update({ where: { id: a.id }, data: { id: a.id } })).rejects.toThrow(TenantViolationError)
+    await expect(
+      ctx.db.business.update({ where: { id: a.id }, data: { status: { set: 'SUSPENDED' } } }),
+    ).rejects.toThrow(TenantViolationError)
+    await expect(
+      ctx.db.business.upsert({ where: { id: a.id }, create: { slug: 'x-novo', name: 'x' }, update: { name: 'y' } }),
+    ).rejects.toThrow(TenantViolationError)
     await ctx.db.business.update({ where: { id: a.id }, data: { name: 'Novo' } })
     const row = await prisma.business.findUniqueOrThrow({ where: { id: a.id } })
     expect(row.name).toBe('Novo')
