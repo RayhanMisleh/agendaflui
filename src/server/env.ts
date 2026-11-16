@@ -10,6 +10,10 @@ const envSchema = z.object({
   // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
   SMTP_URL: z.string().min(1).optional(),
   MAIL_FROM: z.string().min(3).optional(),
+  // Push pelo Expo: o token de acesso é opcional (só vale se a conta Expo exigir).
+  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
+  // Agendador de avisos dentro do servidor; `false` desliga (por exemplo, numa instância só de leitura).
+  WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   // Definida pelo Next; só interessa para distinguir o `next build` da execução em produção.
   NEXT_PHASE: z.string().optional(),

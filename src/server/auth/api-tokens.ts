@@ -1,6 +1,7 @@
 import 'server-only'
 import { hkdfSync, randomUUID } from 'node:crypto'
 import { jwtVerify, SignJWT } from 'jose'
+import { prisma } from '@/server/db/client'
 import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
 import { env } from '@/server/env'
 import { addMinutes, fromEpochMs } from '@/server/time'
@@ -277,4 +278,11 @@ export async function revokeAllFor(
   }
   if (typeof Reflect.get(db, '$transaction') === 'function') return (db as TenantClient).$transaction(run)
   return run(db as TenantTx)
+}
+
+/** Apaga os tokens de renovação vencidos há mais de 7 dias, de todas as contas; devolve quantos. Chamada pela limpeza periódica. */
+export async function purgeRefreshTokens(now: Date): Promise<number> {
+  const corte = fromEpochMs(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+  const r = await prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: corte } } })
+  return r.count
 }

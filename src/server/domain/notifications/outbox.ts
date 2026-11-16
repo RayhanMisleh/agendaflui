@@ -67,11 +67,12 @@ type Plan = {
   enabled: Awaited<ReturnType<typeof getNotificationSettings>>
 }
 
-function payloadOf(appt: EventAppointment, startsAt: Date, previousStartsAt?: Date): Prisma.InputJsonObject {
+function payloadOf(appt: EventAppointment, startsAt: Date, previousStartsAt?: Date, reason?: 'moved'): Prisma.InputJsonObject {
   return {
     appointmentId: appt.id,
     startsAt: toIsoInstant(startsAt),
     ...(previousStartsAt ? { previousStartsAt: toIsoInstant(previousStartsAt) } : {}),
+    ...(reason ? { reason } : {}),
   }
 }
 
@@ -82,6 +83,8 @@ type RowOptions = {
   /** Início que vai no payload (padrão: o atual). */
   startsAt?: Date
   previousStartsAt?: Date
+  /** `moved`: o agendamento passou para outro profissional (o aviso vale mesmo com o agendamento ativo). */
+  cause?: 'moved'
 }
 
 /** Uma linha por canal ligado na conta. */
@@ -94,7 +97,7 @@ function rowsFor(plan: Plan, kind: NotificationKind, to: Recipient, o: RowOption
     ...to,
     appointmentId: plan.appt.id,
     scheduledFor: o.scheduledFor,
-    payload: payloadOf(plan.appt, o.startsAt ?? plan.appt.startsAt, o.previousStartsAt),
+    payload: payloadOf(plan.appt, o.startsAt ?? plan.appt.startsAt, o.previousStartsAt, o.cause),
     dedupeKey: `${kind}:${channel}:${plan.appt.id}${o.suffix === undefined ? '' : `:${o.suffix}`}`,
   }))
 }
@@ -219,17 +222,19 @@ export async function enqueueAppointmentEvent(
       }
       if (side === 'customer') {
         const current = await membershipOf(tx, appt.professionalId, appt.professional)
-        staff('STAFF_APPOINTMENT_RESCHEDULED', current, { scheduledFor: now, suffix: unique, ...previous })
         const before = opts.previousProfessionalId
-        if (before !== undefined && before !== appt.professionalId) {
-          const old = await membershipOf(tx, before)
-          if (old !== current) {
-            staff('STAFF_APPOINTMENT_CANCELED', old, {
-              scheduledFor: now,
-              suffix: unique,
-              startsAt: opts.previousStartsAt ?? appt.startsAt,
-            })
-          }
+        const old = before !== undefined && before !== appt.professionalId ? await membershipOf(tx, before) : current
+        if (old === current) {
+          staff('STAFF_APPOINTMENT_RESCHEDULED', current, { scheduledFor: now, suffix: unique, ...previous })
+        } else {
+          // Profissional novo: "novo agendamento" (não "remarcado"); o antigo recebe o aviso de que o horário passou para outro.
+          staff('STAFF_NEW_APPOINTMENT', current, { scheduledFor: now, suffix: unique })
+          staff('STAFF_APPOINTMENT_CANCELED', old, {
+            scheduledFor: now,
+            suffix: unique,
+            startsAt: opts.previousStartsAt ?? appt.startsAt,
+            cause: 'moved',
+          })
         }
       }
       if (customerOk) reminders = reminderRows(plan)

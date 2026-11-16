@@ -364,10 +364,12 @@ describe('fila ao cancelar, remarcar e concluir', () => {
     const antigo = await fila(s.b.id, { kind: 'STAFF_APPOINTMENT_CANCELED' })
     expect(resumo(antigo)).toEqual(ambos('STAFF_APPOINTMENT_CANCELED'))
     expect(antigo.every((r) => r.membershipId === s.vinculo.id)).toBe(true)
-    expect(antigo[0]?.payload).toEqual({ appointmentId: v.id, startsAt: QUINTA_10H.toISOString() })
-    const novo = await fila(s.b.id, { kind: 'STAFF_APPOINTMENT_RESCHEDULED' })
-    expect(resumo(novo)).toEqual(ambos('STAFF_APPOINTMENT_RESCHEDULED'))
-    expect(novo.every((r) => r.membershipId === vinculoCaio.id)).toBe(true)
+    expect(antigo[0]?.payload).toEqual({ appointmentId: v.id, startsAt: QUINTA_10H.toISOString(), reason: 'moved' })
+    // o profissional novo recebe "novo agendamento" (não "remarcado"), com o horário novo
+    const novo = (await fila(s.b.id, { kind: 'STAFF_NEW_APPOINTMENT' })).filter((r) => r.membershipId === vinculoCaio.id)
+    expect(resumo(novo)).toEqual(ambos('STAFF_NEW_APPOINTMENT'))
+    expect(novo[0]?.payload).toMatchObject({ appointmentId: v.id, startsAt: QUINTA_11H.toISOString() })
+    expect(await fila(s.b.id, { kind: 'STAFF_APPOINTMENT_RESCHEDULED' })).toHaveLength(0)
   })
 })
 

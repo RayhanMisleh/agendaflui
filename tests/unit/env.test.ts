@@ -57,3 +57,12 @@ test('em produção com SMTP_URL, MAIL_FROM precisa ser informado; a fase de bui
   expect(parseEnv({ ...prod, SMTP_URL: undefined }).NODE_ENV).toBe('production')
   expect(parseEnv({ ...prod, NODE_ENV: 'development' }).NODE_ENV).toBe('development')
 })
+
+test('WORKER_ENABLED (padrão ligado) e EXPO_ACCESS_TOKEN (opcional)', () => {
+  expect(parseEnv(ok).WORKER_ENABLED).toBe(true)
+  expect(parseEnv({ ...ok, WORKER_ENABLED: 'false' }).WORKER_ENABLED).toBe(false)
+  expect(parseEnv({ ...ok, WORKER_ENABLED: 'true' }).WORKER_ENABLED).toBe(true)
+  expect(() => parseEnv({ ...ok, WORKER_ENABLED: 'talvez' })).toThrow(/WORKER_ENABLED/)
+  expect(parseEnv(ok).EXPO_ACCESS_TOKEN).toBeUndefined()
+  expect(parseEnv({ ...ok, EXPO_ACCESS_TOKEN: 'abc' }).EXPO_ACCESS_TOKEN).toBe('abc')
+})

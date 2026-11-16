@@ -2,7 +2,7 @@ import 'server-only'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { assertSafeRecipient, type EmailChannel, type EmailMessage } from './types'
+import { assertSafeRecipient, fromHeader, type EmailChannel, type EmailMessage } from './types'
 
 /** Pasta dos e-mails de desenvolvimento (fica dentro de `.local`, que o Git ignora). */
 export const MAIL_DIR = '.local/mail'
@@ -15,10 +15,16 @@ function headerText(texto: string): string {
   return /^[\x20-\x7e]*$/.test(limpo) ? limpo : `=?UTF-8?B?${Buffer.from(limpo, 'utf8').toString('base64')}?=`
 }
 
+function fromLine(from: string, fromName?: string): string {
+  if (fromName === undefined) return from.replace(/[\r\n]+/g, ' ')
+  const { name, address } = fromHeader(from, fromName)
+  return name ? `${headerText(name)} <${address}>` : address
+}
+
 /** Monta a mensagem MIME (multipart/alternative com texto e HTML). */
 export function buildEml(msg: EmailMessage, from: string, boundary: string): string {
   return [
-    `From: ${from.replace(/[\r\n]+/g, ' ')}`,
+    `From: ${fromLine(from, msg.fromName)}`,
     `To: ${msg.to}`,
     `Subject: ${headerText(msg.subject)}`,
     'MIME-Version: 1.0',

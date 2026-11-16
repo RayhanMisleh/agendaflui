@@ -683,6 +683,8 @@ model Notification {
   lastError     String?             @map("last_error")
   sentAt        DateTime?           @map("sent_at") @db.Timestamptz(3)
   lockedUntil   DateTime?           @map("locked_until") @db.Timestamptz(3)
+  // Identificador da rodada de envio que reservou a linha; a atualização final confere que ainda é esta.
+  lockedBy      String?             @map("locked_by")
   skipReason    String?             @map("skip_reason")
   payload       Json                @default("{}")
   dedupeKey     String              @map("dedupe_key")

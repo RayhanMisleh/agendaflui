@@ -134,6 +134,11 @@ export default defineConfig([
     rules: { 'no-restricted-imports': ['error', { patterns: [semInterface] }] },
   },
   {
+    // O envio de avisos atravessa contas por desenho: usa o Prisma cru e filtra por `businessId` a cada consulta de conta.
+    files: ['src/server/notifications/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semInterface] }] },
+  },
+  {
     files: ['prisma/**', 'scripts/**', 'tests/**'],
     rules: { 'no-restricted-imports': 'off' },
   },

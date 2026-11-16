@@ -1,4 +1,37 @@
-export type EmailMessage = { to: string; subject: string; text: string; html: string }
+export type EmailMessage = {
+  to: string
+  /** Nome que aparece como remetente (o da conta); o endereço continua o de `MAIL_FROM`. */
+  fromName?: string
+  subject: string
+  text: string
+  html: string
+}
+
+export type PushMessage = { tokens: string[]; title: string; body: string; data: Record<string, string> }
+
+/** Canal de push. `invalidTokens`: tokens que o provedor disse não existirem mais (quem envia os apaga). */
+export interface PushChannel {
+  send(m: PushMessage): Promise<{ invalidTokens: string[] }>
+}
+
+/** Códigos curtos e fechados de falha de canal: é só o que vai para `lastError` (nunca a mensagem do provedor, que pode ter e-mail). */
+export type ChannelErrorCode = 'not_configured' | 'channel_error' | 'timeout' | 'invalid_recipient' | 'internal_error'
+
+export class ChannelError extends Error {
+  constructor(readonly code: ChannelErrorCode) {
+    super(code)
+    this.name = 'ChannelError'
+  }
+}
+
+/** Remetente com o nome da conta: `"Nome" <endereço de MAIL_FROM>`. Sem nome, devolve `from` como veio. */
+export function fromHeader(from: string, fromName?: string): { name?: string; address: string } {
+  const m = /<([^<>]+)>\s*$/.exec(from)
+  const address = (m?.[1] ?? from).replace(/[\r\n]+/g, ' ').trim()
+  const nameFromEnv = m ? from.slice(0, m.index).replace(/["\r\n]/g, ' ').trim() : ''
+  const name = (fromName ?? nameFromEnv).replace(/[\u0000-\u001f\u007f"<>\\]+/g, ' ').trim()
+  return name ? { name, address } : { address }
+}
 
 /** Canal de e-mail. Quem envia decide o que fazer com a falha (as rotas de conta a registram e seguem). */
 export interface EmailChannel {

@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test } from 'vitest'
-import { getEmailChannel, setEmailChannel } from '@/server/notifications/channels'
+import { getChannels, getEmailChannel, setEmailChannel } from '@/server/notifications/channels'
 import { createFileChannel } from '@/server/notifications/channels/email-file'
 import { createSmtpChannel } from '@/server/notifications/channels/email-smtp'
 import { maskEmail } from '@/server/notifications/channels/types'
@@ -84,5 +84,36 @@ describe('maskEmail', () => {
     expect(maskEmail('maria@exemplo.test')).toBe('m***@exemplo.test')
     expect(maskEmail('a@b.test')).toBe('a***@b.test')
     expect(maskEmail('sem-arroba')).toBe('***')
+  })
+})
+
+describe('nome do remetente por conta', () => {
+  test('fromName troca só o nome, mantém o endereço do remetente e nunca quebra o cabeçalho', async () => {
+    const dir = tmp()
+    await createFileChannel(dir, 'AgendaFlui <nao-responda@agendaflui.localhost>').send({ ...msg, fromName: 'Tosa & Cia\r\nBcc: x@y.test' })
+    const eml = readFileSync(join(dir, readdirSync(dir)[0] ?? ''), 'utf8')
+    const from = /^From: (.*)$/m.exec(eml)?.[1] ?? ''
+    expect(from).toContain('<nao-responda@agendaflui.localhost>')
+    expect(from).toContain('Tosa & Cia')
+    expect(eml).not.toMatch(/^Bcc:/m)
+  })
+})
+
+describe('getChannels', () => {
+  test('em teste não há canal real; o e-mail injetado vale', () => {
+    expect(getChannels({ NODE_ENV: 'test' })).toEqual({ email: null, push: null })
+    const falso = { async send() {} }
+    setEmailChannel(falso)
+    expect(getChannels({ NODE_ENV: 'test' }).email).toBe(falso)
+  })
+
+  test('em desenvolvimento são os de arquivo; em produção o push é o Expo e o e-mail depende do SMTP', () => {
+    const dev = getChannels({ NODE_ENV: 'development' })
+    expect(dev.email).not.toBeNull()
+    expect(dev.push).not.toBeNull()
+    const prod = getChannels({ NODE_ENV: 'production', SMTP_URL: undefined })
+    expect(prod.email).toBeNull()
+    expect(prod.push).not.toBeNull()
+    expect(getChannels({ NODE_ENV: 'production', SMTP_URL: 'smtp://localhost:2525' }).email).not.toBeNull()
   })
 })

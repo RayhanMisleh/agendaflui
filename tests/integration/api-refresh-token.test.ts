@@ -2,6 +2,7 @@ import { prisma } from '@/server/db/client'
 import { tenantDb } from '@/server/db/tenant'
 import {
   issueTokens,
+  purgeRefreshTokens,
   revokeAllFor,
   revokeRefreshToken,
   rotateRefreshToken,
@@ -393,5 +394,29 @@ describe('revogação da família sob a trava do sujeito', () => {
     })
     expect(n).toBe(1)
     expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+  })
+})
+
+describe('purgeRefreshTokens', () => {
+  test('apaga só os vencidos há mais de 7 dias, em todas as contas, e devolve quantos', async () => {
+    const a = await makeBusiness()
+    const b = await makeBusiness()
+    const ca = await makeCustomer(a.id)
+    const cb = await makeCustomer(b.id)
+    const linha = (businessId: string, customerId: string, n: number, expiresAt: Date) => ({
+      businessId, customerId, subject: 'CUSTOMER' as const, familyId: crypto.randomUUID(), tokenHash: `h${n}`, expiresAt,
+    })
+    await prisma.refreshToken.createMany({
+      data: [
+        linha(a.id, ca.id, 1, addMinutes(now, -8 * DIA)),
+        linha(b.id, cb.id, 2, addMinutes(now, -7 * DIA - 1)),
+        linha(a.id, ca.id, 3, addMinutes(now, -7 * DIA)),
+        linha(b.id, cb.id, 4, addMinutes(now, -1)),
+        linha(a.id, ca.id, 5, addMinutes(now, 5 * DIA)),
+      ],
+    })
+    expect(await purgeRefreshTokens(now)).toBe(2)
+    expect((await prisma.refreshToken.findMany({ orderBy: { tokenHash: 'asc' } })).map((t) => t.tokenHash)).toEqual(['h3', 'h4', 'h5'])
+    expect(await purgeRefreshTokens(now)).toBe(0)
   })
 })

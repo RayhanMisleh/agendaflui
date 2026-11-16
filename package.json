@@ -19,6 +19,7 @@
     "db:migrate": "prisma migrate deploy",
     "db:reset": "tsx scripts/db.ts reset",
     "db:seed": "tsx --conditions=react-server prisma/seed.ts",
+    "worker:once": "tsx --conditions=react-server scripts/worker-once.ts",
     "admin:create": "tsx scripts/admin-create.ts",
     "postinstall": "prisma generate"
   },
