@@ -277,6 +277,27 @@ export async function archiveProfessional(ctx: TenantContext, id: string): Promi
   }
 }
 
+/** Tira a ficha do arquivo e a põe no fim da ordem, sem vínculo de acesso (o acesso é ligado de novo na edição). */
+export async function restoreProfessional(ctx: TenantContext, id: string): Promise<ProfessionalView> {
+  authorize(ctx, 'manage_team')
+  const current = await loadRow(ctx, id)
+  if (current.archivedAt === null) return toView(ctx, current)
+  try {
+    await ctx.db.$transaction(async (tx) => {
+      const last = await tx.professional.aggregate({ where: { archivedAt: null }, _max: { displayOrder: true } })
+      await tx.professional.update({
+        where: { id },
+        data: { archivedAt: null, membershipId: null, displayOrder: (last._max.displayOrder ?? 0) + 1 },
+      })
+      await audit(ctx, { action: 'professional.restored', targetType: 'Professional', targetId: id }, tx)
+    })
+  } catch (err) {
+    if (isRecordNotFound(err)) throw notFound()
+    throw err
+  }
+  return toView(ctx, await loadRow(ctx, id))
+}
+
 /** Profissional (não arquivado) ligado ao vínculo do ator; `null` para quem não é membro ou não tem ficha. */
 export async function ownProfessionalId(ctx: TenantContext): Promise<string | null> {
   if (ctx.actor.kind !== 'member') return null

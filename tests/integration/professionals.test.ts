@@ -7,6 +7,7 @@ import {
   getProfessional,
   listProfessionals,
   ownProfessionalId,
+  restoreProfessional,
   updateProfessional,
 } from '@/server/domain/team/professionals'
 import { resetDb } from '../setup/db'
@@ -297,6 +298,46 @@ describe('archiveProfessional', () => {
     const p = await makeProfessional(b.id)
     const prof = await ctxWithRole(b, 'PROFESSIONAL')
     expect((await domainError(archiveProfessional(prof, p.id))).code).toBe('forbidden')
+  })
+})
+
+describe('restoreProfessional', () => {
+  test('tira do arquivo, põe no fim da ordem, mantém sem vínculo e audita', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const u = await makeUser()
+    const m = await makeMembership(b.id, u.id, 'PROFESSIONAL')
+    const antigo = await createProfessional(ctx, { name: 'Antigo', membershipId: m.id })
+    await createProfessional(ctx, { name: 'Outro' })
+    await archiveProfessional(ctx, antigo.id)
+    const volta = await restoreProfessional(ctx, antigo.id)
+    expect(volta).toMatchObject({ id: antigo.id, archived: false, membershipId: null })
+    const lista = await listProfessionals(ctx, { includeInactive: true })
+    expect(lista.map((p) => p.name)).toEqual(['Outro', 'Antigo'])
+    expect(volta.displayOrder).toBeGreaterThan(lista[0]?.displayOrder ?? 0)
+    expect(await prisma.auditLog.count({ where: { businessId: b.id, action: 'professional.restored' } })).toBe(1)
+  })
+
+  test('restaurar quem não está arquivado não faz nada', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const p = await createProfessional(ctx, { name: 'Ativo' })
+    const igual = await restoreProfessional(ctx, p.id)
+    expect(igual).toEqual(p)
+    expect(await prisma.auditLog.count({ where: { businessId: b.id, action: 'professional.restored' } })).toBe(0)
+  })
+
+  test('exige manage_team; id inválido ou de outra conta dá not_found', async () => {
+    const b = await makeBusiness()
+    const outra = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const arq = await makeProfessional(b.id, { archivedAt: new Date() })
+    const prof = await ctxWithRole(b, 'PROFESSIONAL')
+    expect((await domainError(restoreProfessional(prof, arq.id))).code).toBe('forbidden')
+    expect((await domainError(restoreProfessional(await ctxCliente(b), arq.id))).code).toBe('forbidden')
+    const alheio = await makeProfessional(outra.id, { archivedAt: new Date() })
+    expect((await domainError(restoreProfessional(ctx, alheio.id))).code).toBe('not_found')
+    expect((await domainError(restoreProfessional(ctx, 'xyz'))).code).toBe('not_found')
   })
 })
 
