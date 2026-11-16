@@ -158,8 +158,30 @@ describe('overlaps', () => {
   })
 })
 
+describe('limites inválidos', () => {
+  const invalida = new Date(Number.NaN)
+  const ok = { start: z('2026-11-16T13:00:00Z'), end: z('2026-11-16T14:00:00Z') }
+
+  test.each([
+    ['notBefore', { notBefore: invalida }],
+    ['notAfter', { notAfter: invalida }],
+    ['início de busy', { busy: [{ start: invalida, end: ok.end }] }],
+    ['fim de busy', { busy: [{ start: ok.start, end: invalida }] }],
+    ['início de blocked', { blocked: [{ start: invalida, end: ok.end }] }],
+    ['fim de blocked', { blocked: [{ start: ok.start, end: invalida }] }],
+  ])('Date inválida em %s lança RangeError em vez de desligar o limite', (_nome, patch) => {
+    expect(() => computeSlots({ ...base, ...patch })).toThrow(RangeError)
+  })
+})
+
 describe('fitsWorkingHours', () => {
   const w = { date: '2026-11-16', timeZone: SP, workingRanges: base.workingRanges }
+  test('início igual ou depois do fim lança RangeError', () => {
+    const t = z('2026-11-16T14:00:00Z')
+    expect(() => fitsWorkingHours({ ...w, start: t, end: t })).toThrow(RangeError)
+    expect(() => fitsWorkingHours({ ...w, start: z('2026-11-16T15:00:00Z'), end: t })).toThrow(RangeError)
+    expect(() => fitsWorkingHours({ ...w, start: new Date(Number.NaN), end: t })).toThrow(RangeError)
+  })
   test('cabe dentro de um intervalo; invadir o almoço não', () => {
     expect(fitsWorkingHours({ ...w, start: z('2026-11-16T14:00:00Z'), end: z('2026-11-16T15:00:00Z') })).toBe(true)
     expect(fitsWorkingHours({ ...w, start: z('2026-11-16T14:30:00Z'), end: z('2026-11-16T15:30:00Z') })).toBe(false)

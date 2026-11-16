@@ -31,6 +31,19 @@ function assertRanges(ranges: readonly WorkingRange[]): void {
   }
 }
 
+function assertDate(value: Date, name: string): void {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new RangeError(`${name} inválido: informe uma data e hora válidas.`)
+  }
+}
+
+function assertIntervals(list: readonly Interval[], name: string): void {
+  for (const i of list) {
+    assertDate(i.start, `Início de ${name}`)
+    assertDate(i.end, `Fim de ${name}`)
+  }
+}
+
 function nonEmpty(list: readonly Interval[]): Interval[] {
   return list.filter((i) => i.start.getTime() < i.end.getTime())
 }
@@ -58,6 +71,10 @@ export function computeSlots(i: {
     throw new RangeError(`Intervalo entre atendimentos inválido: ${i.bufferMin}. Use um número inteiro de minutos, a partir de 0.`)
   }
   assertRanges(i.workingRanges)
+  assertDate(i.notBefore, 'Limite inicial (notBefore)')
+  assertDate(i.notAfter, 'Limite final (notAfter)')
+  assertIntervals(i.busy, 'horário ocupado')
+  assertIntervals(i.blocked, 'bloqueio')
 
   const blocked = nonEmpty(i.blocked)
   const busy = nonEmpty(i.busy).map((b) => ({
@@ -95,6 +112,11 @@ export function fitsWorkingHours(i: {
   workingRanges: readonly WorkingRange[]
 }): boolean {
   assertRanges(i.workingRanges)
+  assertDate(i.start, 'Início do atendimento')
+  assertDate(i.end, 'Fim do atendimento')
+  if (i.start.getTime() >= i.end.getTime()) {
+    throw new RangeError('Atendimento inválido: o início precisa ser antes do fim.')
+  }
   return i.workingRanges.some(
     (r) =>
       i.start.getTime() >= minuteToInstant(i.date, r.startMin, i.timeZone).getTime() &&
