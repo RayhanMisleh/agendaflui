@@ -13,6 +13,8 @@ export const LIMITS = {
   apiKeyIp: { limit: 120, windowSec: 60 },
   invalidKeyIp: { limit: 30, windowSec: 60 },
   authIp: { limit: 10, windowSec: 900 },
+  /** Pedidos de código (cadastro e redefinição) por e-mail: protege a caixa de entrada de quem recebe. */
+  codeEmail: { limit: 3, windowSec: 900 },
   booking: { limit: 20, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>
 

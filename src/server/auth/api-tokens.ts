@@ -17,7 +17,9 @@ export type TokenPair = {
   refreshExpiresAt: Date
 }
 
-type Meta = { ip: string | null; userAgent: string | null }
+/** IP e user agent de quem pede (o `now` vem de quem chama). */
+export type RequestMeta = { ip: string | null; userAgent: string | null }
+type Meta = RequestMeta
 
 const ISSUER = 'agendaflui'
 const AUDIENCE = 'api'
@@ -153,15 +155,23 @@ function validRefreshInput(businessId: string, refreshToken: string): boolean {
   )
 }
 
+/** Tipo de sujeito de um token de renovação: `customer` (cliente) ou `staff` (equipe). */
+export type SubjectKind = AccessClaims['kind']
+
+const subjectOf = (kind: SubjectKind): 'CUSTOMER' | 'MEMBER' => (kind === 'customer' ? 'CUSTOMER' : 'MEMBER')
+
 /**
  * Troca um token de renovação por um par novo na mesma família. Reuso de token usado ou revogado
  * revoga a família inteira (a revogação é gravada mesmo devolvendo `null`).
+ * Com `expected`, um token de outro tipo de sujeito é tratado como inválido (`null`) ANTES de qualquer
+ * alteração: nada é consumido nem revogado (a rota de um app não derruba a sessão do outro).
  */
 export async function rotateRefreshToken(
   businessId: string,
   refreshToken: string,
   meta: Meta,
   now: Date,
+  expected?: SubjectKind,
 ): Promise<{ claims: AccessClaims; pair: TokenPair } | null> {
   if (!validRefreshInput(businessId, refreshToken)) return null
   const hash = hashToken(refreshToken)
@@ -169,6 +179,7 @@ export async function rotateRefreshToken(
     // A primeira leitura só descobre o sujeito; tudo é decidido pela releitura depois da trava.
     const first = await tx.refreshToken.findFirst({ where: { tokenHash: hash } })
     if (!first) return null
+    if (expected !== undefined && first.subject !== subjectOf(expected)) return null
     const subjectId = first.subject === 'CUSTOMER' ? first.customerId : first.membershipId
     if (!subjectId) return null
     // Trava do sujeito: serializa com `revokeAllFor` e com a saída do app, que assim enxergam o token novo.
@@ -225,12 +236,21 @@ export async function rotateRefreshToken(
   })
 }
 
-/** Sair do app: revoga a família inteira do token. Token desconhecido não faz nada. */
-export async function revokeRefreshToken(businessId: string, refreshToken: string, now: Date = new Date()): Promise<void> {
+/**
+ * Sair do app: revoga a família inteira do token. Token desconhecido não faz nada; com `expected`, token de outro
+ * tipo de sujeito também não.
+ */
+export async function revokeRefreshToken(
+  businessId: string,
+  refreshToken: string,
+  now: Date = new Date(),
+  expected?: SubjectKind,
+): Promise<void> {
   if (!validRefreshInput(businessId, refreshToken)) return
   await tenantDb(businessId).$transaction(async (tx) => {
     const first = await tx.refreshToken.findFirst({ where: { tokenHash: hashToken(refreshToken) } })
     if (!first) return
+    if (expected !== undefined && first.subject !== subjectOf(expected)) return
     const subjectId = first.subject === 'CUSTOMER' ? first.customerId : first.membershipId
     if (!subjectId) return
     await tx.$lockKey(first.subject === 'CUSTOMER' ? 'customer' : 'membership', subjectId)

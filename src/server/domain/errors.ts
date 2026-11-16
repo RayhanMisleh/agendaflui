@@ -18,6 +18,7 @@ export const DOMAIN_REASONS = [
   'customer_inactive',
   'email_taken',
   'has_future_appointments',
+  'invalid_code',
   'invalid_status',
   'invalid_transition',
   'membership_taken',
@@ -26,6 +27,7 @@ export const DOMAIN_REASONS = [
   'slot_unavailable',
   'too_early',
   'too_late',
+  'wrong_password',
 ] as const
 export type DomainReason = (typeof DOMAIN_REASONS)[number]
 

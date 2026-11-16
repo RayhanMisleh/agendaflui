@@ -1,4 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
+import { revokeAllFor } from '@/server/auth/api-tokens'
 import type { Prisma } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
@@ -363,7 +364,10 @@ export async function archiveCustomer(ctx: TenantContext, id: string): Promise<v
           { reason: 'has_future_appointments', details: { count } },
         )
       }
-      await tx.customer.update({ where: { id }, data: { archivedAt: ctx.clock() } })
+      const now = ctx.clock()
+      await tx.customer.update({ where: { id }, data: { archivedAt: now } })
+      // Cliente arquivado não renova a sessão do app (a trava do cliente já está nesta transação).
+      await revokeAllFor(tx, { customerId: id }, now)
       await cancelPendingForCustomer(tx, id)
       await audit(ctx, { action: 'customer.archived', targetType: 'Customer', targetId: id }, tx)
     })
@@ -428,6 +432,10 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
       // Cancela depois de anonimizar: o cliente já não recebe aviso nenhum.
       const canceled = await cancelOpenAppointmentsOfCustomer(tx, ctx, open, CANCEL_REASON)
       await cancelPendingForCustomer(tx, id)
+      // Sessões, dispositivos e códigos de verificação (guardados pelo e-mail) do cliente saem junto.
+      await tx.refreshToken.deleteMany({ where: { customerId: id } })
+      await tx.device.deleteMany({ where: { customerId: id } })
+      if (current.email !== null) await tx.verificationCode.deleteMany({ where: { email: current.email } })
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
       await audit(
         ctx,

@@ -7,6 +7,9 @@ const envSchema = z.object({
   PAINEL_HOST: z.string().min(1).default('painel.localhost:3000'),
   API_HOST: z.string().min(1).default('api.localhost:3000'),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
+  // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
+  SMTP_URL: z.string().min(1).optional(),
+  MAIL_FROM: z.string().min(3).default('AgendaFlui <nao-responda@agendaflui.localhost>'),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   // Definida pelo Next; só interessa para distinguir o `next build` da execução em produção.
   NEXT_PHASE: z.string().optional(),

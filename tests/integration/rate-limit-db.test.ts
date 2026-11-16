@@ -122,6 +122,7 @@ test('os limites combinados', () => {
     apiKeyIp: { limit: 120, windowSec: 60 },
     invalidKeyIp: { limit: 30, windowSec: 60 },
     authIp: { limit: 10, windowSec: 900 },
+    codeEmail: { limit: 3, windowSec: 900 },
     booking: { limit: 20, windowSec: 60 },
   })
 })
