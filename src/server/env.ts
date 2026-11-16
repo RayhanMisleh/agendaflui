@@ -7,6 +7,7 @@ const envSchema = z.object({
   PAINEL_HOST: z.string().min(1).default('painel.localhost:3000'),
   API_HOST: z.string().min(1).default('api.localhost:3000'),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 })
 

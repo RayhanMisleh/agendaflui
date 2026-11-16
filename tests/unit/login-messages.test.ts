@@ -15,3 +15,11 @@ test('o papel aparece em português, com o termo da conta para o profissional', 
   expect(roleLabel('MANAGER', 'Barbeiro')).toBe('Gerente')
   expect(roleLabel('PROFESSIONAL', 'Tosador')).toBe('Tosador')
 })
+
+test('com a espera conhecida a mensagem traz os minutos, arredondando para cima', () => {
+  const com = (s: number) => mensagemDeLogin(new AuthError('rate_limited', s))
+  expect(com(1)).toBe('Muitas tentativas. Tente de novo em 1 minuto.')
+  expect(com(60)).toBe('Muitas tentativas. Tente de novo em 1 minuto.')
+  expect(com(61)).toBe('Muitas tentativas. Tente de novo em 2 minutos.')
+  expect(com(900)).toBe('Muitas tentativas. Tente de novo em 15 minutos.')
+})

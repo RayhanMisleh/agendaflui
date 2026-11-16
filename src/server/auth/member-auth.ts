@@ -6,16 +6,10 @@ import { AuthError, type TenantContext } from './actor'
 import { DomainError } from '@/server/domain/errors'
 import { createTenantContext } from './context'
 import { hashPassword, verifyPassword } from './password'
-import { createRateLimiter } from './rate-limit'
+import { checkLoginLimit, clearLoginLimit } from './login-limit'
 import { generateToken, hashToken } from './tokens'
 
 const SESSAO_MINUTOS = 30 * 24 * 60
-let limiter = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 })
-
-export function resetLoginLimiter(): void {
-  limiter = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 })
-}
-
 const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
 export type MemberSession = {
@@ -56,18 +50,18 @@ export async function loginUser(i: {
   userAgent?: string
 }): Promise<{ token: string; expiresAt: Date; session: MemberSession }> {
   const email = i.email.trim().toLowerCase()
-  if (!limiter.check(email).allowed) throw new AuthError('rate_limited')
+  const now = new Date()
+  await checkLoginLimit('painel', email, i.ip, now)
 
   const user = await prisma.user.findUnique({ where: { email } })
   const ok = await verifyPassword(user?.passwordHash ?? (await hashFalso), i.password)
   if (!user || !user.passwordHash || !ok) throw new AuthError('invalid_credentials')
 
-  limiter.reset(email)
+  await clearLoginLimit('painel', email)
   const memberships = await listMemberships(user.id)
   const only = memberships.length === 1 ? memberships[0] : undefined
   const activeBusinessId = only ? only.businessId : null
 
-  const now = new Date()
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, SESSAO_MINUTOS)
   await prisma.$transaction([

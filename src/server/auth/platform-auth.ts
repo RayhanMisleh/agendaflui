@@ -3,16 +3,10 @@ import { prisma } from '@/server/db/client'
 import { addMinutes } from '@/server/time'
 import { AuthError, type Actor } from './actor'
 import { hashPassword, verifyPassword } from './password'
-import { createRateLimiter } from './rate-limit'
+import { checkLoginLimit, clearLoginLimit } from './login-limit'
 import { generateToken, hashToken } from './tokens'
 
 const SESSAO_MINUTOS = 12 * 60
-let limiter = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 })
-
-export function resetLoginLimiter(): void {
-  limiter = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 })
-}
-
 // Hash fixo para gastar o mesmo tempo quando o e-mail não existe.
 const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
@@ -23,15 +17,15 @@ export async function loginPlatformAdmin(i: {
   userAgent?: string
 }): Promise<{ token: string; expiresAt: Date }> {
   const email = i.email.trim().toLowerCase()
-  if (!limiter.check(email).allowed) throw new AuthError('rate_limited')
+  const now = new Date()
+  await checkLoginLimit('dev', email, i.ip, now)
 
   const admin = await prisma.platformAdmin.findUnique({ where: { email } })
   const ok = await verifyPassword(admin ? admin.passwordHash : await hashFalso, i.password)
   if (!admin || !ok) throw new AuthError('invalid_credentials')
   if (!admin.active) throw new AuthError('account_inactive')
 
-  limiter.reset(email)
-  const now = new Date()
+  await clearLoginLimit('dev', email)
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, SESSAO_MINUTOS)
   await prisma.$transaction([

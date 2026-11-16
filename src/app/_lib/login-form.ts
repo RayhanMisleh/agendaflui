@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AuthError } from '@/server/auth/actor'
+import { AuthError, mensagemDeEspera } from '@/server/auth/actor'
 
 /** Estado do formulário de entrada: o erro e o e-mail digitado (a senha nunca volta). */
 export type LoginState = { error: string | null; email: string }
@@ -18,8 +18,9 @@ export function mensagemDeLogin(err: AuthError): string {
     case 'invalid_credentials':
       return 'E-mail ou senha incorretos.'
     case 'rate_limited':
-      // AuthError não informa a espera; a camada de auth não muda nesta etapa.
-      return 'Muitas tentativas. Tente de novo em alguns minutos.'
+      return err.retryAfterSec === undefined
+        ? 'Muitas tentativas. Tente de novo em alguns minutos.'
+        : mensagemDeEspera(err.retryAfterSec)
     case 'account_inactive':
       return 'Este acesso está desativado. Fale com quem administra a plataforma.'
     default:

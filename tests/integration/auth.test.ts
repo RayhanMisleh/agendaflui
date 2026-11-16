@@ -1,6 +1,7 @@
+import { vi } from 'vitest'
 import { AuthError } from '@/server/auth/actor'
-import { getMemberSession, getTenantContext, loginUser, logoutUser, resetLoginLimiter as resetMembros, selectBusiness } from '@/server/auth/member-auth'
-import { getPlatformActor, loginPlatformAdmin, logoutPlatform, resetLoginLimiter as resetPlataforma } from '@/server/auth/platform-auth'
+import { getMemberSession, getTenantContext, loginUser, logoutUser, selectBusiness } from '@/server/auth/member-auth'
+import { getPlatformActor, loginPlatformAdmin, logoutPlatform } from '@/server/auth/platform-auth'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
@@ -11,8 +12,6 @@ const ERRADA = 'errada-errada'
 
 beforeEach(async () => {
   await resetDb()
-  resetMembros()
-  resetPlataforma()
 })
 
 test('admin da plataforma entra e a sessão vale', async () => {
@@ -159,3 +158,61 @@ async function makeAdminAndLogin(): Promise<void> {
   await makePlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA })
   await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA })
 }
+
+const chavesDeLimite = async (): Promise<string[]> =>
+  (await prisma.rateLimitBucket.findMany({ orderBy: { key: 'asc' } })).map((l) => l.key)
+
+test('painel: ao barrar, o erro traz a espera e a mensagem traz os minutos', async () => {
+  for (let i = 0; i < 5; i++) await loginUser({ email: 'z@x.test', password: ERRADA }).catch(() => {})
+  const erro = await loginUser({ email: 'z@x.test', password: ERRADA }).catch((e: unknown) => e)
+  expect(erro).toBeInstanceOf(AuthError)
+  const e = erro as AuthError
+  expect(e.code).toBe('rate_limited')
+  expect(e.retryAfterSec).toBeGreaterThanOrEqual(1)
+  expect(e.retryAfterSec).toBeLessThanOrEqual(900)
+  expect(e.message).toBe(`Muitas tentativas. Tente de novo em ${Math.ceil((e.retryAfterSec ?? 0) / 60)} minutos.`)
+})
+
+test('painel: o limite fica no banco, com chave legível, e vale por e-mail normalizado', async () => {
+  await loginUser({ email: '  Z@X.Test ', password: ERRADA }).catch(() => {})
+  expect(await chavesDeLimite()).toEqual(['login:painel:email:z@x.test'])
+  expect((await prisma.rateLimitBucket.findUniqueOrThrow({ where: { key: 'login:painel:email:z@x.test' } })).count).toBe(1)
+})
+
+test('painel: sem IP só conta por e-mail; com IP conta também por IP e barra na 21ª tentativa de e-mails diferentes', async () => {
+  await loginUser({ email: 'a@x.test', password: ERRADA }).catch(() => {})
+  expect(await chavesDeLimite()).toEqual(['login:painel:email:a@x.test'])
+  for (let i = 0; i < 20; i++) await loginUser({ email: `u${i}@x.test`, password: ERRADA, ip: '203.0.113.9' }).catch(() => {})
+  expect(await chavesDeLimite()).toContain('login:painel:ip:203.0.113.9')
+  await expect(loginUser({ email: 'novo@x.test', password: ERRADA, ip: '203.0.113.9' })).rejects.toMatchObject({ code: 'rate_limited' })
+  await expect(loginUser({ email: 'novo@x.test', password: ERRADA, ip: '203.0.113.10' })).rejects.toMatchObject({ code: 'invalid_credentials' })
+})
+
+test('painel: o sucesso zera só a chave do e-mail, não a do IP', async () => {
+  await makeUser({ email: 'a@x.test', password: SENHA })
+  await loginUser({ email: 'a@x.test', password: ERRADA, ip: '203.0.113.9' }).catch(() => {})
+  await loginUser({ email: 'a@x.test', password: SENHA, ip: '203.0.113.9' })
+  expect(await chavesDeLimite()).toEqual(['login:painel:ip:203.0.113.9'])
+})
+
+test('painel: o bloqueio sobrevive a um processo novo (módulo recarregado)', async () => {
+  for (let i = 0; i < 5; i++) await loginUser({ email: 'z@x.test', password: ERRADA }).catch(() => {})
+  vi.resetModules()
+  const novo = await import('@/server/auth/member-auth')
+  const erro = await novo.loginUser({ email: 'z@x.test', password: ERRADA }).catch((e: unknown) => e)
+  expect(erro).toMatchObject({ name: 'AuthError', code: 'rate_limited' })
+})
+
+test('admin: usa o banco com chaves próprias, barra com minutos e o sucesso zera o e-mail', async () => {
+  await makePlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA })
+  for (let i = 0; i < 5; i++) await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: ERRADA, ip: '198.51.100.7' }).catch(() => {})
+  expect(await chavesDeLimite()).toEqual(['login:dev:email:dev@agendaflui.test', 'login:dev:ip:198.51.100.7'])
+  const erro = await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA }).catch((e: unknown) => e)
+  expect(erro).toMatchObject({ code: 'rate_limited' })
+  expect((erro as AuthError).retryAfterSec).toBeGreaterThanOrEqual(1)
+  expect((erro as AuthError).message).toMatch(/Tente de novo em \d+ minutos\./)
+  await prisma.rateLimitBucket.deleteMany()
+  for (let i = 0; i < 2; i++) await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: ERRADA }).catch(() => {})
+  await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA })
+  expect(await chavesDeLimite()).toEqual([])
+})

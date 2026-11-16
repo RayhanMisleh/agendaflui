@@ -17,3 +17,11 @@ test('erro nomeia a variável que falta', () => {
 test('recusa APP_SECRET curto', () => {
   expect(() => parseEnv({ ...ok, APP_SECRET: 'curto' })).toThrow(/APP_SECRET/)
 })
+
+test('TRUSTED_PROXY_HOPS: padrão 0, aceita 0 a 5 e recusa o resto', () => {
+  expect(parseEnv(ok).TRUSTED_PROXY_HOPS).toBe(0)
+  expect(parseEnv({ ...ok, TRUSTED_PROXY_HOPS: '2' }).TRUSTED_PROXY_HOPS).toBe(2)
+  for (const v of ['-1', '6', '1.5', 'abc']) {
+    expect(() => parseEnv({ ...ok, TRUSTED_PROXY_HOPS: v }), v).toThrow(/TRUSTED_PROXY_HOPS/)
+  }
+})

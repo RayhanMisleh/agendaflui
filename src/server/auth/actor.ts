@@ -39,11 +39,20 @@ const MENSAGENS: Record<AuthErrorCode, string> = {
   no_access: 'Você não tem acesso a esta conta. Escolha outra.',
 }
 
+/** "Muitas tentativas. Tente de novo em N minutos." com a espera arredondada para cima. */
+export function mensagemDeEspera(retryAfterSec: number): string {
+  const minutos = Math.max(1, Math.ceil(retryAfterSec / 60))
+  return `Muitas tentativas. Tente de novo em ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`
+}
+
 export class AuthError extends Error {
   code: AuthErrorCode
-  constructor(code: AuthErrorCode) {
-    super(MENSAGENS[code])
+  /** Segundos até a próxima tentativa; só em `rate_limited`. */
+  retryAfterSec?: number
+  constructor(code: AuthErrorCode, retryAfterSec?: number) {
+    super(code === 'rate_limited' && retryAfterSec !== undefined ? mensagemDeEspera(retryAfterSec) : MENSAGENS[code])
     this.name = 'AuthError'
     this.code = code
+    if (retryAfterSec !== undefined) this.retryAfterSec = retryAfterSec
   }
 }

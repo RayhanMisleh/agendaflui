@@ -36,6 +36,14 @@ describe('api_keys', () => {
     expect(p.allowedOrigins).toEqual([])
   })
 
+  test('allowed_origins nunca é NULL; lista vazia vale', async () => {
+    await expect(chave({ allowedOrigins: [] })).resolves.toBeDefined()
+    const nulo = prisma.$executeRaw`
+      INSERT INTO api_keys (kind, name, prefix, key_hash, allowed_origins, updated_at)
+      VALUES ('PLATFORM', 'Sem origens', 'c0ffee01', 'hash-nulo', NULL, now())`
+    await expect(nulo).rejects.toThrow(/api_keys_allowed_origins_not_null_check/)
+  })
+
   test('prefixo precisa ter 8 caracteres hexadecimais minúsculos e ser único', async () => {
     for (const prefix of ['abc', 'ABCDEF01', 'abcdef0g', 'abcdef012']) {
       await expect(chave({ prefix }), prefix).rejects.toThrow()
@@ -176,6 +184,22 @@ describe('api_usage_hourly', () => {
     }
   })
 
+  test('a hora é conferida em UTC, qualquer que seja o fuso da sessão do banco', async () => {
+    const k = await chave()
+    // SQL cru com o instante explícito em UTC: o cliente Prisma mandaria a hora sem fuso, e o banco a leria no fuso da sessão.
+    const naSessao = (fuso: string, hour: string) =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE '${fuso}'`)
+        await tx.$executeRaw`
+          INSERT INTO api_usage_hourly (api_key_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
+          VALUES (${k.id}::uuid, ${`GET /v1/${fuso}`}, ${hour}::timestamptz, 1, 0, 1, 1, now())`
+      })
+    await expect(naSessao('Asia/Kolkata', '2026-11-20T10:00:00.000Z')).resolves.toBeUndefined()
+    await expect(naSessao('America/Sao_Paulo', '2026-11-20T10:00:00.000Z')).resolves.toBeUndefined()
+    await expect(naSessao('Asia/Kolkata', '2026-11-20T10:30:00.000Z')).rejects.toThrow(/api_usage_hourly_hour_check/)
+    await expect(naSessao('UTC', '2026-11-20T10:00:00.500Z')).rejects.toThrow(/api_usage_hourly_hour_check/)
+  })
+
   test('apagar a chave apaga o uso', async () => {
     const k = await chave()
     const u = await uso(k.id)
@@ -195,5 +219,15 @@ describe('notifications', () => {
     })
     expect(nt.lockedUntil).toBeInstanceOf(Date)
     expect(nt.skipReason).toBe('sem e-mail')
+  })
+})
+
+describe('notifications: índices', () => {
+  test('o índice de (status, scheduled_for) sem a trava sumiu; o que o cobre continua', async () => {
+    const linhas = await prisma.$queryRaw<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'notifications'`
+    const nomes = linhas.map((l) => l.indexname)
+    expect(nomes).not.toContain('notifications_status_scheduled_for_idx')
+    expect(nomes).toContain('notifications_status_scheduled_for_locked_until_idx')
   })
 })

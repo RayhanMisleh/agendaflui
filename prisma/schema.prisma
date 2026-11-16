@@ -690,7 +690,6 @@ model Notification {
 
   @@unique([businessId, id])
   @@unique([businessId, dedupeKey])
-  @@index([status, scheduledFor])
   @@index([status, scheduledFor, lockedUntil])
   @@index([customerId])
   @@index([membershipId])
