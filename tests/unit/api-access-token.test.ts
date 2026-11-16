@@ -1,7 +1,7 @@
-import { hkdfSync } from 'node:crypto'
 import { SignJWT } from 'jose'
 import { signAccessToken, verifyAccessToken, type AccessClaims } from '@/server/auth/api-tokens'
 import { addMinutes, fromEpochMs } from '@/server/time'
+import { forge, realKey } from '../setup/access-token'
 
 const now = fromEpochMs(1_800_000_000_000)
 const customer: AccessClaims = {
@@ -81,16 +81,8 @@ test('audiência, emissor e chave trocados devolvem null', async () => {
 })
 
 test('assinado com a chave certa mas com declarações fora do formato devolve null', async () => {
-  const chave = new Uint8Array(hkdfSync('sha256', process.env.APP_SECRET ?? '', '', 'agendaflui/api-access/v1', 32))
   const emitir = (sub: string, extra: Record<string, unknown>) =>
-    new SignJWT({ bid: customer.businessId, knd: 'customer', ...extra })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setSubject(sub)
-      .setIssuer('agendaflui')
-      .setAudience('api')
-      .setIssuedAt(Math.floor(now.getTime() / 1000))
-      .setExpirationTime(Math.floor(now.getTime() / 1000) + 900)
-      .sign(chave)
+    forge(now, { sub, bid: customer.businessId }, { sub, payload: extra })
   // Controle: com a chave derivada e o formato certo, o token vale.
   expect(await verifyAccessToken(await emitir(customer.customerId, {}), now)).toEqual(customer)
   expect(await verifyAccessToken(await emitir('nao-e-uuid', {}), now)).toBeNull()
@@ -104,4 +96,47 @@ test('lixo devolve null e nunca lança', async () => {
   for (const lixo of ['', 'abc', 'a.b.c', '....', 'x'.repeat(5000), '{}', 'null']) {
     expect(await verifyAccessToken(lixo, now), lixo).toBeNull()
   }
+})
+
+describe('validade e cabeçalho obrigatórios', () => {
+  const ids = { sub: customer.customerId, bid: customer.businessId }
+  const seg = Math.floor(now.getTime() / 1000)
+
+  test('controle: o token forjado com tudo certo vale', async () => {
+    expect(await verifyAccessToken(await forge(now, ids), now)).toEqual(customer)
+  })
+  test('sem exp devolve null', async () => {
+    expect(await verifyAccessToken(await forge(now, ids, { exp: null }), now)).toBeNull()
+  })
+  test('sem iat devolve null', async () => {
+    expect(await verifyAccessToken(await forge(now, ids, { iat: null }), now)).toBeNull()
+  })
+  test('iat um dia no futuro devolve null', async () => {
+    expect(await verifyAccessToken(await forge(now, ids, { iat: seg + 86400, exp: seg + 86400 + 900 }), now)).toBeNull()
+  })
+  test('exp de um ano (vida longa demais) devolve null', async () => {
+    expect(await verifyAccessToken(await forge(now, ids, { exp: seg + 365 * 86400 }), now)).toBeNull()
+  })
+  test('typ diferente ou ausente devolve null', async () => {
+    expect(await verifyAccessToken(await forge(now, ids, { typ: 'JWT' }), now)).toBeNull()
+    expect(await verifyAccessToken(await forge(now, ids, { typ: null }), now)).toBeNull()
+  })
+  test('HS512 com a mesma chave devolve null', async () => {
+    expect(await verifyAccessToken(await forge(now, ids, { alg: 'HS512' }), now)).toBeNull()
+  })
+  test('cabeçalho RS256 devolve null', async () => {
+    const h = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'at+jwt' })).toString('base64url')
+    const ok = await forge(now, ids)
+    expect(await verifyAccessToken(`${h}.${ok.split('.')[1]}.${ok.split('.')[2]}`, now)).toBeNull()
+  })
+  test('customer com uid devolve null', async () => {
+    const uid = '44444444-4444-4444-8444-444444444444'
+    expect(await verifyAccessToken(await forge(now, ids, { payload: { uid } }), now)).toBeNull()
+  })
+  test('o token emitido leva typ at+jwt', async () => {
+    const { token } = await signAccessToken(customer, now)
+    const h = JSON.parse(Buffer.from(token.split('.')[0] ?? '', 'base64url').toString('utf8')) as Record<string, unknown>
+    expect(h).toEqual({ alg: 'HS256', typ: 'at+jwt' })
+    expect(realKey()).toHaveLength(32)
+  })
 })

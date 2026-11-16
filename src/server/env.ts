@@ -8,17 +8,25 @@ const envSchema = z.object({
   API_HOST: z.string().min(1).default('api.localhost:3000'),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  // Definida pelo Next; só interessa para distinguir o `next build` da execução em produção.
+  NEXT_PHASE: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 })
 
 // Marcador estável do segredo de exemplo do .env.example; em produção ele nunca pode valer.
+// Durante o `next build` a recusa não vale (o build só precisa carregar os módulos).
+const FASE_DE_BUILD = 'phase-production-build'
 const MARCADOR_DE_EXEMPLO = 'EXEMPLO-'
 
 export type Env = z.infer<typeof envSchema>
 
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema
-    .refine((v) => !(v.NODE_ENV === 'production' && v.APP_SECRET.startsWith(MARCADOR_DE_EXEMPLO)), {
+    .refine((v) => !(
+        v.NODE_ENV === 'production' &&
+        v.NEXT_PHASE !== FASE_DE_BUILD &&
+        v.APP_SECRET.startsWith(MARCADOR_DE_EXEMPLO)
+      ), {
       path: ['APP_SECRET'],
       message: 'em produção, troque o valor de exemplo por um segredo aleatório (ex.: openssl rand -hex 32)',
     })

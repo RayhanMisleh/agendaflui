@@ -47,6 +47,12 @@ describe('issueTokens', () => {
     const brutas = await prisma.$queryRaw<unknown[]>`SELECT to_jsonb(r) AS j FROM refresh_tokens r`
     expect(JSON.stringify(brutas)).not.toContain(pair.refreshToken)
     expect(pair.refreshToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    const r = await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))
+    const depois = await prisma.$queryRaw<unknown[]>`SELECT to_jsonb(r) AS j FROM refresh_tokens r`
+    expect(depois).toHaveLength(2)
+    for (const t of [pair.refreshToken, r?.pair.refreshToken ?? '']) {
+      expect(JSON.stringify(depois)).not.toContain(t)
+    }
   })
 
   test('corta o user agent em 300 caracteres', async () => {
@@ -105,8 +111,11 @@ describe('rotateRefreshToken', () => {
   test('token revogado devolve null e revoga a família', async () => {
     const a = await makeBusiness()
     const { pair } = await emitirCliente(a.id)
-    await prisma.refreshToken.updateMany({ data: { revokedAt: now } })
-    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))).toBeNull()
+    const irma = await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))
+    await prisma.refreshToken.updateMany({ where: { usedAt: { not: null } }, data: { revokedAt: now } })
+    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 2))).toBeNull()
+    expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+    expect(await rotateRefreshToken(a.id, irma?.pair.refreshToken ?? '', meta, addMinutes(now, 3))).toBeNull()
   })
 
   test('token da conta A com o businessId de B devolve null e a família de A continua válida', async () => {
@@ -192,5 +201,97 @@ describe('revokeRefreshToken e revokeAllFor', () => {
     const pair = await tenantDb(a.id).$transaction((tx) => issueTokens(tx, claims, meta, now))
     expect(await revokeAllFor(tenantDb(a.id), { membershipId: m.id })).toBe(1)
     expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))).toBeNull()
+  })
+})
+
+describe('rotação relê o sujeito e a conta', () => {
+  test('cliente arquivado não renova, a família fica revogada e desarquivar não a ressuscita', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    const { pair } = await emitirCliente(a.id, c.id)
+    await prisma.customer.update({ where: { id: c.id }, data: { archivedAt: now } })
+    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))).toBeNull()
+    expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+    await prisma.customer.update({ where: { id: c.id }, data: { archivedAt: null } })
+    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 2))).toBeNull()
+  })
+
+  test('cliente anonimizado idem', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    const { pair } = await emitirCliente(a.id, c.id)
+    await prisma.customer.update({ where: { id: c.id }, data: { anonymizedAt: now } })
+    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))).toBeNull()
+    expect(await prisma.refreshToken.count({ where: { revokedAt: null } })).toBe(0)
+  })
+
+  test('conta suspensa devolve null sem consumir o token; reativada, o mesmo token funciona', async () => {
+    const a = await makeBusiness()
+    const { pair } = await emitirCliente(a.id)
+    await prisma.business.update({ where: { id: a.id }, data: { status: 'SUSPENDED' } })
+    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 1))).toBeNull()
+    const linha = await prisma.refreshToken.findFirstOrThrow()
+    expect(linha.usedAt).toBeNull()
+    expect(linha.revokedAt).toBeNull()
+    await prisma.business.update({ where: { id: a.id }, data: { status: 'ACTIVE' } })
+    expect(await rotateRefreshToken(a.id, pair.refreshToken, meta, addMinutes(now, 2))).not.toBeNull()
+  })
+})
+
+describe('revokeAllFor concorrente com rotação', () => {
+  test('em 20 rodadas, nenhum token do cliente fica vivo', async () => {
+    const a = await makeBusiness()
+    for (let i = 0; i < 20; i += 1) {
+      await prisma.refreshToken.deleteMany()
+      const c = await makeCustomer(a.id)
+      const { pair } = await emitirCliente(a.id, c.id)
+      const quando = addMinutes(now, 1)
+      await Promise.all([
+        rotateRefreshToken(a.id, pair.refreshToken, meta, quando),
+        revokeAllFor(tenantDb(a.id), { customerId: c.id }, quando),
+      ])
+      const vivos = await prisma.refreshToken.count({
+        where: { customerId: c.id, usedAt: null, revokedAt: null, expiresAt: { gt: quando } },
+      })
+      expect(vivos, `rodada ${i}`).toBe(0)
+    }
+  })
+
+  test('revokeAllFor espera a trava do sujeito (cliente e vínculo) e só então revoga', async () => {
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id)
+    const user = await makeUser()
+    const m = await makeMembership(a.id, user.id, 'MANAGER')
+    const pausa = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+    for (const [escopo, id, sujeito] of [
+      ['customer', c.id, { customerId: c.id }],
+      ['membership', m.id, { membershipId: m.id }],
+    ] as const) {
+      let terminou = false
+      await tenantDb(a.id).$transaction(async (tx) => {
+        await tx.$lockKey(escopo, id)
+        const p = revokeAllFor(tenantDb(a.id), sujeito, now).then((n) => {
+          terminou = true
+          return n
+        })
+        await pausa(400)
+        expect(terminou, escopo).toBe(false)
+        // A rotação "em andamento" insere a linha nova antes de liberar a trava.
+        await tx.refreshToken.create({
+          data: {
+            businessId: a.id,
+            subject: escopo === 'customer' ? 'CUSTOMER' : 'MEMBER',
+            ...sujeito,
+            familyId: crypto.randomUUID(),
+            tokenHash: `h-${escopo}`,
+            expiresAt: addMinutes(now, 100),
+          },
+        })
+        void p
+      })
+      await pausa(300)
+      expect(terminou, escopo).toBe(true)
+      expect(await prisma.refreshToken.count({ where: { tokenHash: `h-${escopo}`, revokedAt: null } }), escopo).toBe(0)
+    }
   })
 })

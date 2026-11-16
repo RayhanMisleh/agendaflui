@@ -1,5 +1,5 @@
 import 'server-only'
-import { hkdfSync } from 'node:crypto'
+import { hkdfSync, randomUUID } from 'node:crypto'
 import { jwtVerify, SignJWT } from 'jose'
 import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
 import { env } from '@/server/env'
@@ -25,6 +25,7 @@ const ACCESS_MINUTES = 15
 const REFRESH_MINUTES = 60 * 24 * 60
 const MAX_USER_AGENT = 300
 const MAX_TOKEN_LENGTH = 2048
+const REFRESH_TOKEN_FORMAT = /^[A-Za-z0-9_-]{43}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 let chave: Uint8Array | undefined
@@ -51,7 +52,7 @@ export async function signAccessToken(
       : { bid: claims.businessId, knd: 'staff', uid: claims.userId }
   const sub = claims.kind === 'customer' ? claims.customerId : claims.membershipId
   const token = await new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
+    .setProtectedHeader({ alg: 'HS256', typ: 'at+jwt' })
     .setSubject(sub)
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -73,11 +74,17 @@ export async function verifyAccessToken(token: string, now: Date): Promise<Acces
       algorithms: ['HS256'],
       issuer: ISSUER,
       audience: AUDIENCE,
+      typ: 'at+jwt',
+      requiredClaims: ['exp', 'iat', 'sub'],
+      maxTokenAge: ACCESS_MINUTES * 60,
       currentDate: now,
     })
-    const { sub, bid, knd, uid } = payload
+    const { sub, bid, knd, uid, iat, exp } = payload
+    if (typeof iat !== 'number' || typeof exp !== 'number') return null
+    // `maxTokenAge` limita a idade, não a duração: confira as duas pontas.
+    if (iat > epochSeconds(now) || exp - iat > ACCESS_MINUTES * 60) return null
     if (!isUuid(sub) || !isUuid(bid)) return null
-    if (knd === 'customer') return { kind: 'customer', businessId: bid, customerId: sub }
+    if (knd === 'customer') return uid === undefined ? { kind: 'customer', businessId: bid, customerId: sub } : null
     if (knd === 'staff' && isUuid(uid)) return { kind: 'staff', businessId: bid, membershipId: sub, userId: uid }
     return null
   } catch {
@@ -107,7 +114,7 @@ async function createRefresh(
     data: {
       businessId: claims.businessId,
       ...owner,
-      ...(familyId ? { familyId } : { familyId: crypto.randomUUID() }),
+      familyId: familyId ?? randomUUID(),
       tokenHash: hash,
       expiresAt: refreshExpiresAt,
       ip: meta.ip,
@@ -136,6 +143,16 @@ async function revokeFamily(tx: TenantClient | TenantTx, familyId: string, now: 
   await tx.refreshToken.updateMany({ where: { familyId, revokedAt: null }, data: { revokedAt: now } })
 }
 
+/** Formato do token de renovação (43 caracteres base64url) e conta com UUID; o resto nem consulta o banco. */
+function validRefreshInput(businessId: string, refreshToken: string): boolean {
+  return (
+    typeof businessId === 'string' &&
+    UUID.test(businessId) &&
+    typeof refreshToken === 'string' &&
+    REFRESH_TOKEN_FORMAT.test(refreshToken)
+  )
+}
+
 /**
  * Troca um token de renovação por um par novo na mesma família. Reuso de token usado ou revogado
  * revoga a família inteira (a revogação é gravada mesmo devolvendo `null`).
@@ -146,21 +163,43 @@ export async function rotateRefreshToken(
   meta: Meta,
   now: Date,
 ): Promise<{ claims: AccessClaims; pair: TokenPair } | null> {
-  if (!UUID.test(businessId) || typeof refreshToken !== 'string' || refreshToken.length === 0 || refreshToken.length > 200) {
-    return null
-  }
+  if (!validRefreshInput(businessId, refreshToken)) return null
   const hash = hashToken(refreshToken)
   return tenantDb(businessId).$transaction(async (tx) => {
-    const row = await tx.refreshToken.findFirst({ where: { tokenHash: hash } })
-    if (!row) return null
-    if (row.revokedAt !== null || row.usedAt !== null) {
-      await revokeFamily(tx, row.familyId, now)
+    const first = await tx.refreshToken.findFirst({ where: { tokenHash: hash } })
+    if (!first) return null
+    if (first.revokedAt !== null || first.usedAt !== null) {
+      await revokeFamily(tx, first.familyId, now)
       return null
     }
-    if (row.expiresAt.getTime() <= now.getTime()) return null
+    if (first.expiresAt.getTime() <= now.getTime()) return null
+
+    // Trava do sujeito: serializa com `revokeAllFor`, que assim enxerga o token novo desta rotação.
+    const subjectId = first.subject === 'CUSTOMER' ? first.customerId : first.membershipId
+    if (!subjectId) return null
+    await tx.$lockKey(first.subject === 'CUSTOMER' ? 'customer' : 'membership', subjectId)
+
+    // Releitura depois da trava: pode ter sido usado ou revogado enquanto esperávamos.
+    const row = await tx.refreshToken.findFirst({ where: { id: first.id } })
+    if (!row || row.revokedAt !== null || row.usedAt !== null) {
+      await revokeFamily(tx, first.familyId, now)
+      return null
+    }
+
+    // Conta que não está ativa: recusa sem revogar nem consumir o token (reativar retoma as sessões).
+    const business = await tx.business.findFirst({ select: { status: true } })
+    if (business?.status !== 'ACTIVE') return null
 
     let claims: AccessClaims
     if (row.subject === 'CUSTOMER' && row.customerId) {
+      const customer = await tx.customer.findFirst({
+        where: { id: row.customerId },
+        select: { archivedAt: true, anonymizedAt: true },
+      })
+      if (!customer || customer.archivedAt !== null || customer.anonymizedAt !== null) {
+        await revokeFamily(tx, row.familyId, now)
+        return null
+      }
       claims = { kind: 'customer', businessId, customerId: row.customerId }
     } else if (row.subject === 'MEMBER' && row.membershipId) {
       const membership = await tx.membership.findFirst({
@@ -176,7 +215,7 @@ export async function rotateRefreshToken(
       return null
     }
 
-    // Passo de reserva: só uma rotação concorrente consegue marcar o token como usado.
+    // Passo de reserva: decide a corrida entre duas rotações do mesmo token.
     const reserved = await tx.refreshToken.updateMany({
       where: { id: row.id, usedAt: null, revokedAt: null },
       data: { usedAt: now },
@@ -192,24 +231,29 @@ export async function rotateRefreshToken(
 
 /** Sair do app: revoga a família inteira do token. Token desconhecido não faz nada. */
 export async function revokeRefreshToken(businessId: string, refreshToken: string, now: Date = new Date()): Promise<void> {
-  if (!UUID.test(businessId) || typeof refreshToken !== 'string' || refreshToken.length === 0 || refreshToken.length > 200) {
-    return
-  }
+  if (!validRefreshInput(businessId, refreshToken)) return
   await tenantDb(businessId).$transaction(async (tx) => {
     const row = await tx.refreshToken.findFirst({ where: { tokenHash: hashToken(refreshToken) } })
     if (row) await revokeFamily(tx, row.familyId, now)
   })
 }
 
-/** Revoga todas as famílias vivas do cliente ou do vínculo. Devolve quantos tokens mudaram. */
+/**
+ * Revoga todas as famílias vivas do cliente ou do vínculo. Devolve quantos tokens mudaram.
+ * Trava o sujeito antes do UPDATE para não perder o token que uma rotação em andamento acabou de criar.
+ * A trava de vínculo nunca é pega junto com a de cliente nos fluxos atuais (ordem do projeto: cliente primeiro).
+ */
 export async function revokeAllFor(
   db: TenantClient | TenantTx,
   subject: { customerId: string } | { membershipId: string },
   now: Date = new Date(),
 ): Promise<number> {
-  const result = await db.refreshToken.updateMany({
-    where: { ...subject, revokedAt: null },
-    data: { revokedAt: now },
-  })
-  return result.count
+  const run = async (tx: TenantTx): Promise<number> => {
+    if ('customerId' in subject) await tx.$lockKey('customer', subject.customerId)
+    else await tx.$lockKey('membership', subject.membershipId)
+    const result = await tx.refreshToken.updateMany({ where: { ...subject, revokedAt: null }, data: { revokedAt: now } })
+    return result.count
+  }
+  if (typeof Reflect.get(db, '$transaction') === 'function') return (db as TenantClient).$transaction(run)
+  return run(db as TenantTx)
 }

@@ -40,3 +40,11 @@ test('em produção recusa o APP_SECRET de exemplo sem imprimir o valor', () => 
   expect(parseEnv({ ...ok, NODE_ENV: 'development', APP_SECRET: exemplo }).APP_SECRET).toBe(exemplo)
   expect(parseEnv({ ...ok, NODE_ENV: 'test', APP_SECRET: exemplo }).APP_SECRET).toBe(exemplo)
 })
+
+test('em produção com o segredo de exemplo, a fase de build do Next aceita e a execução recusa', () => {
+  const exemplo = 'EXEMPLO-troque-este-valor-por-um-segredo-aleatorio-de-32-ou-mais'
+  const prod = { ...ok, NODE_ENV: 'production', APP_SECRET: exemplo }
+  expect(parseEnv({ ...prod, NEXT_PHASE: 'phase-production-build' }).APP_SECRET).toBe(exemplo)
+  expect(() => parseEnv({ ...prod, NEXT_PHASE: 'phase-production-server' })).toThrow(/APP_SECRET/)
+  expect(() => parseEnv(prod)).toThrow(/APP_SECRET/)
+})

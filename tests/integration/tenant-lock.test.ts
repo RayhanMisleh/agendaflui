@@ -184,4 +184,25 @@ describe('$lockKey', () => {
     const { $lockKey } = tenantDb(b.id)
     await expect($lockKey('professional', PROF)).rejects.toThrow(TenantViolationError)
   })
+
+  test('aceita o escopo membership e o separa do customer e do professional', async () => {
+    const b = await makeBusiness()
+    const db = tenantDb(b.id)
+    await db.$transaction(async (tx) => {
+      await tx.$lockKey('membership', PROF)
+      const outros = await Promise.race([
+        db.$transaction(async (t) => {
+          await t.$lockKey('customer', PROF)
+          await t.$lockKey('professional', PROF)
+        }).then(() => 'livre'),
+        pausa(1000).then(() => 'preso'),
+      ])
+      expect(outros).toBe('livre')
+      const mesmo = await Promise.race([
+        db.$transaction((t) => t.$lockKey('membership', PROF)).then(() => 'livre'),
+        pausa(300).then(() => 'preso'),
+      ])
+      expect(mesmo).toBe('preso')
+    })
+  })
 })

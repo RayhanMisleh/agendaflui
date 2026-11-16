@@ -167,7 +167,7 @@ function bloquearSqlCru(operacao: string): never {
 }
 
 /** Escopos aceitos por `$lockKey`: lista fechada. */
-const ESCOPOS_DE_TRAVA = ['professional', 'customer'] as const
+const ESCOPOS_DE_TRAVA = ['professional', 'customer', 'membership'] as const
 export type LockScope = (typeof ESCOPOS_DE_TRAVA)[number]
 
 /**
