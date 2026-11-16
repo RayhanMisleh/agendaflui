@@ -2,13 +2,11 @@ import 'server-only'
 import { prisma } from '@/server/db/client'
 import { addMinutes } from '@/server/time'
 import { AuthError, type Actor } from './actor'
-import { hashPassword, verifyPassword } from './password'
+import { fakePasswordHash, verifyPassword } from './password'
 import { checkLoginLimit, clearLoginLimit } from './login-limit'
 import { generateToken, hashToken } from './tokens'
 
 const SESSAO_MINUTOS = 12 * 60
-// Hash fixo para gastar o mesmo tempo quando o e-mail não existe.
-const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
 export async function loginPlatformAdmin(i: {
   email: string
@@ -21,7 +19,7 @@ export async function loginPlatformAdmin(i: {
   await checkLoginLimit('dev', email, i.ip, now)
 
   const admin = await prisma.platformAdmin.findUnique({ where: { email } })
-  const ok = await verifyPassword(admin ? admin.passwordHash : await hashFalso, i.password)
+  const ok = await verifyPassword(admin ? admin.passwordHash : await fakePasswordHash, i.password)
   if (!admin || !ok) throw new AuthError('invalid_credentials')
   if (!admin.active) throw new AuthError('account_inactive')
 

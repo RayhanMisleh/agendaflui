@@ -1,4 +1,4 @@
-import { register, shouldStartWorker } from '@/instrumentation'
+import { register, shouldRunInProcess, shouldStartWorker } from '@/instrumentation'
 
 const start = vi.hoisted(() => vi.fn(() => ({ stop: () => undefined })))
 vi.mock('@/server/notifications/scheduler', () => ({ startScheduler: start }))
@@ -36,17 +36,31 @@ describe('shouldStartWorker', () => {
   })
 })
 
+describe('shouldRunInProcess', () => {
+  test.each([
+    [{ ...base }, true],
+    [{ ...base, WORKER_ENABLED: 'false' }, true],
+    [{ ...base, NEXT_RUNTIME: 'edge' }, false],
+    [{ ...base, NODE_ENV: 'test' }, false],
+    [{ ...base, NEXT_PHASE: 'phase-production-build' }, false],
+  ])('%j -> %s', (source, esperado) => {
+    expect(shouldRunInProcess(source)).toBe(esperado)
+  })
+})
+
 describe('register', () => {
-  test('com WORKER_ENABLED=false não inicia o agendador', async () => {
+  test('com WORKER_ENABLED=false o agendador sobe só para as métricas (sem avisos nem limpeza)', async () => {
     ambiente({ WORKER_ENABLED: 'false' })
     await register()
-    expect(start).not.toHaveBeenCalled()
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(start).toHaveBeenCalledWith({ worker: false })
   })
 
   test('no runtime Node com o agendador ligado, inicia uma vez', async () => {
     ambiente({ WORKER_ENABLED: 'true' })
     await register()
     expect(start).toHaveBeenCalledTimes(1)
+    expect(start).toHaveBeenCalledWith({ worker: true })
   })
 
   test('no runtime edge não inicia nem valida nada', async () => {

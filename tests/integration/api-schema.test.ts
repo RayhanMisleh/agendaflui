@@ -165,15 +165,17 @@ describe('api_usage_hourly', () => {
   const hora = new Date('2026-11-20T10:00:00.000Z')
   const uso = (apiKeyId: string, o: Record<string, unknown> = {}) =>
     prisma.apiUsageHourly.create({
-      data: { apiKeyId, route: 'GET /v1/services', hour: hora, count: 1, errorCount: 0, totalMs: 10n, maxMs: 10, ...o },
+      data: { apiKeyId, businessId: a.id, route: 'GET /v1/services', hour: hora, count: 1, errorCount: 0, totalMs: 10n, maxMs: 10, ...o },
     })
 
-  test('(api_key_id, route, hour) repetido é recusado; outra rota ou hora é aceita', async () => {
+  test('(api_key_id, business_id, route, hour) repetido é recusado; outra rota, hora ou conta é aceita', async () => {
     const k = await chave()
     await uso(k.id)
     await expect(uso(k.id)).rejects.toThrow()
     await expect(uso(k.id, { route: 'GET /v1/me' })).resolves.toBeDefined()
     await expect(uso(k.id, { hour: new Date('2026-11-20T11:00:00.000Z') })).resolves.toBeDefined()
+    await expect(uso(k.id, { businessId: b.id })).resolves.toBeDefined()
+    await expect(uso(k.id, { businessId: null })).rejects.toThrow()
   })
 
   test('hora fora do início da hora e contadores negativos são recusados', async () => {
@@ -191,8 +193,8 @@ describe('api_usage_hourly', () => {
       prisma.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE '${fuso}'`)
         await tx.$executeRaw`
-          INSERT INTO api_usage_hourly (api_key_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
-          VALUES (${k.id}::uuid, ${`GET /v1/${fuso}`}, ${hour}::timestamptz, 1, 0, 1, 1, now())`
+          INSERT INTO api_usage_hourly (api_key_id, business_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
+          VALUES (${k.id}::uuid, ${a.id}::uuid, ${`GET /v1/${fuso}`}, ${hour}::timestamptz, 1, 0, 1, 1, now())`
       })
     await expect(naSessao('Asia/Kolkata', '2026-11-20T10:00:00.000Z')).resolves.toBeUndefined()
     await expect(naSessao('America/Sao_Paulo', '2026-11-20T10:00:00.000Z')).resolves.toBeUndefined()

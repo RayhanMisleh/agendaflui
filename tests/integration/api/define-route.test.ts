@@ -1082,4 +1082,11 @@ describe('defesas da camada', () => {
     expect((await callRoute(healthGet, apiRequest('GET', '/v1/health?'))).status).toBe(200)
     expect((await callRoute(publica, apiRequest('GET', '/v1/teste/publica?x=1'))).status).toBe(422)
   })
+
+  test('?__proto__=x numa rota sem esquema de consulta é 422, com o nome do parâmetro', async () => {
+    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave?__proto__=x', comChave()))
+    expect(r.status).toBe(422)
+    expect(Object.keys(apiError(r.json).fields ?? {})).toEqual(['__proto__'])
+    expect(chamadas).toBe(0)
+  })
 })

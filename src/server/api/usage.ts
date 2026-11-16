@@ -4,13 +4,22 @@ import { startOfUtcHour } from '@/server/time'
 
 export { usageSummary } from '@/server/domain/platform/api-usage'
 
-/** Teto de combinações (chave, rota, hora) distintas por lote: acima disso, as novas são descartadas até o próximo envio. */
+/** Teto de combinações (chave, conta, rota, hora) distintas por lote: acima disso, as novas são descartadas até o próximo envio. */
 export const MAX_PENDING_USAGE = 5000
 
-type Pending = Map<string, UsageRow>
+type UsageState = { pending: Map<string, UsageRow>; capWarned: boolean }
 
-let pending: Pending = new Map()
-let capWarned = false
+/*
+ * O Next compila as rotas e a instrumentação (que roda o agendador) em camadas separadas: cada uma teria a sua cópia
+ * deste módulo e o agendador esvaziaria um acumulador sempre vazio. Por isso o estado fica em `globalThis`, como o
+ * cliente Prisma em `db/client.ts`.
+ */
+const STATE_KEY = Symbol.for('agendaflui.apiUsage')
+
+function state(): UsageState {
+  const g = globalThis as unknown as Record<symbol, UsageState | undefined>
+  return (g[STATE_KEY] ??= { pending: new Map(), capWarned: false })
+}
 
 /** Registra só o nome do erro: a mensagem pode ter dado de conta. */
 function logFailure(event: string, err: unknown): void {
@@ -19,30 +28,30 @@ function logFailure(event: string, err: unknown): void {
 
 /**
  * Soma o uso de uma requisição na memória. Nunca lança nem toca o banco: o `flushUsage` grava depois.
- * `businessId` fica `null` quando a mesma linha recebe contas diferentes (chave de plataforma).
+ * A linha é por (chave, conta, rota, hora): uma chave de plataforma que atende duas contas gera duas linhas.
  */
-export function recordUsage(e: { apiKeyId: string; businessId: string | null; route: string; ms: number; error: boolean; at: Date }): void {
+export function recordUsage(e: { apiKeyId: string; businessId: string; route: string; ms: number; error: boolean; at: Date }): void {
   try {
+    const st = state()
     const hour = startOfUtcHour(e.at)
-    const k = `${e.apiKeyId}|${hour.getTime()}|${e.route}`
+    const k = `${e.apiKeyId}|${e.businessId}|${hour.getTime()}|${e.route}`
     const ms = Number.isFinite(e.ms) ? Math.max(0, Math.round(e.ms)) : 0
-    const atual = pending.get(k)
+    const atual = st.pending.get(k)
     if (atual === undefined) {
-      if (pending.size >= MAX_PENDING_USAGE) {
-        if (!capWarned) {
-          capWarned = true
+      if (st.pending.size >= MAX_PENDING_USAGE) {
+        if (!st.capWarned) {
+          st.capWarned = true
           console.warn(JSON.stringify({ level: 'warn', event: 'usage_buffer_full', max: MAX_PENDING_USAGE }))
         }
         return
       }
-      pending.set(k, { apiKeyId: e.apiKeyId, businessId: e.businessId, route: e.route, hour, count: 1, errorCount: e.error ? 1 : 0, totalMs: ms, maxMs: ms })
+      st.pending.set(k, { apiKeyId: e.apiKeyId, businessId: e.businessId, route: e.route, hour, count: 1, errorCount: e.error ? 1 : 0, totalMs: ms, maxMs: ms })
       return
     }
     atual.count += 1
     if (e.error) atual.errorCount += 1
     atual.totalMs += ms
     if (ms > atual.maxMs) atual.maxMs = ms
-    if (atual.businessId !== e.businessId) atual.businessId = null
   } catch {
     // Métrica nunca derruba a requisição.
   }
@@ -53,10 +62,11 @@ export function recordUsage(e: { apiKeyId: string; businessId: string | null; ro
  * nome do erro é registrado. Devolve quantas linhas gravou.
  */
 export async function flushUsage(): Promise<number> {
-  if (pending.size === 0) return 0
-  const lote = [...pending.values()]
-  pending = new Map()
-  capWarned = false
+  const st = state()
+  if (st.pending.size === 0) return 0
+  const lote = [...st.pending.values()]
+  st.pending = new Map()
+  st.capWarned = false
   try {
     await writeUsageRows(lote)
     return lote.length

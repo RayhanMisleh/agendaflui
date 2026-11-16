@@ -121,6 +121,11 @@ export function orNotFound<T>(value: T | null | undefined, what: string): T {
 }
 
 /** Erro P2025 do Prisma: registro a alterar ou excluir não existe. */
+/** Violação de índice único do Prisma (P2002). */
+export function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
+}
+
 export function isRecordNotFound(err: unknown): boolean {
   return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2025'
 }

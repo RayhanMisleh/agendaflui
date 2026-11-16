@@ -94,8 +94,7 @@ async function chavesDeDemonstracao(
     })
     segredos[alvo.rotulo] = secret
     criadas += 1
-  }
-  if (criadas > 0) {
+    // Grava a cada chave: se a seguinte falhar, o segredo desta (que só existe agora) não se perde.
     await mkdir(dirname(arquivo), { recursive: true })
     await writeFile(arquivo, `${JSON.stringify(segredos, null, 2)}\n`, { mode: 0o600 })
     await chmod(arquivo, 0o600)

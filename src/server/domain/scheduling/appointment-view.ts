@@ -39,9 +39,16 @@ export type AppointmentView = {
   customerNote: string | null
   /** Prazo do cliente para cancelar ou remarcar; para a equipe, `allowed` só segue a situação. */
   change: { allowed: boolean; until: Date | null; untilLabel: string | null }
+  createdAt: Date
+  /** Rótulo de `createdAt` no fuso da conta. */
+  createdLabel: string
   canceledAt: Date | null
+  /** Rótulo de `canceledAt` no fuso da conta; nulo quando o instante é nulo. */
+  canceledLabel: string | null
   cancelReason: string | null
   completedAt: Date | null
+  /** Rótulo de `completedAt` no fuso da conta; nulo quando o instante é nulo. */
+  completedLabel: string | null
 }
 
 export type Db = TenantClient | TenantTx
@@ -218,9 +225,13 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
     totalDurationMin: row.totalDurationMin,
     customerNote: row.customerNote,
     change: changeOf(ctx, row, scope, changeWindowMin),
+    createdAt: row.createdAt,
+    createdLabel: formatDateTime(row.createdAt, ctx.timeZone),
     canceledAt: row.canceledAt,
+    canceledLabel: row.canceledAt === null ? null : formatDateTime(row.canceledAt, ctx.timeZone),
     cancelReason: row.cancelReason,
     completedAt: row.completedAt,
+    completedLabel: row.completedAt === null ? null : formatDateTime(row.completedAt, ctx.timeZone),
   }
   // A visão do cliente é outra: sem as chaves internas, em vez de chaves nulas.
   if (isCustomer(ctx)) return view

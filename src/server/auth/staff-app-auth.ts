@@ -3,7 +3,7 @@ import { AuthError, type TenantContext } from '@/server/auth/actor'
 import { issueTokens, type RequestMeta, type TokenPair } from '@/server/auth/api-tokens'
 import { can, CAPABILITIES, type Capability } from '@/server/auth/capabilities'
 import { checkLoginLimit, clearLoginLimit } from '@/server/auth/login-limit'
-import { hashPassword, verifyPassword } from '@/server/auth/password'
+import { fakePasswordHash, verifyPassword } from '@/server/auth/password'
 import { roleLabel } from '@/server/auth/role-labels'
 import { prisma } from '@/server/db/client'
 import type { MembershipRole } from '@/server/db/generated/client'
@@ -26,8 +26,6 @@ export type StaffProfile = StaffMember & {
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
 
-// Hash fixo para igualar o tempo quando não há senha para conferir.
-const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
 /** Profissional (não arquivado) ligado ao vínculo, ou `null`. */
 async function professionalIdOf(db: TenantClient | TenantTx, membershipId: string): Promise<string | null> {
@@ -51,7 +49,7 @@ export async function loginStaff(
   await checkLoginLimit(area, email, meta.ip ?? undefined, now)
 
   const user = email.length > 0 && email.length <= 254 ? await prisma.user.findUnique({ where: { email } }) : null
-  const ok = await verifyPassword(user?.passwordHash ?? (await hashFalso), typeof input.password === 'string' ? input.password : '')
+  const ok = await verifyPassword(user?.passwordHash ?? (await fakePasswordHash), typeof input.password === 'string' ? input.password : '')
   // Sempre as duas consultas, exista o usuário ou não (o tempo não revela se o e-mail é de alguém).
   const membership = await prisma.membership.findFirst({ where: { userId: user?.id ?? NIL_UUID, businessId, active: true } })
   if (!user || !user.passwordHash || !ok || !membership) throw new AuthError('invalid_credentials')

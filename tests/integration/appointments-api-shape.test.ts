@@ -7,6 +7,8 @@ import {
   getAppointment,
   undoOutcome,
 } from '@/server/domain/scheduling/appointments'
+import { completeAppointment } from '@/server/domain/scheduling/appointment-status-ops'
+import { formatDateTime } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
@@ -201,6 +203,27 @@ describe('change (prazo de alteração)', () => {
     const v = await getAppointment(s.cliente, ag.id)
     expect(v.change.until?.toISOString()).toBe('2026-11-16T12:00:00.000Z')
     expect(v.change.untilLabel).toBe('16/11/2026 08:00')
+  })
+})
+
+describe('rótulos locais de criação, cancelamento e conclusão', () => {
+  test('saem no fuso da conta (Manaus) e ficam nulos quando o instante é nulo', async () => {
+    const s = await montar({ timezone: 'America/Manaus' })
+    const base = { customerId: s.customer.id, professionalId: s.ana.id, serviceIds: [s.banho.id] }
+    const novo = await bookAppointment(s.gerente, { ...base, startsAt: DEZ })
+    expect(novo.createdLabel).toBe(formatDateTime(novo.createdAt, 'America/Manaus'))
+    expect(novo.canceledAt).toBeNull()
+    expect(novo.canceledLabel).toBeNull()
+    expect(novo.completedLabel).toBeNull()
+    // O relógio do teste marca 11:00Z, que são 07:00 em Manaus.
+    const cancelado = await cancelAppointment(s.cliente, novo.id)
+    expect(cancelado.canceledLabel).toBe('16/11/2026 07:00')
+    expect(cancelado.completedLabel).toBeNull()
+    const outro = await makeAppointment(s.b.id, { customerId: s.customer.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ })
+    // 15:00Z são 11:00 em Manaus, depois do início (13:00Z).
+    const concluido = await completeAppointment(await makeCtx(s.b, { now: new Date('2026-11-16T15:00:00Z') }), outro.id)
+    expect(concluido.completedLabel).toBe('16/11/2026 11:00')
+    expect(concluido.canceledLabel).toBeNull()
   })
 })
 

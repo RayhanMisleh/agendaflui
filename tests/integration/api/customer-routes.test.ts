@@ -112,7 +112,7 @@ describe('marcar, ler, cancelar e remarcar', () => {
         'items', 'items[].serviceId', 'items[].name', 'items[].priceCents', 'items[].durationMin',
         'totalCents', 'totalDurationMin', 'customerNote',
         'change', 'change.allowed', 'change.until', 'change.untilLabel',
-        'canceledAt', 'cancelReason', 'completedAt',
+        'createdAt', 'createdLabel', 'canceledAt', 'canceledLabel', 'cancelReason', 'completedAt', 'completedLabel',
       ].sort(),
     )
     expect(r.text).not.toContain('commissionCents')

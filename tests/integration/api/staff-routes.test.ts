@@ -156,6 +156,19 @@ describe('agenda e resumo', () => {
     expect((jsonObject(filtrada.json).days as { professionals: { id: string }[] }[])[0]?.professionals.map((p) => p.id)).toEqual([biaId])
   })
 
+  test('a agenda usa os mesmos nomes do expediente (start/end e startMin/endMin) e do bloqueio (local com data e hora)', async () => {
+    const dia = c.dia(1)
+    await prisma.timeBlock.create({
+      data: { businessId: c.business.id, professionalId: c.ana.id, startsAt: toInstant(dia, '10:00', c.business.timezone), endsAt: toInstant(dia, '11:00', c.business.timezone), reason: 'Médico', createdByType: 'SYSTEM' },
+    })
+    const r = await chamar(agenda, 'GET', '/v1/staff/agenda', gerente, { query: `?from=${dia}&to=${dia}` })
+    expect(r.status).toBe(200)
+    const dias = jsonObject(r.json).days as { professionals: { id: string; workingRanges: unknown[]; blocks: { local: unknown }[] }[] }[]
+    const ana = dias[0]?.professionals.find((p) => p.id === c.ana.id)
+    expect(ana?.workingRanges[0]).toEqual({ start: '08:00', end: '18:00', startMin: 480, endMin: 1080 })
+    expect(ana?.blocks[0]?.local).toEqual({ startDate: dia, startTime: '10:00', endDate: dia, endTime: '11:00' })
+  })
+
   test('a agenda recusa parâmetro que não existe e intervalo inválido', async () => {
     expect((await chamar(agenda, 'GET', '/v1/staff/agenda', gerente, { query: `?from=${c.dia(1)}&to=${c.dia(1)}&x=1` })).status).toBe(422)
     expect((await chamar(agenda, 'GET', '/v1/staff/agenda', gerente, { query: `?from=${c.dia(3)}&to=${c.dia(1)}` })).status).toBe(422)
@@ -173,6 +186,14 @@ describe('agenda e resumo', () => {
 })
 
 describe('marcar e agir sobre agendamentos', () => {
+  test('a equipe marca por telefone com o pedido do cliente (customerNote), separado da anotação interna', async () => {
+    const r = await marcarPor(gerente, c.dia(2), '09:00', { customerNote: 'Prefere água morna', notes: 'ligou às 8h' })
+    expect(r.status, r.text).toBe(201)
+    expect(jsonObject(r.json)).toMatchObject({ customerNote: 'Prefere água morna', notes: 'ligou às 8h' })
+    const sem = await marcarPor(gerente, c.dia(2), '10:00')
+    expect(jsonObject(sem.json).customerNote).toBeNull()
+  })
+
   test('marcar fora da grade: 201, source APP (o canal é o app) e campos da equipe', async () => {
     const r = await marcarPor(gerente, c.dia(2), '07:00', { notes: 'cliente VIP' })
     expect(r.status, r.text).toBe(201)

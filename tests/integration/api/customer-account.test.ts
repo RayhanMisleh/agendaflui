@@ -424,6 +424,16 @@ describe('renovação e saída', () => {
     expect((await chamar(refresh, '/refresh', c, { refreshToken: segundo.refreshToken })).status).toBe(401)
   })
 
+  test('15 renovações e saídas seguidas do mesmo IP (rede compartilhada), com tokens distintos, passam', async () => {
+    const c = await novaConta()
+    await clienteComSenha(c)
+    const ip = '203.0.113.88'
+    const pares = []
+    for (let i = 0; i < 15; i++) pares.push(tokensDe((await entrar(c, EMAIL, SENHA)).json))
+    for (const p of pares) expect((await chamar(refresh, '/refresh', c, { refreshToken: p.refreshToken }, ip)).status).toBe(200)
+    for (const p of pares) expect((await chamar(logout, '/logout', c, { refreshToken: p.refreshToken }, ip)).status).toBe(204)
+  })
+
   test('token de renovação desconhecido ou malformado: 401', async () => {
     const c = await novaConta()
     expect((await chamar(refresh, '/refresh', c, { refreshToken: 'x'.repeat(43) })).status).toBe(401)
@@ -529,13 +539,13 @@ describe('esqueci a senha e redefinição', () => {
     expect(mail.sent).toHaveLength(3)
   })
 
-  test('limite de rota: o 11º pedido do mesmo IP é barrado com 429', async () => {
+  test('limite de rota: o 31º pedido do mesmo IP é barrado com 429', async () => {
     const c = await novaConta()
     const ip = '203.0.113.77'
     const status: number[] = []
-    for (let i = 0; i < 11; i++) status.push((await chamar(forgot, '/password/forgot', c, { email: `p${i}@exemplo.test` }, ip)).status)
-    expect(status.slice(0, 10).every((s) => s === 202)).toBe(true)
-    expect(status[10]).toBe(429)
+    for (let i = 0; i < 31; i++) status.push((await chamar(forgot, '/password/forgot', c, { email: `p${i}@exemplo.test` }, ip)).status)
+    expect(status.slice(0, 30).every((s) => s === 202)).toBe(true)
+    expect(status[30]).toBe(429)
   })
 })
 
@@ -607,6 +617,22 @@ describe('tentativas de código atravessando códigos', () => {
     const r = await chamar(reset, '/password/reset', c, { email: EMAIL, code: reset3, password: NOVA })
     expect(r.status).toBe(422)
     expect((await entrar(c, EMAIL, SENHA)).status).toBe(200)
+  })
+
+  test('redefinir bloqueado pelo teto de palpites faz o mesmo trabalho de senha que o caminho normal', async () => {
+    const c = await novaConta()
+    await clienteComSenha(c)
+    await chamar(forgot, '/password/forgot', c, { email: EMAIL })
+    const reset1 = mail.codeOf()
+    for (let i = 0; i < 5; i++) await chamar(reset, '/password/reset', c, { email: EMAIL, code: errado(reset1), password: NOVA })
+    await chamar(forgot, '/password/forgot', c, { email: EMAIL })
+    const reset2 = mail.codeOf()
+    for (let i = 0; i < 5; i++) await chamar(reset, '/password/reset', c, { email: EMAIL, code: errado(reset2), password: NOVA })
+    const hash = vi.spyOn(await import('@/server/auth/password'), 'hashPassword')
+    const bloqueado = await chamar(reset, '/password/reset', c, { email: EMAIL, code: errado(reset2), password: NOVA })
+    expect(bloqueado.status).toBe(422)
+    expect(hash).toHaveBeenCalledTimes(1)
+    hash.mockRestore()
   })
 
   test('teto diário de emissão: o 7º pedido do dia não emite, com a mesma resposta', async () => {

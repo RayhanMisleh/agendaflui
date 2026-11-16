@@ -20,7 +20,8 @@ export const POST = defineRoute({
     serviceIds: z.array(z.string()).max(10),
     startsAt: requestInstant,
     professionalId: z.string().max(64).nullable().optional(),
-    notes: z.string().max(2000).nullable().optional(),
+    customerNote: z.string().max(2000).nullable().optional().describe('Pedido ou observação do cliente (visível a ele no app).'),
+    notes: z.string().max(2000).nullable().optional().describe('Anotação interna da equipe (o cliente nunca vê).'),
   }),
   response: staffAppointmentSchema,
   limit: LIMITS.booking,
@@ -33,6 +34,7 @@ export const POST = defineRoute({
       serviceIds: body.serviceIds,
       startsAt: fromIsoInstant(body.startsAt),
       ...(body.professionalId === undefined ? {} : { professionalId: body.professionalId }),
+      ...(body.customerNote === undefined ? {} : { customerNote: body.customerNote }),
       ...(body.notes === undefined ? {} : { notes: body.notes }),
       ...(key === null ? {} : { idempotencyKey: key }),
     })

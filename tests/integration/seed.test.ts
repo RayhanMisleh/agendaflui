@@ -620,6 +620,17 @@ describe('chaves de demonstração', () => {
     expect((await resolveAppKey({ key: segredos['plataforma'] ?? null, businessSlug: 'patas-e-cia' })).kind).toBe('PLATFORM')
   })
 
+  test('se uma chave falha, o segredo das anteriores já está no arquivo', async () => {
+    // `createApiKey` confere a conta com `findUnique({ select: { id: true } })`: depois que o arquivo existe, a próxima falha.
+    const achar = prisma.business.findUnique.bind(prisma.business)
+    vi.spyOn(prisma.business, 'findUnique').mockImplementation((async (args: { select?: { id?: boolean } }) => {
+      if (args.select?.id === true && (await stat(arquivo).then(() => true, () => false))) throw new Error('falha simulada')
+      return achar(args as never)
+    }) as never)
+    await expect(seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })).rejects.toThrow('falha simulada')
+    expect(Object.keys(await lerChaves()).sort()).toHaveLength(1)
+  })
+
   test('rodar de novo não cria chaves nem troca os segredos', async () => {
     await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
     const antes = await readFile(arquivo, 'utf8')

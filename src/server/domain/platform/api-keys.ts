@@ -59,7 +59,8 @@ const MSG_ORIGEM =
 
 /** Normaliza uma origem (`https://host[:porta]`, host em punycode, sem porta padrão). Devolve `null` se não for aceita. */
 function normalizarOrigem(bruta: string): string | null {
-  if (bruta.length > MAX_ORIGEM_CHARS) return null
+  // Barra invertida e `%` mudam o host depois da normalização (`https://evil.com\\.good.com` viraria `https://evil.com`).
+  if (bruta.length > MAX_ORIGEM_CHARS || /[\\%]/.test(bruta)) return null
   const texto = bruta.trim().replace(/\/$/, '').toLowerCase()
   const m = ORIGEM.exec(texto)
   if (!m) return null
@@ -236,12 +237,15 @@ export async function updateApiKeyOrigins(actor: PlatformAdminActor, id: string,
   exigirAdmin(actor)
   idValido(id)
   const origens = parse(origensSchema, allowedOrigins)
-  const atual = orNotFound(await prisma.apiKey.findUnique({ where: { id } }), 'Chave')
-  if (atual.revokedAt !== null) {
-    throw new DomainError('validation', 'Esta chave foi revogada. Crie uma nova chave.')
-  }
+  const revogada = () => new DomainError('validation', 'Esta chave foi revogada. Crie uma nova chave.')
   const atualizada = await prisma.$transaction(async (tx) => {
-    const k = await tx.apiKey.update({ where: { id }, data: { allowedOrigins: origens } })
+    // Trava a linha: o `before` auditado é o valor que esta troca realmente substitui.
+    await tx.$queryRaw`SELECT id FROM api_keys WHERE id = ${id}::uuid FOR UPDATE`
+    const atual = orNotFound(await tx.apiKey.findUnique({ where: { id } }), 'Chave')
+    if (atual.revokedAt !== null) throw revogada()
+    const r = await tx.apiKey.updateMany({ where: { id, revokedAt: null }, data: { allowedOrigins: origens } })
+    if (r.count !== 1) throw revogada()
+    const k = await tx.apiKey.findUniqueOrThrow({ where: { id } })
     await registrar(tx, actor, 'api_key.origins_updated', k, { before: atual.allowedOrigins, after: origens })
     return k
   })

@@ -116,6 +116,19 @@ describe('startScheduler: métricas de uso', () => {
     expect(flush).toHaveBeenCalledTimes(2)
   })
 
+  test('com worker: false só as métricas rodam (nem avisos nem limpeza)', async () => {
+    vi.useFakeTimers()
+    const run = vi.fn(async () => undefined)
+    const cleanup = vi.fn(async () => undefined)
+    const flush = vi.fn(async () => 0)
+    const s = startScheduler({ worker: false, run, cleanup, flush })
+    await vi.advanceTimersByTimeAsync(60_000 * 3)
+    expect(run).not.toHaveBeenCalled()
+    expect(cleanup).not.toHaveBeenCalled()
+    expect(flush).toHaveBeenCalledTimes(6)
+    s.stop()
+  })
+
   test('erro ao gravar a métrica não para o agendador', async () => {
     vi.useFakeTimers()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)

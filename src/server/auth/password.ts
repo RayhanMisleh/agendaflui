@@ -11,6 +11,9 @@ export function hashPassword(plain: string): Promise<string> {
   return hash(plain)
 }
 
+/** Hash de uma senha qualquer, para gastar o mesmo tempo quando o usuário não existe (calculado uma vez, na carga). */
+export const fakePasswordHash: Promise<string> = hashPassword('senha-falsa-para-igualar-o-tempo')
+
 export async function verifyPassword(hashed: string, plain: string): Promise<boolean> {
   try {
     return await verify(hashed, plain)

@@ -241,6 +241,7 @@ model Business {
   appointmentItems     AppointmentItem[]
   notifications        Notification[]
   apiKeys              ApiKey[]
+  apiUsage             ApiUsageHourly[]
   refreshTokens        RefreshToken[]
   devices              Device[]
   verificationCodes    VerificationCode[]
@@ -812,7 +813,7 @@ model RateLimitBucket {
 model ApiUsageHourly {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   apiKeyId   String   @map("api_key_id") @db.Uuid
-  businessId String?  @map("business_id") @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
   route      String
   hour       DateTime @db.Timestamptz(3)
   count      Int
@@ -822,9 +823,10 @@ model ApiUsageHourly {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  apiKey   ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  @@unique([apiKeyId, route, hour])
+  @@unique([apiKeyId, businessId, route, hour])
   @@index([businessId, hour])
   @@map("api_usage_hourly")
 }

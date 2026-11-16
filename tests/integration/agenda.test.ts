@@ -94,8 +94,8 @@ describe('getAgenda: dias, profissionais e expediente', () => {
     const segunda = dias[0]
     expect(segunda?.professionals.map((p) => p.name)).toEqual(['Ana', 'Caio'])
     expect(segunda?.professionals[0]?.workingRanges).toEqual([
-      { startMin: 540, endMin: 720, startLabel: '09:00', endLabel: '12:00' },
-      { startMin: 780, endMin: 1080, startLabel: '13:00', endLabel: '18:00' },
+      { startMin: 540, endMin: 720, start: '09:00', end: '12:00' },
+      { startMin: 780, endMin: 1080, start: '13:00', end: '18:00' },
     ])
     expect(dias[1]?.professionals[0]?.workingRanges).toEqual([])
     expect(dias.every((d) => d.professionals.every((p) => p.appointments.length === 0 && p.blocks.length === 0))).toBe(true)
@@ -204,9 +204,9 @@ describe('getAgenda: bloqueios', () => {
     const deAna = (i: number) => dias[i]?.professionals.find((p) => p.id === s.ana.id)?.blocks
     expect(deAna(0)).toEqual([])
     expect(deAna(1)).toEqual([
-      { id: bloco.id, professionalId: s.ana.id, startsAt: sp(16, 22), endsAt: sp(17, 2), reason: 'Médico', local: { start: '22:00', end: '24:00' } },
+      { id: bloco.id, professionalId: s.ana.id, startsAt: sp(16, 22), endsAt: sp(17, 2), reason: 'Médico', local: { startDate: '2026-11-16', startTime: '22:00', endDate: '2026-11-16', endTime: '24:00' } },
     ])
-    expect(deAna(2)?.map((x) => [x.id, x.local])).toEqual([[bloco.id, { start: '00:00', end: '02:00' }]])
+    expect(deAna(2)?.map((x) => [x.id, x.local])).toEqual([[bloco.id, { startDate: '2026-11-17', startTime: '00:00', endDate: '2026-11-17', endTime: '02:00' }]])
     expect(deAna(3)).toEqual([])
     expect(dias[1]?.professionals.find((p) => p.id === s.caio.id)?.blocks).toEqual([])
   })
@@ -215,7 +215,7 @@ describe('getAgenda: bloqueios', () => {
     const s = await montar()
     const bloco = await bloquear(s.b, s.ana.id, sp(16, 18), sp(19, 9))
     const dias = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-19' })
-    const locais = dias.map((d) => d.professionals.find((p) => p.id === s.ana.id)?.blocks.map((x) => [x.id, x.local.start, x.local.end]))
+    const locais = dias.map((d) => d.professionals.find((p) => p.id === s.ana.id)?.blocks.map((x) => [x.id, x.local.startTime, x.local.endTime]))
     expect(locais).toEqual([
       [[bloco.id, '18:00', '24:00']],
       [[bloco.id, '00:00', '24:00']],
@@ -230,8 +230,8 @@ describe('getAgenda: bloqueios', () => {
     const meio = await bloquear(s.b, s.ana.id, new Date('2026-11-16T18:00:00Z'), new Date('2026-11-16T20:30:00Z'))
     const ate = await bloquear(s.b, s.caio.id, new Date('2026-11-17T02:00:00Z'), new Date('2026-11-17T04:00:00Z'))
     const dias = await getAgenda(s.gerente, { from: '2026-11-16', to: '2026-11-17' })
-    expect(dias[0]?.professionals.find((p) => p.id === s.ana.id)?.blocks.map((x) => [x.id, x.local])).toEqual([[meio.id, { start: '14:00', end: '16:30' }]])
-    expect(dias[0]?.professionals.find((p) => p.id === s.caio.id)?.blocks.map((x) => [x.id, x.local])).toEqual([[ate.id, { start: '22:00', end: '24:00' }]])
+    expect(dias[0]?.professionals.find((p) => p.id === s.ana.id)?.blocks.map((x) => [x.id, x.local])).toEqual([[meio.id, { startDate: '2026-11-16', startTime: '14:00', endDate: '2026-11-16', endTime: '16:30' }]])
+    expect(dias[0]?.professionals.find((p) => p.id === s.caio.id)?.blocks.map((x) => [x.id, x.local])).toEqual([[ate.id, { startDate: '2026-11-16', startTime: '22:00', endDate: '2026-11-16', endTime: '24:00' }]])
     expect(dias[1]?.professionals.find((p) => p.id === s.caio.id)?.blocks).toEqual([])
   })
 

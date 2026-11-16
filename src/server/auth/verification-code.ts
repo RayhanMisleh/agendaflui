@@ -3,6 +3,7 @@ import { createHmac, hkdfSync, randomInt, timingSafeEqual } from 'node:crypto'
 import { prisma } from '@/server/db/client'
 import type { Prisma, VerificationPurpose } from '@/server/db/generated/client'
 import type { TenantTx } from '@/server/db/tenant'
+import { isUniqueViolation } from '@/server/domain/errors'
 import { env } from '@/server/env'
 import { addMinutes, fromEpochMs } from '@/server/time'
 
@@ -34,10 +35,6 @@ function sameMac(a: string, b: string): boolean {
   const x = Buffer.from(a, 'hex')
   const y = Buffer.from(b, 'hex')
   return x.length === y.length && x.length > 0 && timingSafeEqual(x, y)
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
 }
 
 type Issue = { businessId: string; purpose: VerificationPurpose; email: string; payload: Prisma.InputJsonObject; now: Date }

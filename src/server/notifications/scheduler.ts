@@ -12,6 +12,8 @@ const USAGE_FLUSH_MS = 30_000
 const SHUTDOWN_FLUSH_MS = 3_000
 
 type Deps = {
+  /** Liga o envio de avisos e a limpeza (padrão: sim). Com `false` só as métricas de uso rodam. */
+  worker?: boolean
   run?: () => Promise<unknown>
   cleanup?: () => Promise<unknown>
   /** Grava as métricas de uso da API (padrão: `flushUsage`). */
@@ -33,7 +35,7 @@ function report(what: string, err: unknown): void {
 
 /**
  * Agendador dos avisos: uma rodada por minuto e a limpeza de hora em hora, nunca duas rodadas ao mesmo tempo (se a anterior
- * ainda roda, pula). Os temporizadores não seguram o processo. Erro numa rodada é registrado e a seguinte roda normalmente.
+ * ainda roda, pula). As métricas de uso sobem a cada 30 s em qualquer caso. Os temporizadores não seguram o processo. Erro numa rodada é registrado e a seguinte roda normalmente.
  */
 export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: () => Promise<void> } {
   // Um agendador por processo, mesmo que `register()` rode mais de uma vez.
@@ -98,11 +100,12 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
     }
   }
 
-  const first = setTimeout(() => void tick(), FIRST_ROUND_MS)
-  const every = setInterval(() => void tick(), ROUND_MS)
+  const worker = deps.worker !== false
+  const first = worker ? setTimeout(() => void tick(), FIRST_ROUND_MS) : undefined
+  const every = worker ? setInterval(() => void tick(), ROUND_MS) : undefined
   const usage = setInterval(() => void flushTick(), USAGE_FLUSH_MS)
-  first.unref()
-  every.unref()
+  first?.unref()
+  every?.unref()
   usage.unref()
   // Com o processo encerrando por SIGTERM, grava o que falta. Se nenhum outro código cuida do encerramento, sai depois.
   const onSigterm = (): void => {

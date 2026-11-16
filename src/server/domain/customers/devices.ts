@@ -1,5 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
-import { DomainError, parse, z } from '@/server/domain/errors'
+import { DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
 
 /** Plataformas do app, como o app as informa (minúsculas). */
 export const DEVICE_PLATFORMS = ['ios', 'android', 'web'] as const
@@ -28,10 +28,6 @@ function ownerOf(ctx: TenantContext): Owner {
   if (actor.kind === 'customer') return { customerId: actor.customerId, membershipId: null }
   if (actor.kind === 'member') return { customerId: null, membershipId: actor.membershipId }
   throw new DomainError('forbidden', 'Só o cliente ou a equipe, pelo app, podem registrar um aparelho.')
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
 }
 
 /**

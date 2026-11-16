@@ -6,10 +6,10 @@ import { DomainError, parse, z } from '../errors'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
-/** Uma linha de uso já somada: chave, rota e hora cheia (UTC). `businessId` é `null` quando a linha mistura contas. */
+/** Uma linha de uso já somada: chave, conta, rota e hora cheia (UTC). */
 export type UsageRow = {
   apiKeyId: string
-  businessId: string | null
+  businessId: string
   route: string
   hour: Date
   count: number
@@ -21,24 +21,27 @@ export type UsageRow = {
 const MAX_RANGE_DAYS = 92
 
 /**
- * Grava as linhas por upsert incremental: soma contagens e tempos, sobe o máximo e, se a linha já existe com outra conta
- * (chave de plataforma atendendo contas diferentes na mesma hora), deixa a conta em branco. Tudo numa transação.
+ * Grava as linhas por upsert incremental: soma contagens e tempos e sobe o máximo. As linhas entram em ordem fixa
+ * (chave, conta, rota, hora) para que duas instâncias gravando ao mesmo tempo não se travem. Tudo numa transação.
  */
 export async function writeUsageRows(rows: UsageRow[]): Promise<void> {
   if (rows.length === 0) return
+  const ordem = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+  const ordenadas = [...rows].sort(
+    (a, b) =>
+      ordem(a.apiKeyId, b.apiKeyId) || ordem(a.businessId, b.businessId) || ordem(a.route, b.route) || a.hour.getTime() - b.hour.getTime(),
+  )
   await prisma.$transaction(
-    rows.map(
+    ordenadas.map(
       (r) => prisma.$executeRaw`
         INSERT INTO api_usage_hourly (api_key_id, business_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
         VALUES (${r.apiKeyId}::uuid, ${r.businessId}::uuid, ${r.route}, ${r.hour}::timestamptz, ${r.count}::int, ${r.errorCount}::int,
                 ${r.totalMs}::bigint, ${r.maxMs}::int, now())
-        ON CONFLICT (api_key_id, route, hour) DO UPDATE SET
+        ON CONFLICT (api_key_id, business_id, route, hour) DO UPDATE SET
           count = api_usage_hourly.count + excluded.count,
           error_count = api_usage_hourly.error_count + excluded.error_count,
           total_ms = api_usage_hourly.total_ms + excluded.total_ms,
           max_ms = GREATEST(api_usage_hourly.max_ms, excluded.max_ms),
-          business_id = CASE WHEN api_usage_hourly.business_id IS NOT DISTINCT FROM excluded.business_id
-                             THEN api_usage_hourly.business_id ELSE NULL END,
           updated_at = now()`,
     ),
   )

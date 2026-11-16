@@ -5,12 +5,11 @@ import { addMinutes } from '@/server/time'
 import { AuthError, type TenantContext } from './actor'
 import { DomainError } from '@/server/domain/errors'
 import { createTenantContext } from './context'
-import { hashPassword, verifyPassword } from './password'
+import { fakePasswordHash, verifyPassword } from './password'
 import { checkLoginLimit, clearLoginLimit } from './login-limit'
 import { generateToken, hashToken } from './tokens'
 
 const SESSAO_MINUTOS = 30 * 24 * 60
-const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
 export type MemberSession = {
   user: { id: string; name: string; email: string }
@@ -54,7 +53,7 @@ export async function loginUser(i: {
   await checkLoginLimit('painel', email, i.ip, now)
 
   const user = await prisma.user.findUnique({ where: { email } })
-  const ok = await verifyPassword(user?.passwordHash ?? (await hashFalso), i.password)
+  const ok = await verifyPassword(user?.passwordHash ?? (await fakePasswordHash), i.password)
   if (!user || !user.passwordHash || !ok) throw new AuthError('invalid_credentials')
 
   await clearLoginLimit('painel', email, i.ip)

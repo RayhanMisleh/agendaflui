@@ -96,7 +96,7 @@ describe('recordUsage e flushUsage', () => {
   test('falha ao gravar perde o lote, não reenfileira e registra só o nome do erro', async () => {
     const erro = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     // chave de app inexistente: a FK falha e o lote inteiro cai.
-    recordUsage({ apiKeyId: UUID, businessId: null, route: 'GET /v1/business', ms: 1, error: false, at: H0 })
+    recordUsage({ apiKeyId: UUID, businessId: c.business.id, route: 'GET /v1/business', ms: 1, error: false, at: H0 })
     expect(await flushUsage()).toBe(0)
     expect(erro).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(erro.mock.calls)).not.toContain(UUID)
@@ -177,21 +177,32 @@ describe('defineRoute registra o uso', () => {
     expect(daConta?.count).toBe(1)
   })
 
-  test('linha com contas diferentes na mesma hora (chave de plataforma) fica sem conta, na memória e no banco', async () => {
+  test('a mesma chave atendendo duas contas na mesma hora gera uma linha por conta, na memória e no banco', async () => {
+    const outra = await makeBusiness()
     const base = { apiKeyId: c.keyId, route: 'GET /v1/business', error: false, at: H0, ms: 1 }
     recordUsage({ ...base, businessId: c.business.id })
-    recordUsage({ ...base, businessId: null })
+    recordUsage({ ...base, businessId: outra.id })
     await flushUsage()
     recordUsage({ ...base, businessId: c.business.id })
     await flushUsage()
     const l = await linhas()
-    expect(l).toHaveLength(1)
-    expect(l[0]).toMatchObject({ businessId: null, count: 3 })
+    expect(l).toHaveLength(2)
+    expect(l.find((x) => x.businessId === c.business.id)?.count).toBe(2)
+    expect(l.find((x) => x.businessId === outra.id)?.count).toBe(1)
+  })
+
+  test('o acumulador vive em globalThis: outra cópia do módulo (outra camada do Next) grava o que a primeira registrou', async () => {
+    recordUsage({ apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: 3, error: false, at: H0 })
+    vi.resetModules()
+    const outraCopia = await import('@/server/api/usage')
+    expect(outraCopia.flushUsage).not.toBe(flushUsage)
+    expect(await outraCopia.flushUsage()).toBe(1)
+    expect((await linhas())[0]).toMatchObject({ count: 1, businessId: c.business.id })
   })
 
   test('recordUsage nunca lança, mesmo com dado inválido', () => {
     expect(() =>
-      recordUsage({ apiKeyId: c.keyId, businessId: null, route: 'GET /v1/business', ms: Number.NaN, error: false, at: new Date(Number.NaN) }),
+      recordUsage({ apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: Number.NaN, error: false, at: new Date(Number.NaN) }),
     ).not.toThrow()
   })
 })
@@ -211,6 +222,11 @@ describe('usageSummary', () => {
       { route: 'GET /v1/services', count: 1, errorCount: 0, avgMs: 8, maxMs: 8 },
     ])
     expect(await usageSummary(a, { ...q, businessId: UUID })).toEqual([])
+    const outra = await makeBusiness()
+    recordUsage({ apiKeyId: c.keyId, businessId: outra.id, route: 'GET /v1/business', ms: 100, error: false, at: H0 })
+    await flushUsage()
+    expect(await usageSummary(a, { ...q, businessId: outra.id })).toEqual([{ route: 'GET /v1/business', count: 1, errorCount: 0, avgMs: 100, maxMs: 100 }])
+    expect((await usageSummary(a, { ...q, businessId: c.business.id }))[0]).toMatchObject({ route: 'GET /v1/business', count: 2 })
     expect((await usageSummary(a, { ...q, apiKeyId: c.keyId })).length).toBe(2)
   })
 

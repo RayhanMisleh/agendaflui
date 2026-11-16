@@ -53,9 +53,13 @@ export const appointmentSchema = z.object({
   totalDurationMin: z.number(),
   customerNote: z.string().nullable(),
   change: z.object({ allowed: z.boolean(), until: isoInstant.nullable(), untilLabel: z.string().nullable() }),
+  createdAt: isoInstant,
+  createdLabel: z.string(),
   canceledAt: isoInstant.nullable(),
+  canceledLabel: z.string().nullable(),
   cancelReason: z.string().nullable(),
   completedAt: isoInstant.nullable(),
+  completedLabel: z.string().nullable(),
 })
 
 export const customerProfileSchema = z.object({

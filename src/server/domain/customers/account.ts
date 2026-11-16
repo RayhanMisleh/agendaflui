@@ -2,14 +2,14 @@ import type { TenantContext } from '@/server/auth/actor'
 import { AuthError } from '@/server/auth/actor'
 import { issueTokens, revokeAllFor, type RequestMeta, type TokenPair } from '@/server/auth/api-tokens'
 import { checkLoginLimit, clearLoginLimit } from '@/server/auth/login-limit'
-import { hashPassword, passwordSchema, verifyPassword } from '@/server/auth/password'
+import { fakePasswordHash, hashPassword, passwordSchema, verifyPassword } from '@/server/auth/password'
 import { clearRateLimit, hitRateLimit, isRateLimited, LIMITS, limitKey } from '@/server/auth/rate-limit-db'
 import { CODE_TTL_MINUTES, confirmCode, issueCodeWithRetry } from '@/server/auth/verification-code'
 import { tenantDb } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { anonymizeCustomer } from '@/server/domain/customers/customers'
 import { normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
-import { DomainError, parse, z } from '@/server/domain/errors'
+import { DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import {
@@ -25,8 +25,6 @@ export type { RequestMeta } from '@/server/auth/api-tokens'
 export type CustomerSummary = { id: string; name: string; email: string }
 export type CustomerSession = { customerId: string; pair: TokenPair; customer: CustomerSummary }
 
-// Hash fixo para igualar o tempo quando não há senha para conferir.
-const hashFalso = hashPassword('senha-falsa-para-igualar-o-tempo')
 
 const EMAIL_MESSAGE = 'Informe um e-mail válido, por exemplo nome@exemplo.com.'
 
@@ -96,10 +94,6 @@ const wrongPassword = (): DomainError =>
   })
 
 const invalidCredentials = (): AuthError => new AuthError('invalid_credentials')
-
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
-}
 
 async function brandOf(businessId: string): Promise<AccountBrand> {
   const branding = await tenantDb(businessId).businessBranding.findFirst({ select: { displayName: true, primaryColor: true } })
@@ -276,7 +270,7 @@ export async function loginCustomer(
   }
   const db = tenantDb(businessId)
   const customer = email === null ? null : await db.customer.findFirst({ where: { email } })
-  const ok = await verifyPassword(customer?.passwordHash ?? (await hashFalso), typeof input.password === 'string' ? input.password : '')
+  const ok = await verifyPassword(customer?.passwordHash ?? (await fakePasswordHash), typeof input.password === 'string' ? input.password : '')
   if (!customer || !customer.passwordHash || !ok || customer.archivedAt !== null || customer.anonymizedAt !== null) {
     throw invalidCredentials()
   }
@@ -331,8 +325,9 @@ export async function resetPassword(
   now: Date,
 ): Promise<void> {
   const i = parse(resetSchema, input)
-  await assertCodeGuessesLeft(businessId, i.email, now)
+  // O hash vem antes da conferência do teto: o caminho bloqueado custa o mesmo tempo que o normal.
   const passwordHash = await hashPassword(i.password)
+  await assertCodeGuessesLeft(businessId, i.email, now)
   const db = tenantDb(businessId)
   const found = await db.customer.findFirst({ where: { email: i.email, archivedAt: null, anonymizedAt: null }, select: { id: true } })
   const done = await db.$transaction(async (tx) => {
@@ -368,7 +363,7 @@ async function countPasswordTry(ctx: TenantContext, customerId: string): Promise
 async function assertOwnPassword(ctx: TenantContext, customerId: string, password: string): Promise<void> {
   const key = await countPasswordTry(ctx, customerId)
   const row = await ctx.db.customer.findFirst({ where: { id: customerId }, select: { passwordHash: true, archivedAt: true, anonymizedAt: true } })
-  const ok = await verifyPassword(row?.passwordHash ?? (await hashFalso), password)
+  const ok = await verifyPassword(row?.passwordHash ?? (await fakePasswordHash), password)
   if (!row || !row.passwordHash || !ok || row.anonymizedAt !== null) throw wrongPassword()
   await clearRateLimit(key)
 }

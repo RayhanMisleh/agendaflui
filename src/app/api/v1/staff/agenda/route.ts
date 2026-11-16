@@ -17,7 +17,7 @@ const agendaDaySchema = z.object({
       name: z.string(),
       active: z.boolean(),
       archived: z.boolean(),
-      workingRanges: z.array(z.object({ startMin: z.number(), endMin: z.number(), startLabel: z.string(), endLabel: z.string() })),
+      workingRanges: z.array(z.object({ start: z.string(), end: z.string(), startMin: z.number(), endMin: z.number() })),
       appointments: z.array(staffAppointmentSchema),
       blocks: z.array(
         z.object({
@@ -26,7 +26,7 @@ const agendaDaySchema = z.object({
           startsAt: isoInstant,
           endsAt: isoInstant,
           reason: z.string().nullable(),
-          local: z.object({ start: z.string(), end: z.string() }),
+          local: z.object({ startDate: z.string(), startTime: z.string(), endDate: z.string(), endTime: z.string() }),
         }),
       ),
     }),

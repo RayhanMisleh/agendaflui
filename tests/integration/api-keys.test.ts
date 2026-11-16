@@ -85,6 +85,9 @@ describe('createApiKey', () => {
     'https://*',
     'http://localhost.evil.com',
     'https://evil.com@good.com',
+    'https://evil.com\\.good.com',
+    'https://app.exemplo.com%2F.evil.com',
+    'https://app.exemplo.com%',
     'https://exemplo.com:0',
     'null',
     'https://-ruim.com',
@@ -145,7 +148,7 @@ describe('createApiKey', () => {
     const { key, secret } = await createApiKey(actor, { kind: 'PLATFORM', name: 'Nova' }, { randomBytes: sequencia(2) })
     expect(key.prefix).toBe('00112233')
     expect(secret).toMatch(FORMATO)
-    await expect(createApiKey(actor, { kind: 'PLATFORM', name: 'Outra' }, { randomBytes: sequencia(3) })).rejects.toThrow()
+    await expect(createApiKey(actor, { kind: 'PLATFORM', name: 'Outra' }, { randomBytes: sequencia(3) })).rejects.toMatchObject({ code: 'P2002' })
   })
 
   test('audita sem o segredo, com o ator da plataforma', async () => {
@@ -291,10 +294,15 @@ describe('revogar, listar e atualizar origens', () => {
     expect(e.code).toBe('validation')
     const nf = await domainError(updateApiKeyOrigins(actor, crypto.randomUUID(), []))
     expect(nf.code).toBe('not_found')
-    const logs = await prisma.auditLog.findMany({ where: { action: 'api_key.origins_updated' }, orderBy: { createdAt: 'asc' } })
+    const logs = await prisma.auditLog.findMany({ where: { action: 'api_key.origins_updated' }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
     expect(logs).toHaveLength(2)
-    expect(logs[0]?.metadata).toMatchObject({ before: [], after: ['https://b.exemplo.com'] })
-    expect(logs[1]?.metadata).toMatchObject({ before: ['https://b.exemplo.com'], after: [] })
+    // Sem depender da ordem quando os dois registros caem no mesmo milissegundo.
+    expect(logs.map((l) => l.metadata)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ before: [], after: ['https://b.exemplo.com'] }),
+        expect.objectContaining({ before: ['https://b.exemplo.com'], after: [] }),
+      ]),
+    )
   })
 
   test('atualizar origens de chave revogada é recusado, sem gravar nem auditar', async () => {
@@ -306,6 +314,21 @@ describe('revogar, listar e atualizar origens', () => {
     const depois = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
     expect(depois.allowedOrigins).toEqual(['https://a.exemplo.com'])
     expect(await prisma.auditLog.count({ where: { action: 'api_key.origins_updated' } })).toBe(0)
+  })
+
+  test('atualizar origens e revogar ao mesmo tempo: nunca grava em chave revogada nem audita a troca perdida', async () => {
+    const { key } = await createApiKey(actor, { kind: 'PLATFORM', name: 'P', allowedOrigins: ['https://a.exemplo.com'] })
+    const [r] = await Promise.allSettled([updateApiKeyOrigins(actor, key.id, ['https://b.exemplo.com']), revokeApiKey(actor, key.id)])
+    const depois = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
+    expect(depois.revokedAt).not.toBeNull()
+    const auditadas = await prisma.auditLog.count({ where: { action: 'api_key.origins_updated' } })
+    if (r.status === 'rejected') {
+      expect(depois.allowedOrigins).toEqual(['https://a.exemplo.com'])
+      expect(auditadas).toBe(0)
+    } else {
+      expect(depois.allowedOrigins).toEqual(['https://b.exemplo.com'])
+      expect(auditadas).toBe(1)
+    }
   })
 
   test('funções administrativas recusam quem não é admin da plataforma', async () => {

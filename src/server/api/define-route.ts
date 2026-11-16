@@ -12,6 +12,7 @@ import { env } from '@/server/env'
 import { checkWireContract } from './contract'
 import { corsHeaders, isSyntacticOrigin, originAllowed, preflightHeaders } from './cors'
 import { ApiRateLimitError, BodyTooLargeError, buildResponse, errorResponse } from './errors'
+import { requestMeta } from './request-meta'
 import { toJson } from './serialize'
 import { recordUsage } from './usage'
 
@@ -117,7 +118,6 @@ export type RouteHandler = (request: Request, seg: { params: Promise<Record<stri
 export type DefinedRoute = RouteHandler & { readonly definition: AnyRouteDef }
 
 export const MAX_BODY_BYTES = 100 * 1024
-const MAX_USER_AGENT = 300
 
 function strictRoot<T>(schema: z.ZodType<T> | undefined): z.ZodType<T> | undefined {
   return schema instanceof z.ZodObject ? (schema.strict() as unknown as z.ZodType<T>) : schema
@@ -184,7 +184,8 @@ async function readJsonBody(request: Request, optional: boolean): Promise<unknow
 }
 
 function queryOf(request: Request): Record<string, string | string[]> {
-  const out: Record<string, string | string[]> = {}
+  // Sem protótipo: `?__proto__=x` vira um parâmetro comum (e é recusado), nunca passa em silêncio.
+  const out: Record<string, string | string[]> = Object.create(null) as Record<string, string | string[]>
   for (const [nome, valor] of new URL(request.url).searchParams) {
     const atual = out[nome]
     if (atual === undefined) out[nome] = valor
@@ -345,10 +346,7 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
         await enforceGeneralLimit(request, key, now)
       }
 
-      const info: RequestInfo = {
-        ip: clientIp(request.headers, env.TRUSTED_PROXY_HOPS),
-        userAgent: request.headers.get('user-agent')?.slice(0, MAX_USER_AGENT) ?? null,
-      }
+      const info: RequestInfo = requestMeta(request)
       let ctx: TenantContext | null = null
       let claims: AccessClaims | null = null
       if (key !== null) {

@@ -3,21 +3,12 @@
 > Documento de trabalho, apagado no fechamento do projeto junto com a spec e os planos.
 > Cada item veio de uma revisão da Fase 1 e foi triado pela revisão final.
 
-## Fase 2B (API do app e envio de avisos) — começar por aqui
-
-Vindas da Fase 1:
-
-- `areaUrl` sem validar barra inicial.
-
-Vindas da revisão final da Fase 2A:
-
-- Telefones de demonstração: são fictícios, mas não há faixa reservada no Brasil.
-- `details.nearest` do erro de horário ocupado não traz `professionalIds`.
-- Motivo do cancelamento: o `cancelReason` escrito pela equipe chega ao cliente; separar motivo público de motivo interno.
-- Teto de linhas em `getAgenda`.
-
 ## Fase 3 (painel dev)
 
+- Telas e rotas do painel dev para chaves de app (listar, criar, revogar, origens) e para o resumo de uso da API (`usageSummary`).
+- Quem criar "desativar vínculo" ou "trocar senha de usuário" chama `revokeAllFor({ membershipId })` sob a trava do vínculo.
+- `listClosures` precisa de visão por ator antes de virar rota.
+- `areaUrl` sem validar barra inicial.
 - `canonicalTimeZone` ao gravar o fuso da conta (hoje aceita minúsculas e `UTC`).
 - Vitrine atrás de `requirePlatformAdmin`.
 - Uploads: limpar `.meta`/`.tmp` quando o `put` falha no meio; rota de arquivos decodifica segmentos possivelmente já decodificados; links simbólicos; testes de símbolo pequeno e de GPS; detecção de "pixel limit" por texto.
@@ -28,6 +19,7 @@ Vindas da revisão final da Fase 2A:
 
 ## Fase 4 (painel do negócio)
 
+- Teto de linhas em `getAgenda`.
 - Agenda: `workingMinutes` do resumo não desconta bloqueios; conjunto de profissionais do resumo difere do da agenda em dois casos limite (inativo só com cancelado, inativo só com bloqueio); `occupancy` é limitado a 1 (razão de exibição); a busca de 31 dias não tem teto de linhas (rever com a tela de mês).
 - Telefone estrangeiro digitado sem `+` e com 10 ou 11 dígitos é tratado como brasileiro: dica na tela.
 - `displayOrder` concorrente de serviços; `isUniqueViolation` de profissionais sem conferir o alvo.
@@ -47,6 +39,14 @@ Vindas da revisão final da Fase 2A:
 
 ## Fase 6 (fechamento e produção)
 
+- Produção exige `TRUSTED_PROXY_HOPS` ≥ 1 (sem ele os limites viram globais por chave e a auditoria fica sem IP): avisar na partida.
+- Sem `SMTP_URL` em produção o cadastro pelo app é impossível: falhar ou avisar alto na partida.
+- Recibos do Expo não são consultados.
+- Retenção: sem limpeza de `notifications` antigas, `api_usage_hourly` e `audit_logs`.
+- Entrega de aviso é "pelo menos uma vez": processo morto no meio do envio reenvia em 2 min.
+- Medir o limite geral de 120/min por chave e IP com tráfego real; gravação de métricas em lote grande × tamanho do pool.
+- Testes de navegador (Playwright) não foram rodados desde a tarefa 12 da Fase 2B, a pedido do dono: rodar e ampliar quando ele for testar.
+- Telefones de demonstração: são fictícios, mas não há faixa reservada no Brasil.
 - Horário de verão: no dia de 25 horas o cálculo de horários livres esconde alguns horários bons, e no de 23 horas pode oferecer início fora da grade; cobrir com teste (Lisboa e Nova York) e decidir se corrige.
 - Espera da trava por profissional segura uma conexão do pool por até 15 s: observar em carga e dimensionar o pool.
 - `tsx --conditions=react-server` vale para o processo inteiro do seed e do `dev`: se o domínio passar a importar `react-dom/server`, separar `createTenantContext` de `server-only`.
@@ -56,8 +56,17 @@ Vindas da revisão final da Fase 2A:
 - Banco embutido escutando só em 127.0.0.1; parar o banco quando um passo posterior ao start falha; handlers de sinal do `scripts/dev.ts` desde o início.
 - Padrões de host em quatro lugares (proxy, env, `dev.ts`, Playwright): extrair `hostConfigFromEnv`.
 - CSP completa com nonce, HSTS, cookies com prefixo `__Host-`.
-- Validar o ambiente na partida (`instrumentation.ts`), não na primeira requisição.
 - Falha de disco na rota de arquivos vira 404 sem registro; "GET / 404" no log quando uma action redireciona atrás do proxy; teste automatizado dos cabeçalhos de `/arquivos` com o servidor rodando.
+
+## App (quando o repositório do aplicativo chegar)
+
+- O logout não apaga o aparelho: o app chama `DELETE /v1/me/devices/{token}` antes de sair, ou o logout passa a aceitar `pushToken`.
+- Esquemas de WebView (`capacitor://`, `ionic://`) nas origens.
+- Tolerância à repetição da renovação por falha de rede; teto de vida da família de tokens.
+- Troca de e-mail pelo app com verificação.
+- Um app compartilhado × um app por negócio (a API atende os dois).
+- `details.nearest` do erro de horário ocupado não traz `professionalIds`.
+- Motivo do cancelamento: o `cancelReason` escrito pela equipe chega ao cliente; separar motivo público de motivo interno.
 
 ## Para o dono decidir (visual)
 

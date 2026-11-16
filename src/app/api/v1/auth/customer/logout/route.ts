@@ -1,7 +1,6 @@
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { credentialText } from '@/server/api/auth-schemas'
 import { logoutAppSession } from '@/server/auth/app-session'
-import { LIMITS } from '@/server/auth/rate-limit-db'
 import { z } from '@/server/domain/errors'
 
 export const POST = defineRoute({
@@ -13,7 +12,6 @@ export const POST = defineRoute({
   body: z.object({ refreshToken: credentialText }),
   response: z.undefined(),
   status: 204,
-  limit: LIMITS.authIp,
   handler: async ({ key, body, now }) => {
     await logoutAppSession('customer', key.businessId, body.refreshToken, now)
     return undefined

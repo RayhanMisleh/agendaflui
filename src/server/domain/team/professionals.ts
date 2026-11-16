@@ -4,7 +4,7 @@ import type { Prisma } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
-import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
+import { authorize, DomainError, isRecordNotFound, isUniqueViolation, orNotFound, parse, z } from '@/server/domain/errors'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { publicUploadUrl, uploadUrl } from '@/server/storage/images'
 
@@ -136,11 +136,6 @@ function membershipTaken(): DomainError {
     reason: 'membership_taken',
     fields: { membershipId: 'Este acesso já está ligado a outro profissional.' },
   })
-}
-
-/** Violação de índice único do Prisma (P2002). */
-function isUniqueViolation(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002'
 }
 
 /** O vínculo precisa ser ativo, da conta e sem outro profissional (arquivar solta o vínculo). */

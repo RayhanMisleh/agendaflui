@@ -42,9 +42,10 @@ export type AgendaDay = {
     name: string
     active: boolean
     archived: boolean
-    workingRanges: { startMin: number; endMin: number; startLabel: string; endLabel: string }[]
+    workingRanges: { startMin: number; endMin: number; start: string; end: string }[]
     appointments: AppointmentView[]
-    blocks: (TimeBlockView & { local: { start: string; end: string } })[]
+    /** `local` já recortado ao dia: início 00:00 e fim 24:00 quando o bloqueio continua além dele; as datas são sempre o dia. */
+    blocks: (TimeBlockView & { local: { startDate: string; startTime: string; endDate: string; endTime: string } })[]
   }[]
 }
 
@@ -245,8 +246,8 @@ export async function getAgenda(
           archived: p.archivedAt !== null,
           workingRanges: (hours.get(p.id)?.get(weekday) ?? []).map((r) => ({
             ...r,
-            startLabel: minuteLabel(r.startMin),
-            endLabel: minuteLabel(r.endMin),
+            start: minuteLabel(r.startMin),
+            end: minuteLabel(r.endMin),
           })),
           appointments: byDay.get(date)?.get(p.id) ?? [],
           blocks: blocks
@@ -258,8 +259,10 @@ export async function getAgenda(
               endsAt: b.endsAt,
               reason: seesReason ? b.reason : null,
               local: {
-                start: b.startsAt <= range.start ? '00:00' : formatTime(b.startsAt, ctx.timeZone),
-                end: b.endsAt >= range.end ? '24:00' : formatTime(b.endsAt, ctx.timeZone),
+                startDate: date,
+                startTime: b.startsAt <= range.start ? '00:00' : formatTime(b.startsAt, ctx.timeZone),
+                endDate: date,
+                endTime: b.endsAt >= range.end ? '24:00' : formatTime(b.endsAt, ctx.timeZone),
               },
             })),
         }
