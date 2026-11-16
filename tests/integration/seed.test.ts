@@ -90,6 +90,18 @@ describe('contas e acessos', () => {
     for (const u of await prisma.user.findMany()) expect(u.email).toBe(u.email.trim().toLowerCase())
   })
 
+  test('as chaves de busca de contas e usuários são regravadas sem acento a cada execução', async () => {
+    await seed(prisma, ENV, { now: NOW })
+    await prisma.business.updateMany({ data: { searchName: 'Ã' } })
+    await prisma.user.updateMany({ data: { searchName: 'Ã' } })
+    await seed(prisma, ENV, { now: NOW })
+    const { searchKey } = await import('@/server/domain/customers/contact')
+    for (const b of await prisma.business.findMany()) expect(b.searchName).toBe(searchKey(b.name))
+    const usuarios = await prisma.user.findMany()
+    for (const u of usuarios) expect(u.searchName).toBe(searchKey(u.name))
+    expect(usuarios.some((u) => u.name !== u.searchName)).toBe(true)
+  })
+
   test('nenhuma senha é gravada em texto', async () => {
     await seed(prisma, ENV, { now: NOW })
     const hashes = [

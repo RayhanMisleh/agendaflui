@@ -20,7 +20,7 @@ export async function definirSenha(_anterior: DefinirSenhaState, form: FormData)
   const confirm = texto(form, 'confirm', 400)
   const agora = new Date()
   try {
-    await checkInviteLimit((await requestInfo()).ip, agora)
+    await checkInviteLimit((await requestInfo()).ip, token, agora)
   } catch (erro) {
     if (erro instanceof AuthError) return { error: erro.message, fields: {} }
     throw erro

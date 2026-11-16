@@ -66,27 +66,31 @@ export const slugSchema = z
   .regex(SLUG, MSG_SLUG)
   .refine((s) => !SLUGS_RESERVADOS.includes(s), 'Este identificador é reservado pelo sistema. Escolha outro.')
 
-function somenteDigitos(v: string): string {
-  return v.replace(/[.\-/\s]/g, '')
+function normalizarDocumento(v: string): string {
+  return v.replace(/[.\-/\s]/g, '').toUpperCase()
 }
 
-function digitoVerificador(digitos: number[], pesos: number[]): number {
-  const soma = digitos.reduce((acc, d, i) => acc + d * (pesos[i] ?? 0), 0)
+function digitoVerificador(valores: number[], pesos: number[]): number {
+  const soma = valores.reduce((acc, d, i) => acc + d * (pesos[i] ?? 0), 0)
   const resto = soma % 11
   return resto < 2 ? 0 : 11 - resto
 }
 
-/** CPF (11 dígitos) ou CNPJ (14) com os dois dígitos verificadores conferidos. */
+/**
+ * CPF (11 dígitos) ou CNPJ (14 posições) com os dígitos verificadores conferidos. O CNPJ aceita o formato alfanumérico
+ * da Receita Federal: 12 primeiras posições em `[0-9A-Z]`, valor de cada caractere = código ASCII menos 48.
+ */
 function documentoValido(d: string): boolean {
-  if (!/^\d+$/.test(d) || /^(\d)\1+$/.test(d)) return false
-  const n = [...d].map(Number)
-  if (d.length === 11) {
+  if (/^(.)\1+$/.test(d)) return false
+  if (/^\d{11}$/.test(d)) {
+    const n = [...d].map(Number)
     const p1 = [10, 9, 8, 7, 6, 5, 4, 3, 2]
     const v1 = digitoVerificador(n.slice(0, 9), p1)
     const v2 = digitoVerificador([...n.slice(0, 9), v1], [11, ...p1])
     return n[9] === v1 && n[10] === v2
   }
-  if (d.length === 14) {
+  if (/^[0-9A-Z]{12}\d{2}$/.test(d)) {
+    const n = [...d].map((c) => c.charCodeAt(0) - 48)
     const p1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
     const v1 = digitoVerificador(n.slice(0, 12), p1)
     const v2 = digitoVerificador([...n.slice(0, 12), v1], [6, ...p1])
@@ -105,10 +109,10 @@ const texto = (max: number) =>
 const documentoSchema = z
   .string()
   .transform((v, ctx) => {
-    const d = somenteDigitos(v)
+    const d = normalizarDocumento(v)
     if (d === '') return null
     if (!documentoValido(d)) {
-      ctx.addIssue({ code: 'custom', message: 'Informe um CPF ou CNPJ válido, só com números.' })
+      ctx.addIssue({ code: 'custom', message: 'Informe um CPF ou CNPJ válido.' })
       return z.NEVER
     }
     return d
@@ -319,7 +323,7 @@ export async function listBusinesses(
       OR strpos(b.slug, ${termo}) > 0
       OR EXISTS (
         SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id
-        WHERE m.business_id = b.id AND m.role = 'OWNER'
+        WHERE m.business_id = b.id AND m.role = 'OWNER' AND m.active
           AND (strpos(u.search_name, ${termo}) > 0 OR strpos(lower(u.email), ${termo}) > 0)
       )
     )`)
@@ -430,6 +434,7 @@ export async function createBusiness(
         }
         let usuario = await tx.user.findUnique({ where: { email: i.owner.email }, select: { id: true, name: true } })
         const existente = usuario !== null
+        const semSenha = usuario === null || (await tx.user.findUniqueOrThrow({ where: { id: usuario.id }, select: { passwordHash: true } })).passwordHash === null
         if (usuario === null) {
           try {
             usuario = await tx.user.create({ data: { name: i.owner.name, searchName: searchKey(i.owner.name), email: i.owner.email }, select: { id: true, name: true } })
@@ -439,7 +444,7 @@ export async function createBusiness(
           }
         }
         await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' } })
-        const convite = existente ? null : await issueInvite(tx, usuario.id, now)
+        const convite = !semSenha ? null : await issueInvite(tx, usuario.id, now)
         await auditar(tx, actor, 'business.created', conta.id, {
           slug: i.slug,
           ownerUserId: usuario.id,
@@ -534,8 +539,8 @@ const TRANSICOES: Record<BusinessStatus, readonly BusinessStatus[]> = {
 }
 
 /**
- * Muda a situação da conta. Pede o nome da conta como confirmação. Ao sair de `ACTIVE`, revoga as sessões do painel dos
- * membros nesta conta (a sessão guarda a conta ativa); os tokens do app caem sozinhos porque o contexto relê a conta.
+ * Muda a situação da conta. Pede o nome da conta como confirmação. Ao sair de `ACTIVE`, revoga toda sessão que tem esta conta
+ * ativa (a sessão guarda a conta; inclui a de suporte, que não tem usuário); os tokens do app caem sozinhos porque o contexto relê a conta.
  */
 export async function setBusinessStatus(
   actor: PlatformAdminActor,
@@ -563,7 +568,7 @@ export async function setBusinessStatus(
     if (r.count !== 1) throw invalida()
     if (from === 'ACTIVE') {
       await tx.session.updateMany({
-        where: { activeBusinessId: id, revokedAt: null, user: { memberships: { some: { businessId: id } } } },
+        where: { activeBusinessId: id, revokedAt: null },
         data: { revokedAt: now },
       })
     }

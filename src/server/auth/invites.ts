@@ -24,6 +24,11 @@ const invalido = (): DomainError => new DomainError('not_found', INVITE_INVALID_
  * ainda não usado. O token em texto só existe neste retorno, para ir no e-mail.
  */
 export async function issueInvite(tx: PlatformTx, userId: string, now: Date): Promise<{ token: string; expiresAt: Date }> {
+  const usuario = await tx.user.findUnique({ where: { id: userId }, select: { passwordHash: true } })
+  if (!usuario) throw new DomainError('not_found', 'Usuário não encontrado.')
+  if (usuario.passwordHash !== null) {
+    throw new DomainError('conflict', 'Este usuário já tem senha. Convite só vale para quem ainda não definiu uma.')
+  }
   await tx.userToken.deleteMany({ where: { userId, purpose: 'INVITE', usedAt: null } })
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, INVITE_TTL_DAYS * 24 * 60)
@@ -52,21 +57,28 @@ export async function acceptInvite(i: { token: string; password: string }, now: 
   if ((await readInvite(i.token, now)) === null) throw invalido()
   const passwordHash = await hashPassword(password)
   const tokenHash = hashToken(i.token)
-  await prisma.$transaction(async (tx) => {
+  const definida = await prisma.$transaction(async (tx) => {
     const usado = await tx.userToken.updateMany({
       where: { tokenHash, purpose: 'INVITE', usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now },
     })
     if (usado.count !== 1) throw invalido()
     const { userId } = await tx.userToken.findUniqueOrThrow({ where: { tokenHash }, select: { userId: true } })
-    await tx.user.update({ where: { id: userId }, data: { passwordHash } })
+    // Convite só define a primeira senha: quem já tem senha não a perde por um convite antigo (o token fica consumido).
+    const gravada = await tx.user.updateMany({ where: { id: userId, passwordHash: null }, data: { passwordHash } })
+    if (gravada.count !== 1) return false
     await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } })
+    return true
   })
+  if (!definida) throw invalido()
 }
 
-/** Conta uma tentativa de definir senha por IP (o IPv6 entra como /64). Sem IP confiável, todas dividem uma chave só. */
-export async function checkInviteLimit(ip: string | undefined, now: Date): Promise<void> {
-  const chave = ip ? limitKey('convite:ip', ipLimitKeyPart(ip)) : 'convite:sem-ip'
+/**
+ * Conta uma tentativa de definir senha. Com IP confiável, por IP (IPv6 como /64). Sem IP (proxy não configurado), por
+ * token: cada token tem o seu contador, então token lixo nunca atrapalha o convite de outra pessoa.
+ */
+export async function checkInviteLimit(ip: string | undefined, token: string, now: Date): Promise<void> {
+  const chave = ip ? limitKey('convite:ip', ipLimitKeyPart(ip)) : limitKey('convite:token', hashToken(token))
   const r = await hitRateLimit(chave, LIMITS.authIp, now)
   if (!r.allowed) throw new AuthError('rate_limited', r.retryAfterSec)
 }

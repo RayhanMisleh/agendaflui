@@ -112,6 +112,20 @@ describe('createBusiness', () => {
     expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar/central')
   })
 
+  test('dono existente sem senha: emite convite novo e manda o e-mail de convite', async () => {
+    const outra = await makeBusiness()
+    const pendente = await makeUser({ name: 'Pendente', email: 'pendente@exemplo.test', password: null })
+    await makeMembership(outra.id, pendente.id, 'OWNER')
+    await prisma.userToken.create({ data: { userId: pendente.id, purpose: 'INVITE', tokenHash: 'velho', expiresAt: new Date(Date.now() - 1000) } })
+    const r = await createBusiness(actor, { ...base, owner: { name: 'X', email: 'pendente@exemplo.test' } })
+    expect(r.owner).toEqual({ userId: pendente.id, existing: true })
+    const token = tokenDoEmail()
+    const convites = await prisma.userToken.findMany({ where: { userId: pendente.id } })
+    expect(convites).toHaveLength(1)
+    expect(convites[0]?.tokenHash).toBe(hashToken(token))
+    expect(mail.sent[0]?.text).toContain('/definir-senha/')
+  })
+
   test('falha no envio não desfaz a conta e aparece no retorno', async () => {
     mail.failing = true
     const r = await createBusiness(actor, base)
@@ -177,6 +191,15 @@ describe('createBusiness', () => {
     }
   })
 
+  test('CNPJ alfanumérico: válido passa (maiúsculas, sem pontuação); dígito trocado e repetidos falham', async () => {
+    const ok = await createBusiness(actor, { ...base, slug: 'alfa', document: '12.abc.345/01de-35', owner: { name: 'A', email: 'alfa@exemplo.test' } })
+    expect(ok.business.document).toBe('12ABC34501DE35')
+    for (const ruim of ['12ABC34501DE36', '12ABC34501DE3A', 'AAAAAAAAAAAAAA', '12ABC34501DE']) {
+      const e = await domainError(createBusiness(actor, { ...base, slug: 'ruim', document: ruim, owner: { name: 'R', email: 'r@exemplo.test' } }))
+      expect(e.fields, ruim).toHaveProperty('document')
+    }
+  })
+
   test('e-mail do dono inválido falha no campo owner.email', async () => {
     const e = await domainError(createBusiness(actor, { ...base, owner: { name: 'X', email: 'nao-e-email' } }))
     expect(e.fields).toHaveProperty('owner.email')
@@ -201,6 +224,14 @@ describe('listBusinesses e getBusinessDetail', () => {
     expect(await slugs('maria@exemplo')).toEqual(['lua-nova'])
     expect(await slugs('inexistente')).toEqual([])
     expect(await slugs('%')).toEqual([])
+  })
+
+  test('a busca por dono só olha vínculos ativos', async () => {
+    const r = await createBusiness(actor, base)
+    await prisma.membership.updateMany({ where: { businessId: r.business.id, userId: r.owner.userId }, data: { active: false } })
+    expect((await listBusinesses(actor, { search: 'joao' })).items).toEqual([])
+    expect((await listBusinesses(actor, { search: 'joao@exemplo' })).items).toEqual([])
+    expect((await listBusinesses(actor, { search: 'central' })).items).toHaveLength(1)
   })
 
   test('filtra por situação e devolve a linha com dono e link de entrada', async () => {
@@ -347,6 +378,16 @@ describe('setBusinessStatus', () => {
     expect(await revogada(dono.id)).toBe(true)
     expect(await revogada(emOutra.id)).toBe(false)
     expect(await revogada(deEstranho.id)).toBe(false)
+  })
+
+  test('revoga toda sessão com a conta ativa, inclusive a sem usuário (suporte)', async () => {
+    const r = await createBusiness(actor, base)
+    const suporte = await prisma.session.create({ data: { userId: null, impersonatorAdminId: adminId, activeBusinessId: r.business.id, tokenHash: 'sup', expiresAt: futuro() } })
+    const fora = await makeUser()
+    const deFora = await prisma.session.create({ data: { userId: fora.id, activeBusinessId: r.business.id, tokenHash: 'fora', expiresAt: futuro() } })
+    await setBusinessStatus(actor, r.business.id, 'SUSPENDED', confirm)
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: suporte.id } })).revokedAt).not.toBeNull()
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: deFora.id } })).revokedAt).not.toBeNull()
   })
 
   test('transições válidas: ACTIVE e SUSPENDED nos dois sentidos, qualquer uma para ARCHIVED, ARCHIVED para ACTIVE', async () => {

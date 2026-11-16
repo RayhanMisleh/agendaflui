@@ -250,7 +250,10 @@ export async function seed(
     const normalizado = emailSchema.parse(email)
     const existente = await prisma.user.findUnique({ where: { email: normalizado } })
     emails.push(normalizado)
-    if (existente) return existente.id
+    if (existente) {
+      await prisma.user.update({ where: { id: existente.id }, data: { searchName: searchKey(name) } })
+      return existente.id
+    }
     const criado = await prisma.user.create({
       data: { name, searchName: searchKey(name), email: normalizado, passwordHash: await hashPassword(env.SEED_USER_PASSWORD) },
     })
@@ -280,7 +283,7 @@ export async function seed(
         modules: { create: conta.modulos },
         settings: { create: conta.termos },
       },
-      update: {},
+      update: { searchName: searchKey(conta.nome) },
     })
     for (const papel of ['dono', 'gerente', 'profissional'] as const) {
       const userId = await usuario(conta.equipe[papel], demoEmail(conta.chave, papel))

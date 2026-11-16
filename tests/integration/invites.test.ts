@@ -121,6 +121,21 @@ describe('acceptInvite', () => {
     expect((await prisma.session.findUniqueOrThrow({ where: { id: alheia.id } })).revokedAt).toBeNull()
   })
 
+  test('usuário que já tem senha: o convite é inválido, o token é consumido e a senha não muda', async () => {
+    const { user, token } = await novoConvite()
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: 'hash-existente' } })
+    const e = await domainError(acceptInvite({ token, password: SENHA }, AGORA))
+    expect(e.code).toBe('not_found')
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash).toBe('hash-existente')
+    expect((await prisma.userToken.findFirstOrThrow({ where: { userId: user.id } })).usedAt).toEqual(AGORA)
+  })
+
+  test('issueInvite recusa usuário que já tem senha', async () => {
+    const user = await makeUser({ password: 'senha-bem-longa' })
+    await expect(prisma.$transaction((tx) => issueInvite(tx, user.id, AGORA))).rejects.toMatchObject({ code: 'conflict' })
+    expect(await prisma.userToken.count()).toBe(0)
+  })
+
   test('um token de outro propósito não serve de convite', async () => {
     const user = await makeUser({ password: null })
     await prisma.userToken.create({ data: { userId: user.id, purpose: 'PASSWORD_RESET', tokenHash: hashToken('reset'), expiresAt: addMinutes(AGORA, 60) } })
@@ -175,5 +190,31 @@ describe('ação de servidor da tela de definir senha', () => {
     expect(ultima).toMatchObject({ error: expect.stringMatching(/Muitas tentativas/) })
     expect(await chamar(token, SENHA)).toMatchObject({ error: expect.stringMatching(/Muitas tentativas/) })
     expect(await readInvite(token, new Date())).not.toBeNull()
+  })
+
+  test('sem IP confiável o limite é por token: tokens lixo diferentes não travam um convite válido', async () => {
+    vi.doMock('@/server/auth/request-info', () => ({ requestInfo: async () => ({}) }))
+    vi.resetModules()
+    const { definirSenha } = await import('@/app/painel/definir-senha/[token]/actions')
+    const { token } = await novoConvite(new Date())
+    const tentar = async (t: string) => {
+      const form = new FormData()
+      form.set('token', t)
+      form.set('password', SENHA)
+      form.set('confirm', SENHA)
+      try {
+        return await definirSenha({ error: null, fields: {} }, form)
+      } catch (e) {
+        return { redirectedTo: (e as unknown as { to: string }).to }
+      }
+    }
+    for (let n = 0; n < 40; n++) await tentar(`lixo-${n}`)
+    expect(await tentar(token)).toEqual({ redirectedTo: '/entrar' })
+    // O mesmo token lixo repetido esgota o contador dele.
+    let r: unknown
+    for (let n = 0; n < 31; n++) r = await tentar('sempre-o-mesmo')
+    expect(r).toMatchObject({ error: expect.stringMatching(/Muitas tentativas/) })
+    vi.doUnmock('@/server/auth/request-info')
+    vi.resetModules()
   })
 })
