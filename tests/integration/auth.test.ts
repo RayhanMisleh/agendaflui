@@ -206,7 +206,11 @@ test('painel: o bloqueio sobrevive a um processo novo (módulo recarregado)', as
 test('admin: usa o banco com chaves próprias, barra com minutos e o sucesso zera o e-mail', async () => {
   await makePlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA })
   for (let i = 0; i < 5; i++) await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: ERRADA, ip: '198.51.100.7' }).catch(() => {})
-  expect(await chavesDeLimite()).toEqual(['login:dev:email:dev@agendaflui.test', 'login:dev:ip:198.51.100.7'])
+  expect(await chavesDeLimite()).toEqual([
+    'login:dev:email-ip:dev@agendaflui.test|198.51.100.7',
+    'login:dev:email:dev@agendaflui.test',
+    'login:dev:ip:198.51.100.7',
+  ])
   const erro = await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA }).catch((e: unknown) => e)
   expect(erro).toMatchObject({ code: 'rate_limited' })
   expect((erro as AuthError).retryAfterSec).toBeGreaterThanOrEqual(1)
@@ -215,4 +219,46 @@ test('admin: usa o banco com chaves próprias, barra com minutos e o sucesso zer
   for (let i = 0; i < 2; i++) await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: ERRADA }).catch(() => {})
   await loginPlatformAdmin({ email: 'dev@agendaflui.test', password: SENHA })
   expect(await chavesDeLimite()).toEqual([])
+})
+
+test('painel com IP: 5 erros bloqueiam o e-mail a partir daquele IP, mas outro IP entra com a senha certa', async () => {
+  await makeUser({ email: 'dono@x.test', password: SENHA })
+  for (let i = 0; i < 5; i++) await loginUser({ email: 'dono@x.test', password: ERRADA, ip: '203.0.113.1' }).catch(() => {})
+  const barrado = await loginUser({ email: 'dono@x.test', password: SENHA, ip: '203.0.113.1' }).catch((e: unknown) => e)
+  expect(barrado).toMatchObject({ code: 'rate_limited' })
+  expect((barrado as AuthError).retryAfterSec).toBeGreaterThanOrEqual(1)
+  await expect(loginUser({ email: 'dono@x.test', password: SENHA, ip: '203.0.113.2' })).resolves.toBeDefined()
+})
+
+test('painel com IP: o mesmo bloqueio vale para e-mail que não existe (mensagem idêntica)', async () => {
+  await makeUser({ email: 'dono@x.test', password: SENHA })
+  const falha = async (email: string): Promise<AuthError> => {
+    for (let i = 0; i < 5; i++) await loginUser({ email, password: ERRADA, ip: '203.0.113.1' }).catch(() => {})
+    return (await loginUser({ email, password: ERRADA, ip: '203.0.113.1' }).catch((e: unknown) => e)) as AuthError
+  }
+  const a = await falha('dono@x.test')
+  const b = await falha('fantasma@x.test')
+  expect(a.code).toBe('rate_limited')
+  expect(b.code).toBe('rate_limited')
+  expect(a.message).toBe(b.message)
+})
+
+test('painel com IP: 30 erros espalhados por IPs diferentes bloqueiam o e-mail para todos', async () => {
+  await makeUser({ email: 'dono@x.test', password: SENHA })
+  for (let i = 0; i < 30; i++) await loginUser({ email: 'dono@x.test', password: ERRADA, ip: `203.0.113.${i + 10}` }).catch(() => {})
+  await expect(loginUser({ email: 'dono@x.test', password: SENHA, ip: '198.51.100.99' })).rejects.toMatchObject({ code: 'rate_limited' })
+})
+
+test('painel com IP: o sucesso limpa e-mail+IP e e-mail, nunca o IP', async () => {
+  await makeUser({ email: 'a@x.test', password: SENHA })
+  await loginUser({ email: 'a@x.test', password: ERRADA, ip: '203.0.113.9' }).catch(() => {})
+  expect(await chavesDeLimite()).toEqual(['login:painel:email-ip:a@x.test|203.0.113.9', 'login:painel:email:a@x.test', 'login:painel:ip:203.0.113.9'])
+  await loginUser({ email: 'a@x.test', password: SENHA, ip: '203.0.113.9' })
+  expect(await chavesDeLimite()).toEqual(['login:painel:ip:203.0.113.9'])
+})
+
+test('painel com IPv6: endereços do mesmo /64 dividem o limite', async () => {
+  for (let i = 0; i < 5; i++) await loginUser({ email: 'v6@x.test', password: ERRADA, ip: `2001:db8:0:0::${i + 1}` }).catch(() => {})
+  await expect(loginUser({ email: 'v6@x.test', password: ERRADA, ip: '2001:db8::ffff' })).rejects.toMatchObject({ code: 'rate_limited' })
+  expect(await chavesDeLimite()).toContain('login:painel:ip:2001:db8:0:0::/64')
 })

@@ -1,12 +1,14 @@
 import 'server-only'
 import { createHash } from 'node:crypto'
 import { prisma } from '@/server/db/client'
-import { toIsoInstant } from '@/server/time'
+import { fromEpochMs, toIsoInstant } from '@/server/time'
 
 export type LimitRule = { limit: number; windowSec: number }
 
 export const LIMITS = {
   loginEmail: { limit: 5, windowSec: 900 },
+  loginEmailIp: { limit: 5, windowSec: 900 },
+  loginEmailWide: { limit: 30, windowSec: 900 },
   loginIp: { limit: 20, windowSec: 900 },
   apiKeyIp: { limit: 120, windowSec: 60 },
   authIp: { limit: 10, windowSec: 900 },
@@ -14,6 +16,10 @@ export const LIMITS = {
 } as const satisfies Record<string, LimitRule>
 
 const MAX_KEY = 200
+const MAX_WINDOW_SEC = 86_400
+
+/** Janelas que começaram há mais que isto são apagadas por `purgeRateLimits` (maior que qualquer janela válida). */
+export const PURGE_AFTER_SEC = 86_400
 
 /**
  * Chave de limite estável e legível: `<prefixo>:<valor>`, por exemplo `login:painel:email:a@b.com`.
@@ -35,6 +41,15 @@ export async function hitRateLimit(
   rule: LimitRule,
   now: Date,
 ): Promise<{ allowed: boolean; remaining: number; retryAfterSec: number }> {
+  if (
+    !Number.isInteger(rule.windowSec) ||
+    rule.windowSec < 1 ||
+    rule.windowSec > MAX_WINDOW_SEC ||
+    !Number.isInteger(rule.limit) ||
+    rule.limit < 1
+  ) {
+    throw new Error(`Regra de limite inválida: windowSec inteiro de 1 a ${MAX_WINDOW_SEC} e limit inteiro a partir de 1.`)
+  }
   if (key.length === 0 || key.length > MAX_KEY) {
     throw new Error(`Chave de limite inválida: precisa ter de 1 a ${MAX_KEY} caracteres.`)
   }
@@ -58,7 +73,8 @@ export async function hitRateLimit(
   return {
     allowed,
     remaining: Math.max(0, rule.limit - row.count),
-    retryAfterSec: allowed ? 0 : Math.max(1, Math.ceil((fimDaJanela - now.getTime()) / 1000)),
+    // Entre 1 e a janela, mesmo que o relógio de quem gravou esteja adiantado em relação ao de `now`.
+    retryAfterSec: allowed ? 0 : Math.min(rule.windowSec, Math.max(1, Math.ceil((fimDaJanela - now.getTime()) / 1000))),
   }
 }
 
@@ -66,8 +82,12 @@ export async function clearRateLimit(key: string): Promise<void> {
   await prisma.rateLimitBucket.deleteMany({ where: { key } })
 }
 
-/** Apaga as janelas que começaram antes de `olderThan`; devolve quantas. */
-export async function purgeRateLimits(olderThan: Date): Promise<number> {
-  const r = await prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: olderThan } } })
+/**
+ * Apaga as janelas que começaram há mais de `PURGE_AFTER_SEC` (1 dia) antes de `now`; devolve quantas.
+ * Como nenhuma janela válida passa de 1 dia, nunca apaga uma janela viva.
+ */
+export async function purgeRateLimits(now: Date): Promise<number> {
+  const corte = fromEpochMs(now.getTime() - PURGE_AFTER_SEC * 1000)
+  const r = await prisma.rateLimitBucket.deleteMany({ where: { windowStart: { lt: corte } } })
   return r.count
 }

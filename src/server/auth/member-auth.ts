@@ -57,7 +57,7 @@ export async function loginUser(i: {
   const ok = await verifyPassword(user?.passwordHash ?? (await hashFalso), i.password)
   if (!user || !user.passwordHash || !ok) throw new AuthError('invalid_credentials')
 
-  await clearLoginLimit('painel', email)
+  await clearLoginLimit('painel', email, i.ip)
   const memberships = await listMemberships(user.id)
   const only = memberships.length === 1 ? memberships[0] : undefined
   const activeBusinessId = only ? only.businessId : null

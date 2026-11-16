@@ -25,7 +25,7 @@ export async function loginPlatformAdmin(i: {
   if (!admin || !ok) throw new AuthError('invalid_credentials')
   if (!admin.active) throw new AuthError('account_inactive')
 
-  await clearLoginLimit('dev', email)
+  await clearLoginLimit('dev', email, i.ip)
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, SESSAO_MINUTOS)
   await prisma.$transaction([

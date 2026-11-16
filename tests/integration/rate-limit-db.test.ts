@@ -1,5 +1,5 @@
 import { beforeEach, expect, test, vi } from 'vitest'
-import { clearRateLimit, hitRateLimit, LIMITS, limitKey, purgeRateLimits } from '@/server/auth/rate-limit-db'
+import { clearRateLimit, hitRateLimit, LIMITS, limitKey, PURGE_AFTER_SEC, purgeRateLimits } from '@/server/auth/rate-limit-db'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
 
@@ -68,13 +68,34 @@ test('clearRateLimit zera só a chave pedida', async () => {
   await expect(clearRateLimit('nunca-existiu')).resolves.toBeUndefined()
 })
 
-test('purgeRateLimits apaga só as janelas anteriores ao corte e devolve quantas', async () => {
-  await hitRateLimit('velha1', regra, em(-3600))
-  await hitRateLimit('velha2', regra, em(-1800))
+test('purgeRateLimits apaga só as janelas que começaram há mais de 1 dia e devolve quantas', async () => {
+  expect(PURGE_AFTER_SEC).toBe(86400)
+  await hitRateLimit('velha', regra, em(-25 * 3600))
+  await hitRateLimit('quase', regra, em(-23 * 3600))
   await hitRateLimit('nova', regra, T0)
-  expect(await purgeRateLimits(em(-60))).toBe(2)
-  expect((await prisma.rateLimitBucket.findMany()).map((l) => l.key)).toEqual(['nova'])
-  expect(await purgeRateLimits(em(-60))).toBe(0)
+  expect(await purgeRateLimits(T0)).toBe(1)
+  expect((await prisma.rateLimitBucket.findMany({ orderBy: { key: 'asc' } })).map((l) => l.key)).toEqual(['nova', 'quase'])
+  expect(await purgeRateLimits(T0)).toBe(0)
+})
+
+test('a espera nunca passa da janela, mesmo com relógio atrasado em relação ao gravado', async () => {
+  for (let i = 0; i < 6; i++) await hitRateLimit('relogio', regra, T0)
+  const r = await hitRateLimit('relogio', regra, em(-60))
+  expect(r.allowed).toBe(false)
+  expect(r.retryAfterSec).toBe(regra.windowSec)
+})
+
+test('regra inválida é erro de programação', async () => {
+  const ruim = [
+    { limit: 0, windowSec: 60 },
+    { limit: 1.5, windowSec: 60 },
+    { limit: 5, windowSec: 0 },
+    { limit: 5, windowSec: 86401 },
+    { limit: 5, windowSec: 1.5 },
+    { limit: Number.NaN, windowSec: 60 },
+  ]
+  for (const r of ruim) await expect(hitRateLimit('k', r, T0), JSON.stringify(r)).rejects.toThrow(/regra/i)
+  await expect(hitRateLimit('k', { limit: 1, windowSec: 86400 }, T0)).resolves.toBeDefined()
 })
 
 test('a contagem para de crescer acima do limite', async () => {
@@ -95,6 +116,8 @@ test('chave com mais de 200 caracteres é recusada; limitKey encurta com hash es
 test('os limites combinados', () => {
   expect(LIMITS).toEqual({
     loginEmail: { limit: 5, windowSec: 900 },
+    loginEmailIp: { limit: 5, windowSec: 900 },
+    loginEmailWide: { limit: 30, windowSec: 900 },
     loginIp: { limit: 20, windowSec: 900 },
     apiKeyIp: { limit: 120, windowSec: 60 },
     authIp: { limit: 10, windowSec: 900 },
