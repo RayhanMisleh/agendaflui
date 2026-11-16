@@ -35,6 +35,8 @@ type StatusChange = {
   /** Campos extras a gravar; pode recusar a mudança. */
   prepare?: (tx: TenantTx, row: Row) => Promise<Prisma.AppointmentUncheckedUpdateInput>
   metadata?: (row: Row, extra: Prisma.AppointmentUncheckedUpdateInput) => Record<string, string | number | null>
+  /** Texto do erro `slot_taken` quando a mudança volta a ocupar um horário que outro agendamento tomou. */
+  slotTakenMessage?: string
   /** Dados a mais para os avisos do evento (ver `afterChange`). */
   eventExtra?: Record<string, string | number | null>
 }
@@ -74,20 +76,27 @@ async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange):
   const scope = await staffScope(ctx, who)
   const before = await loadForActor(ctx, ctx.db, id, who, scope)
 
-  return lockedTransaction(
-    ctx,
-    [before.professionalId],
-    () => ({ startsAt: before.startsAt, durationMin: before.totalDurationMin, professionalIds: [before.professionalId], ignoreAppointmentId: id }),
-    async (tx) => {
-      const row = await loadForActor(ctx, tx, id, who, scope)
-      assertProfessionalUnchanged(row, [before.professionalId])
-      assertTransition(row, spec)
-      if (who === 'customer') {
-        assertCustomerWindow(ctx, await getSchedulingRules(ctx, tx), row.startsAt, spec.customerVerb ?? '')
-      }
-      return toView(ctx, await applyChange(tx, ctx, row, spec), scope)
-    },
-  )
+  try {
+    return await lockedTransaction(
+      ctx,
+      [before.professionalId],
+      () => ({ startsAt: before.startsAt, durationMin: before.totalDurationMin, professionalIds: [before.professionalId], ignoreAppointmentId: id }),
+      async (tx) => {
+        const row = await loadForActor(ctx, tx, id, who, scope)
+        assertProfessionalUnchanged(row, [before.professionalId])
+        assertTransition(row, spec)
+        if (who === 'customer') {
+          assertCustomerWindow(ctx, await getSchedulingRules(ctx, tx), row.startsAt, spec.customerVerb ?? '')
+        }
+        return toView(ctx, await applyChange(tx, ctx, row, spec), scope)
+      },
+    )
+  } catch (err) {
+    if (spec.slotTakenMessage && err instanceof DomainError && err.reason === 'slot_taken') {
+      throw new DomainError('conflict', spec.slotTakenMessage, { reason: 'slot_taken' })
+    }
+    throw err
+  }
 }
 
 function cancelSpec(ctx: TenantContext, reason: string | null, eventExtra?: StatusChange['eventExtra']): StatusChange {
@@ -178,6 +187,7 @@ export function undoOutcome(ctx: TenantContext, id: string): Promise<Appointment
     action: 'appointment.outcome_undone',
     event: 'outcome_undone',
     invalid: 'Só dá para desfazer agendamentos concluídos ou com falta.',
+    slotTakenMessage: 'Não dá para desfazer: o horário já está ocupado por outro agendamento.',
     prepare: async () => ({ completedAt: null, commissionCents: null }),
   })
 }

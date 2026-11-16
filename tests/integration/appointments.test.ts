@@ -714,7 +714,9 @@ describe('situação', () => {
     const novo = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
     expect(novo.id).not.toBe(a.id)
     const e = await domainError(undoOutcome(s.gerente, a.id))
+    expect(e.code).toBe('conflict')
     expect(e.reason).toBe('slot_taken')
+    expect(e.message).toBe('Não dá para desfazer: o horário já está ocupado por outro agendamento.')
     expect((await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } })).status).toBe('NO_SHOW')
   })
 
