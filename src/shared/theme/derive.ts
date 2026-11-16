@@ -14,9 +14,16 @@ export const FONT_PAIRS = ['CLASSIC', 'MODERN', 'FRIENDLY'] as const satisfies r
  * Sinais objetivos do motor, na ordem em que saem:
  * - `text_adjusted`: a cor principal foi trocada (escurecida) para o texto sobre a capa chegar a 4,5 de contraste;
  * - `accent_adjusted`: o mesmo com a cor de destaque;
- * - `relief_collapsed`: a capa perdeu o relevo (ver `RELIEF_MIN_DELTA_L`).
+ * - `relief_collapsed`: a capa perdeu o relevo (ver `RELIEF_MIN_DELTA_L`);
+ * - `cover_near_paper`: a capa quase some contra o papel (ver `COVER_PAPER_MIN_CONTRAST`);
+ * - `invalid_color`: só a prévia emite (cor fora do formato `#RRGGBB`; o servidor recusaria).
  */
-export type ThemeWarning = 'text_adjusted' | 'accent_adjusted' | 'relief_collapsed'
+export type ThemeWarning =
+  | 'invalid_color'
+  | 'text_adjusted'
+  | 'accent_adjusted'
+  | 'relief_collapsed'
+  | 'cover_near_paper'
 
 /**
  * Diferença mínima de luminosidade (L do OKLCH, de 0 a 100) entre a capa e o seu realce (`--cover-hi`) e entre a capa e a
@@ -25,10 +32,18 @@ export type ThemeWarning = 'text_adjusted' | 'accent_adjusted' | 'relief_collaps
  */
 export const RELIEF_MIN_DELTA_L = 4
 
+/**
+ * Contraste mínimo entre a cor da capa e a do papel escolhido. Abaixo disso a capa se confunde com o conteúdo (capa
+ * creme sobre papel creme): é só uma diferença visível entre as duas superfícies, não um requisito de leitura (AA).
+ */
+export const COVER_PAPER_MIN_CONTRAST = 1.3
+
 export const THEME_WARNING_TEXT: Record<ThemeWarning, string> = {
+  invalid_color: 'Use cores no formato #RRGGBB, com 6 dígitos. Enquanto isso, a prévia usa a cor padrão.',
   text_adjusted: 'A cor principal foi escurecida para o texto ficar legível.',
   accent_adjusted: 'A cor de destaque foi escurecida para o texto ficar legível.',
   relief_collapsed: 'Com esta cor principal o relevo da capa quase some. Escolha uma cor menos clara ou menos escura para a capa ter volume.',
+  cover_near_paper: 'A capa tem quase a mesma cor do papel e se perde contra o fundo. Escolha uma cor mais distante do tom do papel.',
 }
 
 export type BrandInput = {
@@ -125,6 +140,7 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
   const coverL = hexToOklch(cover.color).l
   const relief = Math.min(hexToOklch(coverHi).l - coverL, coverL - hexToOklch(coverLo).l)
   if (relief < RELIEF_MIN_DELTA_L) signals.push('relief_collapsed')
+  if (contrastRatio(cover.color, paper) < COVER_PAPER_MIN_CONTRAST) signals.push('cover_near_paper')
 
   const vars: ThemeTokens['vars'] = {
     '--cover': cover.color,

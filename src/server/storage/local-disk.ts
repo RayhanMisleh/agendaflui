@@ -43,15 +43,13 @@ export function createLocalDiskStorage(rootDir: string): Storage {
     return alvo
   }
 
-  let raizReal: Promise<string> | undefined
-
   /**
    * `true` se `alvo` (e o seu `.meta`) é o que a chave diz: nenhum link simbólico no caminho, nem na pasta nem no arquivo.
    * Comparar o caminho real com o caminho esperado pega as duas coisas; o que não existe vira `null` no chamador.
    */
   async function semLinks(alvo: string): Promise<boolean> {
-    raizReal ??= realpath(raiz)
-    const base = await raizReal
+    // Sem cache: a pasta pode não existir ainda (a falha de agora não pode valer para as próximas leituras).
+    const base = await realpath(raiz)
     const esperado = resolve(base, relative(raiz, alvo))
     return (await realpath(alvo)) === esperado
   }

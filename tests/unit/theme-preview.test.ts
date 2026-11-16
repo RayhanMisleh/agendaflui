@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { contrastRatio } from '@/shared/theme/color'
 import { deriveTheme } from '@/shared/theme/derive'
-import { FONT_PAIRS, previewTheme, RELIEF_MIN_DELTA_L, type ThemeWarning } from '@/shared/theme/preview'
+import { COVER_PAPER_MIN_CONTRAST, FONT_PAIRS, PAPER, previewTheme, RELIEF_MIN_DELTA_L, type ThemeWarning } from '@/shared/theme/preview'
 
 const base = { primary: '#0e4f5c', accent: '#e0a030', material: 'ENAMEL', paper: 'WHITE', fontPair: 'CLASSIC' } as const
 const PAPERS = ['WHITE', 'CREAM', 'GRAY'] as const
@@ -55,10 +55,10 @@ describe('previewTheme: cores extremas', () => {
     }
   })
 
-  test('branco, amarelo e cor igual ao papel têm texto escuro legível e não avisam de texto trocado', () => {
+  test('branco, amarelo e cor igual ao papel têm texto escuro legível; só relevo e capa-contra-papel avisam', () => {
     for (const cor of ['#ffffff', '#ffff00', '#fbfaf7']) {
       const r = previewTheme({ ...base, primary: cor })
-      expect(r.warnings).toEqual(['relief_collapsed'])
+      expect(r.warnings).toEqual(['relief_collapsed', 'cover_near_paper'])
       expect(contrastRatio(r.tokens['--on-cover'] ?? '', r.tokens['--cover'] ?? '')).toBeGreaterThanOrEqual(4.5)
     }
   })
@@ -87,6 +87,25 @@ describe('previewTheme: cores extremas', () => {
   })
 })
 
+describe('previewTheme: capa contra o papel', () => {
+  test.each(PAPERS)('capa igual ao papel %s avisa cover_near_paper', (paper) => {
+    const r = previewTheme({ ...base, paper, primary: PAPER[paper] })
+    expect(r.warnings).toContain('cover_near_paper')
+  })
+
+  test('capa quase do tom do papel (abaixo do limiar) avisa; cor comum e capa escura não', () => {
+    expect(contrastRatio('#F6EFDD', '#FBFAF7')).toBeLessThan(COVER_PAPER_MIN_CONTRAST)
+    expect(previewTheme({ ...base, paper: 'WHITE', primary: '#f6efdd' }).warnings).toContain('cover_near_paper')
+    for (const primary of ['#0e4f5c', '#7a1f2b', '#2f6b4f', '#000000']) {
+      for (const paper of PAPERS) expect(previewTheme({ ...base, paper, primary }).warnings).not.toContain('cover_near_paper')
+    }
+  })
+
+  test('o limiar está declarado', () => {
+    expect(COVER_PAPER_MIN_CONTRAST).toBe(1.3)
+  })
+})
+
 describe('previewTheme: cores comuns', () => {
   test.each(['#0e4f5c', '#7a1f2b', '#2f6b4f', '#3f51b5', '#c2185b'])('%s sem avisos', (primary) => {
     for (const paper of PAPERS) expect(previewTheme({ ...base, primary, paper }).warnings).toEqual([])
@@ -111,9 +130,19 @@ describe('previewTheme: mesmos tokens do painel', () => {
     expect(previewTheme({ ...base, primary: '#7A1F2B' })).toEqual(previewTheme({ ...base, primary: '#7a1f2b' }))
   })
 
-  test('cor ainda incompleta (digitando) não quebra: usa a cor padrão e segue', () => {
-    expect(() => previewTheme({ ...base, primary: '#7a12', accent: 'red' })).not.toThrow()
-    expect(previewTheme({ ...base, primary: '#7a12' }).tokens).toEqual(previewTheme(base).tokens)
+  test('cor fora do formato do servidor (#RRGGBB) usa o padrão e devolve invalid_color', () => {
+    for (const ruim of ['#7a12', '#FFF', 'fff', '0e4f5c', 'red', '', '#12345g']) {
+      const r = previewTheme({ ...base, primary: ruim })
+      expect(r.warnings, ruim).toEqual(['invalid_color'])
+      expect(r.tokens).toEqual(previewTheme(base).tokens)
+    }
+    expect(previewTheme({ ...base, accent: '#FFF' }).warnings).toEqual(['invalid_color'])
+    expect(previewTheme({ ...base, primary: 'x', accent: 'y' }).warnings).toEqual(['invalid_color'])
+  })
+
+  test('minúsculas valem e dão os mesmos tokens das maiúsculas', () => {
+    expect(previewTheme({ ...base, primary: '#7a1f2b' }).tokens).toEqual(previewTheme({ ...base, primary: '#7A1F2B' }).tokens)
+    expect(previewTheme({ ...base, primary: '#7a1f2b' }).warnings).toEqual([])
   })
 })
 

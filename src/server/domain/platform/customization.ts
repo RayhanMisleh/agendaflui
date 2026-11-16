@@ -10,7 +10,7 @@ import {
   updateNotificationSettings,
   type NotificationSettings,
 } from '@/server/domain/settings/notification-settings'
-import { getSchedulingRules, updateSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
+import { getSchedulingRules, parseSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { ImageError, removeUploadFile, saveImage, uploadUrl, type ImagePurpose } from '@/server/storage/images'
 import { canonicalTimeZone } from '@/server/time'
 import { COVER_MATERIALS, FONT_PAIRS, PAPER_TONES, type CoverMaterial, type FontPair, type PaperTone } from '@/shared/theme/derive'
@@ -84,8 +84,13 @@ const cor = z
   .regex(/^#[0-9a-fA-F]{6}$/, MSG_COR)
   .transform((v) => v.toUpperCase())
 
-const SEM_MARCACAO = /^[^<>]*$/
 const MSG_MARCACAO = 'Não use os sinais < e >.'
+const MSG_CONTROLE = 'Não use caracteres de controle (como quebra de linha ou tabulação).'
+// \p{C}: controle, formato (como o espaço de largura zero), surrogates soltos e não atribuídos.
+const SEM_CONTROLE = (v: string) => !/\p{C}/u.test(v)
+const SEM_MARCACAO = (v: string) => !/[<>]/.test(v)
+// Na mensagem de entrada a quebra de linha vale; qualquer outro caractere de controle não.
+const SEM_CONTROLE_EXCETO_LINHA = (v: string) => !/[^\P{C}\r\n]/u.test(v)
 
 const marcaSchema = z.strictObject({
   displayName: z
@@ -93,7 +98,8 @@ const marcaSchema = z.strictObject({
     .trim()
     .min(1, 'Informe o nome de exibição.')
     .max(80, 'Use no máximo 80 caracteres.')
-    .regex(SEM_MARCACAO, MSG_MARCACAO),
+    .refine(SEM_MARCACAO, MSG_MARCACAO)
+    .refine(SEM_CONTROLE, MSG_CONTROLE),
   primary: cor,
   accent: cor,
   material: z.enum(COVER_MATERIALS, { error: 'Escolha um dos materiais da lista.' }),
@@ -103,6 +109,8 @@ const marcaSchema = z.strictObject({
     .string()
     .trim()
     .max(280, 'Use no máximo 280 caracteres.')
+    .refine(SEM_MARCACAO, MSG_MARCACAO)
+    .refine(SEM_CONTROLE_EXCETO_LINHA, MSG_CONTROLE)
     .transform((v) => (v === '' ? null : v))
     .nullable(),
 })
@@ -144,9 +152,20 @@ async function lerMarca(businessId: string): Promise<BrandView> {
   return paraMarca(b)
 }
 
+const CAMPOS_MARCA = [
+  ['displayName', 'displayName'],
+  ['primary', 'primaryColor'],
+  ['accent', 'accentColor'],
+  ['material', 'coverMaterial'],
+  ['paper', 'paperTone'],
+  ['fontPair', 'fontPair'],
+] as const
+
 /**
  * Grava a marca. O UPDATE é uma instrução só, condicionada à versão lida: quem grava sobre uma versão antiga recebe
- * `conflict` (`stale_version`). As imagens têm o seu próprio caminho (`setBrandImage`) e não mexem na versão.
+ * `conflict` (`stale_version`). Sem mudança nenhuma, devolve a marca atual sem gravar, sem auditar e sem subir a versão.
+ * A auditoria guarda `{ from, to }` só dos campos que mudaram; da mensagem de entrada, só que mudou (não o texto).
+ * As imagens têm o seu próprio caminho (`setBrandImage`) e não mexem na versão.
  */
 export async function updateBrand(actor: PlatformAdminActor, businessId: string, version: number, input: BrandInput): Promise<BrandView> {
   exigirAdmin(actor)
@@ -154,6 +173,13 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
   const v = parse(z.number().int().min(1), version)
   const i = parse(marcaSchema, input)
   await prisma.$transaction(async (tx) => {
+    const atual = orNotFound(await tx.businessBranding.findUnique({ where: { businessId } }), 'Marca da conta')
+    const changes: Record<string, { from: string; to: string }> = {}
+    for (const [campo, coluna] of CAMPOS_MARCA) {
+      if (atual[coluna] !== i[campo]) changes[campo] = { from: atual[coluna], to: i[campo] }
+    }
+    const mensagemMudou = atual.loginMessage !== i.loginMessage
+    if (Object.keys(changes).length === 0 && !mensagemMudou) return
     const r = await tx.businessBranding.updateMany({
       where: { businessId, version: v },
       data: {
@@ -168,12 +194,11 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
       },
     })
     if (r.count === 0) {
-      orNotFound(await tx.businessBranding.findUnique({ where: { businessId }, select: { businessId: true } }), 'Marca da conta')
       throw new DomainError('conflict', 'Outra pessoa alterou a marca desta conta enquanto você editava. Recarregue a página e refaça a alteração.', {
         reason: 'stale_version',
       })
     }
-    await auditar(tx, actor, 'brand.updated', businessId, { fields: Object.keys(i).sort() })
+    await auditar(tx, actor, 'brand.updated', businessId, { changes, ...(mensagemMudou ? { loginMessageChanged: true } : {}) })
   })
   return lerMarca(businessId)
 }
@@ -218,9 +243,11 @@ export async function setBrandImage(
 ): Promise<BrandView> {
   exigirAdmin(actor)
   idValido(businessId)
-  const s = SLOTS[slot as BrandImageSlot] as (typeof SLOTS)[BrandImageSlot] | undefined
+  // `hasOwn`: 'constructor' e '__proto__' existem em todo objeto e não são espaços.
+  const s = Object.hasOwn(SLOTS, slot) ? SLOTS[slot] : undefined
   if (!s) throw new DomainError('validation', 'Escolha onde a imagem vai: logo, símbolo, favicon ou imagem de entrada.', { fields: { slot: 'Espaço de imagem desconhecido.' } })
 
+  orNotFound(await prisma.business.findUnique({ where: { id: businessId }, select: { id: true } }), 'Conta')
   let nova: { id: string; path: string } | null = null
   if (file !== null) {
     try {
@@ -262,7 +289,8 @@ const termo = z
   .trim()
   .min(1, 'Informe o termo.')
   .max(30, 'Use no máximo 30 caracteres.')
-  .regex(SEM_MARCACAO, MSG_MARCACAO)
+  .refine(SEM_MARCACAO, MSG_MARCACAO)
+  .refine(SEM_CONTROLE, MSG_CONTROLE)
 
 const termosSchema = z.strictObject({
   professionalSingular: termo,
@@ -310,7 +338,7 @@ export async function updateTerms(actor: PlatformAdminActor, businessId: string,
   const i = parse(termosSchema, input)
   return prisma.$transaction(async (tx) => {
     const antes = termosDe(orNotFound(await tx.businessSettings.findUnique({ where: { businessId }, select: SELECAO_TERMOS }), 'Configurações da conta'))
-    const campos = (Object.keys(i) as (keyof Terms)[]).filter((k) => i[k] !== antes[k]).sort()
+    const campos = (Object.keys(i) as (keyof Terms)[]).filter((k) => i[k] !== antes[k])
     if (campos.length === 0) return antes
     const depois = await tx.businessSettings.update({
       where: { businessId },
@@ -325,7 +353,9 @@ export async function updateTerms(actor: PlatformAdminActor, businessId: string,
       },
       select: SELECAO_TERMOS,
     })
-    await auditar(tx, actor, 'terms.updated', businessId, { fields: campos })
+    await auditar(tx, actor, 'terms.updated', businessId, {
+      changes: Object.fromEntries(campos.map((k) => [k, { from: antes[k], to: i[k] }])),
+    })
     return termosDe(depois)
   })
 }
@@ -377,9 +407,9 @@ function fusoCanonico(valor: string): string {
 }
 
 /**
- * Regras de agenda (mesma validação e mesma auditoria do dono, com o admin como autor) e fuso. Trocar o fuso não mexe
- * nos agendamentos: os instantes ficam os mesmos e os rótulos locais passam a ser calculados no fuso novo. A auditoria
- * guarda o fuso de antes e o de depois. O fuso é conferido antes de qualquer gravação.
+ * Regras de agenda (mesmo esquema de validação e mesma ação de auditoria do dono, com o admin como autor) e fuso, numa
+ * transação só: tudo ou nada. Trocar o fuso não mexe nos agendamentos: os instantes ficam os mesmos e os rótulos locais
+ * passam a ser calculados no fuso novo. A auditoria do fuso guarda o de antes e o de depois.
  */
 export async function updateRulesAsAdmin(
   actor: PlatformAdminActor,
@@ -388,19 +418,42 @@ export async function updateRulesAsAdmin(
 ): Promise<{ rules: SchedulingRules; timeZone: string }> {
   exigirAdmin(actor)
   idValido(businessId)
-  const { timeZone, ...regras } = input
+  const { timeZone, ...pedido } = input
   const novoFuso = timeZone === undefined ? undefined : fusoCanonico(timeZone)
   const ctx = await createPlatformAdminContext({ businessId, actor })
-  const rules = await updateSchedulingRules(ctx, regras)
-  if (novoFuso === undefined) return { rules, timeZone: ctx.timeZone }
-  const gravado = await prisma.$transaction(async (tx) => {
-    const conta = orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { timezone: true } }), 'Conta')
-    if (conta.timezone === novoFuso) return conta.timezone
-    await tx.business.update({ where: { id: businessId }, data: { timezone: novoFuso } })
-    await auditar(tx, actor, 'business.timezone_changed', businessId, { from: conta.timezone, to: novoFuso })
-    return novoFuso
+  const regras = parseSchedulingRules(pedido)
+  const campos = Object.keys(regras)
+  await prisma.$transaction(async (tx) => {
+    if (campos.length > 0) {
+      const r = await tx.businessSettings.updateMany({ where: { businessId }, data: regras })
+      if (r.count === 0) throw new DomainError('not_found', 'Configurações da conta não encontrado.')
+      await tx.auditLog.create({
+        data: {
+          businessId,
+          actorType: 'PLATFORM_ADMIN',
+          actorId: actor.adminId,
+          actorName: actor.name,
+          onBehalf: false,
+          action: 'scheduling_rules.updated',
+          targetType: 'BusinessSettings',
+          targetId: businessId,
+          metadata: { fields: campos },
+        },
+      })
+    }
+    if (novoFuso !== undefined) {
+      const conta = orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { timezone: true } }), 'Conta')
+      if (conta.timezone !== novoFuso) {
+        await tx.business.update({ where: { id: businessId }, data: { timezone: novoFuso } })
+        await auditar(tx, actor, 'business.timezone_changed', businessId, { from: conta.timezone, to: novoFuso })
+      }
+    }
   })
-  return { rules, timeZone: gravado }
+  const [rules, conta] = await Promise.all([
+    getSchedulingRules(ctx),
+    prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { timezone: true } }),
+  ])
+  return { rules, timeZone: conta.timezone }
 }
 
 export async function updateNotificationsAsAdmin(

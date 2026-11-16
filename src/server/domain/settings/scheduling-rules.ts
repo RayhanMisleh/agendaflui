@@ -46,6 +46,11 @@ const rulesSchema = z
   })
   .partial()
 
+/** Valida e limpa um pedido de mudança das regras (mesmo esquema do dono); `validation` com os campos se não passar. */
+export function parseSchedulingRules(input: Partial<SchedulingRules>): Partial<SchedulingRules> {
+  return definedOnly(parse(rulesSchema, input))
+}
+
 function toRules(settings: BusinessSettings): SchedulingRules {
   return {
     slotStepMin: settings.slotStepMin,

@@ -185,7 +185,51 @@ describe('updateBrand', () => {
     expect([linha.primaryColor, linha.coverMaterial, linha.paperTone, linha.fontPair]).toEqual(['#7A1F2B', 'LEATHER', 'CREAM', 'MODERN'])
     const [log] = await auditoria('brand.updated')
     expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: actor.adminId, onBehalf: false })
-    expect((log?.metadata as { fields: string[] }).fields).toEqual(['accent', 'displayName', 'fontPair', 'loginMessage', 'material', 'paper', 'primary'].sort())
+    // Só o que mudou, com antes e depois (o destaque só mudou de caixa, então não entra); a mensagem não vai por extenso.
+    expect(log?.metadata).toEqual({
+      changes: {
+        displayName: { from: `Conta ${biz.slug}`, to: 'Barbearia Central' },
+        primary: { from: '#0E4F5C', to: '#7A1F2B' },
+        material: { from: 'ENAMEL', to: 'LEATHER' },
+        paper: { from: 'WHITE', to: 'CREAM' },
+        fontPair: { from: 'CLASSIC', to: 'MODERN' },
+      },
+      loginMessageChanged: true,
+    })
+    expect(JSON.stringify(log?.metadata)).not.toContain('Bem-vindo')
+  })
+
+  test('gravar sem mudar nada não cria auditoria nem sobe a versão e devolve a marca atual', async () => {
+    await updateBrand(actor, biz.id, 1, brand)
+    const r = await updateBrand(actor, biz.id, 2, { ...brand, primary: '#7a1f2b' })
+    expect(r).toMatchObject({ ...brand, version: 2 })
+    expect(await auditoria('brand.updated')).toHaveLength(1)
+    expect((await getCustomization(actor, biz.id)).brand.version).toBe(2)
+  })
+
+  test('só a mensagem mudou: a auditoria diz que mudou, sem o texto', async () => {
+    await updateBrand(actor, biz.id, 1, brand)
+    await updateBrand(actor, biz.id, 2, { ...brand, loginMessage: 'Texto novo secreto' })
+    const logs = await auditoria('brand.updated')
+    expect(logs[1]?.metadata).toEqual({ changes: {}, loginMessageChanged: true })
+  })
+
+  test('caracteres de controle e < > em texto são recusados; quebra de linha só na mensagem', async () => {
+    const casos: [Partial<BrandInput>, string][] = [
+      [{ displayName: 'Nome\u0000' }, 'displayName'],
+      [{ displayName: 'Nome\nlinha' }, 'displayName'],
+      [{ displayName: 'Nome\u200b' }, 'displayName'],
+      [{ loginMessage: 'oi\u0007' }, 'loginMessage'],
+      [{ loginMessage: 'oi <b>' }, 'loginMessage'],
+      [{ loginMessage: 'oi > você' }, 'loginMessage'],
+    ]
+    for (const [troca, campo] of casos) {
+      const e = await domainError(updateBrand(actor, biz.id, 1, { ...brand, ...troca }))
+      expect(e.code, campo).toBe('validation')
+      expect(Object.keys(e.fields ?? {}), campo).toContain(campo)
+    }
+    const r = await updateBrand(actor, biz.id, 1, { ...brand, loginMessage: 'Linha um\nLinha dois' })
+    expect(r.loginMessage).toBe('Linha um\nLinha dois')
   })
 
   test('o painel da conta serve exatamente os tokens da prévia', async () => {
@@ -267,7 +311,33 @@ describe('updateTerms', () => {
   test('grava os sete termos e audita', async () => {
     expect(await updateTerms(actor, biz.id, termos)).toEqual(termos)
     expect((await getCustomization(actor, biz.id)).terms).toEqual(termos)
-    expect(await auditoria('terms.updated')).toHaveLength(1)
+    const [log] = await auditoria('terms.updated')
+    expect(log?.metadata).toEqual({
+      changes: {
+        professionalSingular: { from: 'Profissional', to: 'Tosador' },
+        professionalPlural: { from: 'Profissionais', to: 'Tosadores' },
+        customerSingular: { from: 'Cliente', to: 'Tutor' },
+        customerPlural: { from: 'Clientes', to: 'Tutores' },
+        pointsSingular: { from: 'Ponto', to: 'Patinha' },
+        pointsPlural: { from: 'Pontos', to: 'Patinhas' },
+        club: { from: 'Clube', to: 'Clube Pet' },
+      },
+    })
+  })
+
+  test('termo igual ao atual não cria auditoria; termo novo audita só o que mudou', async () => {
+    await updateTerms(actor, biz.id, termos)
+    await updateTerms(actor, biz.id, termos)
+    await updateTerms(actor, biz.id, { ...termos, club: 'Clube Novo' })
+    const logs = await auditoria('terms.updated')
+    expect(logs).toHaveLength(2)
+    expect(logs[1]?.metadata).toEqual({ changes: { club: { from: 'Clube Pet', to: 'Clube Novo' } } })
+  })
+
+  test('termo com caractere de controle é recusado', async () => {
+    for (const v of ['Tutor\u0000', 'Tu\ntor', 'Tutor\u0007']) {
+      expect((await domainError(updateTerms(actor, biz.id, { ...termos, customerSingular: v }))).code).toBe('validation')
+    }
   })
 
   test.each([
@@ -439,9 +509,43 @@ describe('setBrandImage', () => {
     expect(e.message).toMatch(/8 MB/)
   })
 
-  test('espaço desconhecido é recusado', async () => {
-    const e = await domainError(setBrandImage(actor, biz.id, 'banner' as never, null))
+  test.each(['banner', 'constructor', '__proto__', 'toString', 'hasOwnProperty'])('espaço %s é recusado com validation', async (slot) => {
+    const e = await domainError(setBrandImage(actor, biz.id, slot as never, null))
     expect(e.code).toBe('validation')
+    expect(e.fields?.['slot']).toBeTruthy()
+  })
+
+  test('conta inexistente (UUID válido): not_found, sem registro nem arquivo', async () => {
+    const e = await domainError(setBrandImage(actor, '00000000-0000-4000-8000-000000000000', 'logo', await imagem(100, 100)))
+    expect(e.code).toBe('not_found')
+    expect(await prisma.upload.count()).toBe(0)
+    expect(await arquivosNoDisco()).toEqual([])
+  })
+
+  test('JPEG com EXIF e GPS sai sem metadados', async () => {
+    const jpeg = await sharp({ create: { width: 200, height: 100, channels: 3, background: '#aa0000' } })
+      .jpeg()
+      .withExif({ IFD0: { Copyright: 'dono-secreto' }, IFD3: { GPSLatitudeRef: 'S', GPSLongitudeRef: 'W' } })
+      .toBuffer()
+    expect(jpeg.includes('dono-secreto')).toBe(true)
+    for (const slot of ['logo', 'favicon'] as const) {
+      const r = await setBrandImage(actor, biz.id, slot, { bytes: new Uint8Array(jpeg), mime: 'image/jpeg' })
+      const url = slot === 'logo' ? r.logoUrl : r.faviconUrl
+      const salvo = (await disco.get((url ?? '').replace('/arquivos/', '')))!.data
+      expect(salvo.includes('dono-secreto')).toBe(false)
+      const meta = await sharp(salvo).metadata()
+      expect(meta.exif).toBeUndefined()
+    }
+  })
+
+  test('GIF animado é recusado', async () => {
+    const quadro = (cor: string) => sharp({ create: { width: 20, height: 20, channels: 3, background: cor } }).png().toBuffer()
+    const gif = await sharp([await quadro('#ff0000'), await quadro('#0000ff')], { join: { animated: true } })
+      .gif({ loop: 0, delay: [100, 100] })
+      .toBuffer()
+    const e = await domainError(setBrandImage(actor, biz.id, 'loginImage', { bytes: new Uint8Array(gif), mime: 'image/gif' }))
+    expect(e.code).toBe('validation')
+    expect(await prisma.upload.count()).toBe(0)
   })
 
   test('falha ao vincular (marca inexistente) não deixa arquivo nem registro da imagem nova', async () => {
@@ -524,6 +628,21 @@ describe('regras, fuso e avisos pelo admin', () => {
     expect(e.fields?.['timeZone']).toBeTruthy()
     expect((await getCustomization(actor, biz.id)).rules.bufferMin).toBe(0)
     expect(await auditoria('business.timezone_changed')).toHaveLength(0)
+  })
+
+  test('tudo ou nada: regra inválida com fuso válido não grava o fuso; fuso inválido com regra válida não grava a regra', async () => {
+    await domainError(updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo', slotStepMin: 7 }))
+    await domainError(updateRulesAsAdmin(actor, biz.id, { timeZone: 'Marte/Olimpo', bufferMin: 25 }))
+    const c = await getCustomization(actor, biz.id)
+    expect([c.timeZone, c.rules.slotStepMin, c.rules.bufferMin]).toEqual(['America/Sao_Paulo', 15, 0])
+    expect(await prisma.auditLog.count({ where: { businessId: biz.id } })).toBe(0)
+  })
+
+  test('regras e fuso válidos juntos gravam os dois e auditam os dois', async () => {
+    const r = await updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo', bufferMin: 25 })
+    expect([r.timeZone, r.rules.bufferMin]).toEqual(['Asia/Tokyo', 25])
+    expect(await auditoria('scheduling_rules.updated')).toHaveLength(1)
+    expect(await auditoria('business.timezone_changed')).toHaveLength(1)
   })
 
   test('mesmo fuso: sem auditoria de troca', async () => {

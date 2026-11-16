@@ -84,6 +84,17 @@ describe('gravação em disco que falha no meio', () => {
   })
 })
 
+describe('pasta de armazenamento que ainda não existe', () => {
+  test('get antes da pasta existir devolve null e, depois do put, devolve o arquivo (a falha não fica em cache)', async () => {
+    const raiz = join(fora, 'ainda-nao-existe')
+    await rm(raiz, { recursive: true, force: true })
+    const s = createLocalDiskStorage(raiz)
+    expect(await s.get('c1/a.webp')).toBeNull()
+    await s.put('c1/a.webp', Buffer.from('webp'), 'image/webp')
+    expect((await s.get('c1/a.webp'))?.contentType).toBe('image/webp')
+  })
+})
+
 describe('/arquivos: um segmento é decodificado uma vez só (pelo Next)', () => {
   beforeEach(async () => {
     await storage.put('c1/sub/logo.webp', Buffer.from('webp'), 'image/webp')
