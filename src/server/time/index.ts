@@ -15,16 +15,19 @@ export type Weekday =
   | 'FRIDAY'
   | 'SATURDAY'
 
-// Temporal.dayOfWeek: 1 = segunda ... 7 = domingo.
-const WEEKDAYS: readonly Weekday[] = [
+/** Dias da semana de domingo a sábado. Temporal.dayOfWeek vai de 1 (segunda) a 7 (domingo): use `dayOfWeek % 7`. */
+export const WEEKDAYS: readonly Weekday[] = [
+  'SUNDAY',
   'MONDAY',
   'TUESDAY',
   'WEDNESDAY',
   'THURSDAY',
   'FRIDAY',
   'SATURDAY',
-  'SUNDAY',
 ]
+
+const MS_PER_DAY = 86_400_000
+const MINUTE_LABEL_RE = /^(\d{2}):(\d{2})$/
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
@@ -116,12 +119,12 @@ export function localParts(
   return {
     date: z.toPlainDate().toString(),
     time: `${pad2(z.hour)}:${pad2(z.minute)}`,
-    weekday: WEEKDAYS[z.dayOfWeek - 1] as Weekday,
+    weekday: WEEKDAYS[z.dayOfWeek % 7] as Weekday,
   }
 }
 
 export function weekdayOf(date: string): Weekday {
-  return WEEKDAYS[parseDate(date).dayOfWeek - 1] as Weekday
+  return WEEKDAYS[parseDate(date).dayOfWeek % 7] as Weekday
 }
 
 export function todayIn(tz: string, now: Date = new Date()): string {
@@ -174,4 +177,76 @@ export function toIsoInstant(instant: Date): string {
 /** Dia de hoje no fuso da conta: data de calendário (`2026-11-13`) e texto para a tela (`13/11/2026`). */
 export function todayLine(instant: Date, tz: string): { iso: string; label: string } {
   return { iso: todayIn(tz, instant), label: formatDate(instant, tz) }
+}
+
+function assertMinute(minute: number): void {
+  if (!Number.isInteger(minute) || minute < 0 || minute > 1440) {
+    throw new RangeError(`Minuto do dia inválido: ${minute}. Use um número inteiro de 0 a 1440.`)
+  }
+}
+
+/** Minuto desde a meia-noite local (0..1440) em instante. 1440 é 00:00 do dia seguinte. Mesma regra `compatible` de `toInstant`. */
+export function minuteToInstant(date: string, minute: number, tz: string): Date {
+  assertTimeZone(tz)
+  assertMinute(minute)
+  const day = parseDate(date)
+  const local = day.toPlainDateTime(new Temporal.PlainTime(0, 0)).add({ minutes: minute })
+  return fromZoned(local.toZonedDateTime(tz, { disambiguation: 'compatible' }))
+}
+
+/** Minuto desde a meia-noite local (0..1439) do instante no fuso da conta. */
+export function minuteOfDay(instant: Date, tz: string): number {
+  const z = toZoned(instant, tz)
+  return z.hour * 60 + z.minute
+}
+
+/** 540 vira '09:00'; 1440 vira '24:00'. */
+export function minuteLabel(minute: number): string {
+  assertMinute(minute)
+  return `${pad2(Math.floor(minute / 60))}:${pad2(minute % 60)}`
+}
+
+/** 'HH:mm' (de 00:00 a 24:00, dois dígitos em cada parte) em minutos desde a meia-noite. */
+export function parseMinuteLabel(label: string): number {
+  const m = typeof label === 'string' ? MINUTE_LABEL_RE.exec(label) : null
+  const hours = m ? Number(m[1]) : Number.NaN
+  const minutes = m ? Number(m[2]) : Number.NaN
+  const total = hours * 60 + minutes
+  if (!m || minutes > 59 || total > 1440) {
+    throw new RangeError(`Hora inválida: "${label}". Use o formato HH:mm, de 00:00 a 24:00.`)
+  }
+  return total
+}
+
+/** `Date` que o Prisma devolve para coluna `date` (meia-noite UTC do dia) em 'AAAA-MM-DD'. */
+export function dbDateToLocal(d: Date): string {
+  const ms = d.getTime()
+  if (!Number.isFinite(ms)) throw new RangeError('Data do banco inválida.')
+  if (ms % MS_PER_DAY !== 0) {
+    throw new RangeError(
+      `Data do banco inválida: ${d.toISOString()}. Uma coluna de data vem à meia-noite UTC; isto parece um instante comum.`,
+    )
+  }
+  return Temporal.Instant.fromEpochMilliseconds(ms).toZonedDateTimeISO('UTC').toPlainDate().toString()
+}
+
+/** 'AAAA-MM-DD' em `Date` à meia-noite UTC, para gravar em coluna `date`. */
+export function localToDbDate(date: string): Date {
+  return new Date(parseDate(date).toZonedDateTime('UTC').epochMilliseconds)
+}
+
+/** Segunda a domingo da semana que contém a data. */
+export function isoWeekRange(date: string): { start: string; end: string } {
+  const day = parseDate(date)
+  const start = day.subtract({ days: day.dayOfWeek - 1 })
+  return { start: start.toString(), end: start.add({ days: 6 }).toString() }
+}
+
+export function compareLocalDates(a: string, b: string): -1 | 0 | 1 {
+  return Temporal.PlainDate.compare(parseDate(a), parseDate(b)) as -1 | 0 | 1
+}
+
+/** Dias de `a` até `b` (negativo se `b` vem antes). */
+export function daysBetween(a: string, b: string): number {
+  return parseDate(b).since(parseDate(a), { largestUnit: 'days' }).days
 }
