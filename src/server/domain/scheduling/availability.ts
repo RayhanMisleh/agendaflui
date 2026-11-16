@@ -2,7 +2,8 @@ import type { TenantContext } from '@/server/auth/actor'
 import { DomainError, parse, z } from '@/server/domain/errors'
 import { isCustomer } from '@/server/domain/input'
 import { isClosedOn } from '@/server/domain/settings/closures'
-import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
+import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
+import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
 import { computeSlots, type Interval, type WorkingRange } from '@/server/domain/scheduling/slots'
 import { toServiceView, type ServiceView } from '@/server/domain/catalog/services'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
@@ -24,8 +25,6 @@ export type DayOccupancy = { workingRanges: WorkingRange[]; busy: Interval[]; bl
 const MAX_SERVICES = 10
 const MAX_TOTAL_MIN = 720
 const STAFF_WINDOW_DAYS = 365
-/** Agendamentos que ocupam o horário do profissional. */
-const ACTIVE_STATUSES = ['PENDING', 'CONFIRMED', 'COMPLETED'] as const
 
 type Db = TenantClient | TenantTx
 
@@ -114,30 +113,29 @@ export async function loadDayOccupancy(
   if (professionalIds.length === 0) return result
 
   const day = localDayRange(date, ctx.timeZone)
-  const [hours, appointments, blocks] = await Promise.all([
-    db.workingHours.findMany({
-      where: { professionalId: { in: professionalIds }, weekday: weekdayOf(date) },
-      orderBy: [{ startMin: 'asc' }, { id: 'asc' }],
-    }),
-    db.appointment.findMany({
-      where: {
-        professionalId: { in: professionalIds },
-        status: { in: [...ACTIVE_STATUSES] },
-        startsAt: { lt: addMinutes(day.end, bufferMin) },
-        endsAt: { gt: addMinutes(day.start, -bufferMin) },
-        ...(ignoreAppointmentId ? { id: { not: ignoreAppointmentId } } : {}),
-      },
-      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-    }),
-    db.timeBlock.findMany({
-      where: {
-        professionalId: { in: professionalIds },
-        startsAt: { lt: day.end },
-        endsAt: { gt: day.start },
-      },
-      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-    }),
-  ])
+  // Em sequência: dentro de uma transação, o cliente do banco atende uma consulta por vez.
+  const hours = await db.workingHours.findMany({
+    where: { professionalId: { in: professionalIds }, weekday: weekdayOf(date) },
+    orderBy: [{ startMin: 'asc' }, { id: 'asc' }],
+  })
+  const appointments = await db.appointment.findMany({
+    where: {
+      professionalId: { in: professionalIds },
+      status: { in: [...ACTIVE_STATUSES] },
+      startsAt: { lt: addMinutes(day.end, bufferMin) },
+      endsAt: { gt: addMinutes(day.start, -bufferMin) },
+      ...(ignoreAppointmentId ? { id: { not: ignoreAppointmentId } } : {}),
+    },
+    orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+  })
+  const blocks = await db.timeBlock.findMany({
+    where: {
+      professionalId: { in: professionalIds },
+      startsAt: { lt: day.end },
+      endsAt: { gt: day.start },
+    },
+    orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+  })
 
   for (const h of hours) result.get(h.professionalId)?.workingRanges.push({ startMin: h.startMin, endMin: h.endMin })
   for (const a of appointments) result.get(a.professionalId)?.busy.push({ start: a.startsAt, end: a.endsAt })
@@ -155,35 +153,45 @@ function invalidProfessional(): DomainError {
   return new DomainError('validation', message, { fields: { professionalId: message } })
 }
 
-/** Inícios livres no dia local para os serviços escolhidos; cada início traz os profissionais livres nele. */
-export async function getAvailability(
-  ctx: TenantContext,
-  q: { date: string; serviceIds: string[]; professionalId?: string | null },
-): Promise<AvailabilityView> {
-  const { date, professionalId } = parse(availabilitySchema, { date: q.date, professionalId: q.professionalId })
-  const { durationMin, totalCents } = await resolveServices(ctx, q.serviceIds)
-  const view = (slots: SlotView[]): AvailabilityView => ({ date, durationMin, totalCents, slots })
+export type Candidate = { id: string; displayOrder: number }
 
-  const candidates = await ctx.db.professional.findMany({
+/** Profissionais ativos que fazem todos os serviços, na ordem de exibição. `serviceIds` já validados. */
+export async function listCandidates(ctx: TenantContext, serviceIds: string[], db: Db = ctx.db): Promise<Candidate[]> {
+  return db.professional.findMany({
     where: {
       active: true,
       archivedAt: null,
-      AND: q.serviceIds.map((serviceId) => ({ services: { some: { serviceId } } })),
+      AND: serviceIds.map((serviceId) => ({ services: { some: { serviceId } } })),
     },
     orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
-    select: { id: true },
+    select: { id: true, displayOrder: true },
   })
-  let chosen = candidates.map((p) => p.id)
-  if (professionalId) {
-    if (!chosen.includes(professionalId)) throw invalidProfessional()
-    chosen = [professionalId]
-  }
+}
 
-  const rules = await getSchedulingRules(ctx)
+export type FreeStart = { startsAt: Date; professionalIds: string[] }
+
+/**
+ * Inícios livres do dia local para a duração dada, por instante (milissegundos), com os profissionais
+ * livres em cada um (na ordem de `professionalIds`). Aplica fechamento, antecedência e alcance (só para
+ * o cliente do app) e a folga. A mesma conta serve à consulta e à marcação.
+ */
+export async function computeFreeStarts(
+  ctx: TenantContext,
+  i: {
+    date: string
+    durationMin: number
+    professionalIds: string[]
+    rules: SchedulingRules
+    ignoreAppointmentId?: string
+  },
+  db: Db = ctx.db,
+): Promise<Map<number, FreeStart>> {
+  const starts = new Map<number, FreeStart>()
+  const { date, rules } = i
   const now = ctx.clock()
   const today = todayIn(ctx.timeZone, now)
-  if (chosen.length === 0 || compareLocalDates(date, today) < 0) return view([])
-  if (await isClosedOn(ctx, date)) return view([])
+  if (i.professionalIds.length === 0 || compareLocalDates(date, today) < 0) return starts
+  if (await isClosedOn(ctx, date, db)) return starts
 
   const customer = isCustomer(ctx)
   const notBefore = customer ? addMinutes(now, rules.minLeadMin) : now
@@ -191,9 +199,17 @@ export async function getAvailability(
     ? localDayRange(addDays(today, rules.maxAdvanceDays), ctx.timeZone).end
     : addMinutes(now, STAFF_WINDOW_DAYS * 24 * 60)
 
-  const occupancy = await loadDayOccupancy(ctx, { professionalIds: chosen, date, bufferMin: rules.bufferMin })
-  const starts = new Map<number, { startsAt: Date; professionalIds: string[] }>()
-  for (const id of chosen) {
+  const occupancy = await loadDayOccupancy(
+    ctx,
+    {
+      professionalIds: i.professionalIds,
+      date,
+      bufferMin: rules.bufferMin,
+      ...(i.ignoreAppointmentId ? { ignoreAppointmentId: i.ignoreAppointmentId } : {}),
+    },
+    db,
+  )
+  for (const id of i.professionalIds) {
     const o = occupancy.get(id)
     if (!o) continue
     const free = computeSlots({
@@ -202,7 +218,7 @@ export async function getAvailability(
       workingRanges: o.workingRanges,
       busy: o.busy,
       blocked: o.blocked,
-      durationMin,
+      durationMin: i.durationMin,
       stepMin: rules.slotStepMin,
       bufferMin: rules.bufferMin,
       notBefore,
@@ -214,7 +230,26 @@ export async function getAvailability(
       else starts.set(startsAt.getTime(), { startsAt, professionalIds: [id] })
     }
   }
+  return starts
+}
 
+/** Inícios livres no dia local para os serviços escolhidos; cada início traz os profissionais livres nele. */
+export async function getAvailability(
+  ctx: TenantContext,
+  q: { date: string; serviceIds: string[]; professionalId?: string | null },
+): Promise<AvailabilityView> {
+  const { date, professionalId } = parse(availabilitySchema, { date: q.date, professionalId: q.professionalId })
+  const { durationMin, totalCents } = await resolveServices(ctx, q.serviceIds)
+  const view = (slots: SlotView[]): AvailabilityView => ({ date, durationMin, totalCents, slots })
+
+  let chosen = (await listCandidates(ctx, q.serviceIds)).map((p) => p.id)
+  if (professionalId) {
+    if (!chosen.includes(professionalId)) throw invalidProfessional()
+    chosen = [professionalId]
+  }
+
+  const rules = await getSchedulingRules(ctx)
+  const starts = await computeFreeStarts(ctx, { date, durationMin, professionalIds: chosen, rules })
   return view(
     [...starts.values()]
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())

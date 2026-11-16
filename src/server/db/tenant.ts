@@ -1,5 +1,7 @@
 import 'server-only'
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { prisma } from './client'
+import { Prisma } from './generated/client'
 import { PLATFORM_MODELS, SELF_MODELS, TENANT_MODELS, TENANT_OPTIONAL_MODELS } from './models'
 import { alvoDaRelacao, ehObjeto, lerMetadados, percorrerArgumentos, TenantViolationError } from './tenant-walk'
 
@@ -12,7 +14,8 @@ export { lerMetadados, TenantViolationError }
 //   `include`/`select`/`_count` e em filtros e ordenação (`where`, `orderBy`, `cursor`, `distinct`,
 //   `having`, `by`, em qualquer nível; o percurso fica em tenant-walk.ts);
 // - escrita aninhada (campo de relação em `data`) é recusada: use chaves escalares;
-// - SQL cru é bloqueado e as operações dentro de `$transaction` continuam filtradas;
+// - SQL cru é bloqueado e as operações dentro de `$transaction` continuam filtradas; a única exceção
+//   é `$lockKey`, a trava de transação por (conta, escopo, id), que só roda dentro de uma transação;
 // - relações entre tabelas de conta ficam na mesma conta, porque o banco exige FK composta com
 //   `business_id` (teste estrutural em schema.test.ts).
 // Limite: filtros de relação entre modelos de conta são permitidos (o banco garante a mesma conta
@@ -163,12 +166,48 @@ function bloquearSqlCru(operacao: string): never {
   throw new TenantViolationError(`${operacao} não é permitido no cliente por conta: use os métodos do modelo.`)
 }
 
+/** Escopos aceitos por `$lockKey`: lista fechada. */
+const ESCOPOS_DE_TRAVA = ['professional'] as const
+export type LockScope = (typeof ESCOPOS_DE_TRAVA)[number]
+
+/**
+ * Marca a execução do `$executeRaw` interno de `$lockKey`. Só este módulo grava o valor, então
+ * nenhum SQL cru do chamador passa pela extensão.
+ */
+const travaPermitida = new AsyncLocalStorage<true>()
+
 function criarExtensao(businessId: string) {
   return prisma.$extends({
     name: 'tenant',
+    client: {
+      /**
+       * `pg_advisory_xact_lock` sobre `${conta}:${escopo}:${id}`, na transação em curso: espera a transação
+       * que a detém terminar e a solta no commit ou rollback. Fora de transação é erro, porque a trava
+       * seria solta na hora e daria falsa segurança.
+       */
+      async $lockKey(scope: LockScope, id: string): Promise<void> {
+        const cliente = Prisma.getExtensionContext(this)
+        if (!ESCOPOS_DE_TRAVA.includes(scope)) {
+          throw new TenantViolationError(`$lockKey: escopo "${String(scope)}" não é permitido.`)
+        }
+        if (typeof id !== 'string' || !UUID.test(id)) {
+          throw new TenantViolationError('$lockKey: informe o UUID do registro a travar.')
+        }
+        // O cliente de transação interativa do Prisma não tem `$connect`, `$disconnect` nem `$extends`.
+        const raiz = ['$connect', '$disconnect', '$extends'].some((metodo) => typeof Reflect.get(cliente, metodo) === 'function')
+        if (raiz) {
+          throw new TenantViolationError('$lockKey só pode ser usado dentro de uma transação ($transaction).')
+        }
+        const chave = `${businessId}:${scope}:${id.toLowerCase()}`
+        // O PrismaPromise é preguiçoso: precisa ser aguardado dentro de `run` para a marca valer.
+        await travaPermitida.run(true, async () => {
+          await cliente.$executeRaw`select pg_advisory_xact_lock(hashtextextended(${chave}, 0))`
+        })
+      },
+    },
     query: {
       $queryRaw: () => bloquearSqlCru('$queryRaw'),
-      $executeRaw: () => bloquearSqlCru('$executeRaw'),
+      $executeRaw: ({ args, query }) => (travaPermitida.getStore() ? query(args) : bloquearSqlCru('$executeRaw')),
       $queryRawUnsafe: () => bloquearSqlCru('$queryRawUnsafe'),
       $executeRawUnsafe: () => bloquearSqlCru('$executeRawUnsafe'),
       $allModels: {
