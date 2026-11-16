@@ -11,10 +11,18 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 })
 
+// Marcador estável do segredo de exemplo do .env.example; em produção ele nunca pode valer.
+const MARCADOR_DE_EXEMPLO = 'EXEMPLO-'
+
 export type Env = z.infer<typeof envSchema>
 
 export function parseEnv(source: Record<string, string | undefined>): Env {
-  const result = envSchema.safeParse(source)
+  const result = envSchema
+    .refine((v) => !(v.NODE_ENV === 'production' && v.APP_SECRET.startsWith(MARCADOR_DE_EXEMPLO)), {
+      path: ['APP_SECRET'],
+      message: 'em produção, troque o valor de exemplo por um segredo aleatório (ex.: openssl rand -hex 32)',
+    })
+    .safeParse(source)
   if (!result.success) {
     const problemas = result.error.issues
       .map((i) => `${i.path.join('.')}: ${i.message}`)

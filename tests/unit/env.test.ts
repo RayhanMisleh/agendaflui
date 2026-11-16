@@ -25,3 +25,18 @@ test('TRUSTED_PROXY_HOPS: padrão 0, aceita 0 a 5 e recusa o resto', () => {
     expect(() => parseEnv({ ...ok, TRUSTED_PROXY_HOPS: v }), v).toThrow(/TRUSTED_PROXY_HOPS/)
   }
 })
+
+test('em produção recusa o APP_SECRET de exemplo sem imprimir o valor', () => {
+  const exemplo = 'EXEMPLO-troque-este-valor-por-um-segredo-aleatorio-de-32-ou-mais'
+  let mensagem = ''
+  try {
+    parseEnv({ ...ok, NODE_ENV: 'production', APP_SECRET: exemplo })
+  } catch (e) {
+    mensagem = e instanceof Error ? e.message : String(e)
+  }
+  expect(mensagem).toMatch(/APP_SECRET/)
+  expect(mensagem).not.toContain(exemplo)
+  expect(parseEnv({ ...ok, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40) }).NODE_ENV).toBe('production')
+  expect(parseEnv({ ...ok, NODE_ENV: 'development', APP_SECRET: exemplo }).APP_SECRET).toBe(exemplo)
+  expect(parseEnv({ ...ok, NODE_ENV: 'test', APP_SECRET: exemplo }).APP_SECRET).toBe(exemplo)
+})
