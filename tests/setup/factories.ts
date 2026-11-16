@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import type { Actor, TenantContext } from '@/server/auth/actor'
-import type { Weekday } from '@/server/time'
+import { addMinutes, type Weekday } from '@/server/time'
 import { createTenantContext } from '@/server/auth/context'
 
 let contador = 0
@@ -141,6 +141,49 @@ export async function makeWorkingHours(
     data: ranges.map((r) => ({ businessId, professionalId, weekday, startMin: r.startMin, endMin: r.endMin })),
   })
   return prisma.workingHours.findMany({ where: { businessId, professionalId, weekday } })
+}
+
+/** Agendamento direto no banco, com um item do serviço (origem painel, criado pelo sistema). Sem `durationMin`, usa o do serviço. */
+export async function makeAppointment(
+  businessId: string,
+  o: {
+    customerId: string
+    professionalId: string
+    serviceId: string
+    startsAt: Date
+    durationMin?: number
+    status?: AppointmentStatus
+  },
+): Promise<Appointment> {
+  const service = await prisma.service.findFirstOrThrow({ where: { id: o.serviceId, businessId } })
+  const durationMin = o.durationMin ?? service.durationMin
+  return prisma.appointment.create({
+    data: {
+      businessId,
+      customerId: o.customerId,
+      professionalId: o.professionalId,
+      startsAt: o.startsAt,
+      endsAt: addMinutes(o.startsAt, durationMin),
+      status: o.status ?? 'CONFIRMED',
+      source: 'PANEL',
+      totalCents: service.priceCents,
+      totalDurationMin: durationMin,
+      createdByType: 'SYSTEM',
+      items: {
+        create: [
+          {
+            businessId,
+            serviceId: service.id,
+            name: service.name,
+            priceCents: service.priceCents,
+            durationMin,
+            rewardPoints: service.rewardPoints,
+            position: 1,
+          },
+        ],
+      },
+    },
+  })
 }
 
 /** Contexto de conta para testes de domínio. Sem `actor`, cria um usuário e um vínculo OWNER. */
