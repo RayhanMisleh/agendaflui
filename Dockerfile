@@ -16,7 +16,9 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-RUN npm ci
+# `--include=dev` é explícito: plataformas como o Coolify injetam as variáveis da aplicação no build, e com
+# NODE_ENV=production o npm pularia as dependências de desenvolvimento de que o build precisa.
+RUN npm ci --include=dev
 
 # Build. Os valores abaixo são fictícios, existem só durante este RUN (não viram ENV da imagem) e o
 # `next build` não valida segredos (NEXT_PHASE=phase-production-build). Nenhum segredo real entra aqui.
