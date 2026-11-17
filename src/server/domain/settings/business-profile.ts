@@ -2,9 +2,9 @@ import type { TenantContext } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
 import { audit } from '@/server/domain/audit'
 import { normalizeContactPhone, formatPhone, normalizeEmail } from '@/server/domain/customers/contact'
-import { authorize, DomainError, orNotFound, parse, z } from '@/server/domain/errors'
+import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
 import { replaceBrandImage } from '@/server/domain/platform/brand-image'
-import { displayNameSchema, readTerms, updateTermsOf, type Terms } from '@/server/domain/settings/terms'
+import { displayNameSchema, readTerms, termsOf, updateTermsOf, type Terms } from '@/server/domain/settings/terms'
 import { staleSettings } from '@/server/domain/settings/versioned'
 import { uploadUrl } from '@/server/storage/images'
 
@@ -47,10 +47,10 @@ const versionSchema = z.number('Informe a versão lida.').int().min(1)
 export async function getBusinessProfile(ctx: TenantContext): Promise<BusinessProfile> {
   authorize(ctx, 'manage_settings')
   const [business, branding] = await Promise.all([
-    ctx.db.business.findUnique({ where: { id: ctx.businessId }, select: { slug: true, email: true, phone: true, timezone: true } }),
+    ctx.db.business.findUnique({ where: { id: ctx.businessId }, select: { slug: true, email: true, phone: true, timezone: true, version: true } }),
     ctx.db.businessBranding.findUnique({
       where: { businessId: ctx.businessId },
-      select: { displayName: true, version: true, logo: { select: { path: true } } },
+      select: { displayName: true, logo: { select: { path: true } } },
     }),
   ])
   const b = orNotFound(business, 'Conta')
@@ -63,14 +63,15 @@ export async function getBusinessProfile(ctx: TenantContext): Promise<BusinessPr
     timeZone: b.timezone,
     entryUrl: areaLink('painel', `/entrar/${b.slug}`),
     logoUrl: uploadUrl(m.logo),
-    version: m.version,
+    version: b.version,
   }
 }
 
 /**
- * O dono muda nome de exibição e contato. A versão é a da marca (a mesma que o painel dev usa): quem grava sobre uma versão
- * antiga recebe `conflict` `stale_version`. Sem mudança, não grava, não sobe a versão e não audita. A auditoria guarda o nome
- * de antes e depois e só quais campos de contato mudaram (nunca o e-mail nem o telefone).
+ * O dono muda nome de exibição e contato. A versão é a do negócio (`businesses.version`, a mesma que o painel dev usa em
+ * `updateBusinessData`): quem grava sobre uma versão antiga recebe `conflict` `stale_version`, seja o dono ou o admin. Sem
+ * mudança, não grava, não sobe a versão e não audita. A auditoria guarda o nome de antes e depois e só quais campos de contato
+ * mudaram (nunca o e-mail nem o telefone).
  */
 export async function updateBusinessProfile(ctx: TenantContext, version: number, input: BusinessProfileInput): Promise<BusinessProfile> {
   authorize(ctx, 'manage_account')
@@ -78,24 +79,33 @@ export async function updateBusinessProfile(ctx: TenantContext, version: number,
   const i = parse(profileSchema, input)
   await ctx.db.$transaction(async (tx) => {
     const branding = orNotFound(await tx.businessBranding.findUnique({ where: { businessId: ctx.businessId } }), 'Marca da conta')
-    const business = orNotFound(await tx.business.findUnique({ where: { id: ctx.businessId }, select: { email: true, phone: true } }), 'Conta')
+    const business = orNotFound(
+      await tx.business.findUnique({ where: { id: ctx.businessId }, select: { email: true, phone: true, version: true } }),
+      'Conta',
+    )
     const fields: string[] = []
     if (branding.displayName !== i.name) fields.push('name')
     if (business.email !== i.contactEmail) fields.push('contactEmail')
     if (business.phone !== i.contactPhone) fields.push('contactPhone')
-    if (fields.length === 0) return
-    const r = await tx.businessBranding.updateMany({
-      where: { businessId: ctx.businessId, version: v },
-      data: { displayName: i.name, version: { increment: 1 } },
+    if (fields.length === 0) {
+      if (business.version !== v) throw staleSettings()
+      return
+    }
+    // Uma instrução só, condicionada à versão lida: qualquer mudança na conta (dono ou painel dev) no meio do caminho falha aqui.
+    const r = await tx.business.updateMany({
+      where: { id: ctx.businessId, version: v },
+      data: {
+        ...(fields.includes('contactEmail') ? { email: i.contactEmail } : {}),
+        ...(fields.includes('contactPhone') ? { phone: i.contactPhone } : {}),
+        version: { increment: 1 },
+      },
     })
     if (r.count === 0) throw staleSettings()
-    if (fields.some((f) => f !== 'name')) {
-      // O contato é conferido contra o que foi lido: se o painel dev mudou nesse meio tempo, a gravação não passa por cima.
-      const c = await tx.business.updateMany({
-        where: { id: ctx.businessId, email: business.email, phone: business.phone },
-        data: { email: i.contactEmail, phone: i.contactPhone },
+    if (fields.includes('name')) {
+      await tx.businessBranding.update({
+        where: { businessId: ctx.businessId },
+        data: { displayName: i.name, version: { increment: 1 } },
       })
-      if (c.count === 0) throw new DomainError('conflict', staleSettings().message, { reason: 'stale_version' })
     }
     await audit(
       ctx,
@@ -119,6 +129,13 @@ export async function setBusinessLogo(ctx: TenantContext, file: { bytes: Uint8Ar
   authorize(ctx, 'manage_account')
   await replaceBrandImage(ctx, 'logo', file)
   return getBusinessProfile(ctx)
+}
+
+/** Os rótulos dos termos (profissional, cliente, pontos, clube) para as telas de todos os papéis: qualquer membro da equipe lê. */
+export async function getTermLabels(ctx: TenantContext): Promise<Terms> {
+  authorize(ctx, 'view_dashboard')
+  const row = await ctx.db.businessSettings.findUniqueOrThrow({ where: { businessId: ctx.businessId } })
+  return termsOf(row)
 }
 
 export function getTerms(ctx: TenantContext): Promise<{ terms: Terms; version: number }> {

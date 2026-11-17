@@ -236,7 +236,8 @@ export async function getAgenda(
       date,
       weekday,
       closed: closure !== undefined,
-      closureReason: closure?.reason ?? null,
+      // Quem não gerencia as configurações vê que o dia está fechado, não o motivo.
+      closureReason: closure && can(ctx.actor, 'manage_settings') ? closure.reason : null,
       professionals: professionals.map((p) => {
         const seesReason = seesAllReasons || scope.ownId === p.id
         return {

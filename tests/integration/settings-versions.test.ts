@@ -151,3 +151,14 @@ describe('versão das configurações', () => {
     expect((await prisma.businessModules.findUniqueOrThrow({ where: { businessId: biz.id } })).version).toBe(2)
   })
 })
+
+describe('esquemas estritos', () => {
+  test('avisos: tipo de aviso ou campo de canal desconhecido é recusado com validation', async () => {
+    const ctx = await makeCtx(biz)
+    const tipo = await domainError(updateNotificationSettings(ctx, { INEXISTENTE: { email: false } } as never))
+    expect(tipo.code).toBe('validation')
+    const canal = await domainError(updateNotificationSettings(ctx, { APPOINTMENT_CONFIRMED: { sms: true } } as never))
+    expect(canal.code).toBe('validation')
+    expect((await getNotificationSettingsView(ctx)).version).toBe(1)
+  })
+})

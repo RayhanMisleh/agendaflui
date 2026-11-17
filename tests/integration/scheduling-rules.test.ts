@@ -36,6 +36,14 @@ describe('regras de agenda', () => {
     expect(linhas).toHaveLength(1)
   })
 
+  test('campo desconhecido é recusado com validation e nada é gravado', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const e = await domainError(updateSchedulingRules(ctx, { slotStepMin: 30, versao: 3 } as Partial<typeof PADRAO>))
+    expect(e.code).toBe('validation')
+    expect((await getSchedulingRules(ctx)).slotStepMin).toBe(PADRAO.slotStepMin)
+  })
+
   test('corpo vazio devolve as regras sem auditar', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)

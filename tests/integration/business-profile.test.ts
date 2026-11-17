@@ -4,8 +4,10 @@ import { join } from 'node:path'
 import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
+import { updateBusinessData } from '@/server/domain/platform/businesses'
 import {
   getBusinessProfile,
+  getTermLabels,
   getTerms,
   setBusinessLogo,
   updateBusinessProfile,
@@ -15,7 +17,7 @@ import { createLocalDiskStorage } from '@/server/storage/local-disk'
 import type { Storage } from '@/server/storage/storage'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makePlatformAdmin } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makePlatformAdmin } from '../setup/factories'
 
 let dir: string
 let disco: Storage
@@ -103,6 +105,35 @@ describe('dados do negócio', () => {
     const e = await domainError(updateBusinessProfile(ctx, p.version, { name: 'Dois', contactEmail: null, contactPhone: null }))
     expect([e.code, e.reason]).toEqual(['conflict', 'stale_version'])
     expect((await getBusinessProfile(ctx)).name).toBe('Um')
+  })
+
+  test('a versão do perfil é a do negócio: o dono e o painel dev não sobrescrevem o contato um do outro', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const a = await makePlatformAdmin()
+    const admin = { kind: 'platform_admin' as const, adminId: a.id, name: a.name }
+    const lida = await getBusinessProfile(ctx)
+    expect(lida.version).toBe((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).version)
+    // O admin grava primeiro, com a mesma versão lida: o dono, que ainda tem a versão antiga, recebe conflito.
+    await updateBusinessData(admin, b.id, lida.version, { contactEmail: 'admin@pet.com.br' })
+    const dono = await domainError(updateBusinessProfile(ctx, lida.version, { name: lida.name, contactEmail: 'dono@pet.com.br', contactPhone: null }))
+    expect([dono.code, dono.reason]).toEqual(['conflict', 'stale_version'])
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).email).toBe('admin@pet.com.br')
+    // E no sentido contrário: o dono grava, o admin com a versão antiga recebe conflito.
+    const nova = await getBusinessProfile(ctx)
+    await updateBusinessProfile(ctx, nova.version, { name: nova.name, contactEmail: 'dono@pet.com.br', contactPhone: null })
+    const adm = await domainError(updateBusinessData(admin, b.id, nova.version, { contactEmail: 'admin2@pet.com.br' }))
+    expect([adm.code, adm.reason]).toEqual(['conflict', 'stale_version'])
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).email).toBe('dono@pet.com.br')
+  })
+
+  test('mudar só o nome também sobe a versão do negócio', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const p = await getBusinessProfile(ctx)
+    const r = await updateBusinessProfile(ctx, p.version, { name: 'Só o nome', contactEmail: p.contactEmail, contactPhone: p.contactPhone })
+    expect(r.version).toBe(p.version + 1)
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).version).toBe(p.version + 1)
   })
 
   test('gravar o mesmo que já está não sobe a versão nem audita', async () => {
@@ -204,6 +235,19 @@ describe('logo', () => {
     const admin = await makePlatformAdmin()
     const suporte = await makeCtx(b, { actor: { kind: 'impersonator', adminId: admin.id, name: admin.name } })
     expect((await setBusinessLogo(suporte, null)).logoUrl).toBeNull()
+  })
+})
+
+describe('rótulos dos termos', () => {
+  test('qualquer membro da equipe lê os termos da conta, sem versão; quem não é da equipe não', async () => {
+    const b = await makeBusiness()
+    await updateTermsAsOwner(await makeCtx(b), 1, TERMOS)
+    for (const papel of ['OWNER', 'MANAGER', 'PROFESSIONAL'] as const) {
+      expect(await getTermLabels(await ctxWithRole(b, papel))).toEqual(TERMOS)
+    }
+    const cliente = await makeCustomer(b.id)
+    const comoCliente = await makeCtx(b, { actor: { kind: 'customer', customerId: cliente.id, name: cliente.name } })
+    expect((await domainError(getTermLabels(comoCliente))).code).toBe('forbidden')
   })
 })
 

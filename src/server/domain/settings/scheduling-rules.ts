@@ -27,7 +27,7 @@ export const RULE_LIMITS = {
 } as const
 
 const rulesSchema = z
-  .object({
+  .strictObject({
     slotStepMin: z
       .number()
       .refine((v) => SLOT_STEPS.includes(v), 'Escolha uma grade de 5, 10, 15, 20, 30 ou 60 minutos.'),

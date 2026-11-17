@@ -117,6 +117,8 @@ const CAMPOS_DA_CONTA_EDITAVEIS: readonly string[] = [
   'city',
   'state',
   'postalCode',
+  // Controle de edição da conta: o dono grava o contato sobre a versão lida, a mesma que o painel dev confere.
+  'version',
 ]
 
 function conferirCamposDaConta(data: Args): Args {

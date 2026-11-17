@@ -79,3 +79,7 @@
 - Contorno do nome em baixo-relevo pesado com a fonte arredondada (tela de escolher conta).
 - Carimbo ou lâmpada para a situação na lista de contas do painel dev.
 - Elástico na tela de entrada e parafusos no painel dev (acrescentados por iniciativa do implementador).
+
+## Telas de configurações (Fase 4)
+
+- Termos, regras de agenda e avisos compartilham `business_settings.version`: cada tela de configurações precisa recarregar a versão depois de cada gravação (use a versão devolvida), senão a próxima gravação da mesma página recebe `stale_version`.

@@ -176,6 +176,19 @@ describe('getAgenda: dias, profissionais e expediente', () => {
     expect(dias[1]?.professionals[0]?.appointments.map((x) => x.id)).toEqual([a.id])
   })
 
+  test('o motivo do fechamento só vai para quem gerencia as configurações; os demais veem só que o dia está fechado', async () => {
+    const s = await montar()
+    await prisma.businessClosure.create({
+      data: { businessId: s.b.id, startDate: new Date('2026-11-17T00:00:00Z'), endDate: new Date('2026-11-17T00:00:00Z'), reason: 'Reforma' },
+    })
+    const q = { from: '2026-11-17', to: '2026-11-17' }
+    const gerente = await getAgenda(s.gerente, q)
+    expect([gerente[0]?.closed, gerente[0]?.closureReason]).toEqual([true, 'Reforma'])
+    const prof = await comoProfissional(s, s.ana.id)
+    const dia = (await getAgenda(prof, q))[0]
+    expect([dia?.closed, dia?.closureReason]).toEqual([true, null])
+  })
+
   test('profissionais seguem displayOrder, nome e id; inativos e arquivados ficam de fora', async () => {
     const s = await montar()
     const zed = await makeProfessional(s.b.id, { name: 'Zed', displayOrder: 0 })

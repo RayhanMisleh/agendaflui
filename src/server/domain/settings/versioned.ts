@@ -27,13 +27,32 @@ export function staleSettings(): DomainError {
   )
 }
 
+/** O que uma gravação muda: valores simples (não operações do Prisma), para a linha gravada poder ser devolvida sem reler. */
 export type SettingsWrite = {
-  data: Prisma.BusinessSettingsUncheckedUpdateManyInput
+  data: Partial<
+    Pick<
+      BusinessSettings,
+      | 'slotStepMin'
+      | 'minLeadMin'
+      | 'maxAdvanceDays'
+      | 'customerChangeWindowMin'
+      | 'bufferMin'
+      | 'autoConfirm'
+      | 'termProfessionalSingular'
+      | 'termProfessionalPlural'
+      | 'termCustomerSingular'
+      | 'termCustomerPlural'
+      | 'termPointsSingular'
+      | 'termPointsPlural'
+      | 'termClub'
+    >
+  > & { notifications?: Prisma.InputJsonObject }
 }
 
 /**
  * Grava em `business_settings` com controle de versão. `plan` olha a linha lida e devolve o que mudar (ou `null` se não há
  * mudança: nada é gravado, a versão não sobe e `changed` volta `false`).
+ * Devolve a linha como ficou gravada (a lida com a mudança e a versão nova), sem reler o banco.
  * - Com `version`: UPDATE condicional de uma instrução (`WHERE version = ...`); linha que já mudou → `conflict` `stale_version`.
  * - Sem `version` (seed, API, chamadores antigos): grava sobre a linha lida; se ela mudou no meio, relê e tenta de novo.
  * A versão sobe em 1 a cada gravação.
@@ -53,8 +72,14 @@ export async function writeSettings(
       data: { ...write.data, version: { increment: 1 } },
     })
     if (count === 1) {
-      const fresh = orNotFound(await tx.businessSettings.findUnique({ where: { businessId: ctx.businessId } }), 'Configurações da conta')
-      return { row: fresh, changed: true }
+      const { notifications, ...simples } = write.data
+      const gravada: BusinessSettings = {
+        ...row,
+        ...simples,
+        ...(notifications !== undefined ? { notifications: notifications as BusinessSettings['notifications'] } : {}),
+        version: (version ?? row.version) + 1,
+      }
+      return { row: gravada, changed: true }
     }
     if (version !== undefined) throw staleSettings()
   }
