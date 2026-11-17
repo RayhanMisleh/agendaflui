@@ -402,6 +402,9 @@ para copiar). Depois do primeiro acesso, o navegador lembra a conta e a entrada 
 
 ## 11. Direção visual
 
+> Substituída em 2026-11-17 por `2026-11-17-redesenho-marca-design.md` (marca Agenda Flui, pasta `../branding/`).
+> O texto abaixo descreve a direção anterior, de papelaria, e não vale mais.
+
 Skeuomórfico: superfícies que imitam materiais reais, com luz, relevo e peso. O risco do
 estilo é virar enfeite; aqui cada objeto imita algo que **já tem aquela função** num balcão
 de atendimento.
