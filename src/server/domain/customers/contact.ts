@@ -2,7 +2,11 @@
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-export const PHONE_HELP = 'Informe o telefone com DDD, por exemplo (11) 91234-5678.'
+export const PHONE_HELP =
+  'Informe o telefone com DDD, por exemplo (11) 91234-5678. Para número de outro país, comece com + e o código do país.'
+
+/** Mensagem de `normalizeContactPhone` para número de fora do Brasil escrito sem `+`. */
+export const PHONE_FOREIGN_HELP = 'Comece com + e o código do país, por exemplo +49 151 1234 5678.'
 
 /** Apara e põe em minúsculas. Inválido → `RangeError`. */
 export function normalizeEmail(input: string): string {
@@ -35,6 +39,18 @@ export function normalizePhone(input: string): string {
     if (NATIONAL(digits)) digits = `55${digits}`
   }
   if (digits.startsWith('0') || digits.length < 10 || digits.length > 15) throw new RangeError(PHONE_HELP)
+  return digits
+}
+
+/**
+ * Como `normalizePhone`, para o telefone de contato do negócio (que não é um cadastro de balcão): número que não começa
+ * com `+` nem `00` e não é do Brasil (sem o 55 e sem 10 ou 11 dígitos) é recusado, em vez de aceito em silêncio.
+ * Inválido → `RangeError`.
+ */
+export function normalizeContactPhone(input: string): string {
+  const digits = normalizePhone(input)
+  const marcadoComoInternacional = input.trim().startsWith('+') || input.replace(/\D/g, '').startsWith('00')
+  if (!marcadoComoInternacional && !digits.startsWith('55')) throw new RangeError(PHONE_FOREIGN_HELP)
   return digits
 }
 

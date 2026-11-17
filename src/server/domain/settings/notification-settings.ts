@@ -1,13 +1,13 @@
 import type { TenantContext } from '@/server/auth/actor'
 import { NotificationKind } from '@/server/db/generated/enums'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
-import { audit } from '@/server/domain/audit'
-import { authorize, DomainError, orNotFound, parse, z } from '@/server/domain/errors'
+import { auditIn } from '@/server/domain/audit'
+import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
+import { writeSettings, type SettingsTx } from '@/server/domain/settings/versioned'
 
 export type ChannelToggle = { email: boolean; push: boolean }
 export type NotificationSettings = Record<NotificationKind, ChannelToggle>
 
-const MAX_ATTEMPTS = 5
 const KINDS: readonly NotificationKind[] = Object.values(NotificationKind)
 
 function allOn(): NotificationSettings {
@@ -51,54 +51,68 @@ export async function getNotificationSettings(
   return resolveNotificationSettings(settings.notifications)
 }
 
-export async function updateNotificationSettings(
+/** Os avisos com a versão das configurações (a mesma dos termos e das regras), que a gravação com controle de edição exige. */
+export async function getNotificationSettingsView(
   ctx: TenantContext,
+  db: TenantClient | TenantTx = ctx.db,
+): Promise<{ settings: NotificationSettings; version: number }> {
+  const row = orNotFound(
+    await db.businessSettings.findUnique({ where: { businessId: ctx.businessId }, select: { notifications: true, version: true } }),
+    'Configurações da conta',
+  )
+  return { settings: resolveNotificationSettings(row.notifications), version: row.version }
+}
+
+/**
+ * Grava os avisos dentro da transação `tx` (a do cliente da conta, ou a do `prisma` cru do painel dev). Único caminho de
+ * escrita dos avisos: o dono e o admin passam por aqui. Versão informada: UPDATE condicional (`stale_version`); sem ela,
+ * grava e sobe a versão. Sem mudança não grava, não sobe e não audita; a auditoria guarda antes e depois do que mudou.
+ */
+export async function applyNotificationSettings(
+  ctx: TenantContext,
+  tx: SettingsTx,
   patch: Partial<Record<NotificationKind, Partial<ChannelToggle>>>,
-  /** Conferência extra que roda primeiro dentro da transação da escrita (o painel dev relê o admin ativo aqui). */
-  inTransaction?: () => Promise<unknown>,
+  version?: number,
 ): Promise<NotificationSettings> {
   authorize(ctx, 'manage_settings')
   const input = parse(patchSchema, patch)
-  return ctx.db.$transaction(async (tx) => {
-    await inTransaction?.()
-    // Lê e grava só se o JSON ainda for o lido (comparação no próprio UPDATE): se outra alteração passou
-    // na frente, relê e tenta de novo, em vez de sobrescrevê-la.
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-      const stored = orNotFound(
-        await tx.businessSettings.findUnique({ where: { businessId: ctx.businessId }, select: { notifications: true } }),
-        'Configurações da conta',
-      )
-      const current = resolveNotificationSettings(stored.notifications)
-      const next: NotificationSettings = { ...current }
-      const changed: NotificationKind[] = []
-      for (const kind of KINDS) {
-        const wanted = input[kind]
-        if (!wanted) continue
-        const merged: ChannelToggle = {
-          email: wanted.email ?? current[kind].email,
-          push: wanted.push ?? current[kind].push,
-        }
-        next[kind] = merged
-        if (merged.email !== current[kind].email || merged.push !== current[kind].push) changed.push(kind)
+  let changes: Record<string, { from: ChannelToggle; to: ChannelToggle }> = {}
+  const { row } = await writeSettings(tx, ctx, version, (stored) => {
+    const current = resolveNotificationSettings(stored.notifications)
+    const next: NotificationSettings = { ...current }
+    const mudados: Record<string, { from: ChannelToggle; to: ChannelToggle }> = {}
+    for (const kind of KINDS) {
+      const wanted = input[kind]
+      if (!wanted) continue
+      const merged: ChannelToggle = {
+        email: wanted.email ?? current[kind].email,
+        push: wanted.push ?? current[kind].push,
       }
-      if (changed.length === 0) return current
-      const { count } = await tx.businessSettings.updateMany({
-        where: { businessId: ctx.businessId, notifications: { equals: stored.notifications ?? {} } },
-        data: { notifications: next },
-      })
-      if (count === 0) continue
-      await audit(
-        ctx,
-        {
-          action: 'notification_settings.updated',
-          targetType: 'BusinessSettings',
-          targetId: ctx.businessId,
-          metadata: { kinds: changed },
-        },
-        tx,
-      )
-      return next
+      next[kind] = merged
+      if (merged.email !== current[kind].email || merged.push !== current[kind].push) {
+        mudados[kind] = { from: current[kind], to: merged }
+      }
     }
-    throw new DomainError('conflict', 'As configurações mudaram enquanto você salvava. Tente de novo.', { reason: 'changed' })
+    changes = mudados
+    return Object.keys(mudados).length === 0 ? null : { data: { notifications: next } }
   })
+  const kinds = Object.keys(changes)
+  if (kinds.length > 0) {
+    await auditIn(tx, ctx, {
+      action: 'notification_settings.updated',
+      targetType: 'BusinessSettings',
+      targetId: ctx.businessId,
+      metadata: { kinds, changes },
+    })
+  }
+  return resolveNotificationSettings(row.notifications)
+}
+
+export async function updateNotificationSettings(
+  ctx: TenantContext,
+  patch: Partial<Record<NotificationKind, Partial<ChannelToggle>>>,
+  version?: number,
+): Promise<NotificationSettings> {
+  authorize(ctx, 'manage_settings')
+  return ctx.db.$transaction((tx) => applyNotificationSettings(ctx, tx, patch, version))
 }

@@ -493,7 +493,13 @@ describe('configurações de avisos', () => {
     expect(salvo.notifications).toEqual(novo)
     const linhas = await prisma.auditLog.findMany({ where: { businessId: b.id, action: 'notification_settings.updated' } })
     expect(linhas).toHaveLength(1)
-    expect(linhas[0]?.metadata).toEqual({ kinds: ['APPOINTMENT_CANCELED', 'APPOINTMENT_REMINDER_1H'] satisfies NotificationKind[] })
+    expect(linhas[0]?.metadata).toEqual({
+      kinds: ['APPOINTMENT_CANCELED', 'APPOINTMENT_REMINDER_1H'] satisfies NotificationKind[],
+      changes: {
+        APPOINTMENT_CANCELED: { from: { email: true, push: true }, to: { email: false, push: true } },
+        APPOINTMENT_REMINDER_1H: { from: { email: true, push: true }, to: { email: true, push: false } },
+      },
+    })
     const prof = await ctxWithRole(b, 'PROFESSIONAL')
     expect((await domainError(updateNotificationSettings(prof, { APPOINTMENT_CANCELED: { email: true } }))).code).toBe('forbidden')
     expect(await getNotificationSettings(prof)).toEqual(novo)

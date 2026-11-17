@@ -63,7 +63,7 @@ export async function audit(
  * toca usuários e sessões, que `tenantDb` recusa). O autor sai do ator do contexto: membro, ou admin em suporte (com a marca).
  */
 export async function auditIn(
-  tx: Pick<Prisma.TransactionClient, 'auditLog'>,
+  tx: { auditLog: { create(args: { data: Prisma.AuditLogUncheckedCreateInput }): PromiseLike<unknown> } },
   ctx: TenantContext,
   entry: { action: string; targetType?: string; targetId?: string; metadata?: Prisma.InputJsonObject },
 ): Promise<void> {

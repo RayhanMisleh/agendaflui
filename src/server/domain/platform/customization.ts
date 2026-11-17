@@ -5,28 +5,38 @@ import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import { DomainError, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
+import { replaceBrandImage, type BrandImageSlot } from '@/server/domain/platform/brand-image'
 import type { Modules } from '@/server/domain/platform/businesses'
 import {
+  applyNotificationSettings,
   getNotificationSettings,
-  updateNotificationSettings,
   type NotificationSettings,
 } from '@/server/domain/settings/notification-settings'
-import { getSchedulingRules, parseSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
-import { ImageError, removeUploadFile, saveImage, uploadUrl, type ImagePurpose } from '@/server/storage/images'
+import {
+  applySchedulingRules,
+  getSchedulingRules,
+  parseSchedulingRules,
+  type SchedulingRules,
+  type SchedulingRulesView,
+} from '@/server/domain/settings/scheduling-rules'
+import {
+  applyTerms,
+  displayNameSchema,
+  MSG_CONTROLE,
+  MSG_JUNCAO,
+  MSG_MARCACAO,
+  SEM_CONTROLE_EXCETO_LINHA,
+  SEM_JUNCAO_SOLTA,
+  SEM_MARCACAO,
+  termsOf,
+  termsSchema,
+  type Terms,
+} from '@/server/domain/settings/terms'
+import { uploadUrl } from '@/server/storage/images'
 import { canonicalTimeZone } from '@/server/time'
 import { COVER_MATERIALS, FONT_PAIRS, PAPER_TONES, type CoverMaterial, type FontPair, type PaperTone } from '@/shared/theme/derive'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
-
-export type Terms = {
-  professionalSingular: string
-  professionalPlural: string
-  customerSingular: string
-  customerPlural: string
-  pointsSingular: string
-  pointsPlural: string
-  club: string
-}
 
 export type BrandInput = {
   displayName: string
@@ -46,7 +56,7 @@ export type BrandView = BrandInput & {
   version: number
 }
 
-export type BrandImageSlot = 'logo' | 'symbol' | 'favicon' | 'loginImage'
+export type { BrandImageSlot, Terms }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -85,29 +95,9 @@ const cor = z
   .regex(/^#[0-9a-fA-F]{6}$/, MSG_COR)
   .transform((v) => v.toUpperCase())
 
-const MSG_MARCACAO = 'Não use os sinais < e >.'
-const MSG_CONTROLE = 'Não use caracteres de controle (como quebra de linha ou tabulação).'
-// \p{C}: controle, formato (como o espaço de largura zero), surrogates soltos e não atribuídos.
-// O U+200D (junção de emoji) vale: sem ele os emojis compostos (família, profissões) se quebram.
-const SEM_CONTROLE = (v: string) => !/[^\P{C}\u200D]/u.test(v)
-const SEM_MARCACAO = (v: string) => !/[<>]/.test(v)
-// Na mensagem de entrada a quebra de linha vale; qualquer outro caractere de controle não.
-const SEM_CONTROLE_EXCETO_LINHA = (v: string) => !/[^\P{C}\r\n\u200D]/u.test(v)
-// A junção só vale ENTRE dois caracteres de verdade (emoji composto): sozinha, no começo, no fim, repetida ou ao lado de
-// espaço ela deixaria um texto "vazio" passar, ou um nome terminado em caractere invisível.
-const MSG_JUNCAO = 'Não deixe o caractere invisível de junção de emoji sozinho, no começo, no fim ou repetido.'
-const JUNCAO_SOLTA = /(^|[\s\u200D])\u200D|\u200D($|[\s\u200D])/u
-const SEM_JUNCAO_SOLTA = (v: string) => !JUNCAO_SOLTA.test(v)
 
 const marcaSchema = z.strictObject({
-  displayName: z
-    .string('Informe o nome de exibição.')
-    .trim()
-    .min(1, 'Informe o nome de exibição.')
-    .max(80, 'Use no máximo 80 caracteres.')
-    .refine(SEM_MARCACAO, MSG_MARCACAO)
-    .refine(SEM_CONTROLE, MSG_CONTROLE)
-    .refine(SEM_JUNCAO_SOLTA, MSG_JUNCAO),
+  displayName: displayNameSchema,
   primary: cor,
   accent: cor,
   material: z.enum(COVER_MATERIALS, { error: 'Escolha um dos materiais da lista.' }),
@@ -215,37 +205,7 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
 
 // ---------------------------------------------------------------- imagens
 
-const SLOTS: Record<BrandImageSlot, { purpose: ImagePurpose; coluna: Prisma.Sql; campo: 'logoUploadId' | 'symbolUploadId' | 'faviconUploadId' | 'loginImageUploadId' }> = {
-  logo: { purpose: 'logo', coluna: Prisma.raw('logo_upload_id'), campo: 'logoUploadId' },
-  symbol: { purpose: 'symbol', coluna: Prisma.raw('symbol_upload_id'), campo: 'symbolUploadId' },
-  favicon: { purpose: 'favicon', coluna: Prisma.raw('favicon_upload_id'), campo: 'faviconUploadId' },
-  loginImage: { purpose: 'login', coluna: Prisma.raw('login_image_upload_id'), campo: 'loginImageUploadId' },
-}
-
-function erroDeImagem(slot: string, e: ImageError): DomainError {
-  // `imageCode` deixa a tela dizer o motivo sem depender do texto da mensagem.
-  return new DomainError('validation', e.message, { fields: { [slot]: e.message }, details: { imageCode: e.code } })
-}
-
-/** Remove o arquivo e o registro de uma imagem que saiu do ar. Falha vira log (sem texto do erro) e não desfaz nada. */
-async function apagarImagem(businessId: string, slot: string, uploadId: string): Promise<void> {
-  try {
-    const up = await prisma.upload.findUnique({ where: { id: uploadId }, select: { path: true } })
-    if (!up) return
-    const { fileRemoved } = await removeUploadFile(up.path)
-    // Arquivo que não saiu fica com o registro (sem vínculo), para a limpeza achar depois.
-    if (fileRemoved) await prisma.upload.deleteMany({ where: { id: uploadId } })
-    else console.error(JSON.stringify({ level: 'error', event: 'brand_image_cleanup_failed', businessId, slot, uploadId }))
-  } catch {
-    console.error(JSON.stringify({ level: 'error', event: 'brand_image_cleanup_failed', businessId, slot, uploadId }))
-  }
-}
-
-/**
- * Troca (ou, com `file: null`, remove) uma imagem da marca. Ordem: grava a nova, vincula na transação (com a linha da
- * marca travada, para duas trocas seguidas não deixarem imagem sem vínculo) e só depois apaga a antiga. O tipo vem dos
- * bytes, nunca do `mime` declarado. Se o vínculo falhar, a imagem nova é desfeita.
- */
+/** Troca (ou, com `file: null`, remove) uma imagem da marca; a gravação é a mesma que o dono usa para a logo. */
 export async function setBrandImage(
   actor: PlatformAdminActor,
   businessId: string,
@@ -254,86 +214,12 @@ export async function setBrandImage(
 ): Promise<BrandView> {
   exigirAdmin(actor)
   idValido(businessId)
-  // `hasOwn`: 'constructor' e '__proto__' existem em todo objeto e não são espaços.
-  const s = Object.hasOwn(SLOTS, slot) ? SLOTS[slot] : undefined
-  if (!s) throw new DomainError('validation', 'Escolha onde a imagem vai: logo, símbolo, favicon ou imagem de entrada.', { fields: { slot: 'Espaço de imagem desconhecido.' } })
-
-  orNotFound(await prisma.business.findUnique({ where: { id: businessId }, select: { id: true } }), 'Conta')
-  let nova: { id: string; path: string } | null = null
-  if (file !== null) {
-    try {
-      nova = await saveImage({ businessId, data: Buffer.from(file.bytes), purpose: s.purpose, createdBy: { type: 'PLATFORM_ADMIN', id: actor.adminId } })
-    } catch (e) {
-      if (e instanceof ImageError) throw erroDeImagem(slot, e)
-      throw e
-    }
-  }
-  let antiga: string | null
-  try {
-    antiga = await prisma.$transaction(async (tx) => {
-      await requireActiveAdmin(tx, actor)
-      const linhas = await tx.$queryRaw<{ antiga: string | null }[]>(
-        Prisma.sql`SELECT ${s.coluna} AS antiga FROM business_branding WHERE business_id = ${businessId}::uuid FOR UPDATE`,
-      )
-      const linha = linhas[0]
-      if (!linha) throw new DomainError('not_found', 'Marca da conta não encontrada.')
-      await tx.businessBranding.update({ where: { businessId }, data: { [s.campo]: nova?.id ?? null } })
-      if (nova !== null || linha.antiga !== null) {
-        await auditar(tx, actor, 'brand.image_changed', businessId, {
-          slot,
-          change: nova === null ? 'removed' : linha.antiga === null ? 'added' : 'replaced',
-        })
-      }
-      return linha.antiga
-    })
-  } catch (e) {
-    if (nova) await apagarImagem(businessId, slot, nova.id)
-    throw e
-  }
-  if (antiga !== null) await apagarImagem(businessId, slot, antiga)
+  const ctx = await createPlatformAdminContext({ businessId, actor })
+  await replaceBrandImage(ctx, slot, file)
   return lerMarca(businessId)
 }
 
 // ---------------------------------------------------------------- termos
-
-const termo = z
-  .string('Informe o termo.')
-  .trim()
-  .min(1, 'Informe o termo.')
-  .max(30, 'Use no máximo 30 caracteres.')
-  .refine(SEM_MARCACAO, MSG_MARCACAO)
-  .refine(SEM_CONTROLE, MSG_CONTROLE)
-  .refine(SEM_JUNCAO_SOLTA, MSG_JUNCAO)
-
-const termosSchema = z.strictObject({
-  professionalSingular: termo,
-  professionalPlural: termo,
-  customerSingular: termo,
-  customerPlural: termo,
-  pointsSingular: termo,
-  pointsPlural: termo,
-  club: termo,
-})
-
-function termosDe(s: {
-  termProfessionalSingular: string
-  termProfessionalPlural: string
-  termCustomerSingular: string
-  termCustomerPlural: string
-  termPointsSingular: string
-  termPointsPlural: string
-  termClub: string
-}): Terms {
-  return {
-    professionalSingular: s.termProfessionalSingular,
-    professionalPlural: s.termProfessionalPlural,
-    customerSingular: s.termCustomerSingular,
-    customerPlural: s.termCustomerPlural,
-    pointsSingular: s.termPointsSingular,
-    pointsPlural: s.termPointsPlural,
-    club: s.termClub,
-  }
-}
 
 const SELECAO_TERMOS = {
   termProfessionalSingular: true,
@@ -345,32 +231,14 @@ const SELECAO_TERMOS = {
   termClub: true,
 } satisfies Prisma.BusinessSettingsSelect
 
-export async function updateTerms(actor: PlatformAdminActor, businessId: string, input: Terms): Promise<Terms> {
+/** Termos gravados pela mesma função do dono (`applyTerms`), com o admin como autor; `version` é opcional. */
+export async function updateTerms(actor: PlatformAdminActor, businessId: string, input: Terms, version?: number): Promise<Terms> {
   exigirAdmin(actor)
   idValido(businessId)
-  const i = parse(termosSchema, input)
+  const ctx = await createPlatformAdminContext({ businessId, actor })
   return prisma.$transaction(async (tx) => {
     await requireActiveAdmin(tx, actor)
-    const antes = termosDe(orNotFound(await tx.businessSettings.findUnique({ where: { businessId }, select: SELECAO_TERMOS }), 'Configurações da conta'))
-    const campos = (Object.keys(i) as (keyof Terms)[]).filter((k) => i[k] !== antes[k])
-    if (campos.length === 0) return antes
-    const depois = await tx.businessSettings.update({
-      where: { businessId },
-      data: {
-        termProfessionalSingular: i.professionalSingular,
-        termProfessionalPlural: i.professionalPlural,
-        termCustomerSingular: i.customerSingular,
-        termCustomerPlural: i.customerPlural,
-        termPointsSingular: i.pointsSingular,
-        termPointsPlural: i.pointsPlural,
-        termClub: i.club,
-      },
-      select: SELECAO_TERMOS,
-    })
-    await auditar(tx, actor, 'terms.updated', businessId, {
-      changes: Object.fromEntries(campos.map((k) => [k, { from: antes[k], to: i[k] }])),
-    })
-    return termosDe(depois)
+    return (await applyTerms(ctx, tx, input, version)).terms
   })
 }
 
@@ -399,10 +267,11 @@ export async function updateModules(actor: PlatformAdminActor, businessId: strin
     await requireActiveAdmin(tx, actor)
     orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { id: true } }), 'Conta')
     const antes = (await tx.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true, vouchers: true } })) ?? MODULOS_PADRAO
+    const mudou = (Object.keys(i) as (keyof Modules)[]).some((k) => i[k] !== antes[k])
     const depois = await tx.businessModules.upsert({
       where: { businessId },
       create: { businessId, ...i },
-      update: i,
+      update: mudou ? { ...i, version: { increment: 1 } } : i,
       select: { loyalty: true, banners: true, store: true, vouchers: true },
     })
     await auditar(tx, actor, 'modules.updated', businessId, { from: antes, to: depois })
@@ -419,7 +288,7 @@ export function validateAccountSetup(input: { brand: BrandInput; terms: Terms; m
   const erros: Record<string, string> = {}
   const marca = marcaSchema.safeParse(input.brand)
   if (!marca.success) Object.assign(erros, zodFields(marca.error, { perUnknownKey: true }))
-  const termos = termosSchema.safeParse(input.terms)
+  const termos = termsSchema.safeParse(input.terms)
   if (!termos.success) Object.assign(erros, zodFields(termos.error, { perUnknownKey: true }))
   const modulos = modulosSchema.safeParse(input.modules)
   if (!modulos.success) Object.assign(erros, zodFields(modulos.error, { perUnknownKey: true }))
@@ -454,33 +323,18 @@ export async function updateRulesAsAdmin(
   actor: PlatformAdminActor,
   businessId: string,
   input: Partial<SchedulingRules> & { timeZone?: string },
-): Promise<{ rules: SchedulingRules; timeZone: string }> {
+  version?: number,
+): Promise<{ rules: SchedulingRulesView; timeZone: string }> {
   exigirAdmin(actor)
   idValido(businessId)
   const { timeZone, ...pedido } = input
   const novoFuso = timeZone === undefined ? undefined : fusoCanonico(timeZone)
   const ctx = await createPlatformAdminContext({ businessId, actor })
   const regras = parseSchedulingRules(pedido)
-  const campos = Object.keys(regras)
   await prisma.$transaction(async (tx) => {
     await requireActiveAdmin(tx, actor)
-    if (campos.length > 0) {
-      const r = await tx.businessSettings.updateMany({ where: { businessId }, data: regras })
-      if (r.count === 0) throw new DomainError('not_found', 'Configurações da conta não encontrado.')
-      await tx.auditLog.create({
-        data: {
-          businessId,
-          actorType: 'PLATFORM_ADMIN',
-          actorId: actor.adminId,
-          actorName: actor.name,
-          onBehalf: false,
-          action: 'scheduling_rules.updated',
-          targetType: 'BusinessSettings',
-          targetId: businessId,
-          metadata: { fields: campos },
-        },
-      })
-    }
+    // Mesma gravação do dono (`applySchedulingRules`); só o fuso é exclusivo do admin e entra na mesma transação.
+    await applySchedulingRules(ctx, tx, regras, Object.keys(regras).length > 0 ? version : undefined)
     if (novoFuso !== undefined) {
       const conta = orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { timezone: true } }), 'Conta')
       if (conta.timezone !== novoFuso) {
@@ -500,12 +354,15 @@ export async function updateNotificationsAsAdmin(
   actor: PlatformAdminActor,
   businessId: string,
   input: NotificationSettings,
+  version?: number,
 ): Promise<NotificationSettings> {
   exigirAdmin(actor)
   idValido(businessId)
   const ctx = await createPlatformAdminContext({ businessId, actor })
-  // A releitura do admin roda dentro da transação da escrita (o cliente da conta não enxerga `platform_admins`, então vai pelo cliente cru).
-  return updateNotificationSettings(ctx, input, () => requireActiveAdmin(prisma, actor))
+  return prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
+    return applyNotificationSettings(ctx, tx, input, version)
+  })
 }
 
 // ---------------------------------------------------------------- leitura
@@ -513,7 +370,7 @@ export async function updateNotificationsAsAdmin(
 export async function getCustomization(
   actor: PlatformAdminActor,
   businessId: string,
-): Promise<{ brand: BrandView; terms: Terms; modules: Modules; rules: SchedulingRules; timeZone: string; notifications: NotificationSettings }> {
+): Promise<{ brand: BrandView; terms: Terms; modules: Modules; rules: SchedulingRulesView; timeZone: string; notifications: NotificationSettings }> {
   exigirAdmin(actor)
   idValido(businessId)
   const ctx = await createPlatformAdminContext({ businessId, actor })
@@ -526,7 +383,7 @@ export async function getCustomization(
   ])
   return {
     brand,
-    terms: termosDe(orNotFound(settings, 'Configurações da conta')),
+    terms: termsOf(orNotFound(settings, 'Configurações da conta')),
     modules: modules ?? MODULOS_PADRAO,
     rules,
     timeZone: ctx.timeZone,

@@ -18,19 +18,19 @@ const PADRAO = {
 describe('regras de agenda', () => {
   test('devolve os padrões da conta', async () => {
     const b = await makeBusiness()
-    expect(await getSchedulingRules(await makeCtx(b))).toEqual(PADRAO)
+    expect(await getSchedulingRules(await makeCtx(b))).toMatchObject(PADRAO)
   })
 
   test('qualquer ator da conta lê, inclusive profissional', async () => {
     const b = await makeBusiness()
-    expect(await getSchedulingRules(await ctxWithRole(b, 'PROFESSIONAL'))).toEqual(PADRAO)
+    expect(await getSchedulingRules(await ctxWithRole(b, 'PROFESSIONAL'))).toMatchObject(PADRAO)
   })
 
   test('gerente altera, grava e audita; o resto fica como estava', async () => {
     const b = await makeBusiness()
     const gerente = await ctxWithRole(b, 'MANAGER')
     const novo = await updateSchedulingRules(gerente, { slotStepMin: 30, bufferMin: 10, autoConfirm: false })
-    expect(novo).toEqual({ ...PADRAO, slotStepMin: 30, bufferMin: 10, autoConfirm: false })
+    expect(novo).toMatchObject({ ...PADRAO, slotStepMin: 30, bufferMin: 10, autoConfirm: false })
     expect(await getSchedulingRules(gerente)).toEqual(novo)
     const linhas = await prisma.auditLog.findMany({ where: { businessId: b.id, action: 'scheduling_rules.updated' } })
     expect(linhas).toHaveLength(1)
@@ -39,7 +39,7 @@ describe('regras de agenda', () => {
   test('corpo vazio devolve as regras sem auditar', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
-    expect(await updateSchedulingRules(ctx, {})).toEqual(PADRAO)
+    expect(await updateSchedulingRules(ctx, {})).toMatchObject(PADRAO)
     expect(await prisma.auditLog.count({ where: { businessId: b.id, action: 'scheduling_rules.updated' } })).toBe(0)
   })
 
@@ -47,7 +47,7 @@ describe('regras de agenda', () => {
     const b = await makeBusiness()
     const prof = await ctxWithRole(b, 'PROFESSIONAL')
     expect((await domainError(updateSchedulingRules(prof, { bufferMin: 5 }))).code).toBe('forbidden')
-    expect(await getSchedulingRules(prof)).toEqual(PADRAO)
+    expect(await getSchedulingRules(prof)).toMatchObject(PADRAO)
   })
 
   test('altera só a própria conta', async () => {
@@ -76,7 +76,7 @@ describe('regras de agenda', () => {
       expect(e.code).toBe('validation')
       expect(Object.keys(e.fields ?? {})).toContain(campo)
     }
-    expect(await getSchedulingRules(ctx)).toEqual(PADRAO)
+    expect(await getSchedulingRules(ctx)).toMatchObject(PADRAO)
   })
 
   test('aceita os extremos válidos', async () => {

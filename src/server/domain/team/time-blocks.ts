@@ -1,5 +1,6 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { PartyType } from '@/server/db/generated/client'
+import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
 import { can } from '@/server/auth/capabilities'
@@ -41,6 +42,12 @@ const createSchema = z.object({
     .transform((texto) => (texto === '' ? null : texto))
     .nullable()
     .optional(),
+})
+
+const previewSchema = z.object({
+  professionalId: z.string(),
+  startsAt: z.date('Informe o início do bloqueio.'),
+  endsAt: z.date('Informe o fim do bloqueio.'),
 })
 
 const idSchema = z.uuid()
@@ -104,12 +111,7 @@ export async function listTimeBlocks(
   return rows.map((row) => toView(seesReason ? row : { ...row, reason: null }))
 }
 
-export async function createTimeBlock(
-  ctx: TenantContext,
-  i: { professionalId: string; startsAt: Date; endsAt: Date; reason?: string | null },
-): Promise<CreatedTimeBlock> {
-  const data = parse(createSchema, i)
-  await assertCanWriteSchedule(ctx, data.professionalId)
+function assertBlockPeriod(data: { startsAt: Date; endsAt: Date }): void {
   if (minutesBetween(data.startsAt, data.endsAt) <= 0) {
     throw new DomainError('validation', 'O fim do bloqueio deve ser depois do início.', {
       fields: { endsAt: 'Escolha um fim depois do início.' },
@@ -120,6 +122,33 @@ export async function createTimeBlock(
       fields: { endsAt: `Use um período de até ${MAX_BLOCK_DAYS} dias.` },
     })
   }
+}
+
+/** Agendamentos pendentes ou confirmados do profissional que tocam o intervalo. */
+function countCovered(db: TenantClient | TenantTx, p: { professionalId: string; startsAt: Date; endsAt: Date }): Promise<number> {
+  return db.appointment.count({
+    where: { professionalId: p.professionalId, status: { in: [...OPEN_STATUSES] }, startsAt: { lt: p.endsAt }, endsAt: { gt: p.startsAt } },
+  })
+}
+
+/** Quantos agendamentos ativos um bloqueio nesse intervalo cobriria; não grava. O profissional só prevê a própria ficha. */
+export async function previewTimeBlock(
+  ctx: TenantContext,
+  i: { professionalId: string; startsAt: Date; endsAt: Date },
+): Promise<{ affectedAppointments: number }> {
+  const data = parse(previewSchema, i)
+  await assertCanWriteSchedule(ctx, data.professionalId)
+  assertBlockPeriod(data)
+  return { affectedAppointments: await countCovered(ctx.db, data) }
+}
+
+export async function createTimeBlock(
+  ctx: TenantContext,
+  i: { professionalId: string; startsAt: Date; endsAt: Date; reason?: string | null },
+): Promise<CreatedTimeBlock> {
+  const data = parse(createSchema, i)
+  await assertCanWriteSchedule(ctx, data.professionalId)
+  assertBlockPeriod(data)
   const created = await ctx.db.$transaction(async (tx) => {
     const block = await tx.timeBlock.create({
       data: {
@@ -141,14 +170,7 @@ export async function createTimeBlock(
       },
       tx,
     )
-    const affectedAppointments = await tx.appointment.count({
-      where: {
-        professionalId: data.professionalId,
-        status: { in: [...OPEN_STATUSES] },
-        startsAt: { lt: data.endsAt },
-        endsAt: { gt: data.startsAt },
-      },
-    })
+    const affectedAppointments = await countCovered(tx, data)
     return { block, affectedAppointments }
   })
   return { ...toView(created.block), affectedAppointments: created.affectedAppointments }

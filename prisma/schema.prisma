@@ -326,6 +326,8 @@ model BusinessModules {
   banners    Boolean  @default(false)
   store      Boolean  @default(false)
   vouchers   Boolean  @default(false)
+  /// Controle de edição dos módulos: sobe a cada mudança.
+  version    Int      @default(1)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -351,6 +353,8 @@ model BusinessSettings {
   termClub                 String   @default("Clube") @map("term_club")
   loyaltyRankingEnabled    Boolean  @default(false) @map("loyalty_ranking_enabled")
   notifications            Json     @default("{}")
+  /// Controle de edição de termos, regras de agenda e avisos (uma versão só para o conjunto): cada gravação que muda algo a incrementa.
+  version                  Int      @default(1)
   createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

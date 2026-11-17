@@ -1,9 +1,10 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { BusinessSettings } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
-import { audit } from '@/server/domain/audit'
+import { auditIn } from '@/server/domain/audit'
 import { definedOnly } from '@/server/domain/input'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
+import { writeSettings, type SettingsTx } from '@/server/domain/settings/versioned'
 
 export type SchedulingRules = {
   slotStepMin: number
@@ -60,7 +61,10 @@ export function parseSchedulingRules(input: Partial<SchedulingRules>): Partial<S
   return definedOnly(parse(rulesSchema, input))
 }
 
-function toRules(settings: BusinessSettings): SchedulingRules {
+/** As regras com a versão das configurações (a mesma dos termos e avisos), que a gravação com controle de edição exige. */
+export type SchedulingRulesView = SchedulingRules & { version: number }
+
+function toRules(settings: BusinessSettings): SchedulingRulesView {
   return {
     slotStepMin: settings.slotStepMin,
     minLeadMin: settings.minLeadMin,
@@ -68,6 +72,7 @@ function toRules(settings: BusinessSettings): SchedulingRules {
     customerChangeWindowMin: settings.customerChangeWindowMin,
     bufferMin: settings.bufferMin,
     autoConfirm: settings.autoConfirm,
+    version: settings.version,
   }
 }
 
@@ -81,27 +86,49 @@ async function loadSettings(ctx: TenantContext, db: TenantClient | TenantTx): Pr
 export async function getSchedulingRules(
   ctx: TenantContext,
   db: TenantClient | TenantTx = ctx.db,
-): Promise<SchedulingRules> {
+): Promise<SchedulingRulesView> {
   return toRules(await loadSettings(ctx, db))
+}
+
+/**
+ * Grava as regras dentro da transação `tx` (a do cliente da conta, ou a do `prisma` cru quando o painel dev grava junto o
+ * fuso). É o único caminho de escrita das regras: o dono e o admin passam por aqui. Com `version`, é um UPDATE condicional
+ * (`conflict` `stale_version` se a linha já mudou); sem ela, grava e sobe a versão. Sem mudança não grava, não sobe e não audita.
+ * A auditoria guarda os campos e o antes e o depois de cada um.
+ */
+export async function applySchedulingRules(
+  ctx: TenantContext,
+  tx: SettingsTx,
+  input: Partial<SchedulingRules>,
+  version?: number,
+): Promise<SchedulingRulesView> {
+  authorize(ctx, 'manage_settings')
+  const data = definedOnly(parse(rulesSchema, input))
+  let changes: Record<string, { from: number | boolean; to: number | boolean }> = {}
+  const { row } = await writeSettings(tx, ctx, version, (atual) => {
+    const antes = toRules(atual)
+    const mudados = (Object.keys(data) as (keyof SchedulingRules)[]).filter((k) => data[k] !== antes[k])
+    if (mudados.length === 0) return null
+    changes = Object.fromEntries(mudados.map((k) => [k, { from: antes[k], to: data[k] as number | boolean }]))
+    return { data: Object.fromEntries(mudados.map((k) => [k, data[k]])) }
+  })
+  const fields = Object.keys(changes)
+  if (fields.length > 0) {
+    await auditIn(tx, ctx, {
+      action: 'scheduling_rules.updated',
+      targetType: 'BusinessSettings',
+      targetId: ctx.businessId,
+      metadata: { fields, changes },
+    })
+  }
+  return toRules(row)
 }
 
 export async function updateSchedulingRules(
   ctx: TenantContext,
   input: Partial<SchedulingRules>,
-): Promise<SchedulingRules> {
+  version?: number,
+): Promise<SchedulingRulesView> {
   authorize(ctx, 'manage_settings')
-  const parsed = parse(rulesSchema, input)
-  const data = definedOnly(parsed)
-  const fields = Object.keys(data)
-  if (fields.length === 0) return getSchedulingRules(ctx)
-  const updated = await ctx.db.$transaction(async (tx) => {
-    const settings = await tx.businessSettings.update({ where: { businessId: ctx.businessId }, data })
-    await audit(
-      ctx,
-      { action: 'scheduling_rules.updated', targetType: 'BusinessSettings', targetId: ctx.businessId, metadata: { fields } },
-      tx,
-    )
-    return settings
-  })
-  return toRules(updated)
+  return ctx.db.$transaction((tx) => applySchedulingRules(ctx, tx, input, version))
 }
