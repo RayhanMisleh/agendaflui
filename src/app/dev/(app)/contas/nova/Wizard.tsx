@@ -28,8 +28,6 @@ import { criarConta } from './actions'
 import { FUSOS, STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
 import type { WizardData, WizardResult, WizardValues } from './fields'
 
-const LIMITE_LOGO = 8 * 1024 * 1024
-
 const ROTULOS: Record<string, string> = {
   name: 'Nome da conta',
   slug: 'Identificador',
@@ -46,7 +44,6 @@ const ROTULOS: Record<string, string> = {
   paper: 'Tom do papel',
   fontPair: 'Par de fontes',
   loginMessage: 'Mensagem da tela de entrada',
-  logo: 'Logo',
   professionalSingular: 'Profissional (singular)',
   professionalPlural: 'Profissional (plural)',
   customerSingular: 'Cliente (singular)',
@@ -101,9 +98,6 @@ function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () 
   const [slugManual, setSlugManual] = useState(() => initial.values.slug !== '' && initial.values.slug !== slugify(initial.values.name))
   const [nomeManual, setNomeManual] = useState(() => initial.values.displayName !== '' && initial.values.displayName !== initial.values.name)
   const [chaveManual, setChaveManual] = useState(() => initial.values.keyName !== '')
-  const [logo, setLogo] = useState<{ file: File; url: string } | null>(null)
-  const [erroLogo, setErroLogo] = useState<string | null>(null)
-  const arquivoRef = useRef<HTMLInputElement>(null)
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const primeiraVez = useRef(true)
 
@@ -113,22 +107,6 @@ function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () 
     const alvo = firstStepWithError(state.fields)
     if (alvo !== null) setStep(alvo)
   }
-
-  // O navegador limpa o campo de arquivo depois de cada envio; devolve a logo escolhida para a pessoa não escolher de novo.
-  useEffect(() => {
-    const input = arquivoRef.current
-    if (!input || !logo || input.files?.length) return
-    try {
-      const dt = new DataTransfer()
-      dt.items.add(logo.file)
-      input.files = dt.files
-    } catch {
-      // Sem DataTransfer, a pessoa escolhe o arquivo de novo.
-    }
-  }, [state, logo])
-  useEffect(() => () => {
-    if (logo) URL.revokeObjectURL(logo.url)
-  }, [logo])
 
   // Troca de etapa: o foco vai para o título da etapa (teclado e leitor de tela).
   useEffect(() => {
@@ -156,18 +134,6 @@ function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () 
       ...(nomeManual ? {} : { displayName: valor }),
       ...(chaveManual ? {} : { keyName: valor.trim() ? `App ${valor.trim()}` : '' }),
     }))
-  }
-
-  function onLogo(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    setErroLogo(null)
-    if (!file) return setLogo(null)
-    if (file.size > LIMITE_LOGO) {
-      e.target.value = ''
-      setLogo(null)
-      return setErroLogo('A imagem passa de 8 MB. Envie um arquivo menor.')
-    }
-    setLogo({ file, url: URL.createObjectURL(file) })
   }
 
   // Enter num campo de uma etapa do meio avança em vez de criar a conta.
@@ -260,9 +226,7 @@ function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () 
                   autoComplete="off"
                 />
               </Field>
-              <Field label="Logo (opcional)" hint="JPEG, PNG ou WebP, até 8 MB. Aparece em baixo-relevo na capa." error={erroLogo ?? erro('logo')}>
-                <input ref={arquivoRef} type="file" name="logo" accept="image/png,image/jpeg,image/webp" className="af-input" onChange={onLogo} />
-              </Field>
+              <p className="af-wizard__note">A logo, o símbolo, o favicon e a imagem de entrada você envia na aba Marca da conta, logo depois de criá-la.</p>
               <ColorField label="Cor principal" name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...opcional('error', erro('primary'))} {...opcional('warning', avisoDe(warnings, 'primary'))} />
               <ColorField label="Cor de destaque" name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...opcional('error', erro('accent'))} {...opcional('warning', avisoDe(warnings, 'accent'))} />
             </div>
@@ -441,7 +405,7 @@ function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () 
           <aside aria-label="Prévia ao vivo da marca" className="af-wizard__aside">
             <BrandPreview
               businessName={v.displayName || v.name}
-              brand={{ primary: v.primary, accent: v.accent, material: v.material, paper: v.paper, fontPair: v.fontPair, logoUrl: logo?.url ?? null }}
+              brand={{ primary: v.primary, accent: v.accent, material: v.material, paper: v.paper, fontPair: v.fontPair }}
               terms={v}
             />
           </aside>
@@ -500,7 +464,13 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
 
       {result.pendencias.length > 0 ? (
         <div role="alert" className="af-wizard__note">
-          A conta foi criada, mas faltou salvar: {result.pendencias.join('; ').toLowerCase()}. Abra a conta e complete esses itens.
+          A conta foi criada, mas faltou salvar:
+          <ul>
+            {result.pendencias.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+          Abra a conta e complete esses itens.
         </div>
       ) : null}
 
@@ -533,6 +503,7 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
         <LinkButton href={`/contas/${result.createdId}`} variant="primary">
           Abrir a conta
         </LinkButton>
+        <LinkButton href={`/contas/${result.createdId}/marca`}>Enviar a logo e as imagens</LinkButton>
         <Button icon={<Plus size={18} />} onClick={onAgain}>
           Criar outra conta
         </Button>

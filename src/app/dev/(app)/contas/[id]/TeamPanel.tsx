@@ -1,8 +1,8 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { ConfirmDialog, DataList, EmptyState, Button, Select, Stamp } from '@/ui/components'
+import { ConfirmDialog, DataList, EmptyState, Button, Field, Input, Select, Stamp } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
-import { alternarAcesso, reenviarConvite, trocarPapel } from './actions'
+import { alternarAcesso, convidarMembro, reenviarConvite, trocarPapel } from './actions'
 import { estadoInicial } from './forms'
 
 export type Membro = {
@@ -103,6 +103,49 @@ function Convite({ businessId, m }: { businessId: string; m: Membro }) {
   )
 }
 
+/** Convite de uma pessoa nova: nome, e-mail e papel. Funciona sem JavaScript; as mensagens do domínio aparecem no formulário. */
+function ConvidarForm({ businessId }: { businessId: string }) {
+  const [state, action, pending] = useActionState(convidarMembro, estadoInicial({ businessId, name: '', email: '', role: 'PROFESSIONAL' }))
+  const erro = state.ok ? undefined : state.message
+  return (
+    <form action={action} className="af-invite">
+      <input type="hidden" name="businessId" value={businessId} />
+      <div className="af-invite__fields">
+        <Field label="Nome" error={state.fields.name}>
+          <Input name="name" defaultValue={state.values.name ?? ''} autoComplete="off" />
+        </Field>
+        <Field label="E-mail" error={state.fields.email}>
+          <Input name="email" type="email" inputMode="email" defaultValue={state.values.email ?? ''} autoComplete="off" autoCapitalize="none" spellCheck={false} />
+        </Field>
+        <Field label="Papel" error={state.fields.role}>
+          <Select name="role" defaultValue={state.values.role ?? 'PROFESSIONAL'}>
+            {PAPEIS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <div className="af-invite__go">
+        <Button type="submit" variant="primary" loading={pending}>
+          Convidar pessoa
+        </Button>
+        {state.ok && state.message ? (
+          <p role="status" className="af-acctform__ok">
+            {state.message}
+          </p>
+        ) : null}
+        {erro && Object.keys(state.fields).length === 0 ? (
+          <p role="alert" className="af-rowerror">
+            {erro}
+          </p>
+        ) : null}
+      </div>
+    </form>
+  )
+}
+
 /** Equipe da conta: papel, situação, último acesso e as ações. As mensagens do domínio (último dono etc.) aparecem na linha. */
 export function TeamPanel({ businessId, membros }: { businessId: string; membros: Membro[] }) {
   const colunas: DataColumn<Membro>[] = [
@@ -142,12 +185,15 @@ export function TeamPanel({ businessId, membros }: { businessId: string; membros
     },
   ]
   return (
-    <DataList
-      label="Equipe da conta"
-      columns={colunas}
-      rows={membros}
-      rowKey={(m) => m.membershipId}
-      empty={<EmptyState title="Esta conta não tem equipe" description="Quem foi vinculado à conta aparece aqui, com papel e situação." />}
-    />
+    <div className="af-team">
+      <ConvidarForm businessId={businessId} />
+      <DataList
+        label="Equipe da conta"
+        columns={colunas}
+        rows={membros}
+        rowKey={(m) => m.membershipId}
+        empty={<EmptyState title="Esta conta não tem equipe" description="Convide a primeira pessoa no formulário acima: ela aparece aqui, com papel e situação." />}
+      />
+    </div>
   )
 }

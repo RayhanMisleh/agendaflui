@@ -23,7 +23,7 @@ test('sem JavaScript todas as etapas aparecem num formulário só, com os campos
   const secoes = doc.querySelectorAll('section.af-wizard__step')
   expect(secoes).toHaveLength(7)
   for (const s of secoes) expect(s.hasAttribute('hidden')).toBe(false)
-  for (const nome of ['name', 'slug', 'primary', 'material', 'club', 'bufferMin', 'ownerEmail', 'keyName', 'logo']) {
+  for (const nome of ['name', 'slug', 'primary', 'material', 'club', 'bufferMin', 'ownerEmail', 'keyName']) {
     expect(doc.querySelector(`form [name="${nome}"]`), nome).not.toBeNull()
   }
   expect(doc.querySelector('button[type="submit"]')?.textContent).toContain('Criar conta')

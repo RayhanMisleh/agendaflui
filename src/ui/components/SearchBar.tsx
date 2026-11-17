@@ -37,7 +37,7 @@ export function SearchBar({
   return (
     <form role="search" method="get" action={action} className="af-searchbar">
       <Field label={label} className="af-searchbar__query">
-        <Input type="search" name={name} defaultValue={query} placeholder={placeholder} autoComplete="off" spellCheck={false} />
+        <Input type="search" name={name} defaultValue={query} placeholder={placeholder} maxLength={100} autoComplete="off" spellCheck={false} />
       </Field>
       {filters.map((f) => (
         <Field key={f.name} label={f.label} className="af-searchbar__filter">

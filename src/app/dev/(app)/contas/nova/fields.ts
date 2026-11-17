@@ -61,8 +61,8 @@ export type WizardResult = {
   secret?: string | undefined
 }
 
-/** Valores do formulário mais o arquivo da logo (que nunca volta ao navegador) e o resultado da criação. */
-export type WizardData = WizardValues & { logo?: File | undefined; result?: WizardResult | undefined }
+/** Valores do formulário mais o resultado da criação (só existe depois que a conta foi criada). */
+export type WizardData = WizardValues & { result?: WizardResult | undefined }
 
 /** Valores iniciais: a marca padrão AgendaFlui, os termos e as regras que o banco já usa para conta nova. */
 export const EMPTY_VALUES: WizardValues = {
@@ -108,7 +108,7 @@ export type StepId = 'dados' | 'marca' | 'termos' | 'modulos' | 'regras' | 'dono
 
 export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly string[] }> = [
   { id: 'dados', label: 'Dados', fields: ['name', 'slug', 'timeZone', 'legalName', 'document', 'contactEmail', 'contactPhone', 'internalNotes'] },
-  { id: 'marca', label: 'Marca', fields: ['displayName', 'primary', 'accent', 'material', 'paper', 'fontPair', 'loginMessage', 'logo'] },
+  { id: 'marca', label: 'Marca', fields: ['displayName', 'primary', 'accent', 'material', 'paper', 'fontPair', 'loginMessage'] },
   {
     id: 'termos',
     label: 'Termos',
@@ -160,7 +160,7 @@ export function pickValues(d: WizardData): WizardValues {
   return v
 }
 
-/** Lê o formulário. Texto que falta vale o padrão; caixa que falta vale "desmarcada"; só a logo é arquivo. */
+/** Lê o formulário. Texto que falta vale o padrão; caixa que falta vale "desmarcada". A logo não vai aqui: tem rota própria. */
 export function readValues(fd: FormData): WizardData {
   const v: WizardValues = { ...EMPTY_VALUES }
   const escrever = v as Record<string, string | boolean>
@@ -169,8 +169,7 @@ export function readValues(fd: FormData): WizardData {
     if (typeof bruto === 'string') escrever[k] = bruto
   }
   for (const k of BOOLEANOS) v[k] = fd.get(k) === 'on'
-  const arquivo = fd.get('logo')
-  return { ...v, logo: arquivo instanceof File && arquivo.size > 0 ? arquivo : undefined }
+  return v
 }
 
 export type TermSet = Pick<

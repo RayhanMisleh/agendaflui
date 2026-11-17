@@ -1,8 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import sharp from 'sharp'
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makePlatformAdmin, makeUser } from '../setup/factories'
@@ -14,12 +10,18 @@ vi.mock('@/server/notifications/channels', async (original) => {
   const real = await original<typeof import('@/server/notifications/channels')>()
   return { ...real, getEmailChannel: () => envio }
 })
-const disco = vi.hoisted(() => ({ storage: null as import('@/server/storage/storage').Storage | null }))
-vi.mock('@/server/storage/storage', async (original) => {
-  const real = await original<typeof import('@/server/storage/storage')>()
-  return { ...real, getStorage: () => disco.storage ?? real.getStorage() }
+const chaves = vi.hoisted(() => ({ falhar: false, regrasFalham: false }))
+vi.mock('@/server/domain/platform/customization', async (original) => {
+  const real = await original<typeof import('@/server/domain/platform/customization')>()
+  const { DomainError } = await import('@/server/domain/errors')
+  return {
+    ...real,
+    updateRulesAsAdmin: (...args: Parameters<typeof real.updateRulesAsAdmin>) => {
+      if (chaves.regrasFalham) throw new DomainError('validation', 'Motivo claro do domínio.')
+      return real.updateRulesAsAdmin(...args)
+    },
+  }
 })
-const chaves = vi.hoisted(() => ({ falhar: false }))
 vi.mock('@/server/domain/platform/api-keys', async (original) => {
   const real = await original<typeof import('@/server/domain/platform/api-keys')>()
   return {
@@ -91,19 +93,10 @@ async function redirecionamento(p: Promise<unknown>): Promise<string> {
   throw new Error('Era esperado um redirecionamento.')
 }
 
-let dir: string
-beforeAll(async () => {
-  const { createLocalDiskStorage } = await import('@/server/storage/local-disk')
-  dir = await mkdtemp(join(tmpdir(), 'agendaflui-wizard-'))
-  disco.storage = createLocalDiskStorage(dir)
-})
-afterAll(async () => {
-  await rm(dir, { recursive: true, force: true })
-})
-
 beforeEach(async () => {
   await resetDb()
   chaves.falhar = false
+  chaves.regrasFalham = false
   envio.send.mockClear()
   const admin = await makePlatformAdmin()
   guards.requirePlatformAdmin.mockResolvedValue({ kind: 'platform_admin', adminId: admin.id, name: admin.name })
@@ -206,24 +199,20 @@ describe('criar conta pela ação do assistente', () => {
     expect(depois.passwordHash).toBe(antes.passwordHash)
   })
 
-  test('com logo no formulário, grava a imagem na marca; o arquivo não volta no estado', async () => {
-    const png = await sharp({ create: { width: 300, height: 120, channels: 3, background: '#2f6b4f' } }).png().toBuffer()
-    const fd = formulario()
-    fd.set('logo', new File([new Uint8Array(png)], 'logo.png', { type: 'image/png' }))
-    const estado = await criarConta(inicial, fd)
+  test('passo depois da criação que falha guarda o motivo do domínio no aviso; o segredo ainda aparece', async () => {
+    chaves.regrasFalham = true
+    const estado = await criarConta(inicial, formulario())
     expect(estado.ok).toBe(true)
-    expect(estado.values.logo).toBeUndefined()
-    const marca = await prisma.businessBranding.findFirstOrThrow({ include: { logo: true } })
-    expect(marca.logo).not.toBeNull()
+    expect(estado.values.result?.pendencias).toEqual(['As regras de agenda não foram salvas: Motivo claro do domínio.'])
+    expect(estado.values.result?.secret).toMatch(/^afk_a_/)
   })
 
-  test('logo que não é imagem: a conta fica criada, o secret aparece e o aviso diz que faltou a logo', async () => {
+  test('um arquivo de logo no formulário é ignorado: a imagem vai pela rota própria, depois de a conta existir', async () => {
     const fd = formulario()
-    fd.set('logo', new File(['isto não é uma imagem'], 'logo.png', { type: 'image/png' }))
+    fd.set('logo', new File(['x'], 'logo.png', { type: 'image/png' }))
     const estado = await criarConta(inicial, fd)
     expect(estado.ok).toBe(true)
-    expect(estado.values.result?.pendencias).toEqual(['A logo'])
-    expect(estado.values.result?.secret).toMatch(/^afk_a_/)
+    expect(await prisma.upload.count()).toBe(0)
   })
 
   test('sem sessão de admin não cria nada', async () => {

@@ -14,10 +14,9 @@ test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 
   expect(stepOfField('keyName')).toBe(6)
 })
 
-test('campos do domínio com nome diferente caem na etapa certa (owner.email, logo)', () => {
+test('campos do domínio com nome diferente caem na etapa certa (owner.email)', () => {
   expect(stepOfField('owner.email')).toBe(5)
   expect(stepOfField('owner.name')).toBe(5)
-  expect(stepOfField('logo')).toBe(1)
   expect(stepOfField('timeZone')).toBe(0)
 })
 
@@ -39,7 +38,6 @@ test('readValues lê o formulário: texto, caixas marcadas e valores que faltam'
   expect(v.banners).toBe(false)
   expect(v.slug).toBe('')
   expect(v.slotStepMin).toBe(EMPTY_VALUES.slotStepMin)
-  expect(v.logo).toBeUndefined()
 })
 
 test('as sugestões por ramo só preenchem termos (nunca marca, dono ou regras)', () => {

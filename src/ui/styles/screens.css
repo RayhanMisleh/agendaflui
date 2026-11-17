@@ -205,4 +205,33 @@
     font-size: var(--text-md);
     line-height: var(--leading-body);
   }
+
+  /* ---- Convite de membro (aba Equipe) ---- */
+  .af-team {
+    display: grid;
+    gap: 1.25rem;
+  }
+  .af-invite {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: var(--r-slot);
+    background-color: var(--paper-sunk);
+  }
+  .af-invite__fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+  .af-invite__go {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+  @media (min-width: 900px) {
+    .af-invite__fields {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
 }

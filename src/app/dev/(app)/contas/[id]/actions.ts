@@ -4,9 +4,9 @@ import { DomainError } from '@/server/domain/errors'
 import { updateBusinessData, setBusinessStatus } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
 import { createApiKey, listApiKeys, revokeApiKey, updateApiKeyOrigins } from '@/server/domain/platform/api-keys'
-import type { BrandImageSlot, BrandInput } from '@/server/domain/platform/customization'
-import { setBrandImage, updateBrand, updateModules, updateNotificationsAsAdmin, updateRulesAsAdmin, updateTerms } from '@/server/domain/platform/customization'
-import { changeMemberRole, listTeam, resendInvite, setMemberActive } from '@/server/domain/platform/team'
+import type { BrandInput } from '@/server/domain/platform/customization'
+import { updateBrand, updateModules, updateNotificationsAsAdmin, updateRulesAsAdmin, updateTerms } from '@/server/domain/platform/customization'
+import { changeMemberRole, inviteMember, listTeam, resendInvite, setMemberActive } from '@/server/domain/platform/team'
 import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notification-settings'
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
@@ -128,38 +128,6 @@ export const salvarMarca = adminAction(
   (r, v) => feito('Marca salva.', { version: String(r.version) })(r, v),
 )
 
-const SLOTS: readonly BrandImageSlot[] = ['logo', 'symbol', 'favicon', 'loginImage']
-
-type TrocaDeImagem = { businessId: string; slot: string; intent: string; file: File | null }
-
-/** Um slot de imagem por vez: envia (`intent=send`) ou remove (`intent=remove`). O erro do domínio volta no campo do slot. */
-export const trocarImagem = adminAction<TrocaDeImagem, string>(
-  (fd) => {
-    const arquivo = fd.get('file')
-    return {
-      businessId: String(fd.get('businessId') ?? ''),
-      slot: String(fd.get('slot') ?? ''),
-      intent: String(fd.get('intent') ?? ''),
-      file: arquivo instanceof File && arquivo.size > 0 ? arquivo : null,
-    }
-  },
-  async (admin: PlatformAdminActor, v) => {
-    const slot = SLOTS.find((s) => s === v.slot)
-    if (!slot) throw erroDeCampo('slot', 'Escolha onde a imagem vai: logo, símbolo, favicon ou imagem de entrada.')
-    if (v.intent === 'remove') {
-      await setBrandImage(admin, v.businessId, slot, null)
-      return 'Imagem removida.'
-    }
-    if (!v.file) throw erroDeCampo(slot, 'Escolha uma imagem para enviar.')
-    await setBrandImage(admin, v.businessId, slot, { bytes: new Uint8Array(await v.file.arrayBuffer()), mime: v.file.type })
-    return 'Imagem enviada.'
-  },
-  (mensagem, v) => {
-    atualizar()
-    return { ok: true, message: mensagem, fields: {}, values: { ...v, file: null } }
-  },
-)
-
 // ---------------------------------------------------------------- termos, módulos, regras e avisos
 
 const TERMOS = ['professionalSingular', 'professionalPlural', 'customerSingular', 'customerPlural', 'pointsSingular', 'pointsPlural', 'club'] as const
@@ -230,6 +198,15 @@ async function doMembro(admin: PlatformAdminActor, businessId: string, membershi
   if (!membro) throw new DomainError('not_found', 'Acesso da equipe não encontrado nesta conta. Recarregue a página.')
   return membro
 }
+
+/** Convida uma pessoa nova para a equipe. As mensagens do domínio (e-mail já vinculado, conta arquivada) voltam no estado. */
+export const convidarMembro = adminAction(
+  (fd) => ler(fd, ['businessId', 'name', 'email', 'role']),
+  (admin, v) =>
+    // O domínio confere nome, e-mail e papel; o tipo só deixa de reclamar da lista de opções.
+    inviteMember(admin, v.businessId ?? '', { name: v.name ?? '', email: v.email ?? '', role: (v.role ?? '') as Parameters<typeof inviteMember>[2]['role'] }),
+  (r, v) => feito('Convite enviado. A pessoa já aparece na equipe.', { name: '', email: '' })(r, v),
+)
 
 export const trocarPapel = adminAction(
   (fd) => ler(fd, ['businessId', 'membershipId', 'role']),

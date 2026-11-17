@@ -1,14 +1,13 @@
 'use client'
-import { useActionState, useState } from 'react'
+import { useState } from 'react'
 import { BrandPreview, Button, ColorField, Field, Input, MaterialPicker, Select, Textarea } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
-import { salvarMarca, trocarImagem } from './actions'
+import { salvarMarca } from './actions'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
 import type { Campos } from './forms'
-import type { FormState } from '../../_lib/form-state'
 
 const PAPEIS: Array<[PaperTone, string]> = [
   ['WHITE', 'Branco'],
@@ -97,16 +96,10 @@ const SLOTS: ReadonlyArray<{ slot: keyof Imagens; label: string; hint: string }>
   { slot: 'loginImage', label: 'Imagem de entrada', hint: 'A imagem da tela de entrada da conta.' },
 ]
 
-type EstadoImagem = FormState<{ businessId: string; slot: string; intent: string; file: File | null }>
-
+/** Uma ficha por imagem: formulário POST multipart para a rota própria de imagens (funciona sem JavaScript). */
 function Slot({ businessId, slot, label, hint, url }: { businessId: string; slot: keyof Imagens; label: string; hint: string; url: string | null }) {
-  const inicial: EstadoImagem = { ok: false, message: null, fields: {}, values: { businessId, slot, intent: '', file: null } }
-  const [state, action, pending] = useActionState(trocarImagem, inicial)
-  const erro = state.fields[slot] ?? state.fields.slot ?? state.message ?? undefined
   return (
-    <form action={action} className="af-imgslot">
-      <input type="hidden" name="businessId" value={businessId} />
-      <input type="hidden" name="slot" value={slot} />
+    <form method="post" action={`/contas/${businessId}/imagens/${slot}`} encType="multipart/form-data" className="af-imgslot">
       <div className="af-imgslot__view">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element -- imagem da conta servida pela rota /arquivos
@@ -116,30 +109,25 @@ function Slot({ businessId, slot, label, hint, url }: { businessId: string; slot
         )}
       </div>
       <div className="af-imgslot__body">
-        <Field label={label} hint={`${hint} JPEG, PNG ou WebP, até 8 MB.`} error={erro}>
+        <Field label={label} hint={`${hint} JPEG, PNG ou WebP, até 8 MB.`}>
           <input type="file" name="file" accept="image/png,image/jpeg,image/webp" className="af-input" />
         </Field>
         <div className="af-imgslot__actions">
-          <Button type="submit" name="intent" value="send" variant="primary" size="sm" loading={pending}>
+          <Button type="submit" variant="primary" size="sm">
             Enviar {label.toLowerCase()}
           </Button>
           {url ? (
-            <Button type="submit" name="intent" value="remove" size="sm" disabled={pending}>
+            <Button type="submit" name="intent" value="remove" size="sm" formNoValidate>
               Remover {label.toLowerCase()}
             </Button>
           ) : null}
         </div>
-        {state.ok && state.message ? (
-          <p role="status" className="af-acctform__ok">
-            {state.message}
-          </p>
-        ) : null}
       </div>
     </form>
   )
 }
 
-/** Uma ficha por imagem da marca: prévia da atual, enviar e remover. O erro do domínio aparece ao lado do slot. */
+/** Uma ficha por imagem da marca: prévia da atual, enviar e remover. O resultado volta na URL (`?imagem=`). */
 export function ImagensForm({ businessId, imagens }: { businessId: string; imagens: Imagens }) {
   return (
     <div className="af-imgslots">

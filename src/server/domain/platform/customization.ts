@@ -3,7 +3,7 @@ import type { Actor } from '@/server/auth/actor'
 import { createPlatformAdminContext } from '@/server/auth/context'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
-import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
+import { DomainError, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
 import type { Modules } from '@/server/domain/platform/businesses'
 import {
   getNotificationSettings,
@@ -213,7 +213,8 @@ const SLOTS: Record<BrandImageSlot, { purpose: ImagePurpose; coluna: Prisma.Sql;
 }
 
 function erroDeImagem(slot: string, e: ImageError): DomainError {
-  return new DomainError('validation', e.message, { fields: { [slot]: e.message } })
+  // `imageCode` deixa a tela dizer o motivo sem depender do texto da mensagem.
+  return new DomainError('validation', e.message, { fields: { [slot]: e.message }, details: { imageCode: e.code } })
 }
 
 /** Remove o arquivo e o registro de uma imagem que saiu do ar. Falha vira log (sem texto do erro) e não desfaz nada. */
@@ -371,14 +372,15 @@ const modulosSchema = z.strictObject({
 
 const MODULOS_PADRAO: Modules = { loyalty: false, banners: false, store: false, vouchers: false }
 
+const MSG_VOUCHERS = 'Vouchers exigem a Loja ligada, porque são vendidos como produto. Ligue a Loja ou desligue Vouchers.'
+
 /** Vouchers são vendidos dentro de um pedido da Loja: um não vive sem o outro. */
 export async function updateModules(actor: PlatformAdminActor, businessId: string, input: Modules): Promise<Modules> {
   exigirAdmin(actor)
   idValido(businessId)
   const i = parse(modulosSchema, input)
   if (i.vouchers && !i.store) {
-    const msg = 'Vouchers exigem a Loja ligada, porque são vendidos como produto. Ligue a Loja ou desligue Vouchers.'
-    throw new DomainError('validation', msg, { fields: { vouchers: msg, store: msg } })
+    throw new DomainError('validation', MSG_VOUCHERS, { fields: { vouchers: MSG_VOUCHERS, store: MSG_VOUCHERS } })
   }
   return prisma.$transaction(async (tx) => {
     orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { id: true } }), 'Conta')
@@ -392,6 +394,29 @@ export async function updateModules(actor: PlatformAdminActor, businessId: strin
     await auditar(tx, actor, 'modules.updated', businessId, { from: antes, to: depois })
     return depois
   })
+}
+
+/**
+ * Pré-validação da configuração de uma conta nova (marca, termos, módulos e regras de agenda) com os MESMOS esquemas das
+ * funções de escrita (`updateBrand`, `updateTerms`, `updateModules`, `updateRulesAsAdmin`). Devolve campo → mensagem de
+ * todos os erros de uma vez, vazio se está tudo certo. Não grava nada: serve para recusar antes de criar a conta.
+ */
+export function validateAccountSetup(input: { brand: BrandInput; terms: Terms; modules: Modules; rules: Partial<SchedulingRules> }): Record<string, string> {
+  const erros: Record<string, string> = {}
+  const marca = marcaSchema.safeParse(input.brand)
+  if (!marca.success) Object.assign(erros, zodFields(marca.error, { perUnknownKey: true }))
+  const termos = termosSchema.safeParse(input.terms)
+  if (!termos.success) Object.assign(erros, zodFields(termos.error, { perUnknownKey: true }))
+  const modulos = modulosSchema.safeParse(input.modules)
+  if (!modulos.success) Object.assign(erros, zodFields(modulos.error, { perUnknownKey: true }))
+  else if (modulos.data.vouchers && !modulos.data.store) Object.assign(erros, { vouchers: MSG_VOUCHERS, store: MSG_VOUCHERS })
+  try {
+    parseSchedulingRules(input.rules)
+  } catch (e) {
+    if (!(e instanceof DomainError)) throw e
+    Object.assign(erros, e.fields ?? {})
+  }
+  return erros
 }
 
 // ---------------------------------------------------------------- regras, fuso e avisos

@@ -8,6 +8,7 @@ import { connect, createServer } from 'node:net'
 import { resolve } from 'node:path'
 import { DEV_DB, startDb } from './db'
 import type { RunningDb } from './db'
+import { smokeRefusal } from './smoke-guard'
 
 try {
   process.loadEnvFile()
@@ -23,6 +24,7 @@ const PAGINAS = [
   '/',
   '/contas',
   '/contas?search=x&status=ACTIVE',
+  '/contas?search=%00',
   '/contas/nova',
   '/contas/{conta}',
   '/contas/{conta}/marca',
@@ -86,7 +88,24 @@ async function main(): Promise<number> {
   let db: RunningDb | null = null
   let servidor: ChildProcess | null = null
   let limpar: (() => Promise<void>) | null = null
+  let encerrado = false
+  // O mesmo encerramento para o fim normal e para Ctrl+C/SIGTERM: apaga a sessão e encerra o que este script subiu.
+  const encerrar = async (): Promise<void> => {
+    if (encerrado) return
+    encerrado = true
+    if (servidor && !servidor.killed) servidor.kill('SIGTERM')
+    if (limpar) await limpar().catch(() => undefined)
+    if (db) await db.stop().catch(() => undefined)
+  }
+  for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
+    process.once(sinal, () => {
+      void encerrar().finally(() => process.exit(130))
+    })
+  }
   try {
+    // Antes de qualquer escrita: só em banco local e fora de produção.
+    const recusa = smokeRefusal(process.env)
+    if (recusa) throw new Error(recusa)
     // Banco: se a 54329 está ocupada, é o banco de desenvolvimento de outra pessoa; usa sem encerrar.
     const ocupada = await portaOcupada(DEV_DB.port)
     let url = process.env.DATABASE_URL || `postgres://agendaflui:agendaflui@localhost:${DEV_DB.port}/${DEV_DB.database}`
@@ -95,6 +114,8 @@ async function main(): Promise<number> {
       url = db.url
     }
     process.env.DATABASE_URL = url
+    const recusaFinal = smokeRefusal({ NODE_ENV: process.env.NODE_ENV, DATABASE_URL: url })
+    if (recusaFinal) throw new Error(recusaFinal)
     const env = { ...process.env, DATABASE_URL: url }
     if (db) await rodar('npx', ['prisma', 'migrate', 'deploy'], env)
 
@@ -152,9 +173,7 @@ async function main(): Promise<number> {
     console.log(falhas === 0 ? `\nFumaça: ${PAGINAS.length} páginas responderam 200 sem marca de erro.` : `\nFumaça: ${falhas} de ${PAGINAS.length} páginas falharam.`)
     return falhas === 0 ? 0 : 1
   } finally {
-    if (servidor && !servidor.killed) servidor.kill('SIGTERM')
-    if (limpar) await limpar().catch(() => undefined)
-    if (db) await db.stop().catch(() => undefined)
+    await encerrar()
   }
 }
 

@@ -33,7 +33,7 @@ export function ColorField({
   const uid = useId()
   const [tocado, setTocado] = useState(false)
   const valido = HEX.test(value)
-  const mensagem = error ?? (!valido && tocado && value !== '' ? MENSAGEM : !valido && tocado ? MENSAGEM : undefined)
+  const mensagem = error ?? (!valido && tocado ? MENSAGEM : undefined)
   const erroId = mensagem ? `${uid}-erro` : undefined
   const avisoId = warning && valido ? `${uid}-aviso` : undefined
 

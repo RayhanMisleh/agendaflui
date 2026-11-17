@@ -6,7 +6,7 @@ import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import type { BusinessStatus } from '@/server/db/generated/client'
 import { normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
-import { DomainError, isUniqueViolation, orNotFound, parse, z } from '@/server/domain/errors'
+import { DomainError, isUniqueViolation, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
@@ -179,6 +179,15 @@ const criarSchema = z.object({
   }),
 })
 
+/**
+ * Pré-validação da conta nova (dados e dono) com o MESMO esquema de `createBusiness`: devolve campo → mensagem, vazio se
+ * está tudo certo. Os campos do dono vêm como `owner.name` e `owner.email`. Não grava nada.
+ */
+export function validateNewBusiness(input: Parameters<typeof createBusiness>[1]): Record<string, string> {
+  const r = criarSchema.safeParse(input)
+  return r.success ? {} : zodFields(r.error)
+}
+
 const editarSchema = z.strictObject({
   name: nomeSchema.optional(),
   slug: slugSchema.optional(),
@@ -304,6 +313,12 @@ function lerCursor(cursor: string): { at: string; id: string } {
 const escreverCursor = (b: { createdAt: Date; id: string }): string =>
   Buffer.from(`${toIsoInstant(b.createdAt)}|${b.id}`, 'utf8').toString('base64url')
 
+const BUSCA_MAXIMA = 100
+
+function normalizarBusca(texto: string): string {
+  return texto.replace(/\p{C}/gu, '').slice(0, BUSCA_MAXIMA)
+}
+
 /**
  * Contas da plataforma, da mais nova para a mais antiga, com cursor estável (data de criação e id). A busca olha nome,
  * identificador e nome e e-mail dos donos, sem diferenciar maiúsculas nem acentos (colunas `search_name`, como nos clientes).
@@ -314,7 +329,8 @@ export async function listBusinesses(
 ): Promise<{ items: BusinessRow[]; nextCursor: string | null }> {
   exigirAdmin(actor)
   const limite = Math.min(Math.max(Math.trunc(q.limit ?? LIMITE_PADRAO), 1), LIMITE_MAXIMO)
-  const termo = searchKey(q.search ?? '')
+  // A busca vem de um campo de texto: sem caracteres de controle (o Postgres recusa NUL) e com no máximo 100 caracteres.
+  const termo = searchKey(normalizarBusca(q.search ?? ''))
   const filtros: Prisma.Sql[] = []
   if (q.status !== undefined) filtros.push(Prisma.sql`b.status = ${q.status}::"business_status"`)
   if (termo !== '') {

@@ -1,9 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
-import type { ChangeEvent } from 'react'
-import { CalendarDays, ChartColumn, Gift, House, Scissors, Settings, TriangleAlert, UserRound, Users } from 'lucide-react'
-import { Button, Checkbox, Field, Input, Paper, Select, ToastProvider } from '@/ui/components'
-import type { InputProps } from '@/ui/components'
+import { CalendarDays, ChartColumn, Gift, House, Scissors, Settings, UserRound, Users } from 'lucide-react'
+import { Button, Checkbox, ColorField, Field, Input, Paper, Select, ToastProvider } from '@/ui/components'
 import { PainelShell } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
 import { normalizeHex } from '@/ui/theme/color'
@@ -83,40 +81,6 @@ function parseHex(raw: string): string | null {
   }
 }
 
-/** Campo de texto com a amostra da cor dentro, à direita. Repassa id e aria-* ao Input (o Field os injeta). */
-function SwatchInput({ hex, ...rest }: InputProps & { hex: string | null }) {
-  return (
-    <span className="vt-swatchinput">
-      <Input {...rest} className="vt-swatchinput__input" autoComplete="off" spellCheck={false} />
-      <span className="vt-swatch" aria-hidden="true">
-        <span className="vt-swatch__chip" style={{ background: hex ?? 'transparent' }} />
-      </span>
-    </span>
-  )
-}
-
-function ColorField(p: {
-  label: string
-  value: string
-  onChange: (raw: string) => void
-  warning: string | undefined
-}) {
-  const hex = parseHex(p.value)
-  return (
-    <div className="vt-color">
-      <Field label={p.label} error={hex ? undefined : 'Use uma cor no formato #RRGGBB.'}>
-        <SwatchInput hex={hex} value={p.value} onChange={(e: ChangeEvent<HTMLInputElement>) => p.onChange(e.target.value)} />
-      </Field>
-      {hex && p.warning ? (
-        <p className="vt-warning" role="status">
-          <TriangleAlert size={16} aria-hidden="true" />
-          <span>{p.warning}</span>
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
 /** A página inteira de aprovação: formulário de marca ao lado de um painel de verdade. */
 export function Showcase() {
   const first = PRESETS[2]!
@@ -165,8 +129,8 @@ export function Showcase() {
             <Field label="Nome do negócio">
               <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
             </Field>
-            <ColorField label="Cor principal" value={primary} onChange={(v) => changeColor('primary', v)} warning={warnPrimary} />
-            <ColorField label="Cor de destaque" value={accent} onChange={(v) => changeColor('accent', v)} warning={warnAccent} />
+            <ColorField label="Cor principal" value={primary} onChange={(v) => changeColor('primary', v)} {...(warnPrimary ? { warning: warnPrimary } : {})} />
+            <ColorField label="Cor de destaque" value={accent} onChange={(v) => changeColor('accent', v)} {...(warnAccent ? { warning: warnAccent } : {})} />
             <Field label="Material da capa">
               <Select value={brand.material} onChange={(e) => setBrand({ ...brand, material: e.target.value as CoverMaterial })}>
                 {MATERIALS.map(([v, l]) => (

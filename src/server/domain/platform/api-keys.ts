@@ -102,9 +102,15 @@ const origensSchema = z
 const criarSchema = z.object({
   kind: z.enum(['ACCOUNT', 'PLATFORM']),
   businessId: z.uuid().optional(),
-  name: z.string().trim().min(1).max(80),
+  name: z.string().trim().min(1, 'Informe o nome da chave.').max(80, 'Use no máximo 80 caracteres.'),
   allowedOrigins: origensSchema.default([]),
 })
+
+/** Pré-validação do nome da chave com o mesmo esquema de `createApiKey`; `null` se está certo. */
+export function validateApiKeyName(name: string): string | null {
+  const r = criarSchema.shape.name.safeParse(name)
+  return r.success ? null : (r.error.issues[0]?.message ?? 'Informe o nome da chave.')
+}
 
 /** Instante de referência: o passado por parâmetro (testes) ou o relógio do sistema. Único jeito neste módulo. */
 function agoraDe(now?: Date): Date {

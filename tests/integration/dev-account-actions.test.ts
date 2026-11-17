@@ -1,7 +1,6 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import sharp from 'sharp'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
@@ -34,7 +33,7 @@ import {
   salvarRegras,
   salvarTermos,
   suspenderConta,
-  trocarImagem,
+  convidarMembro,
   trocarPapel,
 } from '@/app/dev/(app)/contas/[id]/actions'
 import { listApiKeys } from '@/server/domain/platform/api-keys'
@@ -134,23 +133,6 @@ describe('marca', () => {
     expect(velha.ok).toBe(false)
     expect(velha.message).toBe(MSG_CONFLITO)
     expect(velha.values.displayName).toBe('Outra')
-  })
-
-  test('cada slot de imagem envia e remove; arquivo que não é imagem erra no slot; sem arquivo pede um', async () => {
-    const conta = await makeBusiness()
-    const png = await sharp({ create: { width: 64, height: 64, channels: 3, background: '#0e4f5c' } }).png().toBuffer()
-    const enviar = await trocarImagem(ini, form({ businessId: conta.id, slot: 'logo', intent: 'send', file: new File([new Uint8Array(png)], 'logo.png', { type: 'image/png' }) }))
-    expect(enviar.ok).toBe(true)
-    expect((await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: conta.id } })).logoUploadId).not.toBeNull()
-    const ruim = await trocarImagem(ini, form({ businessId: conta.id, slot: 'favicon', intent: 'send', file: new File(['texto'], 'x.png', { type: 'image/png' }) }))
-    expect(ruim.ok).toBe(false)
-    expect(ruim.fields.favicon).toBeTruthy()
-    const sem = await trocarImagem(ini, form({ businessId: conta.id, slot: 'symbol', intent: 'send' }))
-    expect(sem.ok).toBe(false)
-    expect(sem.fields.symbol).toBeTruthy()
-    const remover = await trocarImagem(ini, form({ businessId: conta.id, slot: 'logo', intent: 'remove' }))
-    expect(remover.ok).toBe(true)
-    expect((await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: conta.id } })).logoUploadId).toBeNull()
   })
 })
 
@@ -312,5 +294,37 @@ describe('chaves', () => {
     const r = await editarOrigens(ini, form({ businessId: conta.id, keyId: k.id, origins: 'https://novo.exemplo.com' }))
     expect(r.ok).toBe(true)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: k.id } })).allowedOrigins).toEqual(['https://novo.exemplo.com'])
+  })
+})
+
+describe('convidar membro novo', () => {
+  test('cria o vínculo e o convite, devolve a mensagem e a pessoa aparece na equipe', async () => {
+    const conta = await makeBusiness()
+    const r = await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana Gerente', email: 'ANA@exemplo.test', role: 'MANAGER' }))
+    expect(r.ok).toBe(true)
+    expect(r.message).toMatch(/convite/i)
+    const m = await prisma.membership.findFirstOrThrow({ where: { businessId: conta.id }, include: { user: true } })
+    expect([m.role, m.user.email]).toEqual(['MANAGER', 'ana@exemplo.test'])
+  })
+
+  test('e-mail já vinculado à conta: erro do domínio no estado, com o que foi digitado', async () => {
+    const conta = await makeBusiness()
+    await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }))
+    const r = await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana', email: 'ana@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBeTruthy()
+    expect(r.values.email).toBe('ana@exemplo.test')
+    expect(await prisma.membership.count({ where: { businessId: conta.id } })).toBe(1)
+  })
+
+  test('conta arquivada recusa com a mensagem do domínio; e-mail ou papel ruins erram no campo', async () => {
+    const arquivada = await makeBusiness({ status: 'ARCHIVED' })
+    const a = await convidarMembro(ini, form({ businessId: arquivada.id, name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }))
+    expect(a.ok).toBe(false)
+    expect(a.message).toMatch(/arquivada/i)
+    const conta = await makeBusiness()
+    const b = await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana', email: 'sem-arroba', role: 'MANAGER' }))
+    expect(b.ok).toBe(false)
+    expect(b.fields.email).toBeTruthy()
   })
 })

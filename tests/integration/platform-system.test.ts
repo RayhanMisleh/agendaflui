@@ -134,7 +134,7 @@ describe('getSystemStatus', () => {
     expect(at2).toEqual([...at2].sort((a, b) => b - a))
     const texto = JSON.stringify(await getSystemStatus(actor, NOW))
     expect(texto).not.toMatch(/segredo|maria|texto do aviso|@exemplo/i)
-  })
+  }, 20_000) // várias consultas e inserções: estoura os 5 s quando a máquina está carregada
 })
 
 describe('retryFailedNotification', () => {

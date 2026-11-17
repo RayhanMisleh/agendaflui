@@ -13,9 +13,6 @@ const nextConfig: NextConfig = {
   // O selo de desenvolvimento do Next aparece nas capturas da vitrine e não é parte do produto.
   devIndicators: false,
   poweredByHeader: false,
-  // A criação de conta envia a logo (até 8 MiB, o limite do armazenamento de imagens) junto do formulário.
-  // O padrão do Next é 1 MB; 8,1 MiB deixa folga só para os campos do formulário.
-  experimental: { serverActions: { bodySizeLimit: '8.1mb' } },
   async headers() {
     return [
       { source: '/:path*', headers: CABECALHOS_GERAIS },
