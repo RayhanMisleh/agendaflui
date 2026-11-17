@@ -13,6 +13,8 @@ export const LIMITS = {
   apiKeyIp: { limit: 120, windowSec: 60 },
   invalidKeyIp: { limit: 30, windowSec: 60 },
   authIp: { limit: 30, windowSec: 900 },
+  /** Pedidos de "esqueci a senha" do painel por origem (IP ou /64): cada e-mail tem o seu teto em `codeEmail`. */
+  panelResetIp: { limit: 10, windowSec: 900 },
   /** Pedidos de código (cadastro e redefinição) por e-mail: protege a caixa de entrada de quem recebe. */
   codeEmail: { limit: 3, windowSec: 900 },
   /** Teto diário de pedidos de código por conta, e-mail e propósito. */

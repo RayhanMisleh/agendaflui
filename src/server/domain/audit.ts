@@ -59,6 +59,32 @@ export async function audit(
 }
 
 /**
+ * A mesma linha de `audit`, para o domínio de plataforma, que escreve numa transação do `prisma` cru (a escrita também
+ * toca usuários e sessões, que `tenantDb` recusa). O autor sai do ator do contexto: membro, ou admin em suporte (com a marca).
+ */
+export async function auditIn(
+  tx: Pick<Prisma.TransactionClient, 'auditLog'>,
+  ctx: TenantContext,
+  entry: { action: string; targetType?: string; targetId?: string; metadata?: Prisma.InputJsonObject },
+): Promise<void> {
+  const a = autor(ctx.actor)
+  await tx.auditLog.create({
+    data: {
+      businessId: ctx.businessId,
+      actorType: a.actorType,
+      actorId: a.actorId,
+      actorName: a.actorName,
+      onBehalf: a.onBehalf,
+      action: entry.action,
+      targetType: entry.targetType ?? null,
+      targetId: entry.targetId ?? null,
+      metadata: { ...entry.metadata, ...a.extra },
+      ip: ctx.request.ip,
+    },
+  })
+}
+
+/**
  * Linha de auditoria de uma ação do admin da plataforma feita fora de um contexto de conta (painel dev), na transação da
  * escrita. O admin é o autor; `businessId` é a conta afetada, ou `null` para o que é só da plataforma.
  */

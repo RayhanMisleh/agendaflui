@@ -31,10 +31,12 @@ export function can(actor: Actor, capability: Capability): boolean {
     case 'member':
       return POR_PAPEL[actor.role].includes(capability)
     case 'impersonator':
-      // Suporte (admin da plataforma "entrando como"): tem os poderes do dono sobre os dados da conta. Não faz, e `can()`
-      // não é o lugar de liberar: (1) mudar a senha de ninguém, (2) ver segredos (senhas, tokens, chaves), (3) rebaixar ou
-      // desativar donos pelo painel do negócio. Quando a tela ou a ação de (3) existir, ela precisa recusar
-      // `actor.kind === 'impersonator'` por conta própria, mesmo com `manage_team`; o admin faz isso pelo painel dev.
+      // Suporte (admin da plataforma "entrando como"): tem os poderes do dono sobre os dados da conta, inclusive os acessos
+      // da equipe (convidar, papel, desativar), sempre sob a regra do último dono. `can()` não é o lugar das exceções; as
+      // funções de domínio recusam `actor.kind === 'impersonator'` por conta própria (`forbidden`), mesmo com `manage_team`:
+      // (1) trocar ou redefinir a senha de alguém (`sendAccessPasswordReset`, `changeOwnAccountPassword`), (2) agir como
+      // "eu" (`getOwnAccountProfile`, `updateOwnAccountProfile`: o suporte não é um usuário da conta), (3) ver segredos
+      // (senhas, tokens, chaves). Um teste (`account-profile.test.ts`) percorre essas funções com o ator de suporte.
       return true
     case 'platform_admin':
       // Só o que o painel dev precisa fazer numa conta: regras, avisos e afins (`manage_settings`). Equipe, catálogo,
