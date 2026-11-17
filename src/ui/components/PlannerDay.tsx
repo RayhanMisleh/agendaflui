@@ -1,10 +1,13 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { PageColumn } from '@/server/domain/scheduling/agenda-page'
 import { AppointmentSlip } from './AppointmentSlip'
 import { cx } from './cx'
+import { DropPreview } from './planner/DropPreview'
 import { PX_PER_MIN } from './planner/metrics'
+import { useDragReschedule } from './planner/use-drag-reschedule'
+import type { MoveTarget } from './planner/use-drag-reschedule'
 import { TimeRail } from './TimeRail'
 
 export type PlannerColumn = PageColumn
@@ -31,6 +34,9 @@ export function PlannerDay({
   endMin,
   hours,
   nowMin: nowFromServer,
+  step = 15,
+  canCross = false,
+  onMove,
   onOpenSlip,
   onBookGap,
   label,
@@ -40,6 +46,12 @@ export function PlannerDay({
   endMin: number
   hours: { min: number; label: string }[]
   nowMin: number | null
+  /** Grade da conta, em minutos: o passo do encaixe ao remarcar. */
+  step?: number
+  /** Quem vê todas as agendas pode soltar a ficha em outra coluna. */
+  canCross?: boolean
+  /** Sem ela (celular, só a folha) não há arrastar nem mover pelo teclado. */
+  onMove?: (slipId: string, target: MoveTarget) => void
   onOpenSlip: (id: string) => void
   onBookGap: (professionalId: string, startMin: number) => void
   label: string
@@ -47,6 +59,8 @@ export function PlannerDay({
   const [active, setActive] = useState(columns[0]?.id ?? '')
   const current = columns.some((c) => c.id === active) ? active : (columns[0]?.id ?? '')
   const nowMin = useNowMinute(nowFromServer)
+  const bodies = useRef(new Map<string, HTMLElement>())
+  const { preview, announcement, bind } = useDragReschedule({ columns, windowStartMin: startMin, windowEndMin: endMin, step, canCross, onMove, bodies })
   const height = (endMin - startMin) * PX_PER_MIN
   const gridStyle: CSSProperties & Record<`--${string}`, string> = { '--af-pxmin': String(PX_PER_MIN), '--af-cols': String(Math.max(1, columns.length)) }
   const showNow = nowMin !== null && nowMin >= startMin && nowMin <= endMin
@@ -72,6 +86,9 @@ export function PlannerDay({
           ))}
         </div>
       ) : null}
+      <p role="status" className="af-sr">
+        {announcement}
+      </p>
       <div className="af-planner__scroll">
         <div className="af-planner__grid">
           <div className="af-planner__railcol">
@@ -84,7 +101,14 @@ export function PlannerDay({
                 {c.name}
                 {c.inactive ? <span className="af-planner__colnote"> (fora da agenda)</span> : null}
               </p>
-              <div className="af-planner__body" style={{ height: `${height}px` }}>
+              <div
+                className="af-planner__body"
+                style={{ height: `${height}px` }}
+                ref={(el) => {
+                  if (el) bodies.current.set(c.id, el)
+                  else bodies.current.delete(c.id)
+                }}
+              >
                 {c.gaps.map((g) => (
                   <button
                     key={`${g.startMin}-${g.endMin}`}
@@ -108,8 +132,11 @@ export function PlannerDay({
                 {[...c.slips]
                   .sort((a, b) => a.box.topMin - b.box.topMin || a.box.lane - b.box.lane || a.id.localeCompare(b.id))
                   .map((s) => (
-                    <AppointmentSlip key={s.id} slip={s} onOpen={onOpenSlip} />
+                    <AppointmentSlip key={s.id} slip={s} onOpen={onOpenSlip} drag={bind(s)} />
                   ))}
+                {preview && preview.professionalId === c.id ? (
+                  <DropPreview preview={preview} windowStartMin={startMin} customerName={columns.flatMap((x) => x.slips).find((x) => x.id === preview.slipId)?.customerName ?? ''} />
+                ) : null}
                 {showNow ? <span className="af-planner__now" aria-hidden="true" style={{ top: `${(nowMin - startMin) * PX_PER_MIN}px` }} /> : null}
               </div>
             </div>

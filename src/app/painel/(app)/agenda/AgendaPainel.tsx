@@ -5,13 +5,17 @@ import { useRouter } from 'next/navigation'
 import { CalendarPlus, CalendarX2, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AgendaPage } from '@/server/domain/scheduling/agenda-page'
 import { Button, Card, EmptyHint, EmptyState, NavTabs, PlannerDay, PlannerWeek } from '@/ui/components'
+import { labelOfMinute } from '@/ui/components'
 import { formatLocalDate, shortDate, weekdayName } from '@/ui/format'
 import { AppointmentSheet } from './AppointmentSheet'
 import { BlockSheet } from './BlockSheet'
 import { BookingSheet } from './BookingSheet'
+import { ConfirmarRemarcacao } from './ConfirmarRemarcacao'
+import type { AlvoRemarcar } from './ConfirmarRemarcacao'
+import { RescheduleSheet } from './RescheduleSheet'
 import type { Prefill, TermosAgenda } from './BookingSheet'
 
-type Aberta = { tipo: 'marcar'; prefill: Prefill } | { tipo: 'bloquear' } | { tipo: 'ficha'; id: string } | null
+type Aberta = { tipo: 'marcar'; prefill: Prefill } | { tipo: 'bloquear' } | { tipo: 'ficha'; id: string } | { tipo: 'remarcar'; id: string } | { tipo: 'confirmar'; alvo: AlvoRemarcar } | null
 
 /** Endereço da agenda para uma visão, uma data e um profissional. A URL é quem define o que se vê. */
 export function agendaHref(o: { visao: 'dia' | 'semana'; data: string; profissional: string }): string {
@@ -115,6 +119,12 @@ export function AgendaPainel({ page, termos, abrir, podeBloquear, podeCadastrar 
               hours={page.day.hours}
               nowMin={page.day.nowMin}
               label={`Agenda de ${tituloDia}`}
+              step={page.step}
+              canCross={page.scope === 'all'}
+              onMove={(id, alvo) => {
+                const nome = page.day?.columns.find((c) => c.id === alvo.professionalId)?.name ?? ''
+                setAberta({ tipo: 'confirmar', alvo: { id, professionalId: alvo.professionalId, professionalName: nome, date: page.date, startLabel: labelOfMinute(alvo.startMin) } })
+              }}
               onOpenSlip={(id) => setAberta({ tipo: 'ficha', id })}
               onBookGap={(professionalId, startMin) => {
                 const coluna = page.day?.columns.find((c) => c.id === professionalId)
@@ -134,7 +144,9 @@ export function AgendaPainel({ page, termos, abrir, podeBloquear, podeCadastrar 
 
       <BookingSheet open={aberta?.tipo === 'marcar'} onClose={fechar} page={page} prefill={aberta?.tipo === 'marcar' ? aberta.prefill : prefillBase} termos={termos} podeCadastrar={podeCadastrar} />
       {podeBloquear ? <BlockSheet open={aberta?.tipo === 'bloquear'} onClose={fechar} page={page} professionalSingular={termos.professionalSingular} /> : null}
-      <AppointmentSheet detalhe={detalhe} page={page} onClose={fechar} />
+      <AppointmentSheet detalhe={detalhe} page={page} onClose={fechar} onReschedule={(id) => setAberta({ tipo: 'remarcar', id })} />
+      <RescheduleSheet detalhe={aberta?.tipo === 'remarcar' ? (page.details[aberta.id] ?? null) : null} page={page} professionalSingular={termos.professionalSingular} onClose={fechar} />
+      <ConfirmarRemarcacao alvo={aberta?.tipo === 'confirmar' ? aberta.alvo : null} detalhe={aberta?.tipo === 'confirmar' ? (page.details[aberta.alvo.id] ?? null) : null} onClose={fechar} />
     </div>
   )
 }

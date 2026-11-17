@@ -8,6 +8,7 @@ import {
   confirmAppointment,
   getAppointment,
   markNoShow,
+  rescheduleAppointment,
   undoOutcome,
 } from '@/server/domain/scheduling/appointments'
 import { fromIsoInstant, isLocalDate, isLocalTime, toInstant } from '@/server/time'
@@ -32,6 +33,22 @@ function lista(fd: FormData, nome: string): string {
 
 const ids = (texto: string | undefined): string[] => (texto ?? '').split(',').filter((s) => s !== '')
 
+/** O horário escolhido: o instante que o servidor ofereceu (`startsAt`) ou, no formulário, dia e hora locais da conta. */
+function instanteDe(v: Campos, fuso: string): Date {
+  if ((v.startsAt ?? '') !== '') {
+    try {
+      return fromIsoInstant(v.startsAt ?? '')
+    } catch {
+      throw erroDeCampo('time', 'Escolha o horário de novo.')
+    }
+  }
+  const dia = (v.date ?? '').trim()
+  const hora = (v.time ?? '').trim()
+  if (!isLocalDate(dia)) throw erroDeCampo('date', 'Informe uma data válida.')
+  if (!isLocalTime(hora)) throw erroDeCampo('time', 'Escolha o horário.')
+  return toInstant(dia, hora, fuso)
+}
+
 // ---------------------------------------------------------------- marcar
 
 const MARCAR = ['customerId', 'professionalId', 'startsAt', 'date', 'time', 'notes'] as const
@@ -44,20 +61,7 @@ export const marcarHorario = tenantAction(
     if (customerId === '') throw erroDeCampo('customerId', 'Escolha o cliente.')
     const serviceIds = ids(v.serviceIds)
     if (serviceIds.length === 0) throw erroDeCampo('serviceIds', 'Escolha pelo menos um serviço.')
-    let startsAt: Date
-    if ((v.startsAt ?? '') !== '') {
-      try {
-        startsAt = fromIsoInstant(v.startsAt ?? '')
-      } catch {
-        throw erroDeCampo('time', 'Escolha o horário de novo.')
-      }
-    } else {
-      const dia = (v.date ?? '').trim()
-      const hora = (v.time ?? '').trim()
-      if (!isLocalDate(dia)) throw erroDeCampo('date', 'Informe uma data válida.')
-      if (!isLocalTime(hora)) throw erroDeCampo('time', 'Escolha o horário.')
-      startsAt = toInstant(dia, hora, ctx.timeZone)
-    }
+    const startsAt = instanteDe(v, ctx.timeZone)
     try {
       const marcado = await bookAppointment(ctx, {
         customerId,
@@ -145,6 +149,28 @@ export const ajustarAtendimento = tenantAction(
     }
     atualizarPainel()
     return 'Atendimento salvo.'
+  },
+  (mensagem, v) => feito(mensagem, v),
+)
+
+// ---------------------------------------------------------------- remarcar
+
+/**
+ * Remarcar: a tela manda o dia local e os minutos locais (arrastar e teclado) ou o instante que o servidor ofereceu (folha).
+ * `professionalId` vazio mantém o profissional. Conflito volta com os horários livres mais próximos e nada muda.
+ */
+export const remarcarAtendimento = tenantAction(
+  'view_own_agenda',
+  (fd) => ler(fd, ['id', 'professionalId', 'startsAt', 'date', 'time']),
+  async (ctx, v) => {
+    const startsAt = instanteDe(v, ctx.timeZone)
+    try {
+      const r = await rescheduleAppointment(ctx, v.id ?? '', { startsAt, ...((v.professionalId ?? '') === '' ? {} : { professionalId: v.professionalId ?? null }) })
+      atualizarPainel()
+      return `${r.customer.name} remarcado para ${r.local.start} com ${r.professional.name}.`
+    } catch (err) {
+      throw renomear(err, { startsAt: 'time' })
+    }
   },
   (mensagem, v) => feito(mensagem, v),
 )

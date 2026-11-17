@@ -183,6 +183,18 @@
   .af-slip:focus-visible {
     z-index: 3;
   }
+  .af-slip--movable {
+    cursor: grab;
+    touch-action: manipulation;
+  }
+  .af-slip--lifted {
+    opacity: 0.45;
+  }
+  .af-planner__preview {
+    border: 2px dashed var(--on-brand);
+    pointer-events: none;
+    transition: top 100ms ease-out;
+  }
   .af-slip--dragging {
     z-index: 5;
     box-shadow: var(--shadow-pop);
@@ -493,7 +505,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .af-slip {
+    .af-slip,
+    .af-planner__preview {
       transition: none;
     }
   }

@@ -2,13 +2,14 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import { Search, UserPlus } from 'lucide-react'
 import type { AgendaPage } from '@/server/domain/scheduling/agenda-page'
-import { Button, Checkbox, Field, Input, Select, Sheet, Textarea, TimeChip } from '@/ui/components'
+import { Button, Checkbox, Field, Input, Select, Sheet, Textarea } from '@/ui/components'
 import { formatDuration, formatMoney } from '@/ui/format'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import { marcarHorario } from './actions'
-import { buscarClientes, buscarHorarios, cadastrarClienteRapido } from './consultas'
-import type { ClienteBusca, HorarioLivre } from './consultas'
+import { buscarClientes, cadastrarClienteRapido } from './consultas'
+import type { ClienteBusca } from './consultas'
+import { HorarioFields } from './HorarioFields'
 
 export type Prefill = { professionalId: string; date: string; time: string }
 export type TermosAgenda = { customerSingular: string; professionalSingular: string; professionalPlural: string }
@@ -122,32 +123,8 @@ function Formulario({ page, prefill, termos, podeCadastrar, onDone }: { page: Ag
   const [dia, setDia] = useState(prefill.date)
   const [escolhido, setEscolhido] = useState('')
   const [hora, setHora] = useState(prefill.time)
-  const [horarios, setHorarios] = useState<HorarioLivre[] | null>(null)
-  const [erroHorarios, setErroHorarios] = useState<string | null>(null)
 
-  const chave = servicos.join(',')
-  useEffect(() => {
-    if (chave === '' || dia === '') return
-    let vivo = true
-    void buscarHorarios({ serviceIds: chave.split(','), date: dia, professionalId: profissional }).then((r) => {
-      if (!vivo) return
-      if (r.ok) {
-        setHorarios(r.horarios)
-        setErroHorarios(null)
-        setEscolhido((atual) => (r.horarios.some((h) => h.iso === atual) ? atual : (r.horarios.find((h) => h.label === prefill.time)?.iso ?? '')))
-      } else {
-        setHorarios([])
-        setErroHorarios(r.message)
-      }
-    })
-    return () => {
-      vivo = false
-    }
-  }, [chave, dia, profissional, prefill.time])
-
-  const lista = chave === '' ? null : horarios
   const duracao = useMemo(() => page.services.filter((s) => servicos.includes(s.id)).reduce((t, s) => t + s.durationMin, 0), [page.services, servicos])
-  const foraDaLista = escolhido === '' && hora !== '' && lista !== null && !lista.some((h) => h.label === hora)
 
   const inicial: EstadoPainel = { ok: false, message: null, fields: {}, values: { notes: '' } }
   return (
@@ -188,73 +165,22 @@ function Formulario({ page, prefill, termos, podeCadastrar, onDone }: { page: Ag
             ) : (
               <input type="hidden" name="professionalId" value={page.ownProfessionalId ?? ''} />
             )}
-            <Field label="Dia" error={state.fields.date}>
-              <Input id="marcar-dia" type="date" name="date" value={dia} onChange={(e) => setDia(e.target.value)} required />
-            </Field>
           </div>
 
-          <fieldset className="af-pick">
-            <legend className="af-field__label">Horários livres</legend>
-            {lista === null ? <p className="af-section__help">Escolha os serviços para ver os horários livres do dia.</p> : null}
-            {erroHorarios ? (
-              <p role="alert" className="af-rowerror">
-                {erroHorarios}
-              </p>
-            ) : null}
-            {lista && lista.length === 0 && !erroHorarios ? <p className="af-section__help">Nenhum horário livre neste dia. Escolha outro dia ou digite um horário abaixo.</p> : null}
-            {lista && lista.length > 0 ? (
-              <div className="af-pick__times">
-                {lista.map((h) => (
-                  <TimeChip
-                    key={h.iso}
-                    time={h.label}
-                    state={escolhido === h.iso ? 'selected' : 'free'}
-                    onSelect={() => {
-                      setEscolhido(h.iso)
-                      setHora(h.label)
-                    }}
-                  />
-                ))}
-              </div>
-            ) : null}
-            <input type="hidden" name="startsAt" value={escolhido} />
-          </fieldset>
-
-          <Field label="Outro horário" hint="Você pode marcar fora dos horários livres, desde que não bata com outro atendimento nem com um bloqueio." error={state.fields.time}>
-            <Input
-              id="marcar-hora"
-              type="time"
-              name="time"
-              step={300}
-              value={hora}
-              onChange={(e) => {
-                setHora(e.target.value)
-                setEscolhido('')
-              }}
-            />
-          </Field>
-          {foraDaLista ? <p className="af-planner__warn">Este horário está fora dos horários livres da agenda. Se não houver conflito, o atendimento é marcado mesmo assim.</p> : null}
-
-          {state.conflict && state.conflict.nearest.length > 0 ? (
-            <div className="af-pick" role="group" aria-label="Horários livres mais próximos">
-              <p className="af-section__help">Horários livres mais próximos:</p>
-              <div className="af-pick__times">
-                {state.conflict.nearest.map((n) => (
-                  <Button
-                    key={n.iso}
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      setEscolhido(n.iso)
-                      setHora(n.label)
-                    }}
-                  >
-                    Usar {n.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <HorarioFields
+            serviceIds={servicos}
+            professionalId={profissional}
+            date={dia}
+            onDate={setDia}
+            time={hora}
+            onTime={setHora}
+            chosen={escolhido}
+            onChosen={setEscolhido}
+            prefillTime={prefill.time}
+            conflict={state.conflict}
+            errors={{ date: state.fields.date, time: state.fields.time }}
+            idPrefix="marcar"
+          />
 
           <Field label="Observação" hint="Opcional. Só a equipe vê." error={state.fields.notes}>
             <Textarea name="notes" rows={2} maxLength={2000} defaultValue={state.values.notes ?? ''} />

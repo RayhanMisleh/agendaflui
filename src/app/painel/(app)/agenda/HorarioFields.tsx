@@ -1,0 +1,136 @@
+'use client'
+import { useEffect, useState } from 'react'
+import type { Conflito } from '@/app/_lib/form-state'
+import { Button, Field, Input, TimeChip } from '@/ui/components'
+import { buscarHorarios } from './consultas'
+import type { HorarioLivre } from './consultas'
+
+/**
+ * Dia, horários livres do servidor e "outro horário" (a equipe pode marcar fora da grade; só conflito recusa). O horário
+ * escolhido da lista viaja como o instante que o servidor deu (`startsAt`); o digitado, como dia e hora locais. Os campos
+ * `date`, `time` e `startsAt` fazem parte do formulário de quem usa. Sem serviços escolhidos não há o que consultar.
+ */
+export function HorarioFields({
+  serviceIds,
+  professionalId,
+  date,
+  onDate,
+  time,
+  onTime,
+  chosen,
+  onChosen,
+  prefillTime,
+  conflict,
+  errors,
+  idPrefix,
+}: {
+  serviceIds: string[]
+  professionalId: string
+  date: string
+  onDate: (d: string) => void
+  time: string
+  onTime: (t: string) => void
+  chosen: string
+  onChosen: (iso: string) => void
+  prefillTime: string
+  conflict: Conflito | undefined
+  errors: { date?: string | undefined; time?: string | undefined }
+  idPrefix: string
+}) {
+  const [horarios, setHorarios] = useState<HorarioLivre[] | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const chave = serviceIds.join(',')
+
+  useEffect(() => {
+    if (chave === '' || date === '') return
+    let vivo = true
+    void buscarHorarios({ serviceIds: chave.split(','), date, professionalId }).then((r) => {
+      if (!vivo) return
+      if (r.ok) {
+        setHorarios(r.horarios)
+        setErro(null)
+        const ofertado = r.horarios.find((h) => h.label === prefillTime)
+        if (ofertado && chosen === '') onChosen(ofertado.iso)
+      } else {
+        setHorarios([])
+        setErro(r.message)
+      }
+    })
+    return () => {
+      vivo = false
+    }
+    // `chosen` e `onChosen` ficam de fora de propósito: a consulta só refaz quando muda o que a define.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chave, date, professionalId, prefillTime])
+
+  const lista = chave === '' ? null : horarios
+  const foraDaLista = chosen === '' && time !== '' && lista !== null && !lista.some((h) => h.label === time)
+
+  return (
+    <>
+      <Field label="Dia" error={errors.date}>
+        <Input id={`${idPrefix}-dia`} type="date" name="date" value={date} onChange={(e) => onDate(e.target.value)} required />
+      </Field>
+      <fieldset className="af-pick">
+        <legend className="af-field__label">Horários livres</legend>
+        {lista === null ? <p className="af-section__help">Escolha os serviços para ver os horários livres do dia.</p> : null}
+        {erro ? (
+          <p role="alert" className="af-rowerror">
+            {erro}
+          </p>
+        ) : null}
+        {lista && lista.length === 0 && !erro ? <p className="af-section__help">Nenhum horário livre neste dia. Escolha outro dia ou digite um horário abaixo.</p> : null}
+        {lista && lista.length > 0 ? (
+          <div className="af-pick__times">
+            {lista.map((h) => (
+              <TimeChip
+                key={h.iso}
+                time={h.label}
+                state={chosen === h.iso ? 'selected' : 'free'}
+                onSelect={() => {
+                  onChosen(h.iso)
+                  onTime(h.label)
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
+        <input type="hidden" name="startsAt" value={chosen} />
+      </fieldset>
+      <Field label="Outro horário" hint="Você pode usar um horário fora dos livres, desde que não bata com outro atendimento nem com um bloqueio." error={errors.time}>
+        <Input
+          id={`${idPrefix}-hora`}
+          type="time"
+          name="time"
+          step={300}
+          value={time}
+          onChange={(e) => {
+            onTime(e.target.value)
+            onChosen('')
+          }}
+        />
+      </Field>
+      {foraDaLista ? <p className="af-planner__warn">Este horário está fora dos horários livres da agenda. Se não houver conflito, ele é aceito mesmo assim.</p> : null}
+      {conflict && conflict.nearest.length > 0 ? (
+        <div className="af-pick" role="group" aria-label="Horários livres mais próximos">
+          <p className="af-section__help">Horários livres mais próximos:</p>
+          <div className="af-pick__times">
+            {conflict.nearest.map((n) => (
+              <Button
+                key={n.iso}
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  onChosen(n.iso)
+                  onTime(n.label)
+                }}
+              >
+                Usar {n.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
