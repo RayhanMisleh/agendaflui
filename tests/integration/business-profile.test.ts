@@ -5,6 +5,8 @@ import sharp from 'sharp'
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { updateBusinessData } from '@/server/domain/platform/businesses'
+import { updateBrand } from '@/server/domain/platform/customization'
+import type { BrandInput } from '@/server/domain/platform/customization'
 import {
   getBusinessProfile,
   getTermLabels,
@@ -125,6 +127,29 @@ describe('dados do negócio', () => {
     const adm = await domainError(updateBusinessData(admin, b.id, nova.version, { contactEmail: 'admin2@pet.com.br' }))
     expect([adm.code, adm.reason]).toEqual(['conflict', 'stale_version'])
     expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).email).toBe('dono@pet.com.br')
+  })
+
+  test('o nome trocado pelo admin na Marca sobe a versão do negócio: o dono com a versão antiga recebe conflito e o nome do admin fica', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const a = await makePlatformAdmin()
+    const admin = { kind: 'platform_admin' as const, adminId: a.id, name: a.name }
+    const lida = await getBusinessProfile(ctx)
+    const marca = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: b.id } })
+    const entrada: BrandInput = {
+      displayName: 'Patas & Cia',
+      primary: marca.primaryColor,
+      accent: marca.accentColor,
+      material: marca.coverMaterial,
+      paper: marca.paperTone,
+      fontPair: marca.fontPair,
+      loginMessage: marca.loginMessage,
+    }
+    await updateBrand(admin, b.id, marca.version, entrada)
+    const dono = await domainError(updateBusinessProfile(ctx, lida.version, { name: lida.name, contactEmail: lida.contactEmail, contactPhone: '11999990000' }))
+    expect([dono.code, dono.reason]).toEqual(['conflict', 'stale_version'])
+    expect((await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: b.id } })).displayName).toBe('Patas & Cia')
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).phone).toBe(lida.contactPhone)
   })
 
   test('mudar só o nome também sobe a versão do negócio', async () => {

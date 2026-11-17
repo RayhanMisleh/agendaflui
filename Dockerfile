@@ -51,6 +51,7 @@ RUN mkdir -p /data/storage && chown -R node:node /data
 COPY --chown=node:node --from=prod-deps /app/node_modules ./node_modules
 COPY --chown=node:node --from=build /app/.next ./.next
 COPY --chown=node:node --from=build /app/src ./src
+COPY --chown=node:node --from=build /app/public ./public
 COPY --chown=node:node package.json next.config.ts tsconfig.json prisma.config.ts ./
 COPY --chown=node:node prisma ./prisma
 COPY --chown=node:node scripts ./scripts

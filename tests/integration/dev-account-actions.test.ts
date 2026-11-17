@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
+import { makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
 
 const guards = vi.hoisted(() => ({ requirePlatformAdmin: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
@@ -37,6 +37,9 @@ import {
   trocarPapel,
 } from '@/app/dev/(app)/contas/[id]/actions'
 import { createApiKey, listApiKeys } from '@/server/domain/platform/api-keys'
+import { updateNotificationSettings } from '@/server/domain/settings/notification-settings'
+import { updateSchedulingRules } from '@/server/domain/settings/scheduling-rules'
+import { updateTermsAsOwner } from '@/server/domain/settings/business-profile'
 import type { FormState } from '@/app/_lib/form-state'
 
 const vazio: FormState<Record<string, never>> = { ok: false, message: null, fields: {}, values: {} }
@@ -136,13 +139,65 @@ describe('marca', () => {
   })
 })
 
+describe('versão das configurações nas gravações do painel dev', () => {
+  const termos = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' }
+  const regras = { slotStepMin: '15', minLeadMin: '60', maxAdvanceDays: '30', customerChangeWindowMin: '120', bufferMin: '0', timeZone: 'America/Sao_Paulo' }
+  const versao = async (businessId: string) => (await prisma.businessSettings.findUniqueOrThrow({ where: { businessId } })).version
+
+  test('termos: o dono muda um termo; o admin, com a versão antiga, recebe conflito e o termo do dono continua', async () => {
+    const conta = await makeBusiness()
+    const dono = await makeCtx(conta)
+    const lida = await versao(conta.id)
+    await updateTermsAsOwner(dono, lida, { ...termos, club: 'VIP' })
+    const r = await salvarTermos(conta.id, ini, form({ ...termos, professionalSingular: 'Groomer', version: String(lida) }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBe(MSG_CONFLITO)
+    expect(r.values.professionalSingular).toBe('Groomer')
+    expect(await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ termClub: 'VIP', termProfessionalSingular: expect.not.stringMatching(/^Groomer$/) })
+    const ok = await salvarTermos(conta.id, ini, form({ ...termos, club: 'VIP', professionalSingular: 'Groomer', version: String(lida + 1) }))
+    expect(ok.ok).toBe(true)
+    expect(ok.values.version).toBe(String(lida + 2))
+  })
+
+  test('regras: o dono muda o intervalo; o admin com a versão antiga recebe conflito e o intervalo do dono continua', async () => {
+    const conta = await makeBusiness()
+    const dono = await makeCtx(conta)
+    const lida = await versao(conta.id)
+    await updateSchedulingRules(dono, { bufferMin: 20 }, lida)
+    const r = await salvarRegras(conta.id, ini, form({ ...regras, minLeadMin: '90', version: String(lida) }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBe(MSG_CONFLITO)
+    expect(await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ bufferMin: 20, minLeadMin: 60 })
+    const ok = await salvarRegras(conta.id, ini, form({ ...regras, bufferMin: '20', minLeadMin: '90', version: String(lida + 1) }))
+    expect(ok.ok).toBe(true)
+    expect(ok.values.version).toBe(String(lida + 2))
+  })
+
+  test('avisos: o dono muda um canal; o admin com a versão antiga recebe conflito e o canal do dono continua', async () => {
+    const conta = await makeBusiness()
+    const dono = await makeCtx(conta)
+    const lida = await versao(conta.id)
+    await updateNotificationSettings(dono, { APPOINTMENT_CONFIRMED: { push: false } }, lida)
+    const r = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__push: 'on', version: String(lida) }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBe(MSG_CONFLITO)
+    const n = (await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).notifications as Record<string, { email: boolean; push: boolean }>
+    expect(n.APPOINTMENT_CONFIRMED?.push).toBe(false)
+    expect(n.APPOINTMENT_CANCELED?.email).toBe(true)
+    const ok = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__email: 'on', version: String(lida + 1) }))
+    expect(ok.ok).toBe(true)
+    expect(ok.values.version).toBe(String(lida + 2))
+  })
+})
+
 describe('termos, módulos, regras e avisos', () => {
   test('termos gravam e termo vazio erra no campo', async () => {
     const conta = await makeBusiness()
     const base = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube Pata' }
-    expect((await salvarTermos(conta.id, ini, form(base))).ok).toBe(true)
+    const v1 = String((await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).version)
+    expect((await salvarTermos(conta.id, ini, form({ ...base, version: v1 }))).ok).toBe(true)
     expect((await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).termClub).toBe('Clube Pata')
-    const vazioClube = await salvarTermos(conta.id, ini, form({ ...base, club: '' }))
+    const vazioClube = await salvarTermos(conta.id, ini, form({ ...base, club: '', version: String(Number(v1) + 1) }))
     expect(vazioClube.ok).toBe(false)
     expect(vazioClube.fields.club).toBeTruthy()
   })
@@ -161,23 +216,24 @@ describe('termos, módulos, regras e avisos', () => {
   test('regras e fuso gravam juntos; valor fora do limite erra no campo; campo em branco é recusado', async () => {
     const conta = await makeBusiness()
     const base = { slotStepMin: '30', minLeadMin: '90', maxAdvanceDays: '45', customerChangeWindowMin: '180', bufferMin: '10', timeZone: 'America/Manaus', autoConfirm: 'on' }
-    const ok = await salvarRegras(conta.id, ini, form(base))
+    const ok = await salvarRegras(conta.id, ini, form({ ...base, version: '1' }))
     expect(ok.ok).toBe(true)
+    expect(ok.values.version).toBe('2')
     expect(await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ slotStepMin: 30, bufferMin: 10, autoConfirm: true })
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).timezone).toBe('America/Manaus')
-    const alto = await salvarRegras(conta.id, ini, form({ ...base, maxAdvanceDays: '999' }))
+    const alto = await salvarRegras(conta.id, ini, form({ ...base, maxAdvanceDays: '999', version: '2' }))
     expect(alto.ok).toBe(false)
     expect(alto.fields.maxAdvanceDays).toBeTruthy()
-    const branco = await salvarRegras(conta.id, ini, form({ ...base, minLeadMin: '' }))
+    const branco = await salvarRegras(conta.id, ini, form({ ...base, minLeadMin: '', version: '2' }))
     expect(branco.ok).toBe(false)
     expect(branco.fields.minLeadMin).toBeTruthy()
-    const fuso = await salvarRegras(conta.id, ini, form({ ...base, timeZone: 'Marte/Olimpo' }))
+    const fuso = await salvarRegras(conta.id, ini, form({ ...base, timeZone: 'Marte/Olimpo', version: '2' }))
     expect(fuso.fields.timeZone).toBeTruthy()
   })
 
   test('avisos: caixa desmarcada desliga o canal daquele tipo', async () => {
     const conta = await makeBusiness()
-    const r = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__email: 'on', APPOINTMENT_CANCELED__push: 'on' }))
+    const r = await salvarAvisos(conta.id, ini, form({ version: '1', APPOINTMENT_CONFIRMED__email: 'on', APPOINTMENT_CANCELED__push: 'on' }))
     expect(r.ok).toBe(true)
     const s = await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })
     const n = s.notifications as Record<string, { email: boolean; push: boolean }>

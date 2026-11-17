@@ -18,7 +18,7 @@ export default async function RegrasPage({ params }: { params: Promise<{ id: str
   const { top, rest } = timeZoneChoices(FUSOS.map((f) => f.value))
   const fusos = { top: FUSOS.filter((f) => top.includes(f.value)), rest }
   const lista = tiposDeAviso()
-  const avisos: Record<string, string> = {}
+  const avisos: Record<string, string> = { version: String(rules.version) }
   for (const a of lista) {
     const canais = notifications[a.kind as keyof typeof notifications]
     avisos[`${a.kind}__email`] = canais?.email ? 'on' : ''
@@ -29,6 +29,7 @@ export default async function RegrasPage({ params }: { params: Promise<{ id: str
       <Card className="af-listpanel">
         <h2 className="af-section__title">Regras de agenda e fuso</h2>
         <RegrasForm
+          key={rules.version}
           action={salvarRegras.bind(null, conta.id)}
           fusos={fusos}
           grades={SLOT_STEPS}
@@ -41,13 +42,14 @@ export default async function RegrasPage({ params }: { params: Promise<{ id: str
             bufferMin: String(rules.bufferMin),
             autoConfirm: rules.autoConfirm ? 'on' : '',
             timeZone,
+            version: String(rules.version),
           }}
         />
       </Card>
       <Card className="af-listpanel">
         <h2 className="af-section__title">Avisos por tipo e canal</h2>
         <p className="af-section__help">Desmarcar um canal para de mandar aquele aviso por ele nesta conta.</p>
-        <AvisosForm action={salvarAvisos.bind(null, conta.id)} valores={avisos} avisos={lista} />
+        <AvisosForm key={rules.version} action={salvarAvisos.bind(null, conta.id)} valores={avisos} avisos={lista} />
       </Card>
     </>
   )

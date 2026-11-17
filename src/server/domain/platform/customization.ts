@@ -180,6 +180,8 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
     }
     const mensagemMudou = atual.loginMessage !== i.loginMessage
     if (Object.keys(changes).length === 0 && !mensagemMudou) return
+    // O nome de exibição também é do dono (Configurações > Negócio), cuja versão é a do negócio: quem leu antes recebe conflito.
+    if (changes.displayName) await tx.business.update({ where: { id: businessId }, data: { version: { increment: 1 } } })
     const r = await tx.businessBranding.updateMany({
       where: { businessId, version: v },
       data: {
