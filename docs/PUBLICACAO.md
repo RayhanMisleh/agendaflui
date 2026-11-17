@@ -57,4 +57,7 @@ Novo deploy: a partida aplica as migrações novas antes de servir.
 ## Coolify
 
 Build por Dockerfile; porta 3000; os três domínios no mesmo recurso (`dev.`, `painel.`, `api.`); armazenamento
-persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz` (a imagem traz `curl` e o `HEALTHCHECK` o usa).
+persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz` (o Coolify roda `curl` dentro do
+contêiner; a imagem já o traz). O Coolify injeta as variáveis da aplicação também no build: o Dockerfile já conta
+com isso. Ao acrescentar um domínio depois de criada a aplicação, confira em General > Container > Labels se há
+uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante (sem isso o proxy responde 503).
