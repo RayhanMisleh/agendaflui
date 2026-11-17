@@ -7,8 +7,10 @@ import { createCustomerContext } from '@/server/auth/customer-context'
 import { createGuestContext } from '@/server/auth/guest-context'
 import { hitRateLimit, LIMITS, limitKey, type LimitRule } from '@/server/auth/rate-limit-db'
 import { DomainError, z } from '@/server/domain/errors'
+import { requireModule } from '@/server/domain/modules'
 import { ApiAuthError, resolveAppKey, type ResolvedKey } from '@/server/domain/platform/api-keys'
 import { env } from '@/server/env'
+import type { ModuleName } from '@/shared/modules'
 import { checkWireContract } from './contract'
 import { corsHeaders, isSyntacticOrigin, originAllowed, preflightHeaders } from './cors'
 import { ApiRateLimitError, BodyTooLargeError, buildResponse, errorResponse } from './errors'
@@ -91,6 +93,11 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
   limitBy?: 'subject'
   /** Só documentação (OpenAPI): a rota aceita o cabeçalho `Idempotency-Key`, que o handler repassa ao domínio. */
   idempotent?: true
+  /**
+   * Módulo opcional que a rota exige. Conferido depois de montar o contexto (chave, limites e token) e ANTES de validar
+   * `params`, `query` e `body`: módulo desligado devolve 404 `module_disabled`, nunca 422. Exige `auth` diferente de `none`.
+   */
+  module?: ModuleName
   /**
    * Cache HTTP explícito do sucesso (`public, max-age=N`), só para resposta pública e igual para todos (o documento OpenAPI).
    * Sem isto, toda resposta sai com `Cache-Control: no-store`. Erros nunca são guardados.
@@ -288,6 +295,9 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
   if (def.cache !== undefined && def.auth !== 'none') {
     throw new Error(`${def.method} ${def.path}: "cache" só vale para rota sem autenticação (auth: 'none'), porque a resposta é guardada por caches compartilhados.`)
   }
+  if (def.module !== undefined && def.auth === 'none') {
+    throw new Error(`${def.method} ${def.path}: "module" exige uma rota com chave de app (auth diferente de 'none').`)
+  }
   const bodySchema = strictRoot(def.body)
   const querySchema = strictRoot(def.query)
   const status = def.status ?? 200
@@ -354,6 +364,7 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
         claims = await readClaims(any, request, key, now)
         if (def.limitBy === 'subject') await enforceRouteLimit(any, request, key, claims, now)
         ctx = await buildContext(key, claims, info)
+        if (def.module !== undefined) await requireModule(ctx, def.module)
       }
 
       const params = def.params ? await def.params.parseAsync(await seg?.params) : (undefined as P)

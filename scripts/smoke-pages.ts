@@ -99,6 +99,13 @@ const PAGINAS_PAINEL = [
   '/entrar?senha=nova',
 ]
 
+/** Páginas dos módulos, pedidas como o dono da conta com TODOS os módulos ligados. Cada tarefa de módulo acrescenta as suas. */
+const PAGINAS_MODULOS: string[] = []
+
+/** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
+const PAGINAS_LOJA_DESLIGADA = ['/fidelidade', '/banners', '/loja', '/vouchers']
+const SEM_LOJA_404 = new Set(['/loja', '/vouchers'])
+
 type Resposta = { status: number; corpo: string }
 
 function pedir(porta: number, host: string, caminho: string, cookie: string): Promise<Resposta> {
@@ -234,6 +241,16 @@ async function main(): Promise<number> {
       await dormir(500)
     }
 
+    // Os módulos da conta mudam só durante a fumaça e voltam ao valor de antes no fim (inclusive se o script cair).
+    const antes = await prisma.businessModules.findUnique({ where: { businessId: conta.id } })
+    const ligar = (data: { loyalty: boolean; banners: boolean; store: boolean; vouchers: boolean }) =>
+      prisma.businessModules.upsert({ where: { businessId: conta.id }, create: { businessId: conta.id, ...data }, update: data })
+    limpezas.push(async () => {
+      if (antes) await ligar({ loyalty: antes.loyalty, banners: antes.banners, store: antes.store, vouchers: antes.vouchers })
+      else await prisma.businessModules.deleteMany({ where: { businessId: conta.id } })
+    })
+    await ligar({ loyalty: true, banners: true, store: true, vouchers: true })
+
     const cliente = await prisma.customer.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     const profissional = await prisma.professional.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     let falhas = 0
@@ -242,6 +259,7 @@ async function main(): Promise<number> {
     const lotes = [
       { host, cookie: `${DEV_COOKIE}=${token}`, paginas: PAGINAS, rotulo: 'dev' },
       { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
+      { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
@@ -267,7 +285,24 @@ async function main(): Promise<number> {
         console.log(linha)
       }
     }
-    const total = PAGINAS.length + PAGINAS_PAINEL.length - pulados
+
+    // Conta com a Loja desligada: as páginas da Loja e dos Vouchers somem (404). As outras só não podem quebrar.
+    await ligar({ loyalty: true, banners: true, store: false, vouchers: false })
+    for (const caminho of PAGINAS_LOJA_DESLIGADA) {
+      const esperado = SEM_LOJA_404.has(caminho) ? 404 : null
+      let linha: string
+      try {
+        const r = await pedir(porta, hostPainel, caminho, `${PAINEL_COOKIE}=${membro.token}`)
+        const bom = esperado === null ? r.status < 500 : r.status === esperado
+        if (!bom) falhas++
+        linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} sem-loja ${caminho}${esperado === null ? '' : `  (esperava ${String(esperado)})`}`
+      } catch (err) {
+        falhas++
+        linha = `FALHA --- sem-loja ${caminho}  (${err instanceof Error ? err.message : 'erro'})`
+      }
+      console.log(linha)
+    }
+    const total = PAGINAS.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_LOJA_DESLIGADA.length - pulados
     const aviso = pulados > 0 ? ` (${pulados} puladas por falta de registro no seed)` : ''
     console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
     return falhas === 0 ? 0 : 1

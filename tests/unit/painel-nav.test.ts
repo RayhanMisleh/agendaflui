@@ -61,8 +61,40 @@ test('o rótulo acompanha o termo da conta, não um texto fixo', () => {
   expect(nav.map((i) => i.label)).not.toContain('Clientes')
 })
 
-test('os módulos da Fase 5 não criam divisões, ligados ou desligados', () => {
-  expect(rotulos('OWNER', TODOS_LIGADOS)).toEqual(rotulos('OWNER', MODULOS))
+test('com os módulos ligados, o dono vê Fidelidade, Banners, Loja e Vouchers entre Serviços e Relatórios', () => {
+  expect(navDe('OWNER', TODOS_LIGADOS).map((i) => [i.label, i.href])).toEqual([
+    ['Início', '/'],
+    ['Agenda', '/agenda'],
+    ['Tutores', '/clientes'],
+    ['Tosadores', '/equipe'],
+    ['Serviços', '/servicos'],
+    ['Fidelidade', '/fidelidade'],
+    ['Banners', '/banners'],
+    ['Loja', '/loja'],
+    ['Vouchers', '/vouchers'],
+    ['Relatórios', '/relatorios'],
+    ['Configurações', '/configuracoes'],
+  ])
+})
+
+test('cada módulo só aparece com o módulo ligado: Loja ligada e Fidelidade desligada', () => {
+  const r = rotulos('OWNER', { ...MODULOS, store: true })
+  expect(r).toContain('Loja')
+  expect(r).not.toContain('Fidelidade')
+  expect(r).not.toContain('Banners')
+  expect(r).not.toContain('Vouchers')
+})
+
+test('o profissional não vê módulo nenhum, nem com todos ligados', () => {
+  expect(rotulos('PROFESSIONAL', TODOS_LIGADOS)).toEqual(rotulos('PROFESSIONAL', MODULOS))
+  const r = rotulos('PROFESSIONAL', TODOS_LIGADOS)
+  for (const nome of ['Fidelidade', 'Banners', 'Loja', 'Vouchers']) expect(r).not.toContain(nome)
+})
+
+test('módulo ligado sem a capacidade também some', () => {
+  const sem = painelNav({ can: (c) => c !== 'manage_store', modules: TODOS_LIGADOS, terms: TERMOS }).map((i) => i.label)
+  expect(sem).not.toContain('Loja')
+  expect(sem).toContain('Vouchers')
 })
 
 test('todo item traz ícone e as sete capacidades da navegação existem', () => {

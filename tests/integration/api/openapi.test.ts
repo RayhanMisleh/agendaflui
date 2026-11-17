@@ -82,6 +82,29 @@ describe('manifesto de rotas', () => {
   })
 })
 
+describe('rotas de módulo', () => {
+  const PREFIXOS = ['/v1/loyalty', '/v1/banners', '/v1/store', '/v1/vouchers', '/v1/me/addresses', '/v1/me/voucher-codes']
+
+  test('toda rota de módulo declara `module` (e só elas, com um módulo conhecido)', () => {
+    for (const def of routeDefinitions()) {
+      const doModulo = PREFIXOS.some((p) => def.path === p || def.path.startsWith(`${p}/`))
+      if (doModulo) expect(def.module, `${def.method} ${def.path} sem module`).toBeDefined()
+    }
+  })
+
+  test('a descrição da operação diz qual módulo a rota exige', () => {
+    for (const def of routeDefinitions()) {
+      if (def.module === undefined) continue
+      const op = objeto(objeto(objeto(buildOpenApi().paths)[def.path])[def.method.toLowerCase()])
+      expect(String(op.description)).toContain('Exige o módulo')
+    }
+  })
+
+  test('o 404 documentado cita module_disabled', () => {
+    expect(JSON.stringify(objeto(buildOpenApi().components).responses)).toContain('module_disabled')
+  })
+})
+
 describe('motivos e códigos de erro', () => {
   test('a lista de motivos da API não repete os do domínio e está ordenada', () => {
     expect(API_REASONS.filter((r) => (DOMAIN_REASONS as readonly string[]).includes(r))).toEqual([])

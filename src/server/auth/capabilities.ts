@@ -14,6 +14,10 @@ export const CAPABILITIES = [
   'manage_catalog',
   'manage_settings',
   'manage_account',
+  'manage_loyalty',
+  'manage_banners',
+  'manage_store',
+  'manage_vouchers',
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]

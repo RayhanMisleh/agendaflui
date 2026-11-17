@@ -1,3 +1,4 @@
+import { MODULE_LABELS } from '@/shared/modules'
 import { areaLink } from '@/server/area-links'
 import { API_REASONS, DOMAIN_REASONS, z } from '@/server/domain/errors'
 import { API_ERROR_CODES } from './errors'
@@ -17,7 +18,7 @@ const TOKEN_KINDS = 'o token de acesso de um cliente (rotas /v1/auth/customer e 
 const ERROR_RESPONSES: Record<string, { name: string; description: string }> = {
   '401': { name: 'Unauthorized', description: 'Chave do app inválida, token ausente, inválido ou vencido, ou sessão encerrada.' },
   '403': { name: 'Forbidden', description: 'Sem permissão: origem não liberada, tipo de token errado ou papel sem acesso.' },
-  '404': { name: 'NotFound', description: 'O registro não existe nesta conta (ou o módulo está desligado).' },
+  '404': { name: 'NotFound', description: 'O registro não existe nesta conta (ou o módulo da rota está desligado: `error.reason` é `module_disabled`).' },
   '409': { name: 'Conflict', description: 'A regra de negócio impede a ação agora: veja `error.reason`.' },
   '413': { name: 'PayloadTooLarge', description: 'O corpo passa de 100 KB: envie menos dados (`error.reason` é `body_too_large`).' },
   '422': { name: 'ValidationFailed', description: 'Os dados enviados não passaram na validação: veja `error.fields`.' },
@@ -110,7 +111,7 @@ export function operationId(method: string, path: string): string {
 
 const errorRef = (status: string): Json => ({ $ref: `#/components/responses/${ERROR_RESPONSES[status]?.name ?? ''}` })
 
-function operation(def: AnyRouteDef): Json {
+export function operation(def: AnyRouteDef): Json {
   const success = def.status ?? 200
   const hasInput = def.params !== undefined || def.query !== undefined || def.body !== undefined
   const responses: Record<string, Json> = {}
@@ -139,7 +140,7 @@ function operation(def: AnyRouteDef): Json {
   return {
     operationId: operationId(def.method, def.path),
     summary: def.summary,
-    description: AUTH_TEXT[def.auth],
+    description: def.module === undefined ? AUTH_TEXT[def.auth] : `${AUTH_TEXT[def.auth]} Exige o módulo ${MODULE_LABELS[def.module]} ligado.`,
     tags: [def.tag],
     security: security(def.auth),
     ...(params.length > 0 ? { parameters: params } : { parameters: [] }),
