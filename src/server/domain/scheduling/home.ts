@@ -14,6 +14,8 @@ export type HomeOverview = {
   weekday: Weekday
   /** `all`: dono, gerente e suporte veem todas as agendas; `own`: o profissional vê só a dele. */
   scope: 'all' | 'own'
+  /** Profissional cujo acesso ainda não está ligado a uma ficha de profissional: não há agenda para mostrar. */
+  unlinked: boolean
   /** Ocupação e totais de hoje (o mesmo resumo da agenda). */
   summary: DaySummary
   /** O próximo atendimento aberto que ainda não terminou: em andamento, mais tarde hoje ou, se hoje acabou, nos dias seguintes. */
@@ -38,7 +40,7 @@ export async function getHomeOverview(ctx: TenantContext): Promise<HomeOverview>
   const now = ctx.clock()
   const { iso: date, label: dateLabel } = todayLine(now, ctx.timeZone)
   const summary = await getDaySummary(ctx, date)
-  const base = { date, dateLabel, weekday: weekdayOf(date), scope: scope.all ? ('all' as const) : ('own' as const), summary }
+  const base = { date, dateLabel, weekday: weekdayOf(date), scope: scope.all ? ('all' as const) : ('own' as const), unlinked: !scope.all && scope.ownId === null, summary }
   if (!scope.all && scope.ownId === null) return { ...base, next: null, later: [], counts: { today: 0, month: 0 } }
 
   const mine: Prisma.AppointmentWhereInput = scope.all ? {} : { professionalId: scope.ownId ?? '' }

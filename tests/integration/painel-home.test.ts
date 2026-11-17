@@ -91,6 +91,13 @@ describe('getHomeOverview: quem vê o quê', () => {
     expect(home.later).toEqual([])
     expect(home.counts).toEqual({ today: 0, month: 0 })
     expect(home.summary.total).toBe(0)
+    expect(home.unlinked).toBe(true)
+  })
+
+  test('profissional com ficha ligada e dono não ficam "sem ficha"', async () => {
+    const m = await montar()
+    expect((await getHomeOverview(await comoProfissional(m, 'ana'))).unlinked).toBe(false)
+    expect((await getHomeOverview(m.dono)).unlinked).toBe(false)
   })
 
   test('cliente do app e visitante não têm Início', async () => {
@@ -151,6 +158,19 @@ describe('getHomeOverview: próximos atendimentos', () => {
     const home = await getHomeOverview(m.dono)
     expect([home.next, ...home.later].map((a) => a?.local.start)).toEqual(['09:00', '15:00'])
     expect(home.next?.status).toBe('PENDING')
+  })
+
+  test('o próximo do profissional é o dele: um colega e um cancelado dele, mais cedo, não valem', async () => {
+    const m = await montar()
+    await marcar(m, { startsAt: mn(17, 9), quem: 'caio', cliente: 'B' })
+    await marcar(m, { startsAt: mn(17, 9, 30), quem: 'ana', status: 'CANCELED' })
+    await marcar(m, { startsAt: mn(17, 11), quem: 'ana', cliente: 'A' })
+    const ana = await getHomeOverview(await comoProfissional(m, 'ana'))
+    expect([ana.next?.professional.name, ana.next?.local.start]).toEqual(['Ana', '11:00'])
+    expect(ana.later).toEqual([])
+    const dono = await getHomeOverview(m.dono)
+    expect([dono.next?.professional.name, dono.next?.local.start]).toEqual(['Caio', '09:00'])
+    expect(dono.later.map((a) => a.local.start)).toEqual(['11:00'])
   })
 
   test('um atendimento em andamento ainda é o próximo', async () => {

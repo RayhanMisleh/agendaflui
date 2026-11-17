@@ -106,3 +106,44 @@ test('a tabela mantém a semântica de tabela mesmo quando o CSS a desenha como 
   expect(screen.getAllByRole('row')).toHaveLength(2)
   expect(screen.getByRole('cell', { name: /Ana/ })).toBeInTheDocument()
 })
+
+test('telefone e botão de outra célula não disparam a linha clicável', async () => {
+  const onRowClick = vi.fn()
+  const cols = [
+    { key: 'n', header: 'Nome', cell: (r: { n: string }) => r.n, primary: true },
+    { key: 't', header: 'Telefone', cell: () => <a href="tel:+5511984217733">Ligar</a> },
+    { key: 'b', header: 'Ação', cell: () => <button type="button">Abrir</button> },
+  ]
+  render(<DataList columns={cols} rows={[{ n: 'Ana' }]} rowKey={(r) => r.n} onRowClick={onRowClick} empty={null} />)
+  const ligar = screen.getByRole('link', { name: 'Ligar' })
+  ligar.addEventListener('click', (e) => e.preventDefault())
+  await userEvent.click(ligar)
+  await userEvent.click(screen.getByRole('button', { name: 'Abrir' }))
+  expect(onRowClick).not.toHaveBeenCalled()
+  expect(ligar.closest('.af-row-hit')).toBeNull()
+})
+
+describe('CSS da lista', () => {
+  const css = readFileSync(resolve(process.cwd(), 'src/ui/styles/data.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+
+  test('em cartão, os controles das outras células ficam acima da área de toque da linha (em cartão e em tabela)', () => {
+    const regra = /\.af-datalist__value :is\(([^)]*)\)\s*\{([^}]*)\}/.exec(css)
+    expect(regra).not.toBeNull()
+    for (const alvo of ['a[href]', 'button', 'input', 'select', 'textarea', "[role='button']"]) expect(regra?.[1]).toContain(alvo)
+    expect(regra?.[2]).toMatch(/position:\s*relative/)
+    expect(regra?.[2]).toMatch(/z-index:\s*1\b/)
+    expect(css).toMatch(/\.af-row-hit::after\s*\{[^}]*position:\s*absolute/)
+  })
+
+  test('as regras de tabela e de cartão existem uma vez só: cada consulta de contêiner só troca as variáveis --dl-*', () => {
+    expect(css).not.toMatch(/\.af-datalist\[data-stack='\w+'\] \.af-datalist__(label|table (thead|tbody|tr|td|th))/)
+    expect(css).not.toMatch(/\.af-row-hit::after\s*\{[^}]*content:\s*none/)
+    const consultas = [...css.matchAll(/@container af-datalist \(min-width: (\d+)rem\)\s*\{([\s\S]*?)\n  \}/g)]
+    expect(consultas.map((c) => c[1])).toEqual(['28', '36', '48'])
+    for (const c of consultas) {
+      const declaracoes = [...(c[2] ?? '').matchAll(/(--[\w-]+):/g)].map((m) => m[1])
+      expect(declaracoes.length).toBeGreaterThan(5)
+      for (const d of declaracoes) expect(d).toMatch(/^--(dl-|cell-)/)
+    }
+  })
+})

@@ -4,6 +4,7 @@ import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
 import { getHomeOverview } from '@/server/domain/scheduling/home'
+import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { addDays } from '@/server/time'
 import { Card, EmptyHint, EmptyState, LinkButton, PhoneLink, StatNumber, StatusBadge, TimeChip } from '@/ui/components'
 import { formatDuration, shortDate, weekdayName } from '@/ui/format'
@@ -33,14 +34,16 @@ function Situacao({ status }: { status: AppointmentView['status'] }) {
 
 export default async function InicioPage() {
   const ctx = await requireTenant('view_dashboard')
-  const home = await getHomeOverview(ctx)
+  const [home, painel] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx)])
+  const semFicha = home.unlinked
+  const avisoSemFicha = `Seu acesso ainda não está ligado a uma ficha de ${painel.terms.professionalSingular.toLowerCase()}. Peça ao dono da conta para resolver isso em ${painel.terms.professionalPlural}.`
   const todos = home.scope === 'all'
   const { next, later, summary, counts } = home
   const concluidos = summary.byStatus.COMPLETED
   const ocupacao = summary.occupancy
   const quando =
     next && next.local.date !== home.date ? (next.local.date === addDays(home.date, 1) ? 'Amanhã' : shortDate(next.local.date)) : next ? 'Hoje' : null
-  const podeBloquear = can(ctx.actor, 'manage_own_availability')
+  const podeBloquear = can(ctx.actor, 'manage_own_availability') && !semFicha
 
   return (
     <PainelFrame ctx={ctx} title="Início">
@@ -55,7 +58,7 @@ export default async function InicioPage() {
                 {weekdayName(home.weekday)}, {home.dateLabel}
               </time>
             </p>
-            {ocupacao !== null ? (
+            {semFicha ? null : ocupacao !== null ? (
               <p className="af-home__occupancy">
                 <span className="af-home__occupancy-value">{Math.round(ocupacao * 100)}%</span>
                 <span className="af-home__occupancy-text">da agenda ocupada</span>
@@ -63,7 +66,7 @@ export default async function InicioPage() {
             ) : (
               <p className="af-home__occupancy-text">Sem expediente hoje.</p>
             )}
-            <p className="af-home__summary">{resumo(todos, counts.today, concluidos)}</p>
+            <p className="af-home__summary">{semFicha ? avisoSemFicha : resumo(todos, counts.today, concluidos)}</p>
           </Card>
 
           {next ? (
@@ -81,6 +84,10 @@ export default async function InicioPage() {
                 <Situacao status={next.status} />
                 <PhoneLink phone={next.customer.phoneLabel} />
               </div>
+            </Card>
+          ) : semFicha ? (
+            <Card as="section" aria-label="Próximo atendimento">
+              <EmptyState title="Seu acesso ainda não tem ficha" description={avisoSemFicha} />
             </Card>
           ) : (
             <Card as="section" aria-label="Próximo atendimento">
@@ -118,7 +125,7 @@ export default async function InicioPage() {
                 ))}
               </ul>
             ) : (
-              <EmptyHint>{next && next.local.date === home.date ? 'Este é o último atendimento de hoje.' : 'Nenhum atendimento até o fim do dia.'}</EmptyHint>
+              <EmptyHint>{semFicha ? avisoSemFicha : next && next.local.date === home.date ? 'Este é o último atendimento de hoje.' : 'Nenhum atendimento até o fim do dia.'}</EmptyHint>
             )}
           </Card>
 

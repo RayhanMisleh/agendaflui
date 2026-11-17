@@ -171,17 +171,24 @@ async function main(): Promise<number> {
     })
     if (!dono) throw new Error('A conta de demonstração não tem um dono ativo. Rode `npm run dev` uma vez para criar o seed.')
 
+    // Cada sessão registra a própria limpeza logo depois de criada: se a segunda falhar, a primeira ainda é apagada.
+    const limpezas: (() => Promise<void>)[] = []
+    limpar = async () => {
+      for (const l of limpezas.reverse()) await l().catch(() => undefined)
+      await prisma.$disconnect()
+    }
     const { token, hash } = generateToken()
     const sessao = await prisma.platformSession.create({ data: { adminId: admin.id, tokenHash: hash, expiresAt: addMinutes(new Date(), 30) } })
+    limpezas.push(async () => {
+      await prisma.platformSession.deleteMany({ where: { id: sessao.id, tokenHash: hashToken(token) } })
+    })
     const membro = generateToken()
     const sessaoMembro = await prisma.session.create({
       data: { userId: dono.userId, activeBusinessId: conta.id, tokenHash: membro.hash, expiresAt: addMinutes(new Date(), 30) },
     })
-    limpar = async () => {
-      await prisma.platformSession.deleteMany({ where: { id: sessao.id, tokenHash: hashToken(token) } })
+    limpezas.push(async () => {
       await prisma.session.deleteMany({ where: { id: sessaoMembro.id, tokenHash: hashToken(membro.token) } })
-      await prisma.$disconnect()
-    }
+    })
 
     const porta = await portaLivre()
     const host = `dev.localhost:${porta}`

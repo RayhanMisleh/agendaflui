@@ -13,38 +13,52 @@
     /* Último recurso: se uma coluna que não quebra linha não couber, a tabela rola por dentro do cartão. */
     overflow-x: auto;
   }
+  /*
+   * As duas aparências saem das mesmas regras: cada consulta de contêiner só troca as variáveis `--dl-*` da tabela
+   * (o contêiner não se estiliza a si mesmo, então a troca vai para a tabela, que é descendente dele).
+   */
   .af-datalist__table,
   .af-datalist__table tbody {
-    display: grid;
+    display: var(--dl-table, grid);
     gap: 0.625rem;
     width: 100%;
+    border-collapse: collapse;
+  }
+  .af-datalist__table tbody {
+    display: var(--dl-body, grid);
   }
   .af-datalist__table thead {
-    display: none;
+    display: var(--dl-head, none);
   }
   .af-datalist__table tr {
     position: relative;
-    display: grid;
+    display: var(--dl-row, grid);
     gap: 0.5rem;
-    padding: 0.875rem 1rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-chip);
-    background-color: var(--ground);
+    padding: var(--dl-row-pad, 0.875rem 1rem);
+    border: var(--dl-row-border, 1px solid var(--line));
+    border-radius: var(--dl-row-radius, var(--radius-chip));
+    background-color: var(--dl-row-bg, var(--ground));
   }
   .af-datalist__table td {
-    display: grid;
+    display: var(--dl-cell, grid);
     grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
     gap: 0.5rem;
     align-items: start;
+    vertical-align: middle;
     min-width: 0;
     color: var(--ink);
     overflow-wrap: anywhere;
   }
+  .af-datalist__table th {
+    display: var(--dl-cell, grid);
+    vertical-align: middle;
+  }
   .af-datalist__table td[data-primary] {
-    display: block;
+    display: var(--dl-cell, block);
     font-weight: 700;
   }
   .af-datalist__label {
+    display: var(--dl-label, inline);
     color: var(--ink-muted);
     font-size: var(--text-small);
     font-weight: 400;
@@ -61,10 +75,15 @@
   }
   /* Em cartão, o cartão inteiro é a área de toque da linha. */
   .af-row-hit::after {
-    content: '';
+    content: var(--dl-hit, '');
     position: absolute;
     inset: 0;
     border-radius: inherit;
+  }
+  /* Telefone, link ou botão de outra célula fica acima da área de toque da linha (em cartão e em tabela). */
+  .af-datalist__value :is(a[href], button, input, select, textarea, summary, label, [role='button']) {
+    position: relative;
+    z-index: 1;
   }
   .af-col--nowrap {
     white-space: nowrap;
@@ -73,104 +92,59 @@
     text-align: end;
   }
 
-  /* Tabela: a partir do limite de cada lista. */
-  @container af-datalist (min-width: 36rem) {
-    .af-datalist[data-stack='md'] .af-datalist__table {
+  /* Tabela: a partir do limite de cada lista (sm 28 rem, md 36 rem, lg 48 rem). */
+  @container af-datalist (min-width: 28rem) {
+    .af-datalist:is([data-stack='sm']) .af-datalist__table {
+      --dl-table: table;
+      --dl-body: table-row-group;
+      --dl-head: table-header-group;
+      --dl-row: table-row;
+      --dl-cell: table-cell;
+      --dl-label: none;
+      --dl-hit: none;
+      --dl-row-pad: 0;
+      --dl-row-border: 0;
+      --dl-row-radius: 0;
+      --dl-row-bg: transparent;
       --cell-px: 0.875rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
-      display: table;
-      border-collapse: collapse;
-    }
-    .af-datalist[data-stack='md'] .af-datalist__table thead {
-      display: table-header-group;
-    }
-    .af-datalist[data-stack='md'] .af-datalist__table tbody {
-      display: table-row-group;
-    }
-    .af-datalist[data-stack='md'] .af-datalist__table tr {
-      display: table-row;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background-color: transparent;
-    }
-    .af-datalist[data-stack='md'] .af-datalist__table th,
-    .af-datalist[data-stack='md'] .af-datalist__table td {
-      display: table-cell;
-      vertical-align: middle;
-    }
-    .af-datalist[data-stack='md'] .af-datalist__label {
-      display: none;
-    }
-    .af-datalist[data-stack='md'] .af-row-hit::after {
-      content: none;
     }
   }
-  @container af-datalist (min-width: 28rem) {
-    .af-datalist[data-stack='sm'] .af-datalist__table {
+  @container af-datalist (min-width: 36rem) {
+    .af-datalist:is([data-stack='md']) .af-datalist__table {
+      --dl-table: table;
+      --dl-body: table-row-group;
+      --dl-head: table-header-group;
+      --dl-row: table-row;
+      --dl-cell: table-cell;
+      --dl-label: none;
+      --dl-hit: none;
+      --dl-row-pad: 0;
+      --dl-row-border: 0;
+      --dl-row-radius: 0;
+      --dl-row-bg: transparent;
       --cell-px: 0.875rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
-      display: table;
-      border-collapse: collapse;
-    }
-    .af-datalist[data-stack='sm'] .af-datalist__table thead {
-      display: table-header-group;
-    }
-    .af-datalist[data-stack='sm'] .af-datalist__table tbody {
-      display: table-row-group;
-    }
-    .af-datalist[data-stack='sm'] .af-datalist__table tr {
-      display: table-row;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background-color: transparent;
-    }
-    .af-datalist[data-stack='sm'] .af-datalist__table th,
-    .af-datalist[data-stack='sm'] .af-datalist__table td {
-      display: table-cell;
-      vertical-align: middle;
-    }
-    .af-datalist[data-stack='sm'] .af-datalist__label {
-      display: none;
-    }
-    .af-datalist[data-stack='sm'] .af-row-hit::after {
-      content: none;
     }
   }
   @container af-datalist (min-width: 48rem) {
-    .af-datalist[data-stack='lg'] .af-datalist__table {
+    .af-datalist:is([data-stack='lg']) .af-datalist__table {
+      --dl-table: table;
+      --dl-body: table-row-group;
+      --dl-head: table-header-group;
+      --dl-row: table-row;
+      --dl-cell: table-cell;
+      --dl-label: none;
+      --dl-hit: none;
+      --dl-row-pad: 0;
+      --dl-row-border: 0;
+      --dl-row-radius: 0;
+      --dl-row-bg: transparent;
       --cell-px: 0.875rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
-      display: table;
-      border-collapse: collapse;
-    }
-    .af-datalist[data-stack='lg'] .af-datalist__table thead {
-      display: table-header-group;
-    }
-    .af-datalist[data-stack='lg'] .af-datalist__table tbody {
-      display: table-row-group;
-    }
-    .af-datalist[data-stack='lg'] .af-datalist__table tr {
-      display: table-row;
-      padding: 0;
-      border: 0;
-      border-radius: 0;
-      background-color: transparent;
-    }
-    .af-datalist[data-stack='lg'] .af-datalist__table th,
-    .af-datalist[data-stack='lg'] .af-datalist__table td {
-      display: table-cell;
-      vertical-align: middle;
-    }
-    .af-datalist[data-stack='lg'] .af-datalist__label {
-      display: none;
-    }
-    .af-datalist[data-stack='lg'] .af-row-hit::after {
-      content: none;
     }
   }
   .af-datalist__table th {
