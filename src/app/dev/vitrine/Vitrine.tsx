@@ -16,6 +16,7 @@ import {
   Dialog,
   EmptyState,
   Field,
+  FoldablePreview,
   FormErrors,
   Input,
   LinkButton,
@@ -391,6 +392,24 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
           </Spec>
           <Spec title="Etapas" wide>
             <StepRail steps={ETAPAS} current={etapa} onSelect={setEtapa} errorSteps={[3]} visitedUntil={2} />
+          </Spec>
+          <Spec title="Busca e filtro" note="A busca é uma pílula com lupa; o filtro de situação são abas que levam à lista já filtrada." wide>
+            <Card>
+              <SearchBar action="/dev/vitrine" label="Buscar contas" placeholder="Buscar por nome, identificador ou e-mail" query="" filters={[]} hidden={{ status: 'ACTIVE' }} clearHref="/dev/vitrine" />
+              <NavTabs
+                label="Situação das contas"
+                items={[
+                  { id: 'todas', label: 'Todas', href: '/dev/vitrine', active: false },
+                  { id: 'ativas', label: 'Ativas', href: '/dev/vitrine?status=ACTIVE', active: true },
+                  { id: 'suspensas', label: 'Suspensas', href: '/dev/vitrine?status=SUSPENDED', active: false },
+                ]}
+              />
+            </Card>
+          </Spec>
+          <Spec title="Prévia recolhível" note="No computador a prévia fica fixa ao lado do formulário; no celular vira um cartão recolhível acima dele." wide>
+            <FoldablePreview>
+              <p className="vt-body">A prévia da marca aparece aqui.</p>
+            </FoldablePreview>
           </Spec>
           <Spec title="Prévia do painel" note="A miniatura muda com a conta, a cor e o estilo da barra." wide>
             <BrandPreview

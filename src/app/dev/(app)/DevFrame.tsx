@@ -6,7 +6,7 @@ import { DevShell } from '@/ui/shells'
 import { DEV_NAV } from '@/ui/shells/dev-nav'
 import { logoutAdmin } from './actions'
 
-/** Moldura do painel dev (mesa de controle) com o menu, ações da tela e o botão de sair. */
+/** Moldura do painel dev (tema noite) com o menu, ações da tela e o botão de sair. */
 export function DevFrame({
   admin,
   title,

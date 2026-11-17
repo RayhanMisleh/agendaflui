@@ -23,7 +23,7 @@ function EntrarComo({ conta }: { conta: ContaLinha }) {
   const [state, action, pending] = useActionState(entrarComo, inicial)
   if (conta.status === 'ARCHIVED') {
     return (
-      <Button size="sm" disabled title="Reative a conta para entrar como suporte." icon={<DoorOpen size={16} />}>
+      <Button size="sm" variant="secondary" disabled title="Reative a conta para entrar como suporte." icon={<DoorOpen size={16} />}>
         Entrar como
       </Button>
     )
@@ -31,7 +31,7 @@ function EntrarComo({ conta }: { conta: ContaLinha }) {
   return (
     <form action={action}>
       <input type="hidden" name="businessId" value={conta.id} />
-      <Button type="submit" size="sm" loading={pending} icon={<DoorOpen size={16} />} aria-label={`Entrar como suporte em ${conta.name}`}>
+      <Button type="submit" size="sm" variant="secondary" loading={pending} icon={<DoorOpen size={16} />} aria-label={`Entrar como suporte em ${conta.name}`}>
         Entrar como
       </Button>
       {state.message ? (
@@ -74,7 +74,7 @@ const COLUNAS: DataColumn<ContaLinha>[] = [
     header: <span className="af-sr">Ações</span>,
     cell: (c) => (
       <span className="af-rowactions">
-        <LinkButton href={`/contas/${c.id}`} size="sm" icon={<ArrowRight size={16} />}>
+        <LinkButton href={`/contas/${c.id}`} size="sm" variant="secondary" icon={<ArrowRight size={16} />}>
           Abrir
         </LinkButton>
         <EntrarComo conta={c} />

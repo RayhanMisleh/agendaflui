@@ -1,11 +1,13 @@
 /*
- * Peças das telas do painel dev: lista de contas, linhas de ação e convite de membro (R4 refaz).
+ * Peças das telas do painel dev: lista de contas, linhas de ação, link de entrada, convite de membro e a prévia recolhível.
+ * Cartão com borda fina, sem sombra; texto em tinta; nada de rótulo em maiúsculas.
  */
 @layer components {
-  /* ---- Lista de contas ---- */
+  /* ---- Cartão de lista: busca, filtros, tabela, rodapé ---- */
   .af-listpanel {
     display: grid;
     gap: 1.25rem;
+    min-width: 0;
   }
   .af-listpanel__summary {
     margin: 0;
@@ -18,25 +20,26 @@
     min-width: 0;
   }
   .af-account__name {
-    font-weight: 700;
     color: var(--ink);
+    font-weight: 700;
     text-decoration: none;
     overflow-wrap: anywhere;
   }
-  .af-account__name:hover {
-    text-decoration: underline;
-  }
   .af-account__slug {
+    margin: 0;
     color: var(--ink-muted);
     font-size: var(--text-small);
   }
   .af-entrylink {
-    display: grid;
-    gap: 0.375rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
     min-width: 0;
-    max-width: 22rem;
+    max-width: 24rem;
   }
   .af-entrylink__url {
+    min-width: 0;
     color: var(--ink);
     font-size: var(--text-small);
     overflow-wrap: anywhere;
@@ -53,24 +56,19 @@
   .af-rowerror {
     flex: 1 1 100%;
     margin: 0;
-    color: var(--danger);
+    padding: 0.375rem 0.625rem;
+    border: 1px solid var(--danger);
+    border-radius: var(--radius-chip);
+    background-color: var(--danger-tint);
+    color: var(--ink);
     font-size: var(--text-small);
     font-weight: 600;
-    line-height: 1.35;
+    line-height: var(--text-small-lh);
   }
-  .af-pagehead {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem 1.5rem;
-  }
-  .af-pagehead__text {
-    margin: 0;
-    max-width: 38rem;
-    color: var(--side-ink-muted);
-    font-size: var(--text-body);
-    line-height: 1.5;
+  @media (hover: hover) {
+    .af-account__name:hover {
+      text-decoration: underline;
+    }
   }
 
   /* ---- Convite de membro (aba Equipe) ---- */
@@ -82,8 +80,9 @@
     display: grid;
     gap: 0.75rem;
     padding: 1rem;
-    border-radius: var(--radius-chip);
-    background-color: var(--ground);
+    border-radius: var(--radius-card);
+    background-color: var(--brand-tint);
+    color: var(--ink);
   }
   .af-invite__fields {
     display: grid;
@@ -99,6 +98,48 @@
   @media (min-width: 900px) {
     .af-invite__fields {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  /* ---- Prévia ao vivo: fixa ao lado no computador; cartão recolhível acima do formulário no celular ---- */
+  .af-foldable {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-foldable__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    padding: 0 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+    color: var(--ink);
+    font: 700 var(--text-body) / 1.2 var(--font-sans);
+    cursor: pointer;
+  }
+  .af-foldable__chevron {
+    flex: none;
+  }
+  .af-foldable[data-open='true'] .af-foldable__chevron {
+    rotate: 180deg;
+  }
+  .af-foldable[data-js='true'][data-open='false'] .af-foldable__body {
+    display: none;
+  }
+  @media (hover: hover) {
+    .af-foldable__toggle:hover {
+      background-color: var(--brand-tint);
+    }
+  }
+  @media (min-width: 1100px) {
+    .af-foldable__toggle {
+      display: none;
     }
   }
 }

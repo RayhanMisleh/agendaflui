@@ -27,7 +27,7 @@ export const ROTULOS: Record<string, string> = {
   accent: 'Cor de destaque',
   material: 'Barra lateral',
   paper: 'Fundo',
-  fontPair: 'Par de fontes',
+  fontPair: 'Fontes',
   loginMessage: 'Mensagem da tela de entrada',
   professionalSingular: 'Profissional (singular)',
   professionalPlural: 'Profissional (plural)',

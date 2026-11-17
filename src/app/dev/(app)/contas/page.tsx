@@ -4,7 +4,7 @@ import { requirePlatformAdmin } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { listBusinesses } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
-import { EmptyState, LinkButton, Pagination, Card, SearchBar } from '@/ui/components'
+import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
 import { um } from '../_lib/params'
 import { ContasTable } from './ContasTable'
@@ -18,6 +18,15 @@ const FILTRO_SITUACAO = [
   { value: 'SUSPENDED', label: 'Suspensas' },
   { value: 'ARCHIVED', label: 'Arquivadas' },
 ]
+
+/** O endereço da lista com a busca e a situação escolhidas (sem cursor: trocar o filtro recomeça a lista). */
+function enderecoDaLista(search: string, status: string): string {
+  const p = new URLSearchParams()
+  if (search) p.set('search', search)
+  if (status) p.set('status', status)
+  const q = p.toString()
+  return q ? `/contas?${q}` : '/contas'
+}
 
 export default async function ContasPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const admin = await requirePlatformAdmin()
@@ -84,10 +93,15 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
         <SearchBar
           action="/contas"
           label="Buscar contas"
-          placeholder="Nome, identificador ou e-mail"
+          placeholder="Buscar por nome, identificador ou e-mail"
           query={search}
-          filters={[{ name: 'status', label: 'Situação', value: status ?? '', options: FILTRO_SITUACAO }]}
+          filters={[]}
+          {...(status ? { hidden: { status } } : {})}
           clearHref="/contas"
+        />
+        <NavTabs
+          label="Situação das contas"
+          items={FILTRO_SITUACAO.map((f) => ({ id: f.value || 'todas', label: f.label, href: enderecoDaLista(search, f.value), active: (status ?? '') === f.value }))}
         />
         <ContasTable contas={contas} vazio={vazio} />
         {contas.length > 0 ? (

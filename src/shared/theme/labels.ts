@@ -24,7 +24,7 @@ export const GROUND_OPTIONS: readonly Option<PaperTone>[] = [
 ]
 
 /** `fontPair` (enum `FontPair`): `CLASSIC` é o par da marca Agenda Flui. */
-export const FONT_PAIR_FIELD_LABEL = 'Par de fontes'
+export const FONT_PAIR_FIELD_LABEL = 'Fontes'
 export const FONT_PAIR_OPTIONS: readonly Option<FontPair>[] = [
   { value: 'CLASSIC', label: 'Agenda Flui', hint: 'Bricolage Grotesque nos títulos e Figtree no texto.' },
   { value: 'MODERN', label: 'Moderno', hint: 'Títulos sem serifa, de traço limpo.' },

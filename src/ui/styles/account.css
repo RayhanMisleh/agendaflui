@@ -1,6 +1,6 @@
 /*
- * Página da conta no painel dev: cabeçalho, números, formulários, fichas de imagem, equipe, chaves e auditoria.
- * Tudo em cartões (Card); só reaproveita as variáveis e os raios do resto do sistema.
+ * Página da conta e telas de chaves no painel dev (tema noite): cabeçalho da conta, abas, números, formulários, fichas
+ * de imagem, equipe, chaves e auditoria. Tudo em cartões com título h3 (22 px, peso 600); só tokens.
  */
 @layer components {
   /* ---- Cabeçalho da conta ---- */
@@ -18,7 +18,10 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: 0.75rem 1.5rem;
+    padding-top: 0.875rem;
+    border-top: 1px solid var(--line);
   }
   .af-acct__actions form {
     margin: 0;
@@ -29,20 +32,24 @@
     gap: 0.5rem;
   }
   .af-navtabs {
-    margin-top: 0.25rem;
+    margin: 0.25rem 0 1.25rem;
   }
 
   /* ---- Seções ---- */
   .af-section__title {
     margin: 0;
     color: var(--ink);
-    font: 600 var(--text-h3) / 1.2 var(--font-display);
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 600;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
   }
   .af-section__help {
     margin: -0.5rem 0 0;
     max-width: 40rem;
     color: var(--ink-muted);
-    line-height: 1.5;
+    line-height: var(--text-body-lh);
   }
 
   /* ---- Números ---- */
@@ -69,9 +76,11 @@
     margin: 0;
     color: var(--ink);
     font-size: var(--text-small);
-    font-weight: 650;
-    padding-left: 0.625rem;
-    border-left: 4px solid var(--success);
+    font-weight: 600;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--success);
+    border-radius: var(--radius-chip);
+    background-color: var(--success-tint);
   }
   .af-matrix {
     width: 100%;
@@ -82,7 +91,7 @@
   .af-matrix th,
   .af-matrix td {
     padding: 0.5rem 0.75rem;
-    border-bottom: 1px dashed var(--line);
+    border-bottom: 1px solid var(--line);
     text-align: left;
     font-weight: 500;
   }
@@ -106,7 +115,7 @@
     align-items: start;
     min-width: 0;
     padding: 0.875rem;
-    border-radius: var(--radius-chip);
+    border-radius: var(--radius-card);
     background-color: var(--ground);
   }
   .af-imgslot__view {
@@ -115,7 +124,7 @@
     width: 6.5rem;
     height: 6.5rem;
     overflow: hidden;
-    border: 1px dashed var(--line);
+    border: 1px solid var(--line);
     border-radius: var(--radius-chip);
     background-color: var(--surface);
   }
@@ -167,7 +176,10 @@
   .af-keys__title {
     margin: 0 0 0.75rem;
     color: var(--ink);
-    font: 600 var(--text-body-lg) / 1.2 var(--font-display);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: 600;
+    line-height: 1.2;
   }
   .af-keys__list {
     display: grid;
@@ -190,7 +202,10 @@
   .af-keycard__name {
     margin: 0;
     color: var(--ink);
-    font: 600 var(--text-body-lg) / 1.2 var(--font-display);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: 600;
+    line-height: 1.2;
     overflow-wrap: anywhere;
   }
   .af-keycard__usage {
@@ -210,7 +225,10 @@
   }
   .af-keycard__stats dd {
     margin: 0;
-    font: 700 var(--text-body) / 1.2 var(--font-display);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
   }
   .af-keycard__routes {
     display: grid;
@@ -222,21 +240,26 @@
     overflow-wrap: anywhere;
   }
 
-  /* ---- Auditoria ---- */
+  /* ---- Auditoria: o detalhe recolhível é um bloco monoespaçado com borda ---- */
   .af-audit__detail summary {
-    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
     color: var(--brand-text);
     font-weight: 600;
+    cursor: pointer;
   }
   .af-audit__detail pre {
     max-width: 28rem;
     margin: 0.5rem 0 0;
     padding: 0.5rem 0.75rem;
     overflow: auto;
+    border: 1px solid var(--line);
     border-radius: var(--radius-chip);
     background-color: var(--ground);
     color: var(--ink);
+    font-family: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
     font-size: 0.75rem;
-    line-height: 1.4;
+    line-height: 1.5;
   }
 }

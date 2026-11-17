@@ -120,7 +120,7 @@ test('depois de criar, mostra o segredo da chave uma vez, com aviso e botão de 
   expect(await screen.findByRole('heading', { name: 'Pata Viva está criada' })).toHaveFocus()
   expect(screen.getByText('afk_a_1234abcd_SEGREDO')).toBeInTheDocument()
   expect(screen.getByText('Copie a chave de app agora. Ela não será mostrada de novo.')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Copiar chave de app' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Copiar a chave App Pata Viva' })).toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Abrir a conta' })).toHaveAttribute('href', '/contas/c-1')
   expect(screen.getByText(/Enviamos para marina@exemplo.test o convite/)).toBeInTheDocument()
 })

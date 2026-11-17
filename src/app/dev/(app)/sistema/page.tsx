@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { getSystemStatus } from '@/server/domain/platform/system'
-import { EmptyState, STATE_TEXT, StatusDot, Card } from '@/ui/components'
+import { Card, EmptyState, STATE_TEXT, StatNumber, StatusDot } from '@/ui/components'
 import type { StateTone } from '@/ui/components'
 import { formatInt } from '@/ui/format'
 import { DevFrame } from '../DevFrame'
@@ -46,24 +46,12 @@ export default async function SistemaPage() {
         <Card className="af-listpanel">
           <h2 className="af-section__title">Fila de avisos</h2>
           <StatusDot label="Fila de avisos" tone={filaTone} detail={STATE_TEXT[filaTone]} />
-          <dl className="af-global__facts">
-            <div>
-              <dt>Pendentes</dt>
-              <dd>{formatInt(queue.pending)}</dd>
-            </div>
-            <div>
-              <dt>Mais antigo pendente</dt>
-              <dd>{queue.oldestPendingAt ? quando(queue.oldestPendingAt) : 'Nenhum'}</dd>
-            </div>
-            <div>
-              <dt>Falhas em 24 h</dt>
-              <dd>{formatInt(queue.failed24h)}</dd>
-            </div>
-            <div>
-              <dt>Descartados em 24 h</dt>
-              <dd>{formatInt(queue.skipped24h)}</dd>
-            </div>
-          </dl>
+          <div className="af-global__numbers">
+            <StatNumber size="md" label="Pendentes" value={queue.pending} />
+            <StatNumber size="md" label="Falhas em 24 h" value={queue.failed24h} />
+            <StatNumber size="md" label="Descartados em 24 h" value={queue.skipped24h} />
+          </div>
+          <p className="af-section__help">Mais antigo pendente: {queue.oldestPendingAt ? quando(queue.oldestPendingAt) : 'nenhum'}.</p>
         </Card>
 
         <Card className="af-listpanel">

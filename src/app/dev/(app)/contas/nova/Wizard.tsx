@@ -9,12 +9,14 @@ import {
   ColorField,
   CopyButton,
   Field,
+  FoldablePreview,
   FormErrors,
   Input,
   LinkButton,
   SidebarStylePicker,
   Card,
   Select,
+  SecretBox,
   StatusBadge,
   StepRail,
   Textarea,
@@ -215,7 +217,9 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
                   autoComplete="off"
                 />
               </Field>
-              <p className="af-wizard__note">A logo, o símbolo, o favicon e a imagem de entrada você envia na aba Marca da conta, logo depois de criá-la.</p>
+              <Card variant="warm" className="af-wizard__tip">
+                <p>Envie a logo, o símbolo, o favicon e a imagem de entrada na aba Marca da conta, logo depois de criá-la.</p>
+              </Card>
               <ColorField label={PRIMARY_FIELD_LABEL} name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...opcional('error', erro('primary'))} {...opcional('warning', avisoDe(warnings, 'primary'))} />
               <ColorField label={ACCENT_FIELD_LABEL} name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...opcional('error', erro('accent'))} {...opcional('warning', avisoDe(warnings, 'accent'))} />
             </div>
@@ -391,13 +395,13 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
           </div>
         </div>
         {comPrevia ? (
-          <aside aria-label="Prévia ao vivo da marca" className="af-wizard__aside">
+          <FoldablePreview className="af-wizard__aside">
             <BrandPreview
               businessName={v.displayName || v.name}
               brand={{ primary: v.primary, accent: v.accent, material: v.material, paper: v.paper, fontPair: v.fontPair }}
               terms={v}
             />
-          </aside>
+          </FoldablePreview>
         ) : null}
       </form>
     </Card>
@@ -480,20 +484,17 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
       </p>
 
       {result.secret ? (
-        <div className="af-secret">
-          <p className="af-secret__warn">Copie a chave de app agora. Ela não será mostrada de novo.</p>
-          <span className="af-done__label">{result.keyName ?? 'Chave de app'}</span>
-          <code className="af-secret__code">{result.secret}</code>
-          <CopyButton text={result.secret} label="Copiar chave de app" variant="primary" />
-        </div>
+        <SecretBox name={result.keyName ?? 'Chave de app'} secret={result.secret} />
       ) : null}
 
       <div className="af-done__actions">
         <LinkButton href={`/contas/${result.createdId}`} variant="primary">
           Abrir a conta
         </LinkButton>
-        <LinkButton href={`/contas/${result.createdId}/marca`}>Enviar a logo e as imagens</LinkButton>
-        <Button icon={<Plus size={18} />} onClick={onAgain}>
+        <LinkButton href={`/contas/${result.createdId}/marca`} variant="secondary">
+          Enviar a logo e as imagens
+        </LinkButton>
+        <Button variant="secondary" icon={<Plus size={18} />} onClick={onAgain}>
           Criar outra conta
         </Button>
       </div>

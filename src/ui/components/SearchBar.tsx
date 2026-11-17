@@ -24,6 +24,7 @@ export function SearchBar({
   clearHref,
   name = 'search',
   placeholder,
+  hidden,
 }: {
   action: string
   label: string
@@ -32,13 +33,20 @@ export function SearchBar({
   clearHref: string
   name?: string
   placeholder?: string
+  /** Parâmetros que seguem na URL quando a busca é enviada (um filtro que mora fora do formulário). */
+  hidden?: Record<string, string>
 }) {
   const aplicado = query !== '' || filters.some((f) => f.value !== '')
   return (
     <form role="search" method="get" action={action} className="af-searchbar">
-      <Field label={label} className="af-searchbar__query">
-        <Input type="search" name={name} defaultValue={query} placeholder={placeholder} maxLength={100} autoComplete="off" spellCheck={false} />
-      </Field>
+      {Object.entries(hidden ?? {}).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
+      <label className="af-searchbar__box">
+        <span className="af-sr">{label}</span>
+        <Search className="af-searchbar__icon" size={18} aria-hidden="true" />
+        <Input type="search" name={name} defaultValue={query} placeholder={placeholder} maxLength={100} autoComplete="off" spellCheck={false} className="af-searchbar__input" />
+      </label>
       {filters.map((f) => (
         <Field key={f.name} label={f.label} className="af-searchbar__filter">
           <Select name={f.name} defaultValue={f.value}>

@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { BrandPreview, Button, ColorField, Field, Input, SidebarStylePicker, Select, Textarea } from '@/ui/components'
+import { BrandPreview, Button, ColorField, Field, FoldablePreview, Input, SidebarStylePicker, Select, Textarea } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL } from '@/shared/theme/labels'
@@ -71,9 +71,9 @@ export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoCo
           )}
         </ContaForm>
       </div>
-      <aside aria-label="Prévia ao vivo da marca" className="af-wizard__aside">
+      <FoldablePreview className="af-wizard__aside">
         <BrandPreview businessName={v.displayName} brand={{ ...v, logoUrl }} terms={{ ...termos }} />
-      </aside>
+      </FoldablePreview>
     </div>
   )
 }

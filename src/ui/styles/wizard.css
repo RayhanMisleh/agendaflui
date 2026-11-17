@@ -1,13 +1,13 @@
 /*
- * Criação de conta em etapas: o assistente e a tela final (R4 refaz). A prévia da marca, o campo de cor, a escolha da barra
- * lateral e o trilho de etapas são componentes e moram em surfaces.css, controls.css e data.css.
+ * Criação de conta em etapas e a tela final. O trilho de etapas, a prévia da marca, o campo de cor, a escolha da barra
+ * lateral e a caixa do segredo são componentes (controls, surfaces, data e feedback). Aqui só o arranjo: formulário à
+ * esquerda e a prévia fixa à direita (no celular, um cartão recolhível acima do formulário).
  */
 @layer components {
-  /* ---- Assistente ---- */
   .af-wizard {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem;
+    gap: 1.5rem;
   }
   .af-wizard__layout {
     display: grid;
@@ -18,7 +18,7 @@
   .af-wizard__main {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 1.25rem;
+    gap: 1.5rem;
     min-width: 0;
   }
   .af-wizard__aside {
@@ -32,7 +32,7 @@
     .af-wizard__aside {
       order: 0;
       position: sticky;
-      top: 1rem;
+      top: 1.5rem;
     }
   }
   .af-wizard__step {
@@ -51,14 +51,18 @@
   .af-wizard__heading {
     margin: 0;
     color: var(--ink);
-    font: 600 var(--text-h3) / 1.2 var(--font-display);
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
     outline: none;
   }
   .af-wizard__help {
-    margin: -0.5rem 0 0;
     max-width: 40rem;
+    margin: -0.5rem 0 0;
     color: var(--ink-muted);
-    line-height: 1.5;
+    line-height: var(--text-body-lh);
   }
   .af-wizard__grid {
     display: grid;
@@ -82,7 +86,7 @@
   .af-wizard__presets-label {
     color: var(--ink);
     font-size: var(--text-small);
-    font-weight: 650;
+    font-weight: 600;
   }
   .af-wizard__nav {
     display: flex;
@@ -90,7 +94,7 @@
     justify-content: space-between;
     gap: 0.75rem;
     padding-top: 1rem;
-    border-top: 1px dashed var(--line);
+    border-top: 1px solid var(--line);
   }
   .af-wizard__checks {
     display: grid;
@@ -98,11 +102,11 @@
   }
   .af-wizard__summary {
     display: grid;
-    gap: 0.25rem 1rem;
     grid-template-columns: max-content minmax(0, 1fr);
+    gap: 0.25rem 1rem;
     margin: 0;
     padding: 0.75rem 1rem;
-    border-radius: var(--radius-chip);
+    border-radius: var(--radius-card);
     background-color: var(--ground);
     color: var(--ink);
     font-size: var(--text-small);
@@ -114,15 +118,23 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
-  .af-wizard__note {
+  /* Avisos amigáveis em Mel (o mesmo desenho do Card `warm`). */
+  .af-wizard__note,
+  .af-wizard__tip {
     margin: 0;
-    padding: 0.625rem 0.75rem;
-    border-left: 4px solid var(--brand-text);
-    border-radius: var(--radius-chip);
-    background-color: var(--ground);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--accent-tint);
     color: var(--ink);
     font-size: var(--text-small);
-    line-height: 1.45;
+    line-height: var(--text-small-lh);
+  }
+  .af-wizard__tip p {
+    margin: 0;
+  }
+  .af-wizard__note ul {
+    margin: 0.25rem 0;
+    padding-left: 1.25rem;
   }
 
   /* ---- Tela final ---- */
@@ -140,7 +152,11 @@
   .af-done__title {
     margin: 0;
     color: var(--ink);
-    font: 600 var(--text-h2) / 1.2 var(--font-display);
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
     outline: none;
   }
   .af-done__row {
@@ -150,7 +166,7 @@
   .af-done__label {
     color: var(--ink);
     font-size: var(--text-small);
-    font-weight: 650;
+    font-weight: 600;
   }
   .af-done__actions {
     display: flex;
