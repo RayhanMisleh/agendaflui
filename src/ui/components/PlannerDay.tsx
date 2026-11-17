@@ -5,6 +5,7 @@ import type { PageColumn } from '@/server/domain/scheduling/agenda-page'
 import { AppointmentSlip } from './AppointmentSlip'
 import { cx } from './cx'
 import { DropPreview } from './planner/DropPreview'
+import { nowMinute } from './planner/now-minute'
 import { PX_PER_MIN } from './planner/metrics'
 import { useDragReschedule } from './planner/use-drag-reschedule'
 import type { MoveTarget } from './planner/use-drag-reschedule'
@@ -12,15 +13,27 @@ import { TimeRail } from './TimeRail'
 
 export type PlannerColumn = PageColumn
 
-/** Linha do "agora": o minuto que o servidor informou, mais o tempo que a página já ficou aberta (sem fuso no navegador). */
+/**
+ * Linha do "agora": o minuto que o servidor informou mais o tempo desde que ele chegou (sem fuso no navegador). A cada minuto
+ * novo vindo do servidor (revalidação), a contagem recomeça: nada de somar o tempo decorrido duas vezes.
+ */
 function useNowMinute(initial: number | null): number | null {
-  const [elapsed, setElapsed] = useState(0)
+  const [relogio, setRelogio] = useState<{ initial: number | null; at: number; now: number } | null>(null)
   useEffect(() => {
-    if (initial === null) return
-    const timer = setInterval(() => setElapsed((e) => e + 1), 60_000)
-    return () => clearInterval(timer)
+    // Registra a chegada do minuto logo depois da renderização (não dentro do efeito) e depois só avança o relógio.
+    const chegada = setTimeout(() => {
+      const t = performance.now()
+      setRelogio({ initial, at: t, now: t })
+    }, 0)
+    if (initial === null) return () => clearTimeout(chegada)
+    const timer = setInterval(() => setRelogio((r) => (r ? { ...r, now: performance.now() } : r)), 30_000)
+    return () => {
+      clearTimeout(chegada)
+      clearInterval(timer)
+    }
   }, [initial])
-  return initial === null ? null : initial + elapsed
+  // Antes do efeito (e na renderização do servidor) vale o minuto do servidor, sem soma; um minuto novo dele recomeça a conta.
+  return relogio !== null && relogio.initial === initial ? nowMinute(initial, relogio.at, relogio.now) : initial
 }
 
 /**

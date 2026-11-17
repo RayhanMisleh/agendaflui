@@ -290,6 +290,14 @@ export function minuteOfDay(instant: Date, tz: string): number {
   return z.hour * 60 + z.minute
 }
 
+/**
+ * O horário local que de fato será gravado para `date` + `time` (`HH:mm`): o mesmo `toInstant` da gravação, lido de volta no
+ * fuso. Hora que não existe (salto do horário de verão) avança: 02:30 vira 03:30. Serve para a tela mostrar o que vale.
+ */
+export function effectiveLocalTime(date: string, time: string, tz: string): string {
+  return minuteLabel(minuteOfDay(toInstant(date, time, tz), tz))
+}
+
 /** 540 vira '09:00'; 1440 vira '24:00'. */
 export function minuteLabel(minute: number): string {
   assertMinute(minute)

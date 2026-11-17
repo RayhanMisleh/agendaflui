@@ -18,6 +18,8 @@ function Formulario({ detalhe, page, professionalSingular, onDone }: { detalhe: 
       {(state) => (
         <>
           <input type="hidden" name="id" value={detalhe.id} />
+          <input type="hidden" name="fromStartsAt" value={detalhe.startsAtIso} />
+          <input type="hidden" name="fromProfessionalId" value={detalhe.professional.id} />
           <p className="af-section__help">
             Agora: {detalhe.startLabel} com {detalhe.professional.name}.
           </p>

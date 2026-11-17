@@ -25,6 +25,7 @@ import {
   minuteOfDay,
   parseMinuteLabel,
   todayIn,
+  toIsoInstant,
   weekdayOf,
   type Weekday,
 } from '@/server/time'
@@ -91,6 +92,8 @@ export type PageDetail = {
   date: string
   startLabel: string
   endLabel: string
+  /** O instante de início gravado: a tela o devolve ao remarcar, para o servidor conferir que ninguém mexeu antes. */
+  startsAtIso: string
   customer: { id: string; name: string; phoneLabel: string | null }
   professional: { id: string; name: string }
   items: { serviceId: string; name: string; priceCents: number; durationMin: number }[]
@@ -125,6 +128,9 @@ export type AgendaPage = {
   services: { id: string; name: string; priceCents: number; durationMin: number }[]
 }
 
+/** Janela das datas aceitas em `?data=`: de 2000-01-01 até dois anos (730 dias) à frente de hoje. */
+const MIN_DATE = '2000-01-01'
+const MAX_DAYS_AHEAD = 730
 const WEEK_ITEMS = 4
 
 function spanOf(ctx: TenantContext, a: { startsAt: Date; endsAt: Date; totalDurationMin: number }, range: { start: Date; end: Date }): MinuteRange {
@@ -140,6 +146,7 @@ function detailOf(a: AppointmentView, canFreeEarly: boolean): PageDetail {
     date: a.local.date,
     startLabel: a.local.start,
     endLabel: a.local.end,
+    startsAtIso: toIsoInstant(a.startsAt),
     customer: a.customer,
     professional: a.professional,
     items: a.items,
@@ -158,7 +165,8 @@ export async function getAgendaPage(ctx: TenantContext, q: AgendaQuery): Promise
   const now = ctx.clock()
   const today = todayIn(ctx.timeZone, now)
   const view: 'dia' | 'semana' = q.visao === 'semana' ? 'semana' : 'dia'
-  const date = q.data !== undefined && isLocalDate(q.data) ? q.data : today
+  // Data fora de uma janela razoável (antes de 2000 ou mais de dois anos à frente) cai em hoje: nada de data absurda no banco.
+  const date = q.data !== undefined && isLocalDate(q.data) && compareLocalDates(q.data, MIN_DATE) >= 0 && compareLocalDates(q.data, addDays(today, MAX_DAYS_AHEAD)) <= 0 ? q.data : today
 
   const everyone = await listProfessionals(ctx)
   const professionals = (scope.all ? everyone : everyone.filter((p) => p.id === scope.ownId)).map((p) => ({ id: p.id, name: p.name }))

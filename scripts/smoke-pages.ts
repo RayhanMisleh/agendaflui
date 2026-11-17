@@ -62,6 +62,8 @@ const PAGINAS_PAINEL = [
   '/agenda?visao=semana&data=2026-11-17&profissional=nao-existe',
   '/agenda?data=lixo&visao=%00&acao=marcar',
   '/agenda?acao=bloquear',
+  '/agenda?data=9999-12-31',
+  '/agenda?data=0000-01-01&visao=semana',
   '/servicos',
   '/servicos?situacao=arquivados',
   '/clientes',

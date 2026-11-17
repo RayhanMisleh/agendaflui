@@ -4,7 +4,7 @@ import { can } from '@/server/auth/capabilities'
 import { createCustomer, listCustomers } from '@/server/domain/customers/customers'
 import { DomainError } from '@/server/domain/errors'
 import { getAvailability } from '@/server/domain/scheduling/availability'
-import { isLocalDate, toIsoInstant } from '@/server/time'
+import { effectiveLocalTime, isLocalDate, isLocalTime, toIsoInstant } from '@/server/time'
 import { MENSAGEM_GENERICA_NEGOCIO } from '@/app/_lib/form-state'
 import { unstable_rethrow } from 'next/navigation'
 
@@ -57,4 +57,14 @@ export async function buscarHorarios(pedido: { serviceIds: string[]; date: strin
   } catch (err) {
     return falha(err)
   }
+}
+
+/**
+ * O horário local que o servidor vai gravar para dia + hora (hora que não existe no salto do horário de verão avança:
+ * 02:30 vira 03:30). A confirmação de remarcar mostra este, para o texto e a gravação usarem a mesma conversão.
+ */
+export async function horarioEfetivo(date: string, time: string): Promise<string | null> {
+  const ctx = await requireTenant()
+  if (!isLocalDate(date) || !isLocalTime(time)) return null
+  return effectiveLocalTime(date, time, ctx.timeZone)
 }

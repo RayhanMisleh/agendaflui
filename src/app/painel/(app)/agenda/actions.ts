@@ -11,7 +11,8 @@ import {
   rescheduleAppointment,
   undoOutcome,
 } from '@/server/domain/scheduling/appointments'
-import { fromIsoInstant, isLocalDate, isLocalTime, toInstant } from '@/server/time'
+import { DomainError } from '@/server/domain/errors'
+import { fromIsoInstant, isLocalDate, isLocalTime, toInstant, todayIn } from '@/server/time'
 import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
 import { parseMoney } from '@/ui/money'
@@ -36,11 +37,16 @@ const ids = (texto: string | undefined): string[] => (texto ?? '').split(',').fi
 /** O horário escolhido: o instante que o servidor ofereceu (`startsAt`) ou, no formulário, dia e hora locais da conta. */
 function instanteDe(v: Campos, fuso: string): Date {
   if ((v.startsAt ?? '') !== '') {
+    let instante: Date
     try {
-      return fromIsoInstant(v.startsAt ?? '')
+      instante = fromIsoInstant(v.startsAt ?? '')
     } catch {
       throw erroDeCampo('time', 'Escolha o horário de novo.')
     }
+    // O instante escolhido na lista vale só para o dia que a tela mostrava: se o dia enviado é outro, a escolha ficou velha.
+    const dia = (v.date ?? '').trim()
+    if (dia !== '' && todayIn(fuso, instante) !== dia) throw erroDeCampo('date', 'O horário escolhido é de outro dia. Escolha o horário de novo.')
+    return instante
   }
   const dia = (v.date ?? '').trim()
   const hora = (v.time ?? '').trim()
@@ -161,9 +167,23 @@ export const ajustarAtendimento = tenantAction(
  */
 export const remarcarAtendimento = tenantAction(
   'view_own_agenda',
-  (fd) => ler(fd, ['id', 'professionalId', 'startsAt', 'date', 'time']),
+  (fd) => ler(fd, ['id', 'professionalId', 'startsAt', 'date', 'time', 'fromStartsAt', 'fromProfessionalId']),
   async (ctx, v) => {
     const startsAt = instanteDe(v, ctx.timeZone)
+    // A tela manda de onde o atendimento saía (início e profissional que ela mostrava): se já não está lá, alguém mexeu.
+    if ((v.fromStartsAt ?? '') !== '' || (v.fromProfessionalId ?? '') !== '') {
+      const atual = await getAppointment(ctx, v.id ?? '')
+      const origemInicio = (v.fromStartsAt ?? '') === '' ? null : (v.fromStartsAt ?? '')
+      let mudou = (v.fromProfessionalId ?? '') !== '' && v.fromProfessionalId !== atual.professional.id
+      if (origemInicio !== null) {
+        try {
+          mudou = mudou || fromIsoInstant(origemInicio).getTime() !== atual.startsAt.getTime()
+        } catch {
+          mudou = true
+        }
+      }
+      if (mudou) throw new DomainError('conflict', 'Este atendimento mudou agora. Recarregue para ver.')
+    }
     try {
       const r = await rescheduleAppointment(ctx, v.id ?? '', { startsAt, ...((v.professionalId ?? '') === '' ? {} : { professionalId: v.professionalId ?? null }) })
       atualizarPainel()

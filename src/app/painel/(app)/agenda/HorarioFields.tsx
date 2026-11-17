@@ -42,6 +42,8 @@ export function HorarioFields({
   const chave = serviceIds.join(',')
 
   useEffect(() => {
+    // Dia, profissional ou serviços mudaram: o instante escolhido na lista antiga não vale mais (outro dia, outra duração).
+    if (chosen !== '') onChosen('')
     if (chave === '' || date === '') return
     let vivo = true
     void buscarHorarios({ serviceIds: chave.split(','), date, professionalId }).then((r) => {
@@ -59,7 +61,7 @@ export function HorarioFields({
     return () => {
       vivo = false
     }
-    // `chosen` e `onChosen` ficam de fora de propósito: a consulta só refaz quando muda o que a define.
+    // `chosen` fica de fora de propósito: a consulta só refaz quando muda o que a define (ele é lido na resposta).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chave, date, professionalId, prefillTime])
 
@@ -69,7 +71,18 @@ export function HorarioFields({
   return (
     <>
       <Field label="Dia" error={errors.date}>
-        <Input id={`${idPrefix}-dia`} type="date" name="date" value={date} onChange={(e) => onDate(e.target.value)} required />
+        <Input
+          id={`${idPrefix}-dia`}
+          type="date"
+          name="date"
+          value={date}
+          onChange={(e) => {
+            onDate(e.target.value)
+            // Outro dia: a escolha da lista antiga não vale mais.
+            onChosen('')
+          }}
+          required
+        />
       </Field>
       <fieldset className="af-pick">
         <legend className="af-field__label">Horários livres</legend>

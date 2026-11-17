@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import {
   WEEKDAYS,
+  effectiveLocalTime,
   compareLocalDates,
   daysBetween,
   fromEpochMs,
@@ -142,5 +143,17 @@ describe('startOfUtcHour', () => {
 
   test('recusa instante inválido', () => {
     expect(() => startOfUtcHour(new Date(Number.NaN))).toThrow(RangeError)
+  })
+})
+
+describe('effectiveLocalTime (horário que de fato será gravado)', () => {
+  test('hora que existe fica como está', () => {
+    expect(effectiveLocalTime('2026-11-17', '10:00', 'America/Manaus')).toBe('10:00')
+  })
+  test('hora que não existe na primavera de Nova York avança: 02:30 vira 03:30', () => {
+    expect(effectiveLocalTime('2026-03-08', '02:30', 'America/New_York')).toBe('03:30')
+  })
+  test('hora repetida no outono vale a primeira ocorrência e continua 01:30', () => {
+    expect(effectiveLocalTime('2026-11-01', '01:30', 'America/New_York')).toBe('01:30')
   })
 })
