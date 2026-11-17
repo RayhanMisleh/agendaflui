@@ -130,6 +130,7 @@ describe('getSystemStatus', () => {
       ['notification:APPOINTMENT_CONFIRMED', 'invalid_recipient', 'Pet Feliz'],
       ['notification:APPOINTMENT_CONFIRMED', 'timeout', 'Pet Feliz'],
     ])
+    expect(recentFailures.map((f) => f.notificationId !== null)).toEqual([false, true, true])
     const at2 = recentFailures.map((f) => f.at.getTime())
     expect(at2).toEqual([...at2].sort((a, b) => b - a))
     const texto = JSON.stringify(await getSystemStatus(actor, NOW))

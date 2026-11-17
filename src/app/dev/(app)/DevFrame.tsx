@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Actor } from '@/server/auth/actor'
-import { Button } from '@/ui/components'
+import { Button, LinkButton } from '@/ui/components'
 import { DevShell } from '@/ui/shells'
 import { DEV_NAV } from '@/ui/shells/dev-nav'
 import { logoutAdmin } from './actions'
@@ -25,6 +25,9 @@ export function DevFrame({
       actions={
         <>
           {actions}
+          <LinkButton href="/perfil" variant="ghost">
+            Meu perfil
+          </LinkButton>
           <form action={logoutAdmin}>
             <Button type="submit" variant="secondary">
               Sair

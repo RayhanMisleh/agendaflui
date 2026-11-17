@@ -14,7 +14,8 @@ export type SystemStatus = {
   database: { sizeBytes: number; largestTables: { name: string; bytes: number }[] }
   queue: { pending: number; oldestPendingAt: Date | null; failed24h: number; skipped24h: number }
   scheduler: { lastRuns: { kind: string; startedAt: Date; finishedAt: Date | null; ok: boolean; summary: string }[] }
-  recentFailures: { at: Date; kind: string; code: string; businessName: string | null }[]
+  /** `notificationId` só nas falhas de aviso (para "tentar de novo"); nas do agendador é `null`. */
+  recentFailures: { at: Date; kind: string; code: string; businessName: string | null; notificationId: string | null }[]
 }
 
 const TABLES_SHOWN = 8
@@ -73,7 +74,7 @@ export async function getSystemStatus(actor: PlatformAdminActor, now: Date): Pro
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       take: FAILURES_SHOWN,
       // Só o que a tela mostra: nada de `payload`, destinatário ou cliente.
-      select: { updatedAt: true, kind: true, lastError: true, business: { select: { name: true } } },
+      select: { id: true, updatedAt: true, kind: true, lastError: true, business: { select: { name: true } } },
     }),
     prisma.schedulerRun.findMany({
       where: { ok: false, startedAt: { gte: since } },
@@ -90,12 +91,14 @@ export async function getSystemStatus(actor: PlatformAdminActor, now: Date): Pro
       kind: `notification:${n.kind}`,
       code: n.lastError ?? 'unknown',
       businessName: n.business.name,
+      notificationId: n.id,
     })),
     ...failedRuns.map((r) => ({
       at: r.finishedAt ?? r.startedAt,
       kind: r.kind,
       code: r.summary.replace(/^erro: /, '') || 'unknown',
       businessName: null,
+      notificationId: null,
     })),
   ]
     .sort((a, b) => b.at.getTime() - a.at.getTime())

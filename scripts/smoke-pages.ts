@@ -34,6 +34,16 @@ const PAGINAS = [
   '/contas/{conta}/equipe',
   '/contas/{conta}/chaves',
   '/contas/{conta}/auditoria',
+  '/chaves',
+  '/chaves?tipo=PLATFORM&situacao=ativas&search=x',
+  '/chaves?cursor=nao-existe&tipo=%00',
+  '/sistema',
+  '/auditoria',
+  '/auditoria?de=2026-11-01&ate=2026-11-10&ator=PLATFORM_ADMIN&acao=api_key.revoked',
+  '/auditoria?de=2026-01-01&ate=2026-12-31',
+  '/auditoria?de=lixo&cursor=lixo',
+  '/admins',
+  '/perfil',
   '/vitrine',
 ]
 

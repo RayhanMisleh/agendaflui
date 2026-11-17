@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Activity, Building2, KeyRound, LayoutDashboard, ScrollText, ShieldCheck } from 'lucide-react'
-import { BrandPreview, Button, ColorField, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, MaterialPicker, NavTabs, Pagination, Paper, SearchBar, SecretBox, Stamp, StatusLamp, StepRail } from '@/ui/components'
+import { BrandPreview, Button, ColorField, ConfirmDialog, CopyButton, DataList, FormErrors, Gauge, Lamp, MaterialPicker, MiniBars, NavTabs, Pagination, Paper, SearchBar, SecretBox, Sparkline, Stamp, StatTile, StatusLamp, StepRail, describeTrend } from '@/ui/components'
 import type { CoverMaterial } from '@/shared/theme/derive'
 import type { DataColumn, LampState, Tone } from '@/ui/components'
 import { DevShell } from '@/ui/shells'
@@ -171,6 +171,20 @@ export function ControlRoom() {
             <Gauge label="Disponibilidade no mês" display="99,9%" value={0.999} />
             <Gauge label="Uso da API" display="64%" value={0.64} />
             <Gauge label="Fila de avisos" display="12 na fila" value={0.12} />
+          </div>
+        </section>
+        <section aria-labelledby="vt-mostradores" className="vt-section">
+          <h3 id="vt-mostradores" className="vt-h3">
+            Mostradores e gráficos
+          </h3>
+          <div className="af-bench__panel af-bench__panel--tiles af-glass">
+            <StatTile label="Agendamentos no mês" value={1234} digits={4} trend={describeTrend({ current: 20, previousSamePeriod: 8, previous: 30 })}>
+              <MiniBars label="Agendamentos" bars={[{ label: 'Mês passado', value: 30 }, { label: 'Mesmo trecho', value: 8 }, { label: 'Este mês', value: 20 }]} />
+            </StatTile>
+            <StatTile label="Clientes novos" value={5} digits={3} trend={describeTrend({ current: 5, previousSamePeriod: 13, previous: 13 })} />
+            <StatTile label="Contas ativas" value={42} digits={3} trend={describeTrend({ current: 7, previousSamePeriod: 7, previous: 9 })}>
+              <Sparkline label="Pedidos por dia" values={[3, 5, 2, 8, 6, 9, 7]} />
+            </StatTile>
           </div>
         </section>
         <section aria-labelledby="vt-servicos" className="vt-section">
