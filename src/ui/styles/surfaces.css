@@ -32,7 +32,7 @@
   /* Com bolhas, o canto direito é delas: o conteúdo não chega lá, em nenhuma largura. */
   .af-card--bubbles {
     --bubble-gutter: 3.5rem;
-    padding-inline-end: calc(1.75rem + var(3,5 rem));
+    padding-inline-end: calc(1.75rem + var(--bubble-gutter));
   }
 
   /* ---- Bolhas: a espuma do banho. Poucas, nas bordas, recortadas pelo raio do bloco. ---- */
