@@ -5,6 +5,7 @@ import { prisma } from '@/server/db/client'
 import {
   createBusiness,
   getBusinessDetail,
+  getBusinessNames,
   listBusinesses,
   setBusinessStatus,
   slugSchema,
@@ -452,5 +453,51 @@ describe('ator', () => {
     }
     expect(await prisma.business.count()).toBe(1)
     expect(mail.sent).toHaveLength(1)
+  })
+})
+
+describe('admin desativado com o objeto de ator antigo', () => {
+  test('escritas relêem o admin na transação: forbidden e nada gravado', async () => {
+    const r = await createBusiness(actor, base)
+    await prisma.platformAdmin.update({ where: { id: adminId }, data: { active: false } })
+    expect((await domainError(createBusiness(actor, { ...base, slug: 'nova', owner: { name: 'Outra Pessoa', email: 'outra@exemplo.test' } }))).code).toBe('forbidden')
+    expect((await domainError(updateBusinessData(actor, r.business.id, r.business.version, { name: 'Novo Nome' }))).code).toBe('forbidden')
+    expect((await domainError(setBusinessStatus(actor, r.business.id, 'SUSPENDED', { confirmName: 'Barbearia Central' }))).code).toBe('forbidden')
+    expect(await prisma.business.count()).toBe(1)
+    const atual = await prisma.business.findUniqueOrThrow({ where: { id: r.business.id } })
+    expect(atual).toMatchObject({ name: 'Barbearia Central', status: 'ACTIVE' })
+  })
+})
+
+describe('arquivar revoga o suporte', () => {
+  const confirm = { confirmName: 'Barbearia Central' }
+  const futuro = () => new Date(Date.now() + 3_600_000)
+  test('suporte aberto em conta suspensa não sobrevive a arquivar e reativar', async () => {
+    const r = await createBusiness(actor, base)
+    const id = r.business.id
+    await setBusinessStatus(actor, id, 'SUSPENDED', confirm)
+    // Suporte aberto depois da suspensão (o suporte entra em conta suspensa).
+    const suporte = await prisma.session.create({ data: { userId: null, impersonatorAdminId: adminId, activeBusinessId: id, tokenHash: 'sup-suspensa', expiresAt: futuro() } })
+    await setBusinessStatus(actor, id, 'ARCHIVED', confirm)
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: suporte.id } })).revokedAt).not.toBeNull()
+    await setBusinessStatus(actor, id, 'ACTIVE', confirm)
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: suporte.id } })).revokedAt).not.toBeNull()
+  })
+})
+
+describe('getBusinessNames', () => {
+  test('devolve o nome só das contas pedidas, mesmo com mais de 100 contas, e ignora ids inválidos', async () => {
+    const contas = []
+    for (let i = 0; i < 103; i++) contas.push(await makeBusiness({ name: `Conta ${i}` }))
+    const ultima = contas[102]!
+    const primeira = contas[0]!
+    const nomes = await getBusinessNames(actor, [ultima.id, primeira.id, 'x', ultima.id])
+    expect([...nomes.entries()].sort()).toEqual([[primeira.id, 'Conta 0'], [ultima.id, 'Conta 102']].sort())
+    expect((await getBusinessNames(actor, [])).size).toBe(0)
+  }, 60_000)
+
+  test('exige admin da plataforma', async () => {
+    const intruso = { kind: 'system' } as unknown as PlatformAdminActor
+    expect((await domainError(getBusinessNames(intruso, []))).code).toBe('forbidden')
   })
 })

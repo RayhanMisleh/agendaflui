@@ -1,5 +1,10 @@
 import { toIsoInstant } from '@/server/time'
-import { PLATFORM_TIME_ZONE, quando, tamanho } from '@/app/dev/(app)/_lib/format'
+import { PLATFORM_TIME_ZONE, quando, tamanho, taxaDeSucesso } from '@/app/dev/(app)/_lib/format'
+import { renomear } from '@/app/dev/(app)/_lib/campos'
+import { DomainError } from '@/server/domain/errors'
+import { porCodigo, um } from '@/app/dev/(app)/_lib/params'
+import { traduzirFaltou, traduzirSuporte } from '@/app/dev/(app)/contas/[id]/codigos-url'
+import { formatInt } from '@/ui/format'
 import { lerFiltros } from '@/app/dev/(app)/auditoria/filtros'
 import { DEV_NAV } from '@/ui/shells/dev-nav'
 import { fromIsoInstant } from '@/server/time'
@@ -40,6 +45,15 @@ describe('filtros da auditoria na URL', () => {
     expect(f.query.actorType).toBeUndefined()
   })
 
+  test('quem agiu fora da lista vira mensagem de filtro inválido, e o filtro é ignorado', () => {
+    const f = lerFiltros({ ator: 'ROOT' })
+    expect(f.erro).toMatch(/quem agiu/i)
+    expect(f.query.actorType).toBeUndefined()
+    expect(f.values.ator).toBe('')
+    expect(lerFiltros({ ator: 'SYSTEM' }).erro).toBeNull()
+    expect(lerFiltros({ ator: '' }).erro).toBeNull()
+  })
+
   test('valor repetido na URL vale o primeiro', () => {
     expect(lerFiltros({ acao: ['a', 'b'] }).query.action).toBe('a')
   })
@@ -47,4 +61,55 @@ describe('filtros da auditoria na URL', () => {
 
 test('os seis destinos do painel estão todos habilitados', () => {
   expect(DEV_NAV.filter((n) => n.disabled)).toEqual([])
+})
+
+describe('códigos da URL nunca leem o protótipo do objeto', () => {
+  const mapa = { ok: 'texto' }
+  test('porCodigo só devolve chave própria', () => {
+    expect(porCodigo(mapa, 'ok')).toBe('texto')
+    for (const c of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', 'valueOf', '', 'x']) expect(porCodigo(mapa, c), c).toBeUndefined()
+  })
+
+  test('?suporte= traduz só os códigos conhecidos', () => {
+    expect(traduzirSuporte('arquivada')).toMatch(/arquivada/)
+    expect(traduzirSuporte('falhou')).toMatch(/suporte/)
+    for (const c of ['__proto__', 'constructor', '', 'qualquer']) expect(traduzirSuporte(c), c).toBeUndefined()
+  })
+
+  test('?faltou= traduz só os códigos conhecidos, ignora o resto e não repete', () => {
+    expect(traduzirFaltou('marca,termos')).toEqual(['a marca (cores, material e fontes)', 'os termos'])
+    expect(traduzirFaltou('constructor,__proto__,toString,marca,marca')).toEqual(['a marca (cores, material e fontes)'])
+    expect(traduzirFaltou('')).toEqual([])
+  })
+
+  test('um() pega o primeiro valor ou texto vazio', () => {
+    expect(um(['a', 'b'])).toBe('a')
+    expect(um(undefined)).toBe('')
+  })
+})
+
+test('formatInt: inteiro em pt-BR, com ponto de milhar, arredondado', () => {
+  expect(formatInt(0)).toBe('0')
+  expect(formatInt(1234567)).toBe('1.234.567')
+  expect(formatInt(12.6)).toBe('13')
+})
+
+describe('taxa de sucesso da visão geral', () => {
+  test('arredonda para baixo: nunca 100% com erro', () => {
+    expect(taxaDeSucesso(1000, 0)).toBe(1)
+    expect(taxaDeSucesso(100_000, 1)).toBe(0.999)
+    expect(taxaDeSucesso(1_000_000, 1)).toBe(0.999)
+    expect(taxaDeSucesso(3, 1)).toBe(0.666)
+    expect(taxaDeSucesso(1000, 5)).toBe(0.995)
+    expect(taxaDeSucesso(10, 10)).toBe(0)
+    expect(taxaDeSucesso(0, 0)).toBe(1)
+  })
+})
+
+test('renomear troca o nome inteiro do campo (owner.email) ou só o começo (origens.0), e deixa o resto', () => {
+  const err = new DomainError('validation', 'x', { fields: { 'owner.email': 'a', 'allowedOrigins.0': 'b', outro: 'c', constructor: 'd' } })
+  const r = renomear(err, { 'owner.email': 'ownerEmail', allowedOrigins: 'origins' })
+  expect(r).toBeInstanceOf(DomainError)
+  expect((r as DomainError).fields).toEqual({ ownerEmail: 'a', origins: 'b', outro: 'c', constructor: 'd' })
+  expect(renomear(new Error('y'), {})).toBeInstanceOf(Error)
 })

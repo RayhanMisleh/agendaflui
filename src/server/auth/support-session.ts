@@ -197,3 +197,30 @@ export async function purgeSupportHandoffs(now: Date): Promise<number> {
   const r = await prisma.supportHandoff.deleteMany({ where: { expiresAt: { lt: corte } } })
   return r.count
 }
+
+/**
+ * Apaga as sessões do painel (`sessions`) e do painel dev (`platform_sessions`) vencidas há mais de 1 dia, revogadas ou não.
+ * Sessão de suporte que venceu sem `support.ended` nem revogação grava `support.expired` na auditoria da conta, com o nome do
+ * admin (cada linha só é apagada uma vez, então a auditoria também sai uma vez). Devolve quantas linhas apagou.
+ */
+export async function purgeExpiredSessions(now: Date): Promise<number> {
+  const corte = fromEpochMs(now.getTime() - 24 * 60 * 60 * 1000)
+  return prisma.$transaction(async (tx) => {
+    const suporte = await tx.session.findMany({
+      where: { expiresAt: { lt: corte }, revokedAt: null, userId: null, impersonatorAdminId: { not: null }, activeBusinessId: { not: null } },
+      select: { id: true, activeBusinessId: true, impersonator: { select: { id: true, name: true } } },
+    })
+    const apagadas = await tx.session.deleteMany({ where: { expiresAt: { lt: corte } } })
+    const painel = await tx.platformSession.deleteMany({ where: { expiresAt: { lt: corte } } })
+    for (const s of suporte) {
+      if (!s.impersonator || !s.activeBusinessId) continue
+      await auditPlatform(tx, { kind: 'platform_admin', adminId: s.impersonator.id, name: s.impersonator.name }, {
+        businessId: s.activeBusinessId,
+        action: 'support.expired',
+        targetType: 'business',
+        targetId: s.activeBusinessId,
+      })
+    }
+    return apagadas.count + painel.count
+  })
+}

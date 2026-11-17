@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { Paper } from '@/ui/components'
 import { listTeam } from '@/server/domain/platform/team'
-import { formatDateTime } from '@/server/time'
+import { HorariosNota } from '../../../_lib/HorariosNota'
+import { quando } from '../../../_lib/format'
 import { carregarConta } from '../_data'
 import { alternarAcesso, convidarMembro, reenviarConvite, trocarPapel } from '../actions'
 import { TeamPanel } from '../TeamPanel'
@@ -19,11 +20,12 @@ export default async function EquipePage({ params }: { params: Promise<{ id: str
     role: m.role,
     active: m.active,
     hasPassword: m.hasPassword,
-    lastLogin: m.lastLoginAt ? formatDateTime(m.lastLoginAt, conta.timeZone) : null,
+    lastLogin: m.lastLoginAt ? quando(m.lastLoginAt) : null,
   }))
   return (
     <Paper raised={1} className="af-listpanel">
       <h2 className="af-section__title">Equipe</h2>
+      <HorariosNota />
       <TeamPanel
         membros={membros}
         acoes={{

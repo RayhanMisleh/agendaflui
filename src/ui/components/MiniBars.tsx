@@ -1,6 +1,6 @@
 import { cx } from './cx'
+import { formatInt } from '../format'
 
-const INT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
 const BAR_W = 36
 const GAP = 12
 const H = 44
@@ -13,7 +13,7 @@ const H = 44
 export function MiniBars({
   bars,
   label,
-  format = (n: number) => INT.format(n),
+  format = (n: number) => formatInt(n),
   className,
 }: {
   bars: Array<{ label: string; value: number }>

@@ -315,3 +315,22 @@ describe('autorização', () => {
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: membership.id } })).active).toBe(true)
   })
 })
+
+describe('desativar o último vínculo ativo de quem ainda não tem senha', () => {
+  const pendentes = (userId: string) => prisma.userToken.count({ where: { userId, purpose: 'INVITE', usedAt: null } })
+
+  test('apaga os convites pendentes: o link antigo deixa de valer', async () => {
+    const m = await inviteMember(actor, businessId, { name: 'Bia Souza', email: 'bia@exemplo.test', role: 'MANAGER' }, AGORA)
+    expect(await pendentes(m.userId)).toBe(1)
+    await setMemberActive(actor, m.membershipId, false, AGORA)
+    expect(await pendentes(m.userId)).toBe(0)
+  })
+
+  test('com outro vínculo ativo em outra conta, o convite fica', async () => {
+    const outra = (await makeBusiness({ name: 'Outra' })).id
+    const m = await inviteMember(actor, businessId, { name: 'Caio Lima', email: 'caio@exemplo.test', role: 'PROFESSIONAL' }, AGORA)
+    await makeMembership(outra, m.userId, 'PROFESSIONAL')
+    await setMemberActive(actor, m.membershipId, false, AGORA)
+    expect(await pendentes(m.userId)).toBe(1)
+  })
+})

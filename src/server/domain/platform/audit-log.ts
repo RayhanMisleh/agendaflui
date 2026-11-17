@@ -32,7 +32,12 @@ const ROLE_LABEL: Record<MembershipRole, string> = { OWNER: 'Dono', MANAGER: 'Ge
 
 const querySchema = z.object({
   businessId: z.uuid().optional(),
-  action: z.string().min(1).max(100).optional(),
+  action: z
+    .string()
+    .min(1)
+    .max(100)
+    .refine((v) => !/\p{C}/u.test(v), 'Use só letras, números e sinais comuns no nome da ação.')
+    .optional(),
   actorType: z.enum(['PLATFORM_ADMIN', 'USER', 'SYSTEM']).optional(),
   from: z.date().optional(),
   to: z.date().optional(),

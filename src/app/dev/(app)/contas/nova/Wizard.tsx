@@ -24,6 +24,7 @@ import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import type { FontPair, PaperTone } from '@/shared/theme/derive'
 import type { FormState } from '../../_lib/form-state'
+import type { LimitesDeRegras } from '../[id]/FormsConta'
 import { criarConta } from './actions'
 import { FUSOS, STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
 import type { WizardData, WizardResult, WizardValues } from './fields'
@@ -73,7 +74,6 @@ const FONTES: Array<[FontPair, string, string]> = [
   ['MODERN', 'Moderno', 'Títulos sem serifa, de traço limpo.'],
   ['FRIENDLY', 'Amigável', 'Títulos de cantos redondos.'],
 ]
-const GRADES = [5, 10, 15, 20, 30, 60]
 
 type Estado = FormState<WizardData>
 
@@ -82,13 +82,13 @@ type Estado = FormState<WizardData>
  * envia tudo de uma vez; com JavaScript mostra uma etapa por vez, com o trilho no alto e a prévia da marca ao lado.
  * Os campos são controlados (o estado sobrevive a erro de validação) e a conta só é criada no envio final.
  */
-export function Wizard({ initial }: { initial: Estado }) {
+export function Wizard({ initial, grades, limites }: { initial: Estado } & LimitesDeRegras) {
   // "Criar outra conta" troca a chave e o assistente recomeça do zero (estado, ação e campos).
   const [rodada, setRodada] = useState(0)
-  return <AssistenteDeConta key={rodada} initial={initial} onAgain={() => setRodada((r) => r + 1)} />
+  return <AssistenteDeConta key={rodada} initial={initial} grades={grades} limites={limites} onAgain={() => setRodada((r) => r + 1)} />
 }
 
-function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () => void }) {
+function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Estado; onAgain: () => void } & LimitesDeRegras) {
   const [state, formAction, pending] = useActionState(criarConta, initial)
   const hidratado = useHydrated()
   const [v, setV] = useState<WizardValues>(() => pickValues(initial.values))
@@ -317,24 +317,24 @@ function AssistenteDeConta({ initial, onAgain }: { initial: Estado; onAgain: () 
             <div className="af-wizard__grid">
               <Field label="Grade de horários" hint="De quanto em quanto tempo um horário pode começar." error={erro('slotStepMin')}>
                 <Select name="slotStepMin" value={v.slotStepMin} onChange={texto('slotStepMin')}>
-                  {GRADES.map((g) => (
+                  {grades.map((g) => (
                     <option key={g} value={String(g)}>
                       {g} minutos
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Intervalo entre atendimentos (minutos)" hint="Múltiplo de 5, até 120." error={erro('bufferMin')}>
-                <Input name="bufferMin" type="number" inputMode="numeric" min={0} max={120} step={5} value={v.bufferMin} onChange={texto('bufferMin')} />
+              <Field label="Intervalo entre atendimentos (minutos)" hint={`Múltiplo de ${limites.bufferMin.step}, até ${limites.bufferMin.max}.`} error={erro('bufferMin')}>
+                <Input name="bufferMin" type="number" inputMode="numeric" min={limites.bufferMin.min} max={limites.bufferMin.max} step={limites.bufferMin.step} value={v.bufferMin} onChange={texto('bufferMin')} />
               </Field>
               <Field label="Antecedência mínima (minutos)" hint="Quanto antes do horário o cliente ainda pode marcar." error={erro('minLeadMin')}>
-                <Input name="minLeadMin" type="number" inputMode="numeric" min={0} max={10080} value={v.minLeadMin} onChange={texto('minLeadMin')} />
+                <Input name="minLeadMin" type="number" inputMode="numeric" min={limites.minLeadMin.min} max={limites.minLeadMin.max} value={v.minLeadMin} onChange={texto('minLeadMin')} />
               </Field>
               <Field label="Alcance da agenda (dias)" hint="Até quantos dias à frente se pode marcar." error={erro('maxAdvanceDays')}>
-                <Input name="maxAdvanceDays" type="number" inputMode="numeric" min={1} max={365} value={v.maxAdvanceDays} onChange={texto('maxAdvanceDays')} />
+                <Input name="maxAdvanceDays" type="number" inputMode="numeric" min={limites.maxAdvanceDays.min} max={limites.maxAdvanceDays.max} value={v.maxAdvanceDays} onChange={texto('maxAdvanceDays')} />
               </Field>
               <Field label="Prazo para o cliente mudar (minutos)" hint="Até quanto tempo antes o cliente pode remarcar ou cancelar." error={erro('customerChangeWindowMin')}>
-                <Input name="customerChangeWindowMin" type="number" inputMode="numeric" min={0} max={10080} value={v.customerChangeWindowMin} onChange={texto('customerChangeWindowMin')} />
+                <Input name="customerChangeWindowMin" type="number" inputMode="numeric" min={limites.customerChangeWindowMin.min} max={limites.customerChangeWindowMin.max} value={v.customerChangeWindowMin} onChange={texto('customerChangeWindowMin')} />
               </Field>
             </div>
             <Checkbox name="autoConfirm" label="Confirmar os agendamentos sozinho" checked={v.autoConfirm} onChange={(e) => set('autoConfirm', e.target.checked)} />

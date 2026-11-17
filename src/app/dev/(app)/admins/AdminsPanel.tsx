@@ -15,11 +15,11 @@ export type LinhaAdmin = {
   voce: boolean
   ultimoAcesso: string | null
   criadoEm: string
-  /** Ação de desativar ou reativar, com o id do admin ligado no servidor. */
-  alternar: AcaoConta
+  /** Ação de desativar ou reativar, com o id do admin ligado no servidor. `null` na linha do próprio admin. */
+  alternar: AcaoConta | null
 }
 
-function Alternar({ a }: { a: LinhaAdmin }) {
+function Alternar({ a, alternar }: { a: LinhaAdmin; alternar: AcaoConta }) {
   const [aberto, setAberto] = useState(false)
   return (
     <>
@@ -35,7 +35,7 @@ function Alternar({ a }: { a: LinhaAdmin }) {
             ? 'A pessoa perde o acesso na hora e as sessões abertas dela são encerradas. Você pode reativar depois, mas ela precisará entrar de novo.'
             : 'A pessoa volta a poder entrar com o e-mail e a senha que já tinha.'
         }
-        action={a.alternar}
+        action={alternar}
         initialState={estadoInicial({ confirmName: '' })}
         confirmLabel={a.active ? 'Desativar admin' : 'Reativar admin'}
         {...(a.active ? { targetName: a.name } : {})}
@@ -63,7 +63,7 @@ const COLUNAS: DataColumn<LinhaAdmin>[] = [
   { key: 'email', header: 'E-mail', cell: (a) => a.email },
   { key: 'situacao', header: 'Situação', cell: (a) => <Stamp tone={a.active ? 'ok' : 'neutral'}>{a.active ? 'Ativo' : 'Desativado'}</Stamp> },
   { key: 'acesso', header: 'Último acesso', nowrap: true, cell: (a) => a.ultimoAcesso ?? 'Nunca entrou' },
-  { key: 'acao', header: 'Ação', cell: (a) => <Alternar a={a} /> },
+  { key: 'acao', header: 'Ação', cell: (a) => (a.alternar ? <Alternar a={a} alternar={a.alternar} /> : <span className="af-account__slug">Você não pode desativar o próprio acesso.</span>) },
 ]
 
 export function AdminsPanel({ criar, admins }: { criar: AcaoConta; admins: LinhaAdmin[] }) {

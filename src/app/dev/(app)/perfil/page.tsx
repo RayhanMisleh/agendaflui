@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { requirePlatformAdmin } from '@/server/auth/guards'
-import { listAdmins } from '@/server/domain/platform/admins'
+import { DomainError } from '@/server/domain/errors'
+import { getOwnProfile } from '@/server/domain/platform/admins'
 import { DevFrame } from '../DevFrame'
 import { ProfileForms } from './ProfileForms'
 import { salvarPerfil, trocarSenha } from './actions'
@@ -9,10 +11,16 @@ export const metadata: Metadata = { title: 'Meu perfil | AgendaFlui' }
 
 export default async function PerfilPage() {
   const admin = await requirePlatformAdmin()
-  const eu = (await listAdmins(admin)).find((a) => a.id === admin.adminId)
+  let eu: Awaited<ReturnType<typeof getOwnProfile>>
+  try {
+    eu = await getOwnProfile(admin)
+  } catch (err) {
+    if (err instanceof DomainError && err.code === 'not_found') notFound()
+    throw err
+  }
   return (
     <DevFrame admin={admin} title="Meu perfil">
-      <ProfileForms nome={eu?.name ?? admin.name} email={eu?.email ?? ''} salvar={salvarPerfil} trocar={trocarSenha} />
+      <ProfileForms nome={eu.name} email={eu.email} salvar={salvarPerfil} trocar={trocarSenha} />
     </DevFrame>
   )
 }

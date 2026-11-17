@@ -2,11 +2,12 @@ import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { areaLink } from '@/server/area-links'
 import { listApiKeys } from '@/server/domain/platform/api-keys'
-import { usageSummary } from '@/server/domain/platform/api-usage'
-import { listBusinesses } from '@/server/domain/platform/businesses'
+import { usageByKey } from '@/server/domain/platform/api-usage'
+import { getBusinessNames } from '@/server/domain/platform/businesses'
 import { addMinutes } from '@/server/time'
 import { EmptyState, LinkButton, Pagination, SearchBar } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
+import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
 import { um } from '../_lib/params'
 import { ChavesPanel, SemChaves } from './ChavesPanel'
@@ -27,7 +28,7 @@ const SITUACOES = [
   { value: 'revogadas', label: 'Revogadas' },
 ]
 
-function somar(linhas: Awaited<ReturnType<typeof usageSummary>>): UsoPeriodo {
+function somar(linhas: Awaited<ReturnType<typeof usageByKey>> extends Map<string, infer L> ? L : never): UsoPeriodo {
   const requests = linhas.reduce((s, r) => s + r.count, 0)
   const ms = linhas.reduce((s, r) => s + r.avgMs * r.count, 0)
   return { requests, errors: linhas.reduce((s, r) => s + r.errorCount, 0), avgMs: requests === 0 ? 0 : Math.round(ms / requests) }
@@ -58,31 +59,33 @@ export default async function ChavesPage({ searchParams }: { searchParams: Promi
   const agora = new Date()
   const desde7 = addMinutes(agora, -7 * 24 * 60)
   const desde30 = addMinutes(agora, -30 * 24 * 60)
-  const nomes = new Map((await listBusinesses(admin, { limit: 100 })).items.map((c) => [c.id, c.name]))
-  const chaves: ChaveGlobal[] = await Promise.all(
-    pagina.map(async (k) => {
-      const [l7, l30] = await Promise.all([
-        usageSummary(admin, { from: desde7, to: agora, apiKeyId: k.id }),
-        usageSummary(admin, { from: desde30, to: agora, apiKeyId: k.id }),
-      ])
-      return {
-        id: k.id,
-        name: k.name,
-        prefix: k.prefix,
-        kind: k.kind,
-        contaId: k.businessId,
-        contaNome: k.businessId ? (nomes.get(k.businessId) ?? null) : null,
-        origins: k.allowedOrigins,
-        revoked: k.revokedAt !== null,
-        createdAt: quando(k.createdAt),
-        lastUsed: k.lastUsedAt ? quando(k.lastUsedAt) : null,
-        uso7: somar(l7),
-        uso30: somar(l30),
-        routes: [...l30].sort((a, b) => b.count - a.count).slice(0, 5).map((r) => ({ route: r.route, count: r.count })),
-        revogar: revogarChave.bind(null, k.id),
-      }
-    }),
-  )
+  // Uma consulta de uso por período (30 e 7 dias) para a página inteira, e uma busca de nomes só pelas contas das chaves da página.
+  const ids = pagina.map((k) => k.id)
+  const [uso7, uso30, nomes] = await Promise.all([
+    usageByKey(admin, { from: desde7, to: agora, apiKeyIds: ids }),
+    usageByKey(admin, { from: desde30, to: agora, apiKeyIds: ids }),
+    getBusinessNames(admin, pagina.flatMap((k) => (k.businessId ? [k.businessId] : []))),
+  ])
+  const chaves: ChaveGlobal[] = pagina.map((k) => {
+    const l7 = uso7.get(k.id) ?? []
+    const l30 = uso30.get(k.id) ?? []
+    return {
+      id: k.id,
+      name: k.name,
+      prefix: k.prefix,
+      kind: k.kind,
+      contaId: k.businessId,
+      contaNome: k.businessId ? (nomes.get(k.businessId) ?? null) : null,
+      origins: k.allowedOrigins,
+      revoked: k.revokedAt !== null,
+      createdAt: quando(k.createdAt),
+      lastUsed: k.lastUsedAt ? quando(k.lastUsedAt) : null,
+      uso7: somar(l7),
+      uso30: somar(l30),
+      routes: [...l30].sort((a, b) => b.count - a.count).slice(0, 5).map((r) => ({ route: r.route, count: r.count })),
+      revogar: revogarChave.bind(null, k.id),
+    }
+  })
 
   const filtrado = busca !== '' || tipo !== '' || situacao !== ''
   const params = { search: busca || undefined, tipo: tipo || undefined, situacao: situacao || undefined }
@@ -92,6 +95,7 @@ export default async function ChavesPage({ searchParams }: { searchParams: Promi
       title="Chaves e API"
       actions={<LinkButton href={areaLink('api', '/v1/openapi.json')}>Documentação OpenAPI</LinkButton>}
     >
+      <HorariosNota />
       <ChavesPanel
         criar={criarChavePlataforma}
         chaves={chaves}

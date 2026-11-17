@@ -2,6 +2,7 @@ import 'server-only'
 import type { Actor } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
 import { issueInvite, INVITE_TTL_DAYS } from '@/server/auth/invites'
+import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import type { BusinessStatus } from '@/server/db/generated/client'
@@ -364,6 +365,15 @@ export async function listBusinesses(
   }
 }
 
+/** Nome de cada conta pedida (id → nome), numa consulta só. Id que não é UUID ou não existe fica de fora. */
+export async function getBusinessNames(actor: PlatformAdminActor, ids: string[]): Promise<Map<string, string>> {
+  exigirAdmin(actor)
+  const validos = [...new Set(ids.filter((id) => UUID.test(id)))]
+  if (validos.length === 0) return new Map()
+  const linhas = await prisma.business.findMany({ where: { id: { in: validos } }, select: { id: true, name: true } })
+  return new Map(linhas.map((l) => [l.id, l.name]))
+}
+
 export async function getBusinessDetail(actor: PlatformAdminActor, id: string): Promise<BusinessDetail> {
   exigirAdmin(actor)
   return lerDetalhe(idValido(id))
@@ -425,6 +435,7 @@ export async function createBusiness(
   for (let tentativa = 1; ; tentativa++) {
     try {
       const feito = await prisma.$transaction(async (tx) => {
+        await requireActiveAdmin(tx, actor)
         let conta: { id: string }
         try {
           conta = await tx.business.create({
@@ -532,6 +543,7 @@ export async function updateBusinessData(
     return atual
   }
   await prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
     let r: { count: number }
     try {
       r = await tx.business.updateMany({ where: { id, version: v }, data: { ...dados, version: { increment: 1 } } })
@@ -555,7 +567,7 @@ const TRANSICOES: Record<BusinessStatus, readonly BusinessStatus[]> = {
 }
 
 /**
- * Muda a situação da conta. Pede o nome da conta como confirmação. Ao sair de `ACTIVE`, revoga toda sessão que tem esta conta
+ * Muda a situação da conta. Pede o nome da conta como confirmação. Ao sair de `ACTIVE` e em toda ida para `ARCHIVED`, revoga toda sessão que tem esta conta
  * ativa (a sessão guarda a conta; inclui a de suporte, que não tem usuário); os tokens do app caem sozinhos porque o contexto relê a conta.
  */
 export async function setBusinessStatus(
@@ -580,9 +592,10 @@ export async function setBusinessStatus(
     })
   if (!TRANSICOES[from].includes(to)) throw invalida()
   await prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
     const r = await tx.business.updateMany({ where: { id, status: from }, data: { status: to, version: { increment: 1 } } })
     if (r.count !== 1) throw invalida()
-    if (from === 'ACTIVE') {
+    if (from === 'ACTIVE' || to === 'ARCHIVED') {
       await tx.session.updateMany({
         where: { activeBusinessId: id, revokedAt: null },
         data: { revokedAt: now },

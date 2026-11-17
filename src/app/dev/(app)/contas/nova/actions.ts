@@ -8,6 +8,7 @@ import type { BrandInput } from '@/server/domain/platform/customization'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { adminAction } from '../../_lib/action'
 import type { PlatformAdminActor } from '../../_lib/action'
+import { renomear } from '../../_lib/campos'
 import type { FormState } from '../../_lib/form-state'
 import { pickValues, readValues } from './fields'
 import type { TermSet, WizardData, WizardResult } from './fields'
@@ -94,14 +95,6 @@ function regrasDe(v: WizardData): Partial<SchedulingRules> {
   return regras
 }
 
-/** Erros do domínio usam `owner.email`; o formulário chama de `ownerEmail`. */
-function traduzir(err: unknown): unknown {
-  if (!(err instanceof DomainError) || !err.fields) return err
-  const mapa: Record<string, string> = { 'owner.name': 'ownerName', 'owner.email': 'ownerEmail' }
-  const fields = Object.fromEntries(Object.entries(err.fields).map(([k, m]) => [mapa[k] ?? k, m]))
-  return new DomainError(err.code, err.message, { fields, ...(err.reason ? { reason: err.reason } : {}) })
-}
-
 const PENDENCIA = {
   marca: 'A marca (cores, material e fontes) não foi salva',
   termos: 'Os termos não foram salvos',
@@ -137,7 +130,8 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
   try {
     criada = await createBusiness(admin, dadosDaConta(v))
   } catch (err) {
-    throw traduzir(err)
+    // Erros do domínio usam `owner.email`; o formulário chama de `ownerEmail`.
+    throw renomear(err, ROTULO_DOMINIO)
   }
   const id = criada.business.id
   const falhas: Falha[] = []

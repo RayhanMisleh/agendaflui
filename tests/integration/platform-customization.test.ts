@@ -688,3 +688,36 @@ describe('regras, fuso e avisos pelo admin', () => {
     expect((await domainError(updateRulesAsAdmin(actor, '00000000-0000-4000-8000-000000000000', { bufferMin: 5 }))).code).toBe('not_found')
   })
 })
+
+describe('admin desativado com o objeto de ator antigo', () => {
+  test('toda escrita relê o admin na transação: forbidden e nada gravado', async () => {
+    await prisma.platformAdmin.update({ where: { id: actor.adminId }, data: { active: false } })
+    const chamadas = [
+      () => updateBrand(actor, biz.id, 1, { ...brand, displayName: 'Outro Nome' }),
+      () => updateTerms(actor, biz.id, { ...termos, club: 'Clube Novo' }),
+      () => updateModules(actor, biz.id, { loyalty: true, banners: false, store: false, vouchers: false }),
+      () => updateRulesAsAdmin(actor, biz.id, { bufferMin: 5 }),
+      () => updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo' }),
+    ]
+    for (const chamar of chamadas) expect((await domainError(chamar())).code).toBe('forbidden')
+    expect(await prisma.auditLog.count({ where: { businessId: biz.id } })).toBe(0)
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: biz.id } })).timezone).toBe('America/Sao_Paulo')
+  })
+})
+
+describe('texto com emoji composto', () => {
+  test('o caractere de junção (U+200D) vale em nome de exibição, termos e mensagem; os demais caracteres de controle seguem recusados', async () => {
+    const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'
+    const v = (await getCustomization(actor, biz.id)).brand.version
+    const marca = await updateBrand(actor, biz.id, v, { ...brand, displayName: `${familia} Casa`, loginMessage: `Olá ${familia}\nVolte sempre.` })
+    expect(marca.displayName).toBe(`${familia} Casa`)
+    expect(marca.loginMessage).toBe(`Olá ${familia}\nVolte sempre.`)
+    expect((await updateTerms(actor, biz.id, { ...termos, club: `Clube ${familia}` })).club).toBe(`Clube ${familia}`)
+
+    for (const ruim of ['a\u200Bb', 'a\tb', 'a\u0000b', 'a\u202Eb']) {
+      expect((await domainError(updateBrand(actor, biz.id, marca.version, { ...brand, displayName: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
+      expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
+    }
+    expect((await domainError(updateBrand(actor, biz.id, marca.version, { ...brand, loginMessage: 'a\u200Bb' }))).code).toBe('validation')
+  })
+})

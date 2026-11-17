@@ -21,6 +21,7 @@ const LABELS: Readonly<Record<string, string>> = {
   tokens: 'tokens',
   execucoes: 'execuções',
   passagens: 'passagens',
+  sessoes: 'sessões',
 }
 
 function isCount(v: unknown): v is number {

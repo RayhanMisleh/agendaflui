@@ -2,11 +2,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Button, ConfirmDialog, EmptyState, Field, Input, Paper, SecretBox, Stamp, Textarea } from '@/ui/components'
+import { formatInt } from '@/ui/format'
 import { ContaForm } from '../contas/[id]/ContaForm'
 import { estadoInicial } from '../contas/[id]/forms'
 import type { AcaoConta } from '../contas/[id]/forms'
-
-const INT = new Intl.NumberFormat('pt-BR')
 
 export type UsoPeriodo = { requests: number; errors: number; avgMs: number }
 export type ChaveGlobal = {
@@ -34,7 +33,7 @@ function Uso({ titulo, uso }: { titulo: string; uso: UsoPeriodo }) {
       <dd>
         {uso.requests === 0
           ? 'Nenhuma requisição'
-          : `${INT.format(uso.requests)} ${uso.requests === 1 ? 'requisição' : 'requisições'}, ${INT.format(uso.errors)} ${uso.errors === 1 ? 'erro' : 'erros'}, ${uso.avgMs} ms em média`}
+          : `${formatInt(uso.requests)} ${uso.requests === 1 ? 'requisição' : 'requisições'}, ${formatInt(uso.errors)} ${uso.errors === 1 ? 'erro' : 'erros'}, ${uso.avgMs} ms em média`}
       </dd>
     </div>
   )
@@ -69,7 +68,7 @@ function Cartao({ k }: { k: ChaveGlobal }) {
         <ol className="af-keycard__routes" aria-label={`Rotas mais chamadas pela chave ${k.name} em 30 dias`}>
           {k.routes.map((r) => (
             <li key={r.route}>
-              <code>{r.route}</code> <span>{INT.format(r.count)}</span>
+              <code>{r.route}</code> <span>{formatInt(r.count)}</span>
             </li>
           ))}
         </ol>

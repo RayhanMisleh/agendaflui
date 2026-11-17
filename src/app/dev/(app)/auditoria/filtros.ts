@@ -25,6 +25,7 @@ export function lerFiltros(q: Record<string, string | string[] | undefined>): Fi
   const acao = um(q.acao).trim().slice(0, 100)
   const atorBruto = um(q.ator)
   const ator = TIPOS_DE_ATOR.find((t) => t.value === atorBruto)?.value ?? ''
+  const atorInvalido = atorBruto !== '' && ator === ''
   const de = um(q.de).trim()
   const ate = um(q.ate).trim()
   const cursor = um(q.cursor)
@@ -35,6 +36,7 @@ export function lerFiltros(q: Record<string, string | string[] | undefined>): Fi
   if (ator) query.actorType = ator
   if (cursor) query.cursor = cursor
   const MSG = 'Use datas válidas, no formato dia/mês/ano do seletor.'
+  if (atorInvalido) erro = 'Escolha quem agiu na lista, ou deixe em "Todos".'
   if (de) {
     if (isLocalDate(de)) query.from = localDayRange(de, PLATFORM_TIME_ZONE).start
     else erro = MSG

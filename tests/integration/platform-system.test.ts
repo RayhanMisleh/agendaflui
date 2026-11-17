@@ -9,7 +9,7 @@ import { hashToken } from '@/server/auth/tokens'
 import { addMinutes, fromIsoInstant } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { makeBusiness, makeCustomer, makePlatformAdmin } from '../setup/factories'
+import { makeBusiness, makeCustomer, makePlatformAdmin, makeUser } from '../setup/factories'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
@@ -254,5 +254,37 @@ describe('agendador grava scheduler_runs', () => {
     expect(ids).not.toContain(vencidaHaDois.id)
     // A limpeza também grava a própria execução? Não: quem grava é o agendador.
     expect(await prisma.schedulerRun.count({ where: { kind: 'cleanup' } })).toBe(0)
+  })
+
+  test('a limpeza apaga sessões e sessões do painel dev vencidas há mais de 1 dia e audita o suporte que venceu sem encerrar', async () => {
+    const b = await makeBusiness()
+    const usuario = await makeUser()
+    const agora = new Date()
+    const sessao = (expiresAt: Date, extra: { userId?: string | null; impersonatorAdminId?: string; revokedAt?: Date } = {}) =>
+      prisma.session.create({
+        data: { userId: extra.userId ?? null, impersonatorAdminId: extra.impersonatorAdminId ?? null, activeBusinessId: b.id, tokenHash: hashToken(randomUUID()), expiresAt, revokedAt: extra.revokedAt ?? null },
+      })
+    await sessao(dias(agora, -2), { userId: usuario.id })
+    const recenteMembro = await sessao(addMinutes(agora, -60), { userId: usuario.id })
+    const validaMembro = await sessao(addMinutes(agora, 60), { userId: usuario.id })
+    await sessao(dias(agora, -3), { impersonatorAdminId: adminId })
+    await sessao(dias(agora, -3), { impersonatorAdminId: adminId, revokedAt: dias(agora, -4) })
+    const recenteSuporte = await sessao(addMinutes(agora, -30), { impersonatorAdminId: adminId })
+    const painel = (expiresAt: Date) => prisma.platformSession.create({ data: { adminId, tokenHash: hashToken(randomUUID()), expiresAt } })
+    await painel(dias(agora, -2))
+    const painelRecente = await painel(addMinutes(agora, -60))
+    const painelValida = await painel(addMinutes(agora, 60))
+
+    await cleanupRound(agora)
+
+    expect((await prisma.session.findMany()).map((x) => x.id).sort()).toEqual([recenteMembro.id, validaMembro.id, recenteSuporte.id].sort())
+    expect((await prisma.platformSession.findMany()).map((x) => x.id).sort()).toEqual([painelRecente.id, painelValida.id].sort())
+    // Só o suporte que venceu sem ter sido encerrado nem revogado vira `support.expired`, uma vez, na conta, com o nome do admin.
+    const expiradas = await prisma.auditLog.findMany({ where: { action: 'support.expired' } })
+    expect(expiradas).toHaveLength(1)
+    expect(expiradas[0]).toMatchObject({ businessId: b.id, actorType: 'PLATFORM_ADMIN', actorId: adminId })
+    // Rodar de novo não grava de novo.
+    await cleanupRound(agora)
+    expect(await prisma.auditLog.count({ where: { action: 'support.expired' } })).toBe(1)
   })
 })

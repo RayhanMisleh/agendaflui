@@ -10,6 +10,7 @@ const acao = vi.hoisted(() => ({ criarConta: vi.fn() }))
 vi.mock('@/app/dev/(app)/contas/nova/actions', () => acao)
 
 import { Wizard } from '@/app/dev/(app)/contas/nova/Wizard'
+import { RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
 
 const inicial: FormState<WizardData> = { ok: false, message: null, fields: {}, values: EMPTY_VALUES }
 
@@ -18,7 +19,7 @@ beforeEach(() => {
 })
 
 test('sem JavaScript todas as etapas aparecem num formulário só, com os campos nomeados e o botão de criar', () => {
-  const html = renderToString(<Wizard initial={inicial} />)
+  const html = renderToString(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const secoes = doc.querySelectorAll('section.af-wizard__step')
   expect(secoes).toHaveLength(7)
@@ -31,7 +32,7 @@ test('sem JavaScript todas as etapas aparecem num formulário só, com os campos
 })
 
 test('com JavaScript mostra uma etapa por vez; Continuar e o trilho trocam a etapa e marcam aria-current', async () => {
-  render(<Wizard initial={inicial} />)
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
   expect(within(trilho).getByRole('link', { name: /Dados/ })).toHaveAttribute('aria-current', 'step')
   expect(screen.getByRole('heading', { name: 'Marca', hidden: true })).not.toBeVisible()
@@ -46,7 +47,7 @@ test('com JavaScript mostra uma etapa por vez; Continuar e o trilho trocam a eta
 })
 
 test('o nome sugere o identificador e o nome de exibição; mexer neles à mão para a sugestão', async () => {
-  render(<Wizard initial={inicial} />)
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   await userEvent.type(screen.getByLabelText('Nome da conta'), 'Pata Viva Pet Shop')
   expect(screen.getByLabelText('Identificador')).toHaveValue('pata-viva-pet-shop')
   await userEvent.clear(screen.getByLabelText('Identificador'))
@@ -56,14 +57,14 @@ test('o nome sugere o identificador e o nome de exibição; mexer neles à mão 
 })
 
 test('Enter num campo de etapa do meio avança em vez de enviar o formulário', async () => {
-  render(<Wizard initial={inicial} />)
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   await userEvent.type(screen.getByLabelText('Nome da conta'), 'Pata{Enter}')
   expect(acao.criarConta).not.toHaveBeenCalled()
   expect(screen.getByRole('heading', { name: 'Marca' })).toBeVisible()
 })
 
 test('o termo escolhido aparece na prévia e as sugestões por ramo só mexem nos termos', async () => {
-  render(<Wizard initial={inicial} />)
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   await userEvent.click(screen.getByRole('link', { name: /Termos/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Pet shop' }))
   expect(screen.getByLabelText('Profissional (singular)')).toHaveValue('Tosador')
@@ -79,7 +80,7 @@ test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valo
     fields: { slug: 'Já existe uma conta com este identificador. Escolha outro.', ownerEmail: 'Informe um e-mail válido.' },
     values: { ...EMPTY_VALUES, name: String(fd.get('name')), slug: String(fd.get('slug')) },
   }))
-  render(<Wizard initial={inicial} />)
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   await userEvent.type(screen.getByLabelText('Nome da conta'), 'Pata Viva')
   await userEvent.click(screen.getByRole('link', { name: /Chave de app/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
@@ -113,7 +114,7 @@ test('depois de criar, mostra o segredo da chave uma vez, com aviso e botão de 
       },
     },
   }))
-  render(<Wizard initial={inicial} />)
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   await userEvent.click(screen.getByRole('link', { name: /Chave de app/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
   expect(await screen.findByRole('heading', { name: 'Pata Viva está criada' })).toHaveFocus()

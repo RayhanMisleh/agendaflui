@@ -11,37 +11,28 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notifica
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { adminAction } from '../../_lib/action'
+import { erroDeCampo, feito, ler, renomear } from '../../_lib/campos'
 import type { PlatformAdminActor } from '../../_lib/action'
 import type { FormState } from '../../_lib/form-state'
 import { MSG_CONFLITO } from './forms'
 import type { Campos } from './forms'
 
 /*
- * Ações da página da conta. O primeiro argumento de toda ação é o id da conta, ligado no servidor pela página
- * (`acao.bind(null, id)`): o navegador não manda nem escolhe a conta. Os alvos que ele escolhe (chave, acesso da equipe)
- * são conferidos contra essa conta antes de agir, então um formulário desta conta nunca mexe em item de outra.
- * Todas passam por `adminAction`: `requirePlatformAdmin()` roda em toda execução.
+ * Ações da página da conta. O primeiro argumento de toda ação é o id da conta, ligado pela página (`acao.bind(null, id)`).
+ * Os argumentos ligados trafegam pelo cliente (a referência da ação leva o id junto): eles não são segredo nem prova de
+ * nada. A garantia real é o guarda de admin (`requirePlatformAdmin()` em toda execução, por `adminAction`) e a conferência
+ * do alvo contra a conta: o item que o formulário escolhe (chave, acesso da equipe) precisa existir NESTA conta, então um
+ * formulário nunca mexe em item de outra.
  */
-
-/** Lê os campos nomeados como texto; caixa de marcar vira `'on'` ou `''`; arquivo e campo ausente viram `''`. */
-function ler(fd: FormData, nomes: readonly string[], caixas: readonly string[] = []): Campos {
-  const v: Campos = {}
-  for (const n of nomes) {
-    const x = fd.get(n)
-    v[n] = typeof x === 'string' ? x : ''
-  }
-  for (const n of caixas) v[n] = fd.has(n) ? 'on' : ''
-  return v
-}
 
 function atualizar(): void {
   revalidatePath('/dev/contas/[id]', 'layout')
 }
 
 /** Termina uma ação com sucesso: a página da conta recarrega e o estado diz o que foi feito, com os valores atuais. */
-function feito(mensagem: string, v: Campos, extra: Campos = {}): FormState<Campos> {
+function feitoNaConta(mensagem: string, v: Campos, extra: Campos = {}): FormState<Campos> {
   atualizar()
-  return { ok: true, message: mensagem, fields: {}, values: { ...v, ...extra } }
+  return feito(mensagem, v, extra)
 }
 
 type Entrada = { nomes: readonly string[]; caixas?: readonly string[] }
@@ -68,17 +59,6 @@ async function comVersao<T>(p: Promise<T>): Promise<T> {
   }
 }
 
-/** Troca o nome de campo do domínio pelo do formulário (também `campo.0`, `campo.1` das listas). */
-function renomear(err: unknown, mapa: Record<string, string>): unknown {
-  if (!(err instanceof DomainError) || !err.fields) return err
-  const fields = Object.fromEntries(Object.entries(err.fields).map(([k, m]) => [mapa[k.split('.')[0] ?? k] ?? k, m]))
-  return new DomainError(err.code, err.message, { fields, ...(err.reason ? { reason: err.reason } : {}) })
-}
-
-function erroDeCampo(campo: string, mensagem: string): DomainError {
-  return new DomainError('validation', mensagem, { fields: { [campo]: mensagem } })
-}
-
 function naoVazio(v: Campos, campos: readonly string[]): void {
   for (const c of campos) {
     if ((v[c] ?? '').trim() === '') throw erroDeCampo(c, 'Informe um número.')
@@ -103,14 +83,14 @@ export const salvarDados = porConta(
     const { businessId, version, ...patch } = v
     return comVersao(updateBusinessData(admin, businessId ?? '', Number(version), patch))
   },
-  (r, v) => feito('Dados salvos.', v, { version: String(r.version) }),
+  (r, v) => feitoNaConta('Dados salvos.', v, { version: String(r.version) }),
 )
 
 function situacao(to: BusinessStatus, mensagem: string) {
   return porConta(
     { nomes: ['confirmName'] },
     (admin, v) => setBusinessStatus(admin, v.businessId ?? '', to, { confirmName: v.confirmName ?? '' }),
-    (r, v) => feito(mensagem, { ...v, confirmName: '' }),
+    (r, v) => feitoNaConta(mensagem, { ...v, confirmName: '' }),
   )
 }
 export const suspenderConta = situacao('SUSPENDED', 'Conta suspensa.')
@@ -136,7 +116,7 @@ export const salvarMarca = porConta(
     // O domínio confere cada valor; o tipo só deixa de reclamar da lista de opções.
     return comVersao(updateBrand(admin, v.businessId ?? '', Number(v.version), entrada as BrandInput))
   },
-  (r, v) => feito('Marca salva.', v, { version: String(r.version) }),
+  (r, v) => feitoNaConta('Marca salva.', v, { version: String(r.version) }),
 )
 
 // ---------------------------------------------------------------- termos, módulos, regras e avisos
@@ -155,14 +135,14 @@ export const salvarTermos = porConta(
       pointsPlural: v.pointsPlural ?? '',
       club: v.club ?? '',
     }),
-  (r, v) => feito('Termos salvos.', v),
+  (r, v) => feitoNaConta('Termos salvos.', v),
 )
 
 export const salvarModulos = porConta(
   { nomes: [], caixas: ['loyalty', 'banners', 'store', 'vouchers'] },
   (admin, v) =>
     updateModules(admin, v.businessId ?? '', { loyalty: v.loyalty === 'on', banners: v.banners === 'on', store: v.store === 'on', vouchers: v.vouchers === 'on' }),
-  (r, v) => feito('Módulos salvos.', v),
+  (r, v) => feitoNaConta('Módulos salvos.', v),
 )
 
 const NUMEROS_REGRAS = ['slotStepMin', 'minLeadMin', 'maxAdvanceDays', 'customerChangeWindowMin', 'bufferMin'] as const
@@ -182,7 +162,7 @@ export const salvarRegras = porConta(
     }
     return updateRulesAsAdmin(admin, v.businessId ?? '', regras)
   },
-  (r, v) => feito('Regras e fuso salvos.', v),
+  (r, v) => feitoNaConta('Regras e fuso salvos.', v),
 )
 
 const TIPOS_DE_AVISO = Object.keys(DEFAULT_NOTIFICATION_SETTINGS)
@@ -194,7 +174,7 @@ export const salvarAvisos = porConta(
     const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on', push: v[`${k}__push`] === 'on' }]))
     return updateNotificationsAsAdmin(admin, v.businessId ?? '', todos as NotificationSettings)
   },
-  (r, v) => feito('Avisos salvos.', v),
+  (r, v) => feitoNaConta('Avisos salvos.', v),
 )
 
 // ---------------------------------------------------------------- equipe
@@ -211,7 +191,7 @@ export const convidarMembro = porConta(
   (admin, v) =>
     // O domínio confere nome, e-mail e papel; o tipo só deixa de reclamar da lista de opções.
     inviteMember(admin, v.businessId ?? '', { name: v.name ?? '', email: v.email ?? '', role: (v.role ?? '') as Parameters<typeof inviteMember>[2]['role'] }),
-  (r, v) => feito('Convite enviado. A pessoa já aparece na equipe.', v, { name: '', email: '' }),
+  (r, v) => feitoNaConta('Convite enviado. A pessoa já aparece na equipe.', v, { name: '', email: '' }),
 )
 
 export const trocarPapel = porConta(
@@ -221,7 +201,7 @@ export const trocarPapel = porConta(
     // O domínio confere o papel; o tipo só deixa de reclamar da lista de opções.
     return changeMemberRole(admin, v.membershipId ?? '', (v.role ?? '') as Parameters<typeof changeMemberRole>[2])
   },
-  (r, v) => feito('Papel trocado.', v),
+  (r, v) => feitoNaConta('Papel trocado.', v),
 )
 
 /** Desativar pede o nome da pessoa (ação que tira acesso); reativar não pede nada. */
@@ -235,7 +215,7 @@ export const alternarAcesso = porConta(
     }
     return setMemberActive(admin, membro.membershipId, ativar)
   },
-  (r, v) => feito(r.active ? 'Acesso reativado.' : 'Acesso desativado.', { ...v, confirmName: '' }),
+  (r, v) => feitoNaConta(r.active ? 'Acesso reativado.' : 'Acesso desativado.', { ...v, confirmName: '' }),
 )
 
 export const reenviarConvite = porConta(
@@ -244,7 +224,7 @@ export const reenviarConvite = porConta(
     const membro = await doMembro(admin, v.businessId ?? '', v.membershipId ?? '')
     await resendInvite(admin, membro.membershipId)
   },
-  (r, v) => feito('Convite reenviado.', v),
+  (r, v) => feitoNaConta('Convite reenviado.', v),
 )
 
 // ---------------------------------------------------------------- chaves
@@ -265,7 +245,7 @@ export const criarChave = porConta(
       throw renomear(err, { allowedOrigins: 'origins' })
     }
   },
-  (r, v) => feito('Chave criada.', v, { secret: r.secret, keyName: r.key.name, name: '', origins: '' }),
+  (r, v) => feitoNaConta('Chave criada.', v, { secret: r.secret, keyName: r.key.name, name: '', origins: '' }),
 )
 
 export const revogarChave = porConta(
@@ -275,7 +255,7 @@ export const revogarChave = porConta(
     if (v.confirmName !== chave.name) throw erroDeCampo('confirmName', 'Digite o nome da chave exatamente como aparece, para confirmar.')
     await revokeApiKey(admin, chave.id)
   },
-  (r, v) => feito('Chave revogada.', { ...v, confirmName: '' }),
+  (r, v) => feitoNaConta('Chave revogada.', { ...v, confirmName: '' }),
 )
 
 export const editarOrigens = porConta(
@@ -288,5 +268,5 @@ export const editarOrigens = porConta(
       throw renomear(err, { allowedOrigins: 'origins' })
     }
   },
-  (r, v) => feito('Origens salvas.', v),
+  (r, v) => feitoNaConta('Origens salvas.', v),
 )

@@ -1,7 +1,7 @@
 import { flushUsageOrThrow } from '@/server/api/usage'
 import { purgeRefreshTokens } from '@/server/auth/api-tokens'
 import { purgeRateLimits } from '@/server/auth/rate-limit-db'
-import { purgeSupportHandoffs } from '@/server/auth/support-session'
+import { purgeExpiredSessions, purgeSupportHandoffs } from '@/server/auth/support-session'
 import { purgeVerificationCodes } from '@/server/auth/verification-code'
 import { failureSummary, purgeSchedulerRuns, recordSchedulerRun, summarize, type RunRecorder, type SchedulerKind } from './scheduler-runs'
 import { processDueNotifications } from './worker'
@@ -35,6 +35,7 @@ export async function cleanupRound(now: Date = new Date()): Promise<Record<strin
     tokens: await purgeRefreshTokens(now),
     execucoes: await purgeSchedulerRuns(now),
     passagens: await purgeSupportHandoffs(now),
+    sessoes: await purgeExpiredSessions(now),
   }
 }
 

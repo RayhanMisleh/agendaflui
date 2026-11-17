@@ -54,19 +54,36 @@ const resumoSchema = z.object({
   businessId: z.uuid().optional(),
 })
 
+function conferirIntervalo(from: Date, to: Date): void {
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to.getTime() <= from.getTime()) {
+    throw new DomainError('validation', 'O fim do período precisa ser depois do início.', { fields: { to: 'Escolha uma data depois do início.' } })
+  }
+  if (to.getTime() > addMinutes(from, MAX_RANGE_DAYS * 24 * 60).getTime()) {
+    throw new DomainError('validation', `Escolha um período de até ${MAX_RANGE_DAYS} dias.`, { fields: { to: `O período vai até ${MAX_RANGE_DAYS} dias.` } })
+  }
+}
+
+type RotaResumida = { route: string; count: number; errorCount: number; avgMs: number; maxMs: number }
+
+function resumir(g: { route: string; _sum: { count: number | null; errorCount: number | null; totalMs: bigint | null }; _max: { maxMs: number | null } }): RotaResumida {
+  const count = g._sum.count ?? 0
+  return {
+    route: g.route,
+    count,
+    errorCount: g._sum.errorCount ?? 0,
+    avgMs: count === 0 ? 0 : Math.round(Number(g._sum.totalMs ?? 0n) / count),
+    maxMs: g._max.maxMs ?? 0,
+  }
+}
+
 /** Uso da API por rota no intervalo (horas cheias de `from` até antes de `to`), no máximo 92 dias. Só admin da plataforma. */
 export async function usageSummary(
   actor: PlatformAdminActor,
   q: { from: Date; to: Date; apiKeyId?: string; businessId?: string },
-): Promise<{ route: string; count: number; errorCount: number; avgMs: number; maxMs: number }[]> {
+): Promise<RotaResumida[]> {
   if (actor.kind !== 'platform_admin') throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
   const i = parse(resumoSchema, q)
-  if (!Number.isFinite(i.from.getTime()) || !Number.isFinite(i.to.getTime()) || i.to.getTime() <= i.from.getTime()) {
-    throw new DomainError('validation', 'O fim do período precisa ser depois do início.', { fields: { to: 'Escolha uma data depois do início.' } })
-  }
-  if (i.to.getTime() > addMinutes(i.from, MAX_RANGE_DAYS * 24 * 60).getTime()) {
-    throw new DomainError('validation', `Escolha um período de até ${MAX_RANGE_DAYS} dias.`, { fields: { to: `O período vai até ${MAX_RANGE_DAYS} dias.` } })
-  }
+  conferirIntervalo(i.from, i.to)
   const grupos = await prisma.apiUsageHourly.groupBy({
     by: ['route'],
     where: {
@@ -78,14 +95,32 @@ export async function usageSummary(
     _max: { maxMs: true },
     orderBy: { route: 'asc' },
   })
-  return grupos.map((g) => {
-    const count = g._sum.count ?? 0
-    return {
-      route: g.route,
-      count,
-      errorCount: g._sum.errorCount ?? 0,
-      avgMs: count === 0 ? 0 : Math.round(Number(g._sum.totalMs ?? 0n) / count),
-      maxMs: g._max.maxMs ?? 0,
-    }
+  return grupos.map(resumir)
+}
+
+const porChaveSchema = z.object({ from: z.date(), to: z.date(), apiKeyIds: z.array(z.uuid()).max(500) })
+
+/**
+ * Uso por chave e rota no intervalo, de várias chaves de uma vez (um `groupBy` só, em vez de um por chave). Toda chave pedida
+ * aparece no resultado, com lista vazia se não teve uso. Mesmo teto de intervalo de `usageSummary`. Só admin da plataforma.
+ */
+export async function usageByKey(
+  actor: PlatformAdminActor,
+  q: { from: Date; to: Date; apiKeyIds: string[] },
+): Promise<Map<string, RotaResumida[]>> {
+  if (actor.kind !== 'platform_admin') throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
+  const i = parse(porChaveSchema, q)
+  conferirIntervalo(i.from, i.to)
+  const ids = [...new Set(i.apiKeyIds)]
+  const resultado = new Map<string, RotaResumida[]>(ids.map((id) => [id, []]))
+  if (ids.length === 0) return resultado
+  const grupos = await prisma.apiUsageHourly.groupBy({
+    by: ['apiKeyId', 'route'],
+    where: { hour: { gte: startOfUtcHour(i.from), lt: i.to }, apiKeyId: { in: ids } },
+    _sum: { count: true, errorCount: true, totalMs: true },
+    _max: { maxMs: true },
+    orderBy: [{ apiKeyId: 'asc' }, { route: 'asc' }],
   })
+  for (const g of grupos) resultado.get(g.apiKeyId)?.push(resumir(g))
+  return resultado
 }

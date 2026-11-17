@@ -6,6 +6,7 @@ import { listAudit } from '@/server/domain/platform/audit-log'
 import { listBusinesses } from '@/server/domain/platform/businesses'
 import { Button, EmptyState, Field, Input, LinkButton, Pagination, Paper, Select } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
+import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
 import { GlobalAuditTable } from './GlobalAuditTable'
 import { TIPOS_DE_ATOR, lerFiltros } from './filtros'
@@ -85,6 +86,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
             ) : null}
           </div>
         </form>
+        <HorariosNota />
         {aviso ? (
           <p role="alert" className="af-global__msg">
             {aviso}

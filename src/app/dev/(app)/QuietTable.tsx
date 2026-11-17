@@ -17,15 +17,6 @@ const COLUNAS: DataColumn<ContaQuieta>[] = [
     ),
   },
   { key: 'ultima', header: 'Última atividade', nowrap: true, cell: (c) => c.ultima ?? 'Nunca teve atividade' },
-  {
-    key: 'ver',
-    header: 'Atalho',
-    cell: (c) => (
-      <Link href={`/contas/${c.id}`} className="af-link-break" aria-label={`Abrir a conta ${c.name}`}>
-        Abrir a conta
-      </Link>
-    ),
-  },
 ]
 
 /** Contas ativas sem agendamento recente, cada uma com atalho para a página da conta. */

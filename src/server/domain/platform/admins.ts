@@ -38,6 +38,15 @@ export async function listAdmins(actor: PlatformAdminActor): Promise<AdminRow[]>
   return prisma.platformAdmin.findMany({ select: SELECAO, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
 }
 
+/** O próprio admin (nunca a lista de todos): `not_found` se a linha não existe mais, `forbidden` se foi desativado. */
+export async function getOwnProfile(actor: PlatformAdminActor): Promise<AdminRow> {
+  assertPlatformAdmin(actor)
+  const eu = UUID.test(actor.adminId) ? await prisma.platformAdmin.findUnique({ where: { id: actor.adminId }, select: SELECAO }) : null
+  if (!eu) throw adminInexistente()
+  if (!eu.active) throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
+  return eu
+}
+
 /** Cria o admin com a senha escolhida (argon2). E-mail repetido é erro do campo. A senha nunca vai para a auditoria. */
 export async function createAdmin(actor: PlatformAdminActor, input: { name: string; email: string; password: string }): Promise<AdminRow> {
   assertPlatformAdmin(actor)

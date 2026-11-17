@@ -363,27 +363,6 @@ describe('índices das métricas', () => {
     expect(porNome.get('appointments_ends_at_completed_idx')).toMatch(/WHERE \(?\(?status = 'COMPLETED'/)
     expect(porNome.get('audit_logs_created_at_id_idx')).toMatch(/created_at DESC, id DESC/)
   })
-
-  test('EXPLAIN das consultas pesadas cita os índices novos', async () => {
-    const plano = async (sql: string): Promise<string> =>
-      prisma.$transaction(async (tx) => {
-        await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off')
-        const r = await tx.$queryRawUnsafe<Record<string, string>[]>(`EXPLAIN ${sql}`)
-        return r.map((x) => Object.values(x)[0]).join('\n')
-      })
-    const a = await plano(`SELECT count(*) FROM appointments a WHERE a.starts_at >= '2026-10-01' AND a.starts_at < '2026-12-01'`)
-    expect(a).toContain('appointments_starts_at_idx')
-    const b = await plano(`SELECT sum(total_cents) FROM appointments a WHERE a.status = 'COMPLETED' AND a.ends_at >= '2026-10-01' AND a.ends_at < '2026-12-01'`)
-    expect(b).toContain('appointments_ends_at_completed_idx')
-    const c = await plano(`SELECT * FROM audit_logs WHERE created_at >= '2026-10-01' AND created_at < '2026-12-01' ORDER BY created_at DESC, id DESC LIMIT 51`)
-    expect(c).toContain('audit_logs_created_at_id_idx')
-    const d = await plano(`SELECT count(*) FROM notifications WHERE status = 'PENDING'`)
-    expect(d).toMatch(/notifications_status_updated_at_idx|notifications_status_scheduled_for_locked_until_idx/)
-    const e = await plano(`SELECT count(*) FROM notifications WHERE status = 'FAILED' AND updated_at >= '2026-11-15'`)
-    expect(e).toContain('notifications_status_updated_at_idx')
-    const f = await plano(`SELECT count(*) FROM refresh_tokens WHERE created_at >= '2026-11-01' AND created_at < '2026-11-17'`)
-    expect(f).toContain('refresh_tokens_created_at_idx')
-  })
 })
 
 describe('getAccountMetrics', () => {

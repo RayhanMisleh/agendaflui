@@ -109,6 +109,14 @@ describe('listAudit: filtros', () => {
     expect((await domainError(listAudit(actor, { cursor: 'lixo' }, NOW))).code).toBe('validation')
   })
 
+  test('ação com caractere de controle (NUL, quebra de linha, espaço de largura zero) é recusada como validação, sem chegar ao banco', async () => {
+    for (const action of ['a\u0000b', '\u0000', 'a\nb', 'a\u200Bb']) {
+      const e = await domainError(listAudit(actor, { action }, NOW))
+      expect(e.code, JSON.stringify(action)).toBe('validation')
+      expect(e.fields?.['action']).toBeTruthy()
+    }
+  })
+
   test('ator que não é admin da plataforma: forbidden', async () => {
     const intruso = { kind: 'system' } as unknown as PlatformAdminActor
     expect((await domainError(listAudit(intruso, {}, NOW))).code).toBe('forbidden')

@@ -131,11 +131,20 @@ async function adminInativo(prisma: PrismaClient, ator: AdminAtor, now: Date): P
   await setAdminActive(ator, criado.id, false, now)
 }
 
-/** Conta suspensa: criada e suspensa só na primeira vez; se já existe, o que o admin fez com ela vale. */
+/**
+ * Conta suspensa: criada e suspensa só na primeira vez; se já existe, o que o admin fez com ela vale. A exceção é a conta
+ * que a rodada anterior criou mas não chegou a suspender (falha entre as duas transações): ativa e sem nenhuma auditoria de
+ * mudança de situação feita por admin, ela é suspensa agora.
+ */
 async function contaSuspensa(prisma: PrismaClient, ator: AdminAtor, donoId: string, now: Date): Promise<void> {
   const c = DEMO_CONTA_SUSPENSA
-  if (await prisma.business.findUnique({ where: { slug: c.slug } })) {
-    await prisma.business.update({ where: { slug: c.slug }, data: { searchName: searchKey(c.nome) } })
+  const { setBusinessStatus } = await import('../src/server/domain/platform/businesses')
+  const existente = await prisma.business.findUnique({ where: { slug: c.slug }, select: { id: true, status: true } })
+  if (existente) {
+    await prisma.business.update({ where: { id: existente.id }, data: { searchName: searchKey(c.nome) } })
+    if (existente.status !== 'ACTIVE') return
+    const mudou = await prisma.auditLog.count({ where: { businessId: existente.id, action: 'business.status_changed', actorType: 'PLATFORM_ADMIN' } })
+    if (mudou === 0) await setBusinessStatus(ator, existente.id, 'SUSPENDED', { confirmName: c.nome }, now)
     return
   }
   const negocio = await prisma.business.create({
@@ -151,7 +160,6 @@ async function contaSuspensa(prisma: PrismaClient, ator: AdminAtor, donoId: stri
       memberships: { create: { userId: donoId, role: 'OWNER' } },
     },
   })
-  const { setBusinessStatus } = await import('../src/server/domain/platform/businesses')
   await setBusinessStatus(ator, negocio.id, 'SUSPENDED', { confirmName: c.nome }, now)
 }
 

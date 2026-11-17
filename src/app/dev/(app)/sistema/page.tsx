@@ -3,14 +3,15 @@ import { requirePlatformAdmin } from '@/server/auth/guards'
 import { getSystemStatus } from '@/server/domain/platform/system'
 import { EmptyState, Lamp, Paper } from '@/ui/components'
 import type { LampState } from '@/ui/components'
+import { formatInt } from '@/ui/format'
 import { DevFrame } from '../DevFrame'
+import { HorariosNota } from '../_lib/HorariosNota'
 import { quando, tamanho } from '../_lib/format'
 import { ExecucoesTable, FalhasTable, TabelasTable } from './SistemaTables'
 import { tentarDeNovo } from './actions'
 
 export const metadata: Metadata = { title: 'Sistema | AgendaFlui' }
 
-const INT = new Intl.NumberFormat('pt-BR')
 const NOMES_TAREFA: Record<string, string> = { notifications: 'Envio de avisos', cleanup: 'Limpeza', usage_flush: 'Gravação do uso da API' }
 
 export default async function SistemaPage() {
@@ -20,25 +21,27 @@ export default async function SistemaPage() {
   const { queue } = s
   const filaLamp: LampState = queue.failed24h > 0 ? 'error' : queue.pending > 0 ? 'warn' : 'on'
 
-  const falhas = s.recentFailures.map((f, i) => ({
-    chave: `${f.notificationId ?? 'tarefa'}-${f.at.getTime()}-${i}`,
+  const falhas = s.recentFailures.map((f) => ({
+    // Chave estável: o id do aviso (uma falha por aviso); falha de tarefa não tem id e vale pelo tipo, código e instante.
+    chave: f.notificationId ?? `tarefa-${f.kind}-${f.code}-${f.at.getTime()}`,
     quando: quando(f.at),
     tipo: f.kind,
     codigo: f.code,
     conta: f.businessName,
     tentar: f.notificationId ? tentarDeNovo.bind(null, f.notificationId) : null,
   }))
-  const execucoes = s.scheduler.lastRuns.map((r, i) => ({
-    chave: `${r.kind}-${r.startedAt.getTime()}-${i}`,
+  const execucoes = s.scheduler.lastRuns.map((r) => ({
+    chave: `${r.kind}-${r.startedAt.getTime()}`,
     tipo: NOMES_TAREFA[r.kind] ?? r.kind,
     inicio: quando(r.startedAt),
-    duracao: r.finishedAt ? `${INT.format(Math.max(0, r.finishedAt.getTime() - r.startedAt.getTime()))} ms` : 'Não terminou',
+    duracao: r.finishedAt ? `${formatInt(Math.max(0, r.finishedAt.getTime() - r.startedAt.getTime()))} ms` : 'Não terminou',
     ok: r.ok,
     resumo: r.summary,
   }))
 
   return (
     <DevFrame admin={admin} title="Sistema">
+      <HorariosNota />
       <div className="af-global">
         <Paper raised={1} className="af-listpanel">
           <h2 className="af-section__title">Fila de avisos</h2>
@@ -46,7 +49,7 @@ export default async function SistemaPage() {
           <dl className="af-global__facts">
             <div>
               <dt>Pendentes</dt>
-              <dd>{INT.format(queue.pending)}</dd>
+              <dd>{formatInt(queue.pending)}</dd>
             </div>
             <div>
               <dt>Mais antigo pendente</dt>
@@ -54,11 +57,11 @@ export default async function SistemaPage() {
             </div>
             <div>
               <dt>Falhas em 24 h</dt>
-              <dd>{INT.format(queue.failed24h)}</dd>
+              <dd>{formatInt(queue.failed24h)}</dd>
             </div>
             <div>
               <dt>Descartados em 24 h</dt>
-              <dd>{INT.format(queue.skipped24h)}</dd>
+              <dd>{formatInt(queue.skipped24h)}</dd>
             </div>
           </dl>
         </Paper>

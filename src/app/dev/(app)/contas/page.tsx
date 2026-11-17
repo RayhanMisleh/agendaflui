@@ -6,6 +6,7 @@ import { listBusinesses } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
 import { EmptyState, LinkButton, Pagination, Paper, SearchBar } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
+import { um } from '../_lib/params'
 import { ContasTable } from './ContasTable'
 
 export const metadata: Metadata = { title: 'Contas | AgendaFlui' }
@@ -17,10 +18,6 @@ const FILTRO_SITUACAO = [
   { value: 'SUSPENDED', label: 'Suspensas' },
   { value: 'ARCHIVED', label: 'Arquivadas' },
 ]
-
-function um(valor: string | string[] | undefined): string {
-  return (Array.isArray(valor) ? valor[0] : valor) ?? ''
-}
 
 export default async function ContasPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const admin = await requirePlatformAdmin()

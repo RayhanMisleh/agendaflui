@@ -9,6 +9,7 @@ import { prisma } from '@/server/db/client'
 import {
   changeOwnPassword,
   createAdmin,
+  getOwnProfile,
   listAdmins,
   setAdminActive,
   updateOwnProfile,
@@ -137,6 +138,19 @@ describe('setAdminActive', () => {
   test('admin que não existe: not_found', async () => {
     expect((await domainError(setAdminActive(actor, randomUUID(), false))).code).toBe('not_found')
     expect((await domainError(setAdminActive(actor, 'x', false))).code).toBe('not_found')
+  })
+})
+
+describe('getOwnProfile', () => {
+  test('devolve só o próprio admin; inexistente é not_found e desativado é forbidden', async () => {
+    await createAdmin(actor, { name: 'Beto Admin', email: 'beto@exemplo.test', password: 'uma-senha-de-beto-1' })
+    expect(await getOwnProfile(actor)).toMatchObject({ id: admin.id, name: 'Ana Admin', email: 'ana@exemplo.test', active: true })
+    const fantasma = { kind: 'platform_admin' as const, adminId: randomUUID(), name: 'Fantasma' }
+    expect((await domainError(getOwnProfile(fantasma))).code).toBe('not_found')
+    await prisma.platformAdmin.update({ where: { id: admin.id }, data: { active: false } })
+    expect((await domainError(getOwnProfile(actor))).code).toBe('forbidden')
+    const intruso = { kind: 'system' } as unknown as PlatformAdminActor
+    expect((await domainError(getOwnProfile(intruso))).code).toBe('forbidden')
   })
 })
 

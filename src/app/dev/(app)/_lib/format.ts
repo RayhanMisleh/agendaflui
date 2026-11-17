@@ -8,6 +8,18 @@ export function quando(instant: Date): string {
   return formatDateTime(instant, PLATFORM_TIME_ZONE)
 }
 
+/**
+ * Fração de requisições sem erro, arredondada para BAIXO na primeira casa do percentual: com erro nunca aparece 100,0%.
+ * Sem requisições não há falha: 1.
+ */
+export function taxaDeSucesso(requests: number, errors: number): number {
+  if (requests <= 0) return 1
+  return Math.floor(((requests - Math.min(errors, requests)) * 1000) / requests) / 1000
+}
+
+/** Nome do fuso das telas, para a nota "Horários de Brasília" (uma vez por tela). */
+export const PLATFORM_TIME_ZONE_NAME = 'Brasília'
+
 const UM_DECIMAL = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 })
 
 /** Tamanho em unidade legível (B, KB, MB, GB, TB), com vírgula decimal. */

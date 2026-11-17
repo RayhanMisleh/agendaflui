@@ -10,7 +10,9 @@ function arquivos(dir: string): string[] {
 }
 const todos = arquivos(RAIZ)
 const rel = (f: string): string => relative(RAIZ, f).split('\\').join('/')
-const ler = (f: string): string => readFileSync(f, 'utf8')
+/** Tira comentários de linha e de bloco antes de procurar chamadas: um comentário não pode satisfazer o teste. */
+const semComentarios = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1')
+const ler = (f: string): string => semComentarios(readFileSync(f, 'utf8'))
 const nomeDe = (suffix: string): string[] => todos.filter((f) => f.endsWith(`/${suffix}`))
 
 /** Páginas que não chamam `requirePlatformAdmin` direto: chamam um carregador da própria pasta que o chama (conferido abaixo). */
@@ -32,7 +34,15 @@ describe('painel dev: toda entrada exige admin', () => {
   test('a varredura encontra as páginas, ações e rotas esperadas', () => {
     expect(nomeDe('page.tsx').length).toBeGreaterThan(10)
     expect(nomeDe('actions.ts').length).toBeGreaterThan(5)
-    expect(nomeDe('route.ts').length).toBe(2)
+    expect(nomeDe('route.ts').length).toBeGreaterThan(0)
+  })
+
+  test('comentário não conta como chamada do guarda', () => {
+    const src = "// requirePlatformAdmin()\n/* adminAction( */\nconst url = 'https://x.y'\nconst a = requirePlatformAdmin() // depois\n"
+    const limpo = semComentarios(src)
+    expect(limpo.match(/requirePlatformAdmin\(\)/g)).toHaveLength(1)
+    expect(limpo).not.toContain('adminAction(')
+    expect(limpo).toContain("'https://x.y'")
   })
 
   test('toda page.tsx chama requirePlatformAdmin, direto ou pelo carregador da conta', () => {

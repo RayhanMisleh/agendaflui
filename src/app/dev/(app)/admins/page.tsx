@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { listAdmins } from '@/server/domain/platform/admins'
-import { LinkButton } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
+import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
 import { AdminsPanel } from './AdminsPanel'
 import { criarAdmin, desativarAdmin, reativarAdmin } from './actions'
@@ -20,10 +20,12 @@ export default async function AdminsPage() {
     voce: a.id === admin.adminId,
     ultimoAcesso: a.lastLoginAt ? quando(a.lastLoginAt) : null,
     criadoEm: quando(a.createdAt),
-    alternar: (a.active ? desativarAdmin : reativarAdmin).bind(null, a.id),
+    // O domínio recusa desativar a si mesmo; a tela nem oferece (quem é você não ganha ação).
+    alternar: a.id === admin.adminId ? null : (a.active ? desativarAdmin : reativarAdmin).bind(null, a.id),
   }))
   return (
-    <DevFrame admin={admin} title="Admins" actions={<LinkButton href="/perfil">Meu perfil</LinkButton>}>
+    <DevFrame admin={admin} title="Admins">
+      <HorariosNota />
       <AdminsPanel criar={criarAdmin} admins={admins} />
     </DevFrame>
   )

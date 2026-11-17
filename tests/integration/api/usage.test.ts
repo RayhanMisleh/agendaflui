@@ -1,3 +1,4 @@
+import pg from 'pg'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { GET as business } from '@/app/api/v1/business/route'
 import { GET as health } from '@/app/api/v1/health/route'
@@ -5,6 +6,7 @@ import { GET as availability } from '@/app/api/v1/availability/route'
 import { GET as meAppointments } from '@/app/api/v1/appointments/route'
 import { defineRoute } from '@/server/api/define-route'
 import { flushUsage, MAX_PENDING_USAGE, recordUsage, usageSummary } from '@/server/api/usage'
+import { usageByKey } from '@/server/domain/platform/api-usage'
 import { prisma } from '@/server/db/client'
 import { z } from '@/server/domain/errors'
 import { addMinutes, fromEpochMs } from '@/server/time'
@@ -240,5 +242,66 @@ describe('usageSummary', () => {
     expect((await domainError(usageSummary(a, { from: H0, to: addMinutes(H0, 60 * 24 * 93) }))).code).toBe('validation')
     expect((await domainError(usageSummary(a, { from: addMinutes(H0, 60), to: H0 }))).code).toBe('validation')
     await expect(usageSummary(a, { from: H0, to: addMinutes(H0, 60 * 24 * 92) })).resolves.toEqual([])
+  })
+})
+
+describe('usageByKey', () => {
+  test('soma por chave e por rota no intervalo, só das chaves pedidas, sem misturar chaves', async () => {
+    const a = await admin()
+    const outraChave = await makeAppKey(c.business.id)
+    const base = { businessId: c.business.id }
+    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/business', ms: 10, error: false, at: H0 })
+    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/business', ms: 30, error: true, at: addMinutes(H0, 120) })
+    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/services', ms: 8, error: false, at: H0 })
+    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/services', ms: 8, error: false, at: addMinutes(H0, 60 * 24 * 10) })
+    recordUsage({ ...base, apiKeyId: outraChave.id, route: 'GET /v1/business', ms: 100, error: false, at: H0 })
+    await flushUsage()
+    const q = { from: H0, to: addMinutes(H0, 60 * 24) }
+    const r = await usageByKey(a, { ...q, apiKeyIds: [c.keyId, outraChave.id] })
+    expect(r.get(c.keyId)).toEqual([
+      { route: 'GET /v1/business', count: 2, errorCount: 1, avgMs: 20, maxMs: 30 },
+      { route: 'GET /v1/services', count: 1, errorCount: 0, avgMs: 8, maxMs: 8 },
+    ])
+    expect(r.get(outraChave.id)).toEqual([{ route: 'GET /v1/business', count: 1, errorCount: 0, avgMs: 100, maxMs: 100 }])
+    const so = await usageByKey(a, { ...q, apiKeyIds: [outraChave.id] })
+    expect([...so.keys()]).toEqual([outraChave.id])
+    expect((await usageByKey(a, { ...q, apiKeyIds: [] })).size).toBe(0)
+    // Chave sem uso no intervalo: lista vazia, não ausente.
+    const semUso = await usageByKey(a, { from: addMinutes(H0, 60 * 24 * 30), to: addMinutes(H0, 60 * 24 * 31), apiKeyIds: [c.keyId] })
+    expect(semUso.get(c.keyId)).toEqual([])
+  })
+
+  test('exige admin da plataforma, recusa id inválido e confere o teto do intervalo', async () => {
+    const falso = { kind: 'system' } as unknown as Parameters<typeof usageByKey>[0]
+    expect((await domainError(usageByKey(falso, { from: H0, to: addMinutes(H0, 60), apiKeyIds: [] }))).code).toBe('forbidden')
+    const a = await admin()
+    expect((await domainError(usageByKey(a, { from: H0, to: addMinutes(H0, 60), apiKeyIds: ['x'] }))).code).toBe('validation')
+    expect((await domainError(usageByKey(a, { from: H0, to: addMinutes(H0, 60 * 24 * 93), apiKeyIds: [UUID] }))).code).toBe('validation')
+    expect((await domainError(usageByKey(a, { from: addMinutes(H0, 60), to: H0, apiKeyIds: [UUID] }))).code).toBe('validation')
+  })
+
+  test('o número de consultas não cresce com o número de chaves', async () => {
+    const a = await admin()
+    const ids = [c.keyId]
+    for (let i = 0; i < 6; i++) ids.push((await makeAppKey(c.business.id)).id)
+    const q = { from: H0, to: addMinutes(H0, 60 * 24) }
+    const contar = async (apiKeyIds: string[]): Promise<number> => {
+      const original = pg.Client.prototype.query as unknown as (...x: unknown[]) => unknown
+      let n = 0
+      const espia = vi.spyOn(pg.Client.prototype, 'query').mockImplementation(function (this: unknown, ...args: unknown[]) {
+        n += 1
+        return original.apply(this, args)
+      } as never)
+      try {
+        await usageByKey(a, { ...q, apiKeyIds })
+      } finally {
+        espia.mockRestore()
+      }
+      return n
+    }
+    const comUma = await contar(ids.slice(0, 1))
+    const comSete = await contar(ids)
+    expect(comUma).toBeGreaterThan(0)
+    expect(comSete).toBe(comUma)
   })
 })

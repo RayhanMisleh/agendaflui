@@ -1,5 +1,5 @@
 'use client'
-import { useActionState } from 'react'
+import { useState, useTransition } from 'react'
 import { Button, DataList, Lamp } from '@/ui/components'
 import type { DataColumn, LampState } from '@/ui/components'
 import { estadoInicial } from '../contas/[id]/forms'
@@ -9,25 +9,34 @@ export type Falha = { chave: string; quando: string; tipo: string; codigo: strin
 export type Execucao = { chave: string; tipo: string; inicio: string; duracao: string; ok: boolean; resumo: string }
 export type TabelaGrande = { nome: string; tamanho: string }
 
-function TentarDeNovo({ acao, aviso }: { acao: AcaoConta; aviso: string }) {
-  const [state, action, pending] = useActionState(acao, estadoInicial({}))
+type Resultado = { ok: boolean; message: string }
+
+/**
+ * O botão só dispara a ação; a confirmação aparece fora da linha (em `FalhasTable`), porque a linha some da lista assim que o
+ * aviso volta à fila e levaria a mensagem junto.
+ */
+function TentarDeNovo({ acao, aviso, onResultado }: { acao: AcaoConta; aviso: string; onResultado: (r: Resultado | null) => void }) {
+  const [pending, start] = useTransition()
   return (
-    <div className="af-global__retry">
-      <form action={action}>
-        <Button type="submit" size="sm" variant="secondary" loading={pending} aria-label={`Tentar de novo: ${aviso}`}>
-          Tentar de novo
-        </Button>
-      </form>
-      {state.message ? (
-        <p role={state.ok ? 'status' : 'alert'} className={state.ok ? 'af-global__msg af-global__msg--ok' : 'af-global__msg'}>
-          {state.message}
-        </p>
-      ) : null}
-    </div>
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      loading={pending}
+      aria-label={`Tentar de novo: ${aviso}`}
+      onClick={() =>
+        start(async () => {
+          const r = await acao(estadoInicial({}), new FormData())
+          onResultado(r.message ? { ok: r.ok, message: r.message } : null)
+        })
+      }
+    >
+      Tentar de novo
+    </Button>
   )
 }
 
-const COLUNAS_FALHAS: DataColumn<Falha>[] = [
+const COLUNAS_FALHAS = (onResultado: (r: Resultado | null) => void): DataColumn<Falha>[] => [
   { key: 'quando', header: 'Quando', primary: true, nowrap: true, cell: (f) => f.quando },
   { key: 'tipo', header: 'O que falhou', cell: (f) => <code>{f.tipo}</code> },
   { key: 'codigo', header: 'Código', cell: (f) => <code>{f.codigo}</code> },
@@ -35,12 +44,23 @@ const COLUNAS_FALHAS: DataColumn<Falha>[] = [
   {
     key: 'acao',
     header: 'Ação',
-    cell: (f) => (f.tentar ? <TentarDeNovo acao={f.tentar} aviso={`${f.tipo} de ${f.conta ?? 'sem conta'}`} /> : 'Só o aviso pode ser reenviado'),
+    cell: (f) =>
+      f.tentar ? <TentarDeNovo acao={f.tentar} aviso={`${f.tipo} de ${f.conta ?? 'sem conta'}`} onResultado={onResultado} /> : 'Só o aviso pode ser reenviado',
   },
 ]
 
 export function FalhasTable({ falhas, vazio }: { falhas: Falha[]; vazio: React.ReactNode }) {
-  return <DataList label="Falhas recentes" columns={COLUNAS_FALHAS} rows={falhas} rowKey={(f) => f.chave} empty={vazio} />
+  const [resultado, setResultado] = useState<Resultado | null>(null)
+  return (
+    <>
+      <DataList label="Falhas recentes" columns={COLUNAS_FALHAS(setResultado)} rows={falhas} rowKey={(f) => f.chave} empty={vazio} />
+      {resultado ? (
+        <p role={resultado.ok ? 'status' : 'alert'} className={resultado.ok ? 'af-global__msg af-global__msg--ok' : 'af-global__msg'}>
+          {resultado.message}
+        </p>
+      ) : null}
+    </>
+  )
 }
 
 const COLUNAS_EXECUCOES: DataColumn<Execucao>[] = [

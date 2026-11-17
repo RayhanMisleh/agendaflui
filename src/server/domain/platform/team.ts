@@ -227,6 +227,10 @@ async function alterarVinculo(
       })
       await revokeMemberTokensIn(tx, businessId, membershipId, now)
     }
+    // Quem fica sem nenhum acesso ativo e ainda não tem senha não pode definir a senha por um link antigo.
+    if (desativou && atual.user.passwordHash === null && (await tx.membership.count({ where: { userId: atual.user.id, active: true } })) === 0) {
+      await tx.userToken.deleteMany({ where: { userId: atual.user.id, purpose: 'INVITE', usedAt: null } })
+    }
     if (novo.role !== atual.role) {
       await auditPlatform(tx, actor, {
         businessId,

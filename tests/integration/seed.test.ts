@@ -217,6 +217,17 @@ describe('dados do painel dev', () => {
     expect((await prisma.business.findUniqueOrThrow({ where: { slug: 'estudio-sol-nascente' } })).status).toBe('ACTIVE')
   })
 
+  test('conta de demonstração que ficou ativa por falha entre criar e suspender é suspensa na rodada seguinte', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    // Estado que a falha deixa: conta ativa e nenhuma auditoria de mudança de situação feita pelo admin.
+    const conta = await prisma.business.findUniqueOrThrow({ where: { slug: 'estudio-sol-nascente' } })
+    await prisma.business.update({ where: { id: conta.id }, data: { status: 'ACTIVE' } })
+    await prisma.auditLog.deleteMany({ where: { businessId: conta.id, action: 'business.status_changed' } })
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).status).toBe('SUSPENDED')
+    expect(await prisma.auditLog.count({ where: { businessId: conta.id, action: 'business.status_changed', actorType: 'PLATFORM_ADMIN' } })).toBe(1)
+  })
+
   test('sem arquivo de chaves não há uso, mas o resto existe', async () => {
     await seed(prisma, ENV, { now: NOW })
     expect(await prisma.apiUsageHourly.count()).toBe(0)

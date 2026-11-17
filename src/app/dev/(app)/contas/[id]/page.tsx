@@ -2,41 +2,22 @@ import type { Metadata } from 'next'
 import { Counter, Paper } from '@/ui/components'
 import { DomainError } from '@/server/domain/errors'
 import { getAccountMetrics } from '@/server/domain/platform/metrics'
-import { formatDateTime } from '@/server/time'
+import { HorariosNota } from '../../_lib/HorariosNota'
+import { quando } from '../../_lib/format'
+import { um } from '../../_lib/params'
 import { carregarConta } from './_data'
 import { salvarDados } from './actions'
 import { DadosForm } from './FormsConta'
+import { traduzirFaltou, traduzirSuporte } from './codigos-url'
 
 export const metadata: Metadata = { title: 'Conta | AgendaFlui' }
-
-/** O que cada código de `?faltou=` quer dizer. O código vem da criação em etapas; nunca traz segredo. */
-const FALTOU: Record<string, string> = {
-  marca: 'a marca (cores, material e fontes)',
-  logo: 'a logo',
-  termos: 'os termos',
-  modulos: 'os módulos',
-  regras: 'as regras de agenda',
-  chave: 'a chave de app',
-}
-
-const SUPORTE: Record<string, string> = {
-  arquivada: 'Esta conta está arquivada. Reative a conta para entrar como suporte.',
-  falhou: 'Não foi possível entrar como suporte agora. Tente de novo; se continuar, confira se a conta está ativa.',
-}
-
-function um(valor: string | string[] | undefined): string {
-  return (Array.isArray(valor) ? valor[0] : valor) ?? ''
-}
 
 export default async function ContaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
   const q = await searchParams
   const { admin, conta } = await carregarConta(id)
-  const faltou = um(q.faltou)
-    .split(',')
-    .map((c) => FALTOU[c])
-    .filter((t): t is string => t !== undefined)
-  const suporte = SUPORTE[um(q.suporte)]
+  const faltou = traduzirFaltou(um(q.faltou))
+  const suporte = traduzirSuporte(um(q.suporte))
 
   let metricas: Awaited<ReturnType<typeof getAccountMetrics>> | null = null
   let avisoMetricas: string | null = null
@@ -75,8 +56,9 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
             </div>
             <p className="af-listpanel__summary">
               Mês passado: {metricas.appointments.month.previous} agendamentos. Última atividade:{' '}
-              {metricas.lastActivityAt ? formatDateTime(metricas.lastActivityAt, conta.timeZone) : 'nenhuma ainda'}.
+              {metricas.lastActivityAt ? quando(metricas.lastActivityAt) : 'nenhuma ainda'}.
             </p>
+            <HorariosNota />
           </>
         ) : (
           <p className="af-wizard__note">{avisoMetricas}</p>

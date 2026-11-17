@@ -1,9 +1,10 @@
+import { formatInt } from '../format'
+
 export type TrendDirection = 'up' | 'down' | 'same'
 
 /** A tendência pronta para mostrar: direção (para a seta), frase e, quando há, o total do mês anterior como referência. */
 export type TrendInfo = { direction: TrendDirection; text: string; reference?: string }
 
-const INT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
 
 /**
  * Compara o mês até hoje com o MESMO trecho do mês passado (comparação honesta de mês parcial com mês parcial) e diz o
@@ -12,7 +13,7 @@ const INT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
  */
 export function describeTrend(
   t: { current: number; previousSamePeriod: number; previous: number },
-  fmt: (n: number) => string = (n) => INT.format(n),
+  fmt: (n: number) => string = (n) => formatInt(n),
 ): TrendInfo {
   const diff = t.current - t.previousSamePeriod
   const reference = `Mês passado inteiro: ${fmt(t.previous)}`

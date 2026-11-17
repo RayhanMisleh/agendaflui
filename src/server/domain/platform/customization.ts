@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Actor } from '@/server/auth/actor'
 import { createPlatformAdminContext } from '@/server/auth/context'
+import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import { DomainError, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
@@ -87,10 +88,11 @@ const cor = z
 const MSG_MARCACAO = 'Não use os sinais < e >.'
 const MSG_CONTROLE = 'Não use caracteres de controle (como quebra de linha ou tabulação).'
 // \p{C}: controle, formato (como o espaço de largura zero), surrogates soltos e não atribuídos.
-const SEM_CONTROLE = (v: string) => !/\p{C}/u.test(v)
+// O U+200D (junção de emoji) vale: sem ele os emojis compostos (família, profissões) se quebram.
+const SEM_CONTROLE = (v: string) => !/[^\P{C}\u200D]/u.test(v)
 const SEM_MARCACAO = (v: string) => !/[<>]/.test(v)
 // Na mensagem de entrada a quebra de linha vale; qualquer outro caractere de controle não.
-const SEM_CONTROLE_EXCETO_LINHA = (v: string) => !/[^\P{C}\r\n]/u.test(v)
+const SEM_CONTROLE_EXCETO_LINHA = (v: string) => !/[^\P{C}\r\n\u200D]/u.test(v)
 
 const marcaSchema = z.strictObject({
   displayName: z
@@ -173,6 +175,7 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
   const v = parse(z.number().int().min(1), version)
   const i = parse(marcaSchema, input)
   await prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
     const atual = orNotFound(await tx.businessBranding.findUnique({ where: { businessId } }), 'Marca da conta')
     const changes: Record<string, { from: string; to: string }> = {}
     for (const [campo, coluna] of CAMPOS_MARCA) {
@@ -261,6 +264,7 @@ export async function setBrandImage(
   let antiga: string | null
   try {
     antiga = await prisma.$transaction(async (tx) => {
+      await requireActiveAdmin(tx, actor)
       const linhas = await tx.$queryRaw<{ antiga: string | null }[]>(
         Prisma.sql`SELECT ${s.coluna} AS antiga FROM business_branding WHERE business_id = ${businessId}::uuid FOR UPDATE`,
       )
@@ -338,6 +342,7 @@ export async function updateTerms(actor: PlatformAdminActor, businessId: string,
   idValido(businessId)
   const i = parse(termosSchema, input)
   return prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
     const antes = termosDe(orNotFound(await tx.businessSettings.findUnique({ where: { businessId }, select: SELECAO_TERMOS }), 'Configurações da conta'))
     const campos = (Object.keys(i) as (keyof Terms)[]).filter((k) => i[k] !== antes[k])
     if (campos.length === 0) return antes
@@ -383,6 +388,7 @@ export async function updateModules(actor: PlatformAdminActor, businessId: strin
     throw new DomainError('validation', MSG_VOUCHERS, { fields: { vouchers: MSG_VOUCHERS, store: MSG_VOUCHERS } })
   }
   return prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
     orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { id: true } }), 'Conta')
     const antes = (await tx.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true, vouchers: true } })) ?? MODULOS_PADRAO
     const depois = await tx.businessModules.upsert({
@@ -449,6 +455,7 @@ export async function updateRulesAsAdmin(
   const regras = parseSchedulingRules(pedido)
   const campos = Object.keys(regras)
   await prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
     if (campos.length > 0) {
       const r = await tx.businessSettings.updateMany({ where: { businessId }, data: regras })
       if (r.count === 0) throw new DomainError('not_found', 'Configurações da conta não encontrado.')
@@ -488,6 +495,7 @@ export async function updateNotificationsAsAdmin(
 ): Promise<NotificationSettings> {
   exigirAdmin(actor)
   idValido(businessId)
+  await requireActiveAdmin(prisma, actor)
   const ctx = await createPlatformAdminContext({ businessId, actor })
   return updateNotificationSettings(ctx, input)
 }

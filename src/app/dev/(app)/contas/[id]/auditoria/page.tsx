@@ -2,15 +2,13 @@ import type { Metadata } from 'next'
 import { EmptyState, LinkButton, Pagination, Paper } from '@/ui/components'
 import { DomainError } from '@/server/domain/errors'
 import { listAudit } from '@/server/domain/platform/audit-log'
-import { formatDateTime } from '@/server/time'
+import { HorariosNota } from '../../../_lib/HorariosNota'
+import { quando } from '../../../_lib/format'
+import { um } from '../../../_lib/params'
 import { carregarConta } from '../_data'
 import { AuditTable } from '../AuditTable'
 
 export const metadata: Metadata = { title: 'Auditoria da conta | AgendaFlui' }
-
-function um(valor: string | string[] | undefined): string {
-  return (Array.isArray(valor) ? valor[0] : valor) ?? ''
-}
 
 export default async function AuditoriaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
@@ -27,7 +25,7 @@ export default async function AuditoriaPage({ params, searchParams }: { params: 
   }
   const linhas = (pagina?.items ?? []).map((a) => ({
     id: a.id,
-    at: formatDateTime(a.at, conta.timeZone),
+    at: quando(a.at),
     actor: a.actorLabel,
     action: a.action,
     target: a.targetLabel,
@@ -41,6 +39,7 @@ export default async function AuditoriaPage({ params, searchParams }: { params: 
   return (
     <Paper raised={1} className="af-listpanel">
       <h2 className="af-section__title">Auditoria dos últimos 30 dias</h2>
+      <HorariosNota />
       <AuditTable linhas={linhas} vazio={vazio} />
       <Pagination basePath={`/contas/${conta.id}/auditoria`} params={{}} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
     </Paper>

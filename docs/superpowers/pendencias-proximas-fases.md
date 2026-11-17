@@ -26,6 +26,8 @@
 - `Dialog` intercepta Esc de filhos; anel de foco depende do contêiner (papel dentro de capa, `Checkbox` sobre capa); halo de texto duplicado em `base.css` e `feedback.css` e pesado em texto primário.
 - Molduras: título `h2` dentro de `h2` quando embutidas; barra da base do celular deixa de grudar se um ancestral tiver `overflow`; falta teste da barra grudada no meio da rolagem.
 - Papel e termos da conta calculados em dois lugares (`page.tsx` e `PainelFrame.tsx`); texto "Você entra como Dono".
+- Termos, módulos, regras e avisos gravam sem versão (o último a salvar ganha): pôr versão quando o dono também editar.
+- `updateRulesAsAdmin` grava regras fora de `updateSchedulingRules`: unificar se o caminho do dono ganhar efeito colateral.
 
 ## Fase 5 (módulos)
 
@@ -34,10 +36,13 @@
 
 ## Fase 6 (fechamento e produção)
 
-- Limpeza periódica de `sessions` e `platform_sessions` vencidas.
 - `tests/e2e/vitrine.spec.ts` falha porque a vitrine agora exige admin: ajustar quando os testes de navegador voltarem.
 - As telas do painel dev nunca foram vistas em navegador pelos agentes (só fumaça por HTTP): conferência visual e a 375 px pendente com o dono.
 - Ações destrutivas do painel dev exigem JavaScript para a confirmação.
+- Várias instâncias exigem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa.
+- A conferência `Origin == Host` das rotas POST do painel dev depende de o proxy preservar o `Host`: documentar junto com `TRUSTED_PROXY_HOPS`.
+- Para o dono conferir no navegador: criar conta, convite, definir senha e entrar; entrar como, faixa e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
+- Para o dono conferir no navegador: todas as telas a 375 px, foco nos diálogos, contraste da faixa de suporte; envio de imagens sem JavaScript e prévia com cores extremas; "tentar de novo" em /sistema.
 - Produção exige `TRUSTED_PROXY_HOPS` ≥ 1 (sem ele os limites viram globais por chave e a auditoria fica sem IP): avisar na partida.
 - Sem `SMTP_URL` em produção o cadastro pelo app é impossível: falhar ou avisar alto na partida.
 - Recibos do Expo não são consultados.

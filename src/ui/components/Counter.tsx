@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { cx } from './cx'
+import { formatInt } from '../format'
 
-const INT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
 const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
@@ -46,7 +46,7 @@ export function Counter({
 }) {
   const uid = useId()
   const labelId = `${uid}-rotulo`
-  const text = format === 'brl' ? BRL.format(value / 100) : INT.format(value)
+  const text = format === 'brl' ? BRL.format(value / 100) : formatInt(value)
   const cells = buildCells(text, digits)
 
   return (

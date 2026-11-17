@@ -1,14 +1,13 @@
 'use client'
 import { useActionState, useState } from 'react'
 import { ConfirmDialog, Button, EmptyState, Field, Paper, SecretBox, Stamp, Textarea, Input } from '@/ui/components'
+import { formatInt } from '@/ui/format'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
 import type { AcaoConta } from './forms'
 
 /** As ações das chaves, já com o id da conta ligado no servidor pela página. */
 export type AcoesChaves = { criarChave: AcaoConta; editarOrigens: AcaoConta; revogarChave: AcaoConta }
-
-const INT = new Intl.NumberFormat('pt-BR')
 
 export type ChaveUso = { requests: number; errors: number; avgMs: number; routes: Array<{ route: string; count: number }> }
 export type Chave = {
@@ -29,11 +28,11 @@ function Uso({ uso }: { uso: ChaveUso }) {
       <dl className="af-keycard__stats" aria-label="Uso nos últimos 7 dias">
         <div>
           <dt>Requisições</dt>
-          <dd>{INT.format(uso.requests)}</dd>
+          <dd>{formatInt(uso.requests)}</dd>
         </div>
         <div>
           <dt>Erros</dt>
-          <dd>{INT.format(uso.errors)}</dd>
+          <dd>{formatInt(uso.errors)}</dd>
         </div>
         <div>
           <dt>Tempo médio</dt>
@@ -43,7 +42,7 @@ function Uso({ uso }: { uso: ChaveUso }) {
       <ol className="af-keycard__routes" aria-label="Rotas mais chamadas">
         {uso.routes.map((r) => (
           <li key={r.route}>
-            <code>{r.route}</code> <span>{INT.format(r.count)}</span>
+            <code>{r.route}</code> <span>{formatInt(r.count)}</span>
           </li>
         ))}
       </ol>
