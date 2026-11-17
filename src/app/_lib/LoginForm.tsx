@@ -1,11 +1,12 @@
 'use client'
 import { useActionState } from 'react'
+import Link from 'next/link'
 import { CircleAlert } from 'lucide-react'
 import type { LoginState } from '@/app/_lib/login-form'
 import { Button, Field, Input } from '@/ui/components'
 
 /** Formulário de entrada. Funciona sem JavaScript: a action de servidor é a action nativa do formulário. */
-export function LoginForm({ action }: { action: (prev: LoginState, form: FormData) => Promise<LoginState> }) {
+export function LoginForm({ action, forgotHref }: { action: (prev: LoginState, form: FormData) => Promise<LoginState>; forgotHref?: string }) {
   const [state, formAction, pending] = useActionState(action, { error: null, email: '' })
   return (
     <form action={formAction} className="af-entry__form">
@@ -25,6 +26,11 @@ export function LoginForm({ action }: { action: (prev: LoginState, form: FormDat
       <Field label="Senha">
         <Input name="password" type="password" autoComplete="current-password" required invalid={state.error !== null} />
       </Field>
+      {forgotHref ? (
+        <p className="af-entry__foot">
+          <Link href={forgotHref}>Esqueci a senha</Link>
+        </p>
+      ) : null}
       {state.error ? (
         <p role="alert" className="af-entry__error">
           <CircleAlert size={18} aria-hidden="true" />

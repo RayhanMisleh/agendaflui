@@ -14,7 +14,7 @@ type Marca = {
 }
 
 /** A tela de entrada do painel do negócio, com a marca que a página escolheu. */
-export function PainelEntrada({ marca }: { marca: Marca }) {
+export function PainelEntrada({ marca, senhaNova = false }: { marca: Marca; senhaNova?: boolean }) {
   return (
     <EntryScreen
       theme={marca.theme}
@@ -23,10 +23,10 @@ export function PainelEntrada({ marca }: { marca: Marca }) {
       headline={marca.platform ? 'A agenda que flui.' : 'Veja como está o seu dia.'}
       lede={marca.platform ? null : marca.loginMessage}
       title="Entrar na agenda"
-      message="Use o e-mail e a senha da sua conta."
+      message={senhaNova ? 'Senha nova salva. Entre com ela.' : 'Use o e-mail e a senha da sua conta.'}
       testId="painel-entry"
     >
-      <LoginForm action={loginMember} />
+      <LoginForm action={loginMember} forgotHref="/esqueci-a-senha" />
     </EntryScreen>
   )
 }

@@ -15,6 +15,8 @@ import {
   DataList,
   Dialog,
   EmptyState,
+  BarList,
+  DateRangeField,
   Field,
   FoldablePreview,
   FormErrors,
@@ -359,6 +361,10 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
             </div>
             <Meter label="Requisições sem erro" value={0.98} display="98%" />
             <Meter label="Uso do plano" value={0.86} alertAt={0.8} display="86%" />
+            <BarList label="Receita por dia" items={[{ key: 'a', label: '15/11', value: 32000, display: 'R$ 320,00' }, { key: 'b', label: '16/11', value: 18000, display: 'R$ 180,00' }, { key: 'c', label: '17/11', value: 0, display: 'R$ 0,00' }]} />
+            <div className="vt-row">
+              <DateRangeField from="2026-11-01" to="2026-11-17" />
+            </div>
           </Spec>
         </div>
       </section>

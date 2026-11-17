@@ -6,7 +6,7 @@ import { timeZoneChoices } from '@/server/time'
 import { FUSOS } from '../../nova/fields'
 import { carregarConta } from '../_data'
 import { salvarAvisos, salvarRegras } from '../actions'
-import { tiposDeAviso } from '../avisos'
+import { tiposDeAviso } from '@/app/_lib/avisos'
 import { AvisosForm, RegrasForm } from '../FormsConta'
 
 export const metadata: Metadata = { title: 'Regras da conta | AgendaFlui' }

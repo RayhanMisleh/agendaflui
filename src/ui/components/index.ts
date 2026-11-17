@@ -1,5 +1,8 @@
 export { AppointmentStatusBadge } from './AppointmentStatusBadge'
 export { Avatar } from './Avatar'
+export { BarList } from './BarList'
+export type { BarItem } from './BarList'
+export { DateRangeField } from './DateRangeField'
 export { AvatarUpload, FOTO_MAX_BYTES } from './AvatarUpload'
 export { Button } from './Button'
 export type { ButtonProps, ButtonVariant } from './Button'

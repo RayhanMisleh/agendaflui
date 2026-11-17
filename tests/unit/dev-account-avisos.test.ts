@@ -1,4 +1,4 @@
-import { ROTULOS_AVISO, tiposDeAviso } from '@/app/dev/(app)/contas/[id]/avisos'
+import { ROTULOS_AVISO, tiposDeAviso } from '@/app/_lib/avisos'
 import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notification-settings'
 
 test('todo tipo de aviso do domínio tem rótulo na tela, e a tela não tem rótulo de tipo que não existe', () => {

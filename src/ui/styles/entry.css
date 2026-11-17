@@ -137,6 +137,24 @@
     font-weight: 600;
     line-height: var(--text-small-lh);
   }
+  .af-entry__notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: var(--text-small-lh);
+  }
+  .af-entry__notice svg {
+    flex: none;
+    margin-top: 0.0625rem;
+    color: var(--brand);
+  }
   .af-entry__error svg {
     flex: none;
     margin-top: 0.0625rem;
