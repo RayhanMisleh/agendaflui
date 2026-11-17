@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import pg from 'pg'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { GET as business } from '@/app/api/v1/business/route'
@@ -269,6 +270,17 @@ describe('usageByKey', () => {
     // Chave sem uso no intervalo: lista vazia, não ausente.
     const semUso = await usageByKey(a, { from: addMinutes(H0, 60 * 24 * 30), to: addMinutes(H0, 60 * 24 * 31), apiKeyIds: [c.keyId] })
     expect(semUso.get(c.keyId)).toEqual([])
+  })
+
+  test('mais de 500 chaves: fatia em lotes e soma os resultados, sem recusar', async () => {
+    const a = await admin()
+    recordUsage({ apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: 10, error: false, at: H0 })
+    await flushUsage()
+    const ids = [c.keyId, ...Array.from({ length: 500 }, () => randomUUID())]
+    const r = await usageByKey(a, { from: H0, to: addMinutes(H0, 60 * 24), apiKeyIds: ids })
+    expect(r.size).toBe(501)
+    expect(r.get(c.keyId)).toEqual([{ route: 'GET /v1/business', count: 1, errorCount: 0, avgMs: 10, maxMs: 10 }])
+    expect(r.get(ids[500]!)).toEqual([])
   })
 
   test('exige admin da plataforma, recusa id inválido e confere o teto do intervalo', async () => {

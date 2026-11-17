@@ -698,6 +698,8 @@ describe('admin desativado com o objeto de ator antigo', () => {
       () => updateModules(actor, biz.id, { loyalty: true, banners: false, store: false, vouchers: false }),
       () => updateRulesAsAdmin(actor, biz.id, { bufferMin: 5 }),
       () => updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo' }),
+      () => updateNotificationsAsAdmin(actor, biz.id, { APPOINTMENT_CONFIRMED: { email: false, push: false } } as never),
+      () => setBrandImage(actor, biz.id, 'logo', null),
     ]
     for (const chamar of chamadas) expect((await domainError(chamar())).code).toBe('forbidden')
     expect(await prisma.auditLog.count({ where: { businessId: biz.id } })).toBe(0)
@@ -719,5 +721,28 @@ describe('texto com emoji composto', () => {
       expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
     }
     expect((await domainError(updateBrand(actor, biz.id, marca.version, { ...brand, loginMessage: 'a\u200Bb' }))).code).toBe('validation')
+  })
+})
+
+describe('texto só de caractere invisível', () => {
+  const ZWJ = '\u200D'
+  const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'
+  const bandeira = '\u{1F3F3}\uFE0F\u200D\u{1F308}'
+
+  test('junção de emoji solta (só ela, no início, no fim, repetida ou junto de espaço) é recusada em nome, termos e mensagem', async () => {
+    const v = (await getCustomization(actor, biz.id)).brand.version
+    for (const ruim of [ZWJ, ZWJ + ZWJ, 'a' + ZWJ, ZWJ + 'a', 'Pet' + ZWJ, 'a' + ZWJ + ZWJ + 'b', 'a ' + ZWJ + ' b']) {
+      const rotulo = JSON.stringify(ruim)
+      expect((await domainError(updateBrand(actor, biz.id, v, { ...brand, displayName: ruim }))).code, rotulo).toBe('validation')
+      expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, rotulo).toBe('validation')
+      expect((await domainError(updateBrand(actor, biz.id, v, { ...brand, loginMessage: ruim }))).code, rotulo).toBe('validation')
+    }
+  })
+
+  test('emoji composto de verdade dentro do nome vale', async () => {
+    const v = (await getCustomization(actor, biz.id)).brand.version
+    const m = await updateBrand(actor, biz.id, v, { ...brand, displayName: `${familia} Casa ${bandeira}` })
+    expect(m.displayName).toBe(`${familia} Casa ${bandeira}`)
+    expect((await updateTerms(actor, biz.id, { ...termos, club: bandeira })).club).toBe(bandeira)
   })
 })

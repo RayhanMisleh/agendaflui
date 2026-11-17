@@ -5,6 +5,7 @@ import { prisma } from '@/server/db/client'
 import {
   createBusiness,
   getBusinessDetail,
+  findBusinessByRef,
   getBusinessNames,
   listBusinesses,
   setBusinessStatus,
@@ -500,4 +501,18 @@ describe('getBusinessNames', () => {
     const intruso = { kind: 'system' } as unknown as PlatformAdminActor
     expect((await domainError(getBusinessNames(intruso, []))).code).toBe('forbidden')
   })
+})
+
+describe('findBusinessByRef', () => {
+  test('acha a conta pelo identificador (sem diferenciar maiúsculas) ou pelo id, mesmo com mais de 100 contas; desconhecida é null', async () => {
+    for (let i = 0; i < 101; i++) await makeBusiness({ name: `Conta ${i}`, slug: `conta-${i}` })
+    const alvo = await makeBusiness({ name: 'Conta Última', slug: 'ultima-conta' })
+    expect(await findBusinessByRef(actor, ' ULTIMA-conta ')).toEqual({ id: alvo.id, name: 'Conta Última', slug: 'ultima-conta' })
+    expect((await findBusinessByRef(actor, alvo.id))?.slug).toBe('ultima-conta')
+    expect(await findBusinessByRef(actor, 'nao-existe')).toBeNull()
+    expect(await findBusinessByRef(actor, '')).toBeNull()
+    expect(await findBusinessByRef(actor, 'a\u0000b')).toBeNull()
+    const intruso = { kind: 'system' } as unknown as PlatformAdminActor
+    expect((await domainError(findBusinessByRef(intruso, 'x'))).code).toBe('forbidden')
+  }, 60_000)
 })

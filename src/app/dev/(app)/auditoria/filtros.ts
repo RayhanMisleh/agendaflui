@@ -31,7 +31,7 @@ export function lerFiltros(q: Record<string, string | string[] | undefined>): Fi
   const cursor = um(q.cursor)
   const query: FiltrosAuditoria['query'] = {}
   let erro: string | null = null
-  if (conta) query.businessId = conta
+  // A conta (identificador ou id) é resolvida pela página no servidor; aqui só volta ao campo.
   if (acao) query.action = acao
   if (ator) query.actorType = ator
   if (cursor) query.cursor = cursor

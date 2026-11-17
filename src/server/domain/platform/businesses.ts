@@ -374,6 +374,16 @@ export async function getBusinessNames(actor: PlatformAdminActor, ids: string[])
   return new Map(linhas.map((l) => [l.id, l.name]))
 }
 
+/** Conta pelo identificador (slug, sem diferenciar maiúsculas) ou pelo id; `null` se não existe. Sem teto de lista. */
+export async function findBusinessByRef(actor: PlatformAdminActor, ref: string): Promise<{ id: string; name: string; slug: string } | null> {
+  exigirAdmin(actor)
+  const texto = normalizarBusca(ref).trim()
+  if (texto === '') return null
+  const select = { id: true, name: true, slug: true } as const
+  if (UUID.test(texto)) return prisma.business.findUnique({ where: { id: texto }, select })
+  return prisma.business.findUnique({ where: { slug: texto.toLowerCase() }, select })
+}
+
 export async function getBusinessDetail(actor: PlatformAdminActor, id: string): Promise<BusinessDetail> {
   exigirAdmin(actor)
   return lerDetalhe(idValido(id))

@@ -5,7 +5,7 @@ import { tenantDb } from '@/server/db/tenant'
 import { areaLink } from '@/server/area-links'
 import { DomainError } from '@/server/domain/errors'
 import { auditPlatform } from '@/server/domain/audit'
-import { addMinutes, fromEpochMs } from '@/server/time'
+import { addMinutes, fromEpochMs, toIsoInstant } from '@/server/time'
 import { AuthError, type TenantContext } from './actor'
 import { ipLimitKeyPart } from './client-ip'
 import { assertPlatformAdmin, requireActiveAdmin, type PlatformAdminActor } from './platform-actor'
@@ -208,19 +208,24 @@ export async function purgeExpiredSessions(now: Date): Promise<number> {
   return prisma.$transaction(async (tx) => {
     const suporte = await tx.session.findMany({
       where: { expiresAt: { lt: corte }, revokedAt: null, userId: null, impersonatorAdminId: { not: null }, activeBusinessId: { not: null } },
-      select: { id: true, activeBusinessId: true, impersonator: { select: { id: true, name: true } } },
+      select: { id: true, expiresAt: true, activeBusinessId: true, impersonator: { select: { id: true, name: true } } },
     })
-    const apagadas = await tx.session.deleteMany({ where: { expiresAt: { lt: corte } } })
-    const painel = await tx.platformSession.deleteMany({ where: { expiresAt: { lt: corte } } })
+    let apagadas = 0
+    // Cada sessão de suporte é apagada pelo próprio id e só audita quem de fato a apagou: duas instâncias não gravam em dobro.
     for (const s of suporte) {
-      if (!s.impersonator || !s.activeBusinessId) continue
+      const r = await tx.session.deleteMany({ where: { id: s.id } })
+      apagadas += r.count
+      if (r.count !== 1 || !s.impersonator || !s.activeBusinessId) continue
       await auditPlatform(tx, { kind: 'platform_admin', adminId: s.impersonator.id, name: s.impersonator.name }, {
         businessId: s.activeBusinessId,
         action: 'support.expired',
         targetType: 'business',
         targetId: s.activeBusinessId,
+        metadata: { expiresAt: toIsoInstant(s.expiresAt) },
       })
     }
-    return apagadas.count + painel.count
+    apagadas += (await tx.session.deleteMany({ where: { expiresAt: { lt: corte } } })).count
+    const painel = await tx.platformSession.deleteMany({ where: { expiresAt: { lt: corte } } })
+    return apagadas + painel.count
   })
 }

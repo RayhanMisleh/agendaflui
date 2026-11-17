@@ -98,7 +98,8 @@ export async function usageSummary(
   return grupos.map(resumir)
 }
 
-const porChaveSchema = z.object({ from: z.date(), to: z.date(), apiKeyIds: z.array(z.uuid()).max(500) })
+const LOTE_CHAVES = 500
+const porChaveSchema = z.object({ from: z.date(), to: z.date(), apiKeyIds: z.array(z.uuid()) })
 
 /**
  * Uso por chave e rota no intervalo, de várias chaves de uma vez (um `groupBy` só, em vez de um por chave). Toda chave pedida
@@ -114,13 +115,16 @@ export async function usageByKey(
   const ids = [...new Set(i.apiKeyIds)]
   const resultado = new Map<string, RotaResumida[]>(ids.map((id) => [id, []]))
   if (ids.length === 0) return resultado
-  const grupos = await prisma.apiUsageHourly.groupBy({
-    by: ['apiKeyId', 'route'],
-    where: { hour: { gte: startOfUtcHour(i.from), lt: i.to }, apiKeyId: { in: ids } },
-    _sum: { count: true, errorCount: true, totalMs: true },
-    _max: { maxMs: true },
-    orderBy: [{ apiKeyId: 'asc' }, { route: 'asc' }],
-  })
-  for (const g of grupos) resultado.get(g.apiKeyId)?.push(resumir(g))
+  // Em lotes de até LOTE_CHAVES ids: a consulta não cresce sem limite, e o resultado soma todos os lotes.
+  for (let inicio = 0; inicio < ids.length; inicio += LOTE_CHAVES) {
+    const grupos = await prisma.apiUsageHourly.groupBy({
+      by: ['apiKeyId', 'route'],
+      where: { hour: { gte: startOfUtcHour(i.from), lt: i.to }, apiKeyId: { in: ids.slice(inicio, inicio + LOTE_CHAVES) } },
+      _sum: { count: true, errorCount: true, totalMs: true },
+      _max: { maxMs: true },
+      orderBy: [{ apiKeyId: 'asc' }, { route: 'asc' }],
+    })
+    for (const g of grupos) resultado.get(g.apiKeyId)?.push(resumir(g))
+  }
   return resultado
 }

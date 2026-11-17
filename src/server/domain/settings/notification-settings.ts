@@ -54,10 +54,13 @@ export async function getNotificationSettings(
 export async function updateNotificationSettings(
   ctx: TenantContext,
   patch: Partial<Record<NotificationKind, Partial<ChannelToggle>>>,
+  /** Conferência extra que roda primeiro dentro da transação da escrita (o painel dev relê o admin ativo aqui). */
+  inTransaction?: () => Promise<unknown>,
 ): Promise<NotificationSettings> {
   authorize(ctx, 'manage_settings')
   const input = parse(patchSchema, patch)
   return ctx.db.$transaction(async (tx) => {
+    await inTransaction?.()
     // Lê e grava só se o JSON ainda for o lido (comparação no próprio UPDATE): se outra alteração passou
     // na frente, relê e tenta de novo, em vez de sobrescrevê-la.
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {

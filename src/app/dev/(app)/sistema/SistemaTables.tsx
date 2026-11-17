@@ -24,12 +24,14 @@ function TentarDeNovo({ acao, aviso, onResultado }: { acao: AcaoConta; aviso: st
       variant="secondary"
       loading={pending}
       aria-label={`Tentar de novo: ${aviso}`}
-      onClick={() =>
+      onClick={() => {
+        // Nova tentativa: some a mensagem da anterior até haver resposta.
+        onResultado(null)
         start(async () => {
           const r = await acao(estadoInicial({}), new FormData())
           onResultado(r.message ? { ok: r.ok, message: r.message } : null)
         })
-      }
+      }}
     >
       Tentar de novo
     </Button>

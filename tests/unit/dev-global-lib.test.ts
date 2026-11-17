@@ -34,7 +34,9 @@ describe('filtros da auditoria na URL', () => {
     expect(f.erro).toBeNull()
     expect(toIsoInstant(f.query.from!)).toBe('2026-11-01T03:00:00.000Z')
     expect(toIsoInstant(f.query.to!)).toBe('2026-11-11T03:00:00.000Z')
-    expect(f.query).toMatchObject({ action: 'api_key.revoked', actorType: 'PLATFORM_ADMIN', businessId: 'x', cursor: 'c' })
+    expect(f.query).toMatchObject({ action: 'api_key.revoked', actorType: 'PLATFORM_ADMIN', cursor: 'c' })
+    expect(f.query.businessId).toBeUndefined()
+    expect(f.values.conta).toBe('x')
     expect(f.values).toMatchObject({ de: '2026-11-01', ate: '2026-11-10' })
   })
 

@@ -45,6 +45,7 @@ const PAGINAS = [
   '/auditoria?de=lixo&cursor=lixo',
   '/auditoria?acao=%00',
   '/auditoria?ator=ROOT',
+  '/auditoria?conta=nao-existe',
   '/admins',
   '/perfil',
   '/vitrine',

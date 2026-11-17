@@ -287,4 +287,18 @@ describe('agendador grava scheduler_runs', () => {
     await cleanupRound(agora)
     expect(await prisma.auditLog.count({ where: { action: 'support.expired' } })).toBe(1)
   })
+
+  test('duas limpezas ao mesmo tempo gravam um único support.expired por sessão, com o instante do vencimento', async () => {
+    const b = await makeBusiness()
+    const agora = new Date()
+    const vencimento = dias(agora, -3)
+    for (let i = 0; i < 3; i++) {
+      await prisma.session.create({ data: { userId: null, impersonatorAdminId: adminId, activeBusinessId: b.id, tokenHash: hashToken(randomUUID()), expiresAt: vencimento } })
+    }
+    await Promise.all([cleanupRound(agora), cleanupRound(agora)])
+    const linhas = await prisma.auditLog.findMany({ where: { action: 'support.expired' } })
+    expect(linhas).toHaveLength(3)
+    expect(linhas[0]?.metadata).toMatchObject({ expiresAt: vencimento.toISOString() })
+    expect(await prisma.session.count()).toBe(0)
+  })
 })

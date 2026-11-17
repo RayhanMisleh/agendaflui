@@ -93,6 +93,11 @@ const SEM_CONTROLE = (v: string) => !/[^\P{C}\u200D]/u.test(v)
 const SEM_MARCACAO = (v: string) => !/[<>]/.test(v)
 // Na mensagem de entrada a quebra de linha vale; qualquer outro caractere de controle não.
 const SEM_CONTROLE_EXCETO_LINHA = (v: string) => !/[^\P{C}\r\n\u200D]/u.test(v)
+// A junção só vale ENTRE dois caracteres de verdade (emoji composto): sozinha, no começo, no fim, repetida ou ao lado de
+// espaço ela deixaria um texto "vazio" passar, ou um nome terminado em caractere invisível.
+const MSG_JUNCAO = 'Não deixe o caractere invisível de junção de emoji sozinho, no começo, no fim ou repetido.'
+const JUNCAO_SOLTA = /(^|[\s\u200D])\u200D|\u200D($|[\s\u200D])/u
+const SEM_JUNCAO_SOLTA = (v: string) => !JUNCAO_SOLTA.test(v)
 
 const marcaSchema = z.strictObject({
   displayName: z
@@ -101,7 +106,8 @@ const marcaSchema = z.strictObject({
     .min(1, 'Informe o nome de exibição.')
     .max(80, 'Use no máximo 80 caracteres.')
     .refine(SEM_MARCACAO, MSG_MARCACAO)
-    .refine(SEM_CONTROLE, MSG_CONTROLE),
+    .refine(SEM_CONTROLE, MSG_CONTROLE)
+    .refine(SEM_JUNCAO_SOLTA, MSG_JUNCAO),
   primary: cor,
   accent: cor,
   material: z.enum(COVER_MATERIALS, { error: 'Escolha um dos materiais da lista.' }),
@@ -113,6 +119,7 @@ const marcaSchema = z.strictObject({
     .max(280, 'Use no máximo 280 caracteres.')
     .refine(SEM_MARCACAO, MSG_MARCACAO)
     .refine(SEM_CONTROLE_EXCETO_LINHA, MSG_CONTROLE)
+    .refine(SEM_JUNCAO_SOLTA, MSG_JUNCAO)
     .transform((v) => (v === '' ? null : v))
     .nullable(),
 })
@@ -296,6 +303,7 @@ const termo = z
   .max(30, 'Use no máximo 30 caracteres.')
   .refine(SEM_MARCACAO, MSG_MARCACAO)
   .refine(SEM_CONTROLE, MSG_CONTROLE)
+  .refine(SEM_JUNCAO_SOLTA, MSG_JUNCAO)
 
 const termosSchema = z.strictObject({
   professionalSingular: termo,
@@ -495,9 +503,9 @@ export async function updateNotificationsAsAdmin(
 ): Promise<NotificationSettings> {
   exigirAdmin(actor)
   idValido(businessId)
-  await requireActiveAdmin(prisma, actor)
   const ctx = await createPlatformAdminContext({ businessId, actor })
-  return updateNotificationSettings(ctx, input)
+  // A releitura do admin roda dentro da transação da escrita (o cliente da conta não enxerga `platform_admins`, então vai pelo cliente cru).
+  return updateNotificationSettings(ctx, input, () => requireActiveAdmin(prisma, actor))
 }
 
 // ---------------------------------------------------------------- leitura
