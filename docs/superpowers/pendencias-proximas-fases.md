@@ -5,20 +5,14 @@
 
 ## Fase 3 (painel dev)
 
-- Telas e rotas do painel dev para chaves de app (listar, criar, revogar, origens) e para o resumo de uso da API (`usageSummary`).
-- Quem criar "desativar vínculo" ou "trocar senha de usuário" chama `revokeAllFor({ membershipId })` sob a trava do vínculo.
-- (mover para a Fase 4) `listClosures` precisa de visão por ator antes de virar rota.
-- `areaUrl` sem validar barra inicial.
-- `canonicalTimeZone` ao gravar o fuso da conta (hoje aceita minúsculas e `UTC`).
-- Vitrine atrás de `requirePlatformAdmin`.
-- Uploads: limpar `.meta`/`.tmp` quando o `put` falha no meio; rota de arquivos decodifica segmentos possivelmente já decodificados; links simbólicos; testes de símbolo pequeno e de GPS; detecção de "pixel limit" por texto.
-- Prévia da personalização: avisar quando o relevo da capa colapsa em cores extremas.
-- Molduras: `symbolUrl` nunca aparece; faixa de suporte com a coluna grudada (o `top` deve considerar a altura da faixa); logo em baixo-relevo e faixa de suporte na vitrine.
-- `LoginForm` compartilhado mora em `painel/`; novo login não revoga a sessão anterior do navegador.
-- Testes: token de admin no teste "só o hash"; contorno do limitador por maiúsculas; teste sem JavaScript na entrada do painel do negócio.
+- Teste sem JavaScript na entrada do painel do negócio (é de navegador).
 
 ## Fase 4 (painel do negócio)
 
+- `listClosures` precisa de visão por ator antes de virar rota.
+- A faixa de suporte e o botão Encerrar existem: conferir em todas as telas novas do painel do negócio.
+- O suporte (ator de suporte) não pode trocar senha de ninguém nem ver segredos quando essas telas existirem.
+- Trocar o nome de um usuário regrava `users.search_name`.
 - Teto de linhas em `getAgenda`.
 - Agenda: `workingMinutes` do resumo não desconta bloqueios; conjunto de profissionais do resumo difere do da agenda em dois casos limite (inativo só com cancelado, inativo só com bloqueio); `occupancy` é limitado a 1 (razão de exibição); a busca de 31 dias não tem teto de linhas (rever com a tela de mês).
 - Telefone estrangeiro digitado sem `+` e com 10 ou 11 dígitos é tratado como brasileiro: dica na tela.
@@ -35,10 +29,15 @@
 
 ## Fase 5 (módulos)
 
+- Aba "Integrações" na página da conta do painel dev (pagamento, frete), com segredos mostrados só pelos 4 últimos caracteres.
 - Crédito de pontos na conclusão do atendimento (spec 8.3): pendurar no ponto único de eventos do agendamento (`afterChange`), uma vez só por agendamento.
 
 ## Fase 6 (fechamento e produção)
 
+- Limpeza periódica de `sessions` e `platform_sessions` vencidas.
+- `tests/e2e/vitrine.spec.ts` falha porque a vitrine agora exige admin: ajustar quando os testes de navegador voltarem.
+- As telas do painel dev nunca foram vistas em navegador pelos agentes (só fumaça por HTTP): conferência visual e a 375 px pendente com o dono.
+- Ações destrutivas do painel dev exigem JavaScript para a confirmação.
 - Produção exige `TRUSTED_PROXY_HOPS` ≥ 1 (sem ele os limites viram globais por chave e a auditoria fica sem IP): avisar na partida.
 - Sem `SMTP_URL` em produção o cadastro pelo app é impossível: falhar ou avisar alto na partida.
 - Recibos do Expo não são consultados.

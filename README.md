@@ -32,7 +32,17 @@ avisar que os dados de demonstração ficaram incompletos, rode `npm run db:rese
 Os e-mails e as senhas de demonstração estão no `.env.example` (copiados para o seu `.env`).
 Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Cada conta tem o
 próprio link de entrada: `painel.localhost:3000/entrar/patas-e-cia`.
-A vitrine de componentes fica em `dev.localhost:3000/vitrine`.
+A vitrine de componentes fica em `dev.localhost:3000/vitrine` (só para admin logado).
+
+## Painel dev
+
+- Entre em `http://dev.localhost:3000` com `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do seu `.env`
+  (o seed cria esse admin). O seed também cria um admin desativado, uma conta suspensa, uso da API das
+  últimas 48 horas, execuções do agendador e um aviso com falha, para as telas não aparecerem vazias.
+- Sem o seed (por exemplo num banco novo), crie o primeiro admin com `npm run admin:create`.
+- `npm run smoke` pede por HTTP cada tela do painel dev com uma sessão temporária de admin e falha se
+  alguma não responder 200. Rode `npm run build` antes. Só roda em banco local (localhost): ela grava
+  uma sessão de admin no banco e recusa qualquer outro endereço ou produção.
 
 ## API
 
@@ -53,6 +63,7 @@ A vitrine de componentes fica em `dev.localhost:3000/vitrine`.
 | `npm run db:seed` | Cria os dados e as chaves de demonstração (pode repetir sem duplicar) |
 | `npm run db:reset` | Apaga o banco local e recria vazio |
 | `npm run admin:create` | Cria um administrador da plataforma |
+| `npm run smoke` | Fumaça por HTTP das telas do painel dev (só em banco local) |
 | `npm run typecheck` / `npm run lint` | Tipos e estilo |
 | `npm test` / `npm run test:tz` | Testes unitários e de integração; datas em vários fusos |
 | `npm run test:e2e` | Testes no navegador (sobem o `npm run dev` se preciso) |

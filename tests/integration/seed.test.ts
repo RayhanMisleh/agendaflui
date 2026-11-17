@@ -42,7 +42,7 @@ describe('contas e acessos', () => {
   test('rodar o seed duas vezes dá as mesmas contagens', async () => {
     await seed(prisma, ENV, { now: NOW })
     const primeira = await contagens()
-    expect(primeira).toEqual({ contas: 2, marcas: 2, modulos: 2, configuracoes: 2, usuarios: 7, vinculos: 8, admins: 1 })
+    expect(primeira).toEqual({ contas: 3, marcas: 3, modulos: 3, configuracoes: 3, usuarios: 7, vinculos: 9, admins: 2 })
     await seed(prisma, ENV, { now: NOW })
     expect(await contagens()).toEqual(primeira)
   })
@@ -74,6 +74,7 @@ describe('contas e acessos', () => {
       include: { memberships: { include: { business: true } } },
     })
     expect(multi.memberships.map((m) => [m.business.slug, m.role]).sort()).toEqual([
+      ['estudio-sol-nascente', 'OWNER'],
       ['navalha-de-ouro', 'OWNER'],
       ['patas-e-cia', 'OWNER'],
     ])
@@ -85,7 +86,7 @@ describe('contas e acessos', () => {
       const vinculos = await prisma.membership.findMany({ where: { business: { slug } } })
       expect(vinculos.map((m) => m.role).sort()).toEqual(['MANAGER', 'OWNER', 'OWNER', 'PROFESSIONAL'])
     }
-    const admin = await prisma.platformAdmin.findFirstOrThrow()
+    const admin = await prisma.platformAdmin.findFirstOrThrow({ where: { active: true } })
     expect(admin.email).toBe('admin@agendaflui.localhost')
     for (const u of await prisma.user.findMany()) expect(u.email).toBe(u.email.trim().toLowerCase())
   })
@@ -108,12 +109,118 @@ describe('contas e acessos', () => {
       ...(await prisma.user.findMany()).map((u) => u.passwordHash),
       ...(await prisma.platformAdmin.findMany()).map((a) => a.passwordHash),
     ]
-    expect(hashes.length).toBe(8)
+    expect(hashes.length).toBe(9)
     for (const h of hashes) {
       expect(h).toMatch(/^\$argon2id\$/)
       expect(h).not.toBe(ENV.SEED_USER_PASSWORD)
       expect(h).not.toBe(ENV.SEED_ADMIN_PASSWORD)
     }
+  })
+})
+
+describe('dados do painel dev', () => {
+  let dir: string
+  let arquivo: string
+
+  beforeEach(async () => {
+    await resetDb()
+    dir = await mkdtemp(join(process.cwd(), '.local', 'demo-keys-test-'))
+    arquivo = join(dir, 'demo-keys.json')
+  })
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  async function contagens() {
+    return {
+      admins: await prisma.platformAdmin.count(),
+      contas: await prisma.business.count(),
+      uso: await prisma.apiUsageHourly.count(),
+      execucoes: await prisma.schedulerRun.count(),
+      falhos: await prisma.notification.count({ where: { status: 'FAILED' } }),
+      auditoria: await prisma.auditLog.count(),
+    }
+  }
+
+  test('há um admin desativado, sem sessão e com a senha descartada', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const inativos = await prisma.platformAdmin.findMany({ where: { active: false } })
+    expect(inativos).toHaveLength(1)
+    expect(inativos[0]?.email).toBe('inativo@agendaflui.localhost')
+    expect(inativos[0]?.passwordHash).toMatch(/^\$argon2id\$/)
+    expect(await prisma.platformSession.count({ where: { adminId: inativos[0]?.id } })).toBe(0)
+    expect(await prisma.auditLog.count({ where: { action: 'admin.deactivated' } })).toBe(1)
+  })
+
+  test('há uma conta suspensa, auditada, e as duas de demonstração seguem ativas', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const suspensas = await prisma.business.findMany({ where: { status: 'SUSPENDED' } })
+    expect(suspensas.map((b) => b.slug)).toEqual(['estudio-sol-nascente'])
+    expect(await prisma.business.count({ where: { status: 'ACTIVE' } })).toBe(2)
+    expect(await prisma.auditLog.count({ where: { action: 'business.status_changed' } })).toBe(1)
+  })
+
+  test('o uso da API cobre as últimas 48 horas cheias, em várias rotas, com alguns erros', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const linhas = await prisma.apiUsageHourly.findMany({ include: { apiKey: true } })
+    expect(linhas.length).toBeGreaterThan(100)
+    for (const l of linhas) {
+      expect(l.apiKey.kind).toBe('ACCOUNT')
+      expect(l.apiKey.businessId).toBe(l.businessId)
+      expect(l.hour.getTime() % 3_600_000).toBe(0)
+      expect(l.hour.getTime()).toBeLessThan(NOW.getTime())
+      expect(l.hour.getTime()).toBeGreaterThanOrEqual(NOW.getTime() - 49 * 3_600_000)
+      expect(l.errorCount).toBeLessThanOrEqual(l.count)
+      expect(l.maxMs).toBeGreaterThan(0)
+      expect(Number(l.totalMs)).toBeGreaterThanOrEqual(l.maxMs)
+    }
+    expect(new Set(linhas.map((l) => l.route)).size).toBeGreaterThanOrEqual(4)
+    expect(new Set(linhas.map((l) => l.apiKeyId)).size).toBe(2)
+    expect(linhas.some((l) => l.errorCount > 0)).toBe(true)
+    expect(new Set(linhas.map((l) => l.hour.getTime())).size).toBe(48)
+  })
+
+  test('há cerca de dez execuções do agendador, uma com falha e só com tipos e resumos conhecidos', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const runs = await prisma.schedulerRun.findMany()
+    expect(runs.length).toBeGreaterThanOrEqual(9)
+    expect(runs.length).toBeLessThanOrEqual(12)
+    expect(runs.filter((r) => !r.ok)).toHaveLength(1)
+    expect(runs.find((r) => !r.ok)?.summary).toMatch(/^erro: [A-Za-z]+$/)
+    expect(new Set(runs.map((r) => r.kind)).size).toBe(3)
+    for (const r of runs) {
+      expect(r.finishedAt).not.toBeNull()
+      expect(r.startedAt.getTime()).toBeLessThan(NOW.getTime())
+    }
+  })
+
+  test('há um aviso FAILED com código da lista fechada', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const falhos = await prisma.notification.findMany({ where: { status: 'FAILED' } })
+    expect(falhos).toHaveLength(1)
+    expect(['not_configured', 'channel_error', 'timeout', 'invalid_recipient', 'internal_error']).toContain(falhos[0]?.lastError)
+    expect(falhos[0]?.attempts).toBeGreaterThan(0)
+  })
+
+  test('rodar de novo não duplica nada', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    const antes = await contagens()
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect(await contagens()).toEqual(antes)
+    expect(antes.uso).toBeGreaterThan(0)
+  })
+
+  test('uma conta suspensa que o admin reativou não é suspensa de novo', async () => {
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    await prisma.business.update({ where: { slug: 'estudio-sol-nascente' }, data: { status: 'ACTIVE' } })
+    await seed(prisma, ENV, { now: NOW, demoKeysFile: arquivo })
+    expect((await prisma.business.findUniqueOrThrow({ where: { slug: 'estudio-sol-nascente' } })).status).toBe('ACTIVE')
+  })
+
+  test('sem arquivo de chaves não há uso, mas o resto existe', async () => {
+    await seed(prisma, ENV, { now: NOW })
+    expect(await prisma.apiUsageHourly.count()).toBe(0)
+    expect(await prisma.schedulerRun.count()).toBeGreaterThan(0)
   })
 })
 
@@ -466,7 +573,7 @@ describe('agenda de demonstração', () => {
 
     const resultado = await seed(prisma, ENV, { now: NOW })
 
-    expect(await prisma.business.count()).toBe(2)
+    expect(await prisma.business.count()).toBe(3)
     expect(await prisma.user.count()).toBe(usuarios)
     expect(await prisma.membership.count()).toBe(vinculos)
     expect(await prisma.appointment.count({ where: filtro })).toBe(23)

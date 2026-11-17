@@ -5,8 +5,20 @@ import { z } from 'zod'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
 import { searchKey } from '../src/server/domain/customers/contact'
 import type { MembershipRole, PrismaClient } from '../src/server/db/generated/client'
-import { DEMO_CLOSURE_REASON, DEMO_CONTAS, DEMO_MULTI_NOME, demoEmail, type DemoAgenda, type DemoPapel } from './seed-data'
+import { randomBytes } from 'node:crypto'
+import {
+  DEMO_ADMIN_INATIVO,
+  DEMO_CLOSURE_REASON,
+  DEMO_CONTAS,
+  DEMO_CONTA_SUSPENSA,
+  DEMO_EXECUCOES,
+  DEMO_MULTI_NOME,
+  DEMO_ROTAS_USO,
+  demoEmail, type DemoAgenda,
+  type DemoPapel,
+} from './seed-data'
 import { planejarAgenda } from './seed-plan'
+import { addMinutes, fromEpochMs, startOfUtcHour } from '../src/server/time'
 
 /** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD, SEED_MULTI_EMAIL). */
 export type SeedEnv = Record<string, string | undefined>
@@ -105,6 +117,121 @@ async function chavesDeDemonstracao(
       ? `Há chaves de demonstração sem segredo guardado em ${arquivo}: não dá para recuperá-las. Rode npm run db:reset para recriar tudo.`
       : null
   return { criadas, aviso }
+}
+
+type AdminAtor = { kind: 'platform_admin'; adminId: string; name: string }
+
+/** Segundo admin da plataforma, desativado pelo domínio. Já existe: não mexe (o admin pode tê-lo reativado de propósito). */
+async function adminInativo(prisma: PrismaClient, ator: AdminAtor, now: Date): Promise<void> {
+  if (await prisma.platformAdmin.findUnique({ where: { email: DEMO_ADMIN_INATIVO.email } })) return
+  const { createAdmin, setAdminActive } = await import('../src/server/domain/platform/admins')
+  // Senha aleatória que ninguém conhece: o admin nunca entra, só aparece desativado na lista.
+  const senha = `${randomBytes(24).toString('base64url')}-Aa1`
+  const criado = await createAdmin(ator, { name: DEMO_ADMIN_INATIVO.nome, email: DEMO_ADMIN_INATIVO.email, password: senha })
+  await setAdminActive(ator, criado.id, false, now)
+}
+
+/** Conta suspensa: criada e suspensa só na primeira vez; se já existe, o que o admin fez com ela vale. */
+async function contaSuspensa(prisma: PrismaClient, ator: AdminAtor, donoId: string, now: Date): Promise<void> {
+  const c = DEMO_CONTA_SUSPENSA
+  if (await prisma.business.findUnique({ where: { slug: c.slug } })) {
+    await prisma.business.update({ where: { slug: c.slug }, data: { searchName: searchKey(c.nome) } })
+    return
+  }
+  const negocio = await prisma.business.create({
+    data: {
+      slug: c.slug,
+      name: c.nome,
+      searchName: searchKey(c.nome),
+      segment: c.segmento,
+      timezone: c.fuso,
+      branding: { create: { displayName: c.nome } },
+      modules: { create: {} },
+      settings: { create: {} },
+      memberships: { create: { userId: donoId, role: 'OWNER' } },
+    },
+  })
+  const { setBusinessStatus } = await import('../src/server/domain/platform/businesses')
+  await setBusinessStatus(ator, negocio.id, 'SUSPENDED', { confirmName: c.nome }, now)
+}
+
+/**
+ * Uso da API das últimas 48 horas cheias, por chave de conta e rota, no formato que `recordUsage` acumula. Valores
+ * determinísticos (sem sorteio); só quando a tabela está vazia, porque `writeUsageRows` soma em vez de substituir.
+ */
+async function usoDeDemonstracao(prisma: PrismaClient, now: Date): Promise<void> {
+  if ((await prisma.apiUsageHourly.count()) > 0) return
+  const chaves = await prisma.apiKey.findMany({
+    where: { kind: 'ACCOUNT', revokedAt: null, name: { startsWith: 'Demonstração' }, businessId: { not: null } },
+    orderBy: { name: 'asc' },
+  })
+  const { writeUsageRows } = await import('../src/server/domain/platform/api-usage')
+  const fimDaHora = startOfUtcHour(now)
+  const linhas = []
+  for (const [c, chave] of chaves.entries()) {
+    if (chave.businessId === null) continue
+    for (let h = 1; h <= 48; h++) {
+      // Mais tráfego de dia que de madrugada (hora UTC; é só um desenho plausível).
+      const hora = addMinutes(fimDaHora, -60 * h)
+      const hDia = (hora.getTime() / 3_600_000) % 24
+      const carga = hDia >= 11 && hDia <= 23 ? 3 : 1
+      for (const [r, rota] of DEMO_ROTAS_USO.entries()) {
+        const count = rota.peso * carga + ((h * 7 + r * 3 + c) % 5)
+        const errorCount = (h + r * 5 + c) % 13 === 0 ? 1 + (h % 2) : 0
+        const totalMs = count * rota.ms + ((h * 13) % 30)
+        linhas.push({
+          apiKeyId: chave.id,
+          businessId: chave.businessId,
+          route: rota.rota,
+          hour: hora,
+          count,
+          errorCount: Math.min(errorCount, count),
+          totalMs,
+          maxMs: Math.min(totalMs, rota.ms * 3 + ((h * 11) % 40)),
+        })
+      }
+    }
+  }
+  await writeUsageRows(linhas)
+}
+
+/** Execuções do agendador no formato de `recordSchedulerRun` (uma com falha); só quando a tabela está vazia. */
+async function execucoesDeDemonstracao(prisma: PrismaClient, now: Date): Promise<void> {
+  const { recordSchedulerRun, summarize } = await import('../src/server/notifications/scheduler-runs')
+  if ((await prisma.schedulerRun.count()) > 0) return
+  for (const e of DEMO_EXECUCOES) {
+    const startedAt = addMinutes(now, -e.minutosAtras)
+    await recordSchedulerRun({
+      kind: e.kind,
+      startedAt,
+      finishedAt: fromEpochMs(startedAt.getTime() + 1500),
+      ok: !('falha' in e),
+      // Mesmo formato de `failureSummary`: só o nome do erro.
+      summary: 'falha' in e ? `erro: ${e.falha}` : summarize(e.resultado),
+    })
+  }
+}
+
+/** Um aviso que esgotou as tentativas, com o código curto da lista fechada de falhas de canal. */
+async function avisoComFalha(prisma: PrismaClient, businessId: string, now: Date): Promise<void> {
+  const cliente = await prisma.customer.findFirst({ where: { businessId }, orderBy: { createdAt: 'asc' } })
+  if (!cliente) return
+  const dedupeKey = 'seed:aviso-com-falha'
+  await prisma.notification.upsert({
+    where: { businessId_dedupeKey: { businessId, dedupeKey } },
+    create: {
+      businessId,
+      kind: 'APPOINTMENT_REMINDER_24H',
+      channel: 'EMAIL',
+      customerId: cliente.id,
+      scheduledFor: addMinutes(now, -120),
+      status: 'FAILED',
+      attempts: 3,
+      lastError: 'channel_error',
+      dedupeKey,
+    },
+    update: {},
+  })
 }
 
 async function dominio() {
@@ -307,9 +434,17 @@ export async function seed(
     })
   }
 
+  const ator: AdminAtor = { kind: 'platform_admin', adminId: admin.id, name: admin.name }
+  await adminInativo(prisma, ator, now)
+  await contaSuspensa(prisma, ator, multiId, now)
+  const patas = contas.find((c) => c.slug === 'patas-e-cia')
+  if (patas) await avisoComFalha(prisma, patas.id, now)
+  await execucoesDeDemonstracao(prisma, now)
+
   const chaves = opts.demoKeysFile
     ? await chavesDeDemonstracao(prisma, opts.demoKeysFile, admin, contas)
     : { criadas: 0, aviso: null }
+  if (opts.demoKeysFile) await usoDeDemonstracao(prisma, now)
   return { emails, agenda, chaves }
 }
 

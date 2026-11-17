@@ -167,3 +167,37 @@ export const DEMO_CONTAS = [
 ] as const
 
 export const DEMO_MULTI_NOME = 'Helena Prado'
+
+/** Admin extra da plataforma, desativado: dá vida à lista de admins do painel dev. A senha dele é aleatória e descartada. */
+export const DEMO_ADMIN_INATIVO = { nome: 'Admin Inativo', email: 'inativo@agendaflui.localhost' } as const
+
+/** Conta de demonstração suspensa (criada ativa e suspensa só na primeira vez, para o admin poder reativá-la). */
+export const DEMO_CONTA_SUSPENSA = {
+  slug: 'estudio-sol-nascente',
+  nome: 'Estúdio Sol Nascente',
+  segmento: 'Estúdio de pilates',
+  fuso: 'America/Sao_Paulo',
+} as const
+
+/** Rotas do uso de API de demonstração: método e caminho como o código grava, peso do tráfego e tempo típico em ms. */
+export const DEMO_ROTAS_USO = [
+  { rota: 'GET /v1/availability', peso: 6, ms: 38 },
+  { rota: 'GET /v1/appointments', peso: 4, ms: 52 },
+  { rota: 'POST /v1/appointments', peso: 2, ms: 96 },
+  { rota: 'GET /v1/business', peso: 3, ms: 21 },
+  { rota: 'POST /v1/auth/customer/login', peso: 1, ms: 180 },
+] as const
+
+/** Execuções do agendador de demonstração: minutos antes do "agora", tipo, resultado (contagens ou nome do erro). */
+export const DEMO_EXECUCOES = [
+  { minutosAtras: 3, kind: 'notifications', resultado: { sent: 4, skipped: 1 } },
+  { minutosAtras: 4, kind: 'usage_flush', resultado: 12 },
+  { minutosAtras: 4, kind: 'notifications', resultado: { sent: 2 } },
+  { minutosAtras: 5, kind: 'notifications', resultado: { sent: 1, retried: 1 } },
+  { minutosAtras: 20, kind: 'cleanup', resultado: { limites: 6, codigos: 2, tokens: 3, execucoes: 0, passagens: 0 } },
+  { minutosAtras: 21, kind: 'notifications', resultado: { sent: 3, failed: 1 } },
+  { minutosAtras: 22, kind: 'usage_flush', resultado: 9 },
+  { minutosAtras: 80, kind: 'notifications', resultado: { sent: 5 } },
+  { minutosAtras: 81, kind: 'cleanup', falha: 'ConnectionError' },
+  { minutosAtras: 140, kind: 'usage_flush', resultado: 14 },
+] as const
