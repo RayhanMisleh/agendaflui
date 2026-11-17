@@ -100,8 +100,10 @@ describe('rotas de módulo', () => {
     }
   })
 
-  test('o 404 documentado cita module_disabled', () => {
-    expect(JSON.stringify(objeto(buildOpenApi().components).responses)).toContain('module_disabled')
+  test('o 404 documentado diz que `error.code` (e não `error.reason`) é module_disabled', () => {
+    const texto = JSON.stringify(objeto(buildOpenApi().components).responses)
+    expect(texto).toContain('o módulo da rota está desligado: `error.code` é `module_disabled`')
+    expect(texto).not.toContain('`error.reason` é `module_disabled`')
   })
 })
 

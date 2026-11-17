@@ -152,6 +152,13 @@ function rodar(comando: string, args: string[], env: NodeJS.ProcessEnv): Promise
   })
 }
 
+/** Uma limpeza falhou (por exemplo, restaurar os módulos da conta): o script termina com erro em vez de engolir a falha. */
+let limpezaFalhou = false
+function avisarFalhaDeLimpeza(err: unknown): void {
+  limpezaFalhou = true
+  console.error(`ATENÇÃO: a limpeza da fumaça falhou e o banco pode ter ficado alterado (módulos da conta de demonstração ou sessões): ${err instanceof Error ? err.message : String(err)}`)
+}
+
 const dormir = (ms: number) => new Promise((ok) => setTimeout(ok, ms))
 
 async function main(): Promise<number> {
@@ -164,7 +171,7 @@ async function main(): Promise<number> {
     if (encerrado) return
     encerrado = true
     if (servidor && !servidor.killed) servidor.kill('SIGTERM')
-    if (limpar) await limpar().catch(() => undefined)
+    if (limpar) await limpar().catch(avisarFalhaDeLimpeza)
     if (db) await db.stop().catch(() => undefined)
   }
   for (const sinal of ['SIGINT', 'SIGTERM'] as const) {
@@ -209,7 +216,7 @@ async function main(): Promise<number> {
     // Cada sessão registra a própria limpeza logo depois de criada: se a segunda falhar, a primeira ainda é apagada.
     const limpezas: (() => Promise<void>)[] = []
     limpar = async () => {
-      for (const l of limpezas.reverse()) await l().catch(() => undefined)
+      for (const l of limpezas.reverse()) await l().catch(avisarFalhaDeLimpeza)
       await prisma.$disconnect()
     }
     const { token, hash } = generateToken()
@@ -315,7 +322,7 @@ async function main(): Promise<number> {
 // Sem process.exit: o banco embutido precisa terminar o desligamento por conta própria.
 main().then(
   (codigo) => {
-    process.exitCode = codigo
+    process.exitCode = limpezaFalhou ? 1 : codigo
   },
   (err: unknown) => {
     console.error(err instanceof Error ? err.message : String(err))

@@ -107,6 +107,21 @@ describe('Mercado Pago', () => {
     expect(await prisma.businessIntegration.count()).toBe(0)
   })
 
+  test('sem admin nenhum campo do formulário é lido (nem os segredos)', async () => {
+    guards.requirePlatformAdmin.mockRejectedValue(new Error('sem sessão'))
+    const fd = form({ version: '0', accessToken: TOKEN, webhookSecret: SEGREDO, token: FRENET })
+    const lidos: string[] = []
+    const original = fd.get.bind(fd)
+    fd.get = (nome: string) => {
+      lidos.push(nome)
+      return original(nome)
+    }
+    for (const acao of [salvarMercadoPago, salvarFrenet, removerMercadoPago, removerFrenet]) {
+      await expect(acao(conta.id, ini, fd)).rejects.toThrow('sem sessão')
+    }
+    expect(lidos).toEqual([])
+  })
+
   test('a conta vem do id ligado, nunca do formulário', async () => {
     const outra = await makeBusiness()
     await salvarMercadoPago(conta.id, ini, form({ version: '0', businessId: outra.id, accessToken: TOKEN, webhookSecret: SEGREDO }))

@@ -51,7 +51,7 @@ function Formulario({ action, version, submit, children }: { action: AcaoConta; 
 function Segredo({ name, label, hint, error }: { name: string; label: string; hint: string; error: string | undefined }) {
   return (
     <Field label={label} hint={hint} error={error}>
-      <Input type="password" name={name} autoComplete="off" autoCapitalize="none" spellCheck={false} defaultValue="" />
+      <Input type="password" name={name} autoComplete="new-password" autoCapitalize="none" spellCheck={false} defaultValue="" />
     </Field>
   )
 }

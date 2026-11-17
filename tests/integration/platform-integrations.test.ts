@@ -59,6 +59,22 @@ describe('getIntegrations', () => {
     expect(await prisma.businessIntegration.count()).toBe(0)
   })
 
+  test('o suporte (admin entrando como) não lê nem grava', async () => {
+    const suporte = { kind: 'impersonator', adminId: admin.adminId, name: admin.name } as unknown as PlatformAdminActor
+    expect((await domainError(getIntegrations(suporte, conta.id))).code).toBe('forbidden')
+    expect((await domainError(setFrenet(suporte, conta.id, 0, { token: FRENET }))).code).toBe('forbidden')
+    expect((await domainError(setMercadoPago(suporte, conta.id, 0, { accessToken: TOKEN, webhookSecret: SEGREDO }))).code).toBe('forbidden')
+    expect((await domainError(clearFrenet(suporte, conta.id, 0))).code).toBe('forbidden')
+    expect((await domainError(clearMercadoPago(suporte, conta.id, 0))).code).toBe('forbidden')
+    expect(await prisma.businessIntegration.count()).toBe(0)
+  })
+
+  test('a data da gravação vem do relógio informado', async () => {
+    const instante = new Date('2026-11-17T15:00:00Z')
+    await setFrenet(admin, conta.id, 0, { token: FRENET }, instante)
+    expect((await prisma.businessIntegration.findUniqueOrThrow({ where: { businessId: conta.id } })).frenetUpdatedAt).toEqual(instante)
+  })
+
   test('admin desativado não grava', async () => {
     await prisma.platformAdmin.update({ where: { id: admin.adminId }, data: { active: false } })
     expect((await domainError(setFrenet(admin, conta.id, 0, { token: FRENET }))).code).toBe('forbidden')
@@ -307,6 +323,13 @@ describe('isolamento entre contas', () => {
 
   test('tenantDb(A).businessIntegration é recusado (modelo de plataforma)', async () => {
     await expect(tenantDb(conta.id).businessIntegration.findMany()).rejects.toThrow(TenantViolationError)
+  })
+
+  test('tenantDb(A) recusa também chegar à linha pela relação `integrations` da conta', async () => {
+    await setFrenet(admin, conta.id, 0, { token: FRENET })
+    const db = tenantDb(conta.id)
+    await expect(db.business.findUnique({ where: { id: conta.id }, include: { integrations: true } })).rejects.toThrow(TenantViolationError)
+    await expect(db.business.findUnique({ where: { id: conta.id }, select: { integrations: { select: { frenetTokenEnc: true } } } })).rejects.toThrow(TenantViolationError)
   })
 })
 

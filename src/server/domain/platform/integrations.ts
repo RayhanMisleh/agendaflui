@@ -168,6 +168,7 @@ export async function setMercadoPago(
   businessId: string,
   version: number,
   input: { accessToken?: string; webhookSecret?: string },
+  now: Date = new Date(),
 ): Promise<IntegrationsView> {
   assertPlatformAdmin(actor)
   idDaConta(businessId)
@@ -182,7 +183,7 @@ export async function setMercadoPago(
     if (i.accessToken === undefined && atual?.mpAccessTokenEnc == null) falta.accessToken = 'Informe o token de acesso: na primeira vez os dois campos são necessários.'
     if (i.webhookSecret === undefined && atual?.mpWebhookSecretEnc == null) falta.webhookSecret = 'Informe a assinatura secreta do webhook: na primeira vez os dois campos são necessários.'
     if (Object.keys(falta).length > 0) throw new DomainError('validation', 'Confira os campos informados e tente de novo.', { fields: falta })
-    const data: Prisma.BusinessIntegrationUncheckedUpdateInput = { mpUpdatedAt: new Date() }
+    const data: Prisma.BusinessIntegrationUncheckedUpdateInput = { mpUpdatedAt: now }
     const fields: string[] = []
     if (i.accessToken !== undefined) {
       data.mpAccessTokenEnc = sealSecret(i.accessToken, SECRET_AAD.mpAccessToken(businessId))
@@ -218,12 +219,18 @@ export async function clearMercadoPago(actor: PlatformAdminActor, businessId: st
   })
 }
 
-export async function setFrenet(actor: PlatformAdminActor, businessId: string, version: number, input: { token: string }): Promise<IntegrationsView> {
+export async function setFrenet(
+  actor: PlatformAdminActor,
+  businessId: string,
+  version: number,
+  input: { token: string },
+  now: Date = new Date(),
+): Promise<IntegrationsView> {
   assertPlatformAdmin(actor)
   idDaConta(businessId)
   const i = parse(frenetSchema, input)
   return gravar(actor, businessId, version, () => ({
-    data: { frenetTokenEnc: sealSecret(i.token, SECRET_AAD.frenetToken(businessId)), frenetTokenLast4: lastFour(i.token), frenetUpdatedAt: new Date() },
+    data: { frenetTokenEnc: sealSecret(i.token, SECRET_AAD.frenetToken(businessId)), frenetTokenLast4: lastFour(i.token), frenetUpdatedAt: now },
     action: 'integration.frenet.updated',
     fields: ['token'],
   }))

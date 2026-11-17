@@ -18,7 +18,7 @@ const TOKEN_KINDS = 'o token de acesso de um cliente (rotas /v1/auth/customer e 
 const ERROR_RESPONSES: Record<string, { name: string; description: string }> = {
   '401': { name: 'Unauthorized', description: 'Chave do app inválida, token ausente, inválido ou vencido, ou sessão encerrada.' },
   '403': { name: 'Forbidden', description: 'Sem permissão: origem não liberada, tipo de token errado ou papel sem acesso.' },
-  '404': { name: 'NotFound', description: 'O registro não existe nesta conta (ou o módulo da rota está desligado: `error.reason` é `module_disabled`).' },
+  '404': { name: 'NotFound', description: 'O registro não existe nesta conta (ou o módulo da rota está desligado: `error.code` é `module_disabled`).' },
   '409': { name: 'Conflict', description: 'A regra de negócio impede a ação agora: veja `error.reason`.' },
   '413': { name: 'PayloadTooLarge', description: 'O corpo passa de 100 KB: envie menos dados (`error.reason` é `body_too_large`).' },
   '422': { name: 'ValidationFailed', description: 'Os dados enviados não passaram na validação: veja `error.fields`.' },

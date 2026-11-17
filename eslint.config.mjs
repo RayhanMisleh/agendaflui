@@ -58,6 +58,11 @@ const semPrismaCru = {
   message: 'O cliente Prisma cru só vale em src/server/db, auth, domain/platform, prisma, scripts e tests. Use tenantDb.',
 }
 
+const semSegredos = {
+  group: ['**/integration-secrets', '**/integration-secrets.*'],
+  message: 'O leitor de segredos de integração só vale em src/server/domain/store (o teste tests/unit/integration-secrets-imports.test.ts confere o mesmo).',
+}
+
 const semTenantDbNaRota = {
   group: ['@/server/db/tenant', '**/db/tenant', '**/server/db/tenant'],
   message: 'Rota e camada HTTP não usam tenantDb: o contexto da conta chega pronto e a regra de negócio fica em src/server/domain.',
@@ -93,22 +98,22 @@ export default defineConfig([
       'no-restricted-imports': [
         'error',
         {
-          patterns: [semPrismaCru],
+          patterns: [semPrismaCru, semSegredos],
         },
       ],
     },
   },
   {
     files: ['src/server/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semInterface] }] },
   },
   {
     files: ['src/server/api/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface, semTenantDbNaRota] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semInterface, semTenantDbNaRota] }] },
   },
   {
     files: ['src/app/api/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semTenantDbNaRota] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semTenantDbNaRota] }] },
   },
   {
     files: ['src/shared/**'],
@@ -118,6 +123,7 @@ export default defineConfig([
         {
           patterns: [
             semPrismaCru,
+            semSegredos,
             semServidorNemInterface,
           ],
         },
@@ -131,12 +137,17 @@ export default defineConfig([
   {
     // Pastas liberadas para o cliente Prisma cru; ainda assim, o servidor não importa da interface.
     files: ['src/server/db/**', 'src/server/auth/**', 'src/server/domain/platform/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semInterface] }] },
   },
   {
     // O envio de avisos atravessa contas por desenho: usa o Prisma cru e filtra por `businessId` a cada consulta de conta.
     files: ['src/server/notifications/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semInterface] }] },
+  },
+  {
+    // O domínio da loja é o único que lê segredos de integração em texto; vale o resto das regras de `src/server`.
+    files: ['src/server/domain/store/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface] }] },
   },
   {
     files: ['prisma/**', 'scripts/**', 'tests/**'],

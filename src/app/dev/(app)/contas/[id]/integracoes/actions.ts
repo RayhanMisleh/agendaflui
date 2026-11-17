@@ -44,9 +44,13 @@ function porIntegracao(
   mensagem: string,
 ) {
   return async (businessId: string, prev: EstadoConta, fd: FormData): Promise<EstadoConta> => {
-    const segredos: Segredos = { accessToken: digitado(fd, 'accessToken'), webhookSecret: digitado(fd, 'webhookSecret'), token: digitado(fd, 'token') }
+    // Preenchido pelo `parse`, que `adminAction` só roda depois do guarda de admin: o formulário não é lido antes dele.
+    let segredos: Segredos = { accessToken: undefined, webhookSecret: undefined, token: undefined }
     return adminAction(
-      (f): Campos => ({ version: typeof f.get('version') === 'string' ? String(f.get('version')) : '' }),
+      (f): Campos => {
+        segredos = { accessToken: digitado(f, 'accessToken'), webhookSecret: digitado(f, 'webhookSecret'), token: digitado(f, 'token') }
+        return { version: typeof f.get('version') === 'string' ? String(f.get('version')) : '' }
+      },
       async (admin, v) => comVersao(run(admin, businessId, Number(v.version), segredos)),
       (view, v) => {
         revalidatePath('/dev/contas/[id]', 'layout')

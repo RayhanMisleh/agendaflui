@@ -81,6 +81,6 @@ describe('rota com `module`', () => {
     expect(op.description).toContain('Exige o módulo Banners ligado')
     expect(op.responses).toHaveProperty('404')
     const doc = JSON.stringify(buildOpenApi())
-    expect(doc).toContain('module_disabled')
+    expect(doc).toContain('o módulo da rota está desligado: `error.code` é `module_disabled`')
   })
 })

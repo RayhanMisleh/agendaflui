@@ -36,7 +36,7 @@ test('configurado: mostra só os finais, endereço com botão de copiar e remove
   expect(senhas).toHaveLength(3)
   for (const campo of senhas) {
     expect((campo as HTMLInputElement).value).toBe('')
-    expect(campo.getAttribute('autocomplete')).toBe('off')
+    expect(campo.getAttribute('autocomplete')).toBe('new-password')
   }
   expect(Array.from(container.querySelectorAll('input[name="version"]')).map((i) => (i as HTMLInputElement).value)).toEqual(['3', '3'])
 })
