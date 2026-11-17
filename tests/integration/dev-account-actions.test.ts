@@ -36,7 +36,7 @@ import {
   convidarMembro,
   trocarPapel,
 } from '@/app/dev/(app)/contas/[id]/actions'
-import { listApiKeys } from '@/server/domain/platform/api-keys'
+import { createApiKey, listApiKeys } from '@/server/domain/platform/api-keys'
 import type { FormState } from '@/app/dev/(app)/_lib/form-state'
 
 const vazio: FormState<Record<string, never>> = { ok: false, message: null, fields: {}, values: {} }
@@ -74,12 +74,12 @@ const MSG_CONFLITO = 'Outra pessoa alterou esta conta. Recarregue para ver a ver
 describe('dados da conta', () => {
   test('versão antiga devolve o conflito e mantém o que foi digitado, sem gravar', async () => {
     const conta = await makeBusiness({ name: 'Original' })
-    const campos = { businessId: conta.id, version: String(conta.version), name: 'Digitado A', slug: conta.slug, legalName: '', document: '', contactEmail: '', contactPhone: '', internalNotes: '' }
-    const a = await salvarDados(ini, form(campos))
+    const campos = { version: String(conta.version), name: 'Digitado A', slug: conta.slug, legalName: '', document: '', contactEmail: '', contactPhone: '', internalNotes: '' }
+    const a = await salvarDados(conta.id, ini, form(campos))
     expect(a.ok).toBe(true)
     expect(a.values.version).toBe(String(conta.version + 1))
     // Segunda pessoa, ainda com a versão antiga.
-    const b = await salvarDados(ini, form({ ...campos, name: 'Digitado B', internalNotes: 'nota minha' }))
+    const b = await salvarDados(conta.id, ini, form({ ...campos, name: 'Digitado B', internalNotes: 'nota minha' }))
     expect(b.ok).toBe(false)
     expect(b.message).toBe(MSG_CONFLITO)
     expect(b.values.name).toBe('Digitado B')
@@ -89,7 +89,7 @@ describe('dados da conta', () => {
 
   test('erro de campo volta no campo, com o valor digitado', async () => {
     const conta = await makeBusiness()
-    const e = await salvarDados(ini, form({ businessId: conta.id, version: String(conta.version), name: conta.name, slug: 'Slug Inválido!', legalName: '', document: '', contactEmail: '', contactPhone: '', internalNotes: '' }))
+    const e = await salvarDados(conta.id, ini, form({ version: String(conta.version), name: conta.name, slug: 'Slug Inválido!', legalName: '', document: '', contactEmail: '', contactPhone: '', internalNotes: '' }))
     expect(e.ok).toBe(false)
     expect(e.fields.slug).toBeTruthy()
     expect(e.values.slug).toBe('Slug Inválido!')
@@ -98,7 +98,7 @@ describe('dados da conta', () => {
   test('sem sessão de admin a ação não executa nada', async () => {
     const conta = await makeBusiness({ name: 'Intacta' })
     guards.requirePlatformAdmin.mockRejectedValue(new Error('sem sessão'))
-    await expect(salvarDados(ini, form({ businessId: conta.id, version: String(conta.version), name: 'Invasor', slug: conta.slug }))).rejects.toThrow('sem sessão')
+    await expect(salvarDados(conta.id, ini, form({ version: String(conta.version), name: 'Invasor', slug: conta.slug }))).rejects.toThrow('sem sessão')
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).name).toBe('Intacta')
   })
 })
@@ -106,14 +106,14 @@ describe('dados da conta', () => {
 describe('situação da conta', () => {
   test('nome errado não suspende; nome certo suspende; arquivar também pede o nome', async () => {
     const conta = await makeBusiness({ name: 'Pata Viva' })
-    const errada = await suspenderConta(ini, form({ businessId: conta.id, confirmName: 'pata viva' }))
+    const errada = await suspenderConta(conta.id, ini, form({ confirmName: 'pata viva' }))
     expect(errada.ok).toBe(false)
     expect(errada.fields.confirmName).toBeTruthy()
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).status).toBe('ACTIVE')
-    const certa = await suspenderConta(ini, form({ businessId: conta.id, confirmName: 'Pata Viva' }))
+    const certa = await suspenderConta(conta.id, ini, form({ confirmName: 'Pata Viva' }))
     expect(certa.ok).toBe(true)
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).status).toBe('SUSPENDED')
-    const arq = await arquivarConta(ini, form({ businessId: conta.id, confirmName: 'x' }))
+    const arq = await arquivarConta(conta.id, ini, form({ confirmName: 'x' }))
     expect(arq.ok).toBe(false)
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).status).toBe('SUSPENDED')
   })
@@ -123,13 +123,13 @@ describe('marca', () => {
   test('salva a marca com a versão do servidor e devolve a versão nova; versão antiga é conflito com o digitado', async () => {
     const conta = await makeBusiness()
     const marca = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: conta.id } })
-    const campos = { businessId: conta.id, version: String(marca.version), displayName: 'Nova Marca', primary: '#2f6b4f', accent: '#E8833A', material: 'LINEN', paper: 'CREAM', fontPair: 'FRIENDLY', loginMessage: 'Oi' }
-    const ok = await salvarMarca(ini, form(campos))
+    const campos = { version: String(marca.version), displayName: 'Nova Marca', primary: '#2f6b4f', accent: '#E8833A', material: 'LINEN', paper: 'CREAM', fontPair: 'FRIENDLY', loginMessage: 'Oi' }
+    const ok = await salvarMarca(conta.id, ini, form(campos))
     expect(ok.ok).toBe(true)
     expect(Number(ok.values.version)).toBe(marca.version + 1)
     const gravada = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: conta.id } })
     expect(gravada).toMatchObject({ displayName: 'Nova Marca', primaryColor: '#2F6B4F', coverMaterial: 'LINEN' })
-    const velha = await salvarMarca(ini, form({ ...campos, displayName: 'Outra' }))
+    const velha = await salvarMarca(conta.id, ini, form({ ...campos, displayName: 'Outra' }))
     expect(velha.ok).toBe(false)
     expect(velha.message).toBe(MSG_CONFLITO)
     expect(velha.values.displayName).toBe('Outra')
@@ -139,45 +139,45 @@ describe('marca', () => {
 describe('termos, módulos, regras e avisos', () => {
   test('termos gravam e termo vazio erra no campo', async () => {
     const conta = await makeBusiness()
-    const base = { businessId: conta.id, professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube Pata' }
-    expect((await salvarTermos(ini, form(base))).ok).toBe(true)
+    const base = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube Pata' }
+    expect((await salvarTermos(conta.id, ini, form(base))).ok).toBe(true)
     expect((await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).termClub).toBe('Clube Pata')
-    const vazioClube = await salvarTermos(ini, form({ ...base, club: '' }))
+    const vazioClube = await salvarTermos(conta.id, ini, form({ ...base, club: '' }))
     expect(vazioClube.ok).toBe(false)
     expect(vazioClube.fields.club).toBeTruthy()
   })
 
   test('ligar vouchers sem loja devolve o erro no campo e não grava; com loja grava', async () => {
     const conta = await makeBusiness()
-    const e = await salvarModulos(ini, form({ businessId: conta.id, vouchers: 'on' }))
+    const e = await salvarModulos(conta.id, ini, form({ vouchers: 'on' }))
     expect(e.ok).toBe(false)
     expect(e.fields.vouchers).toMatch(/Loja/)
     expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: false, store: false })
-    const ok = await salvarModulos(ini, form({ businessId: conta.id, vouchers: 'on', store: 'on', loyalty: 'on' }))
+    const ok = await salvarModulos(conta.id, ini, form({ vouchers: 'on', store: 'on', loyalty: 'on' }))
     expect(ok.ok).toBe(true)
     expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: true, store: true, loyalty: true, banners: false })
   })
 
   test('regras e fuso gravam juntos; valor fora do limite erra no campo; campo em branco é recusado', async () => {
     const conta = await makeBusiness()
-    const base = { businessId: conta.id, slotStepMin: '30', minLeadMin: '90', maxAdvanceDays: '45', customerChangeWindowMin: '180', bufferMin: '10', timeZone: 'America/Manaus', autoConfirm: 'on' }
-    const ok = await salvarRegras(ini, form(base))
+    const base = { slotStepMin: '30', minLeadMin: '90', maxAdvanceDays: '45', customerChangeWindowMin: '180', bufferMin: '10', timeZone: 'America/Manaus', autoConfirm: 'on' }
+    const ok = await salvarRegras(conta.id, ini, form(base))
     expect(ok.ok).toBe(true)
     expect(await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ slotStepMin: 30, bufferMin: 10, autoConfirm: true })
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).timezone).toBe('America/Manaus')
-    const alto = await salvarRegras(ini, form({ ...base, maxAdvanceDays: '999' }))
+    const alto = await salvarRegras(conta.id, ini, form({ ...base, maxAdvanceDays: '999' }))
     expect(alto.ok).toBe(false)
     expect(alto.fields.maxAdvanceDays).toBeTruthy()
-    const branco = await salvarRegras(ini, form({ ...base, minLeadMin: '' }))
+    const branco = await salvarRegras(conta.id, ini, form({ ...base, minLeadMin: '' }))
     expect(branco.ok).toBe(false)
     expect(branco.fields.minLeadMin).toBeTruthy()
-    const fuso = await salvarRegras(ini, form({ ...base, timeZone: 'Marte/Olimpo' }))
+    const fuso = await salvarRegras(conta.id, ini, form({ ...base, timeZone: 'Marte/Olimpo' }))
     expect(fuso.fields.timeZone).toBeTruthy()
   })
 
   test('avisos: caixa desmarcada desliga o canal daquele tipo', async () => {
     const conta = await makeBusiness()
-    const r = await salvarAvisos(ini, form({ businessId: conta.id, APPOINTMENT_CONFIRMED__email: 'on', APPOINTMENT_CANCELED__push: 'on' }))
+    const r = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__email: 'on', APPOINTMENT_CANCELED__push: 'on' }))
     expect(r.ok).toBe(true)
     const s = await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })
     const n = s.notifications as Record<string, { email: boolean; push: boolean }>
@@ -191,7 +191,7 @@ describe('equipe', () => {
   test('trocar o papel do último dono devolve a mensagem do domínio e nada muda', async () => {
     const conta = await makeBusiness()
     const dono = await makeMembership(conta.id, (await makeUser()).id, 'OWNER')
-    const r = await trocarPapel(ini, form({ businessId: conta.id, membershipId: dono.id, role: 'MANAGER' }))
+    const r = await trocarPapel(conta.id, ini, form({ membershipId: dono.id, role: 'MANAGER' }))
     expect(r.ok).toBe(false)
     expect(r.message).toMatch(/nenhum dono ativo/)
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: dono.id } })).role).toBe('OWNER')
@@ -205,43 +205,43 @@ describe('equipe', () => {
     const gerente = await makeMembership(a.id, gerenteUser.id, 'MANAGER')
     const deB = await makeMembership(b.id, (await makeUser()).id, 'MANAGER')
 
-    const outra = await trocarPapel(ini, form({ businessId: a.id, membershipId: deB.id, role: 'PROFESSIONAL' }))
+    const outra = await trocarPapel(a.id, ini, form({ membershipId: deB.id, role: 'PROFESSIONAL' }))
     expect(outra.ok).toBe(false)
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: deB.id } })).role).toBe('MANAGER')
-    const outraAtivo = await alternarAcesso(ini, form({ businessId: a.id, membershipId: deB.id, active: 'false', confirmName: 'x' }))
+    const outraAtivo = await alternarAcesso(a.id, ini, form({ membershipId: deB.id, active: 'false', confirmName: 'x' }))
     expect(outraAtivo.ok).toBe(false)
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: deB.id } })).active).toBe(true)
-    const outraConvite = await reenviarConvite(ini, form({ businessId: a.id, membershipId: deB.id }))
+    const outraConvite = await reenviarConvite(a.id, ini, form({ membershipId: deB.id }))
     expect(outraConvite.ok).toBe(false)
 
-    expect((await trocarPapel(ini, form({ businessId: a.id, membershipId: gerente.id, role: 'PROFESSIONAL' }))).ok).toBe(true)
+    expect((await trocarPapel(a.id, ini, form({ membershipId: gerente.id, role: 'PROFESSIONAL' }))).ok).toBe(true)
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: gerente.id } })).role).toBe('PROFESSIONAL')
 
-    const semNome = await alternarAcesso(ini, form({ businessId: a.id, membershipId: gerente.id, active: 'false', confirmName: 'errado' }))
+    const semNome = await alternarAcesso(a.id, ini, form({ membershipId: gerente.id, active: 'false', confirmName: 'errado' }))
     expect(semNome.ok).toBe(false)
     expect(semNome.fields.confirmName).toBeTruthy()
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: gerente.id } })).active).toBe(true)
-    expect((await alternarAcesso(ini, form({ businessId: a.id, membershipId: gerente.id, active: 'false', confirmName: 'Gil Gerente' }))).ok).toBe(true)
+    expect((await alternarAcesso(a.id, ini, form({ membershipId: gerente.id, active: 'false', confirmName: 'Gil Gerente' }))).ok).toBe(true)
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: gerente.id } })).active).toBe(false)
-    expect((await alternarAcesso(ini, form({ businessId: a.id, membershipId: gerente.id, active: 'true' }))).ok).toBe(true)
+    expect((await alternarAcesso(a.id, ini, form({ membershipId: gerente.id, active: 'true' }))).ok).toBe(true)
     expect((await prisma.membership.findUniqueOrThrow({ where: { id: gerente.id } })).active).toBe(true)
   })
 
   test('reenviar convite a quem já tem senha mostra a mensagem do domínio', async () => {
     const conta = await makeBusiness()
     const m = await makeMembership(conta.id, (await makeUser()).id, 'OWNER')
-    const r = await reenviarConvite(ini, form({ businessId: conta.id, membershipId: m.id }))
+    const r = await reenviarConvite(conta.id, ini, form({ membershipId: m.id }))
     expect(r.ok).toBe(false)
     expect(r.message).toMatch(/já definiu a senha/)
     const pendente = await makeMembership(conta.id, (await makeUser({ password: null })).id, 'MANAGER')
-    expect((await reenviarConvite(ini, form({ businessId: conta.id, membershipId: pendente.id }))).ok).toBe(true)
+    expect((await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))).ok).toBe(true)
   })
 })
 
 describe('chaves', () => {
   test('criar devolve o segredo uma vez; a listagem seguinte e o banco não o contêm', async () => {
     const conta = await makeBusiness()
-    const r = await criarChave(ini, form({ businessId: conta.id, name: 'App Pata', origins: 'https://app.exemplo.com\nhttps://b.exemplo.com' }))
+    const r = await criarChave(conta.id, ini, form({ name: 'App Pata', origins: 'https://app.exemplo.com\nhttps://b.exemplo.com' }))
     expect(r.ok).toBe(true)
     const segredo = r.values.secret
     expect(segredo).toMatch(/^afk_a_/)
@@ -257,7 +257,7 @@ describe('chaves', () => {
 
   test('origem inválida erra no campo de origens e não cria a chave', async () => {
     const conta = await makeBusiness()
-    const r = await criarChave(ini, form({ businessId: conta.id, name: 'App', origins: 'isto não é origem' }))
+    const r = await criarChave(conta.id, ini, form({ name: 'App', origins: 'isto não é origem' }))
     expect(r.ok).toBe(false)
     expect(r.fields.origins).toBeTruthy()
     expect(r.values.origins).toBe('isto não é origem')
@@ -267,31 +267,31 @@ describe('chaves', () => {
   test('revogar pede o nome da chave; chave de OUTRA conta pelo formulário desta não é revogada', async () => {
     const a = await makeBusiness()
     const b = await makeBusiness()
-    const chaveA = (await criarChave(ini, form({ businessId: a.id, name: 'Chave A', origins: '' }))).ok
+    const chaveA = (await criarChave(a.id, ini, form({ name: 'Chave A', origins: '' }))).ok
     expect(chaveA).toBe(true)
-    await criarChave(ini, form({ businessId: b.id, name: 'Chave B', origins: '' }))
+    await criarChave(b.id, ini, form({ name: 'Chave B', origins: '' }))
     const kA = await prisma.apiKey.findFirstOrThrow({ where: { businessId: a.id } })
     const kB = await prisma.apiKey.findFirstOrThrow({ where: { businessId: b.id } })
 
-    const alheia = await revogarChave(ini, form({ businessId: a.id, keyId: kB.id, confirmName: 'Chave B' }))
+    const alheia = await revogarChave(a.id, ini, form({ keyId: kB.id, confirmName: 'Chave B' }))
     expect(alheia.ok).toBe(false)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kB.id } })).revokedAt).toBeNull()
-    const origensAlheias = await editarOrigens(ini, form({ businessId: a.id, keyId: kB.id, origins: 'https://x.exemplo.com' }))
+    const origensAlheias = await editarOrigens(a.id, ini, form({ keyId: kB.id, origins: 'https://x.exemplo.com' }))
     expect(origensAlheias.ok).toBe(false)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kB.id } })).allowedOrigins).toEqual([])
 
-    const semNome = await revogarChave(ini, form({ businessId: a.id, keyId: kA.id, confirmName: 'outra' }))
+    const semNome = await revogarChave(a.id, ini, form({ keyId: kA.id, confirmName: 'outra' }))
     expect(semNome.ok).toBe(false)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kA.id } })).revokedAt).toBeNull()
-    expect((await revogarChave(ini, form({ businessId: a.id, keyId: kA.id, confirmName: 'Chave A' }))).ok).toBe(true)
+    expect((await revogarChave(a.id, ini, form({ keyId: kA.id, confirmName: 'Chave A' }))).ok).toBe(true)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kA.id } })).revokedAt).not.toBeNull()
   })
 
   test('editar origens da própria chave grava', async () => {
     const conta = await makeBusiness()
-    await criarChave(ini, form({ businessId: conta.id, name: 'K', origins: '' }))
+    await criarChave(conta.id, ini, form({ name: 'K', origins: '' }))
     const k = await prisma.apiKey.findFirstOrThrow({ where: { businessId: conta.id } })
-    const r = await editarOrigens(ini, form({ businessId: conta.id, keyId: k.id, origins: 'https://novo.exemplo.com' }))
+    const r = await editarOrigens(conta.id, ini, form({ keyId: k.id, origins: 'https://novo.exemplo.com' }))
     expect(r.ok).toBe(true)
     expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: k.id } })).allowedOrigins).toEqual(['https://novo.exemplo.com'])
   })
@@ -300,7 +300,7 @@ describe('chaves', () => {
 describe('convidar membro novo', () => {
   test('cria o vínculo e o convite, devolve a mensagem e a pessoa aparece na equipe', async () => {
     const conta = await makeBusiness()
-    const r = await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana Gerente', email: 'ANA@exemplo.test', role: 'MANAGER' }))
+    const r = await convidarMembro(conta.id, ini, form({ name: 'Ana Gerente', email: 'ANA@exemplo.test', role: 'MANAGER' }))
     expect(r.ok).toBe(true)
     expect(r.message).toMatch(/convite/i)
     const m = await prisma.membership.findFirstOrThrow({ where: { businessId: conta.id }, include: { user: true } })
@@ -309,8 +309,8 @@ describe('convidar membro novo', () => {
 
   test('e-mail já vinculado à conta: erro do domínio no estado, com o que foi digitado', async () => {
     const conta = await makeBusiness()
-    await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }))
-    const r = await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana', email: 'ana@exemplo.test', role: 'PROFESSIONAL' }))
+    await convidarMembro(conta.id, ini, form({ name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }))
+    const r = await convidarMembro(conta.id, ini, form({ name: 'Ana', email: 'ana@exemplo.test', role: 'PROFESSIONAL' }))
     expect(r.ok).toBe(false)
     expect(r.message).toBeTruthy()
     expect(r.values.email).toBe('ana@exemplo.test')
@@ -319,12 +319,46 @@ describe('convidar membro novo', () => {
 
   test('conta arquivada recusa com a mensagem do domínio; e-mail ou papel ruins erram no campo', async () => {
     const arquivada = await makeBusiness({ status: 'ARCHIVED' })
-    const a = await convidarMembro(ini, form({ businessId: arquivada.id, name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }))
+    const a = await convidarMembro(arquivada.id, ini, form({ name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }))
     expect(a.ok).toBe(false)
     expect(a.message).toMatch(/arquivada/i)
     const conta = await makeBusiness()
-    const b = await convidarMembro(ini, form({ businessId: conta.id, name: 'Ana', email: 'sem-arroba', role: 'MANAGER' }))
+    const b = await convidarMembro(conta.id, ini, form({ name: 'Ana', email: 'sem-arroba', role: 'MANAGER' }))
     expect(b.ok).toBe(false)
     expect(b.fields.email).toBeTruthy()
+  })
+})
+
+describe('o id da conta vem do servidor, não do formulário', () => {
+  test('campo businessId forjado no formulário é ignorado: vale a conta ligada na ação', async () => {
+    const a = await makeBusiness({ name: 'Conta A' })
+    const b = await makeBusiness({ name: 'Conta B' })
+    const r = await suspenderConta(a.id, ini, form({ businessId: b.id, confirmName: 'Conta A' }))
+    expect(r.ok).toBe(true)
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: a.id } })).status).toBe('SUSPENDED')
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('ACTIVE')
+    const errado = await suspenderConta(b.id, ini, form({ businessId: a.id, confirmName: 'Conta A' }))
+    expect(errado.ok).toBe(false)
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: b.id } })).status).toBe('ACTIVE')
+  })
+
+  test('id ligado que não é UUID não grava nada e não vaza erro técnico', async () => {
+    const r = await salvarTermos('nao-e-uuid', ini, form({ club: 'X' }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBeTruthy()
+  })
+})
+
+describe('chave de plataforma', () => {
+  test('pela página de uma conta não se revoga nem se edita uma chave de PLATAFORMA', async () => {
+    const conta = await makeBusiness()
+    const { key } = await createApiKey({ kind: 'platform_admin', ...adminAtual }, { kind: 'PLATFORM', name: 'Plataforma' })
+    const revogar = await revogarChave(conta.id, ini, form({ keyId: key.id, confirmName: 'Plataforma' }))
+    expect(revogar.ok).toBe(false)
+    const origens = await editarOrigens(conta.id, ini, form({ keyId: key.id, origins: 'https://x.exemplo.com' }))
+    expect(origens.ok).toBe(false)
+    const depois = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
+    expect(depois.revokedAt).toBeNull()
+    expect(depois.allowedOrigins).toEqual([])
   })
 })

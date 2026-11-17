@@ -4,10 +4,9 @@ import { BrandPreview, Button, ColorField, Field, Input, MaterialPicker, Select,
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
-import { salvarMarca } from './actions'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
-import type { Campos } from './forms'
+import type { AcaoConta, Campos } from './forms'
 
 const PAPEIS: Array<[PaperTone, string]> = [
   ['WHITE', 'Branco'],
@@ -25,7 +24,7 @@ export type Imagens = { logo: string | null; symbol: string | null; favicon: str
 type Termos = { professionalSingular: string; professionalPlural: string; customerSingular: string; customerPlural: string }
 
 /** Marca da conta: o formulário e a prévia ao vivo lado a lado. As cores e o material trocam a prévia na hora, sem enviar. */
-export function MarcaForm({ valores, termos, logoUrl }: { valores: Campos; termos: Termos; logoUrl: string | null }) {
+export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoConta; valores: Campos; termos: Termos; logoUrl: string | null }) {
   const [v, setV] = useState({
     displayName: valores.displayName ?? '',
     primary: valores.primary ?? '',
@@ -43,7 +42,7 @@ export function MarcaForm({ valores, termos, logoUrl }: { valores: Campos; termo
   return (
     <div className="af-wizard__layout af-wizard__layout--aside">
       <div className="af-wizard__main">
-        <ContaForm action={salvarMarca} initial={estadoInicial(valores)} submit="Salvar marca">
+        <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar marca">
           {({ fields }) => (
             <>
               <div className="af-wizard__grid">

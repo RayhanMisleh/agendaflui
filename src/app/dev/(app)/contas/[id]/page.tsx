@@ -4,7 +4,8 @@ import { DomainError } from '@/server/domain/errors'
 import { getAccountMetrics } from '@/server/domain/platform/metrics'
 import { formatDateTime } from '@/server/time'
 import { carregarConta } from './_data'
-import { DadosForm } from './Simple'
+import { salvarDados } from './actions'
+import { DadosForm } from './FormsConta'
 
 export const metadata: Metadata = { title: 'Conta | AgendaFlui' }
 
@@ -84,8 +85,8 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
       <Paper raised={1} className="af-listpanel">
         <h2 className="af-section__title">Dados da conta</h2>
         <DadosForm
+          action={salvarDados.bind(null, conta.id)}
           valores={{
-            businessId: conta.id,
             version: String(conta.version),
             name: conta.name,
             slug: conta.slug,

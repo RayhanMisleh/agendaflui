@@ -3,6 +3,7 @@ import { Paper } from '@/ui/components'
 import { listTeam } from '@/server/domain/platform/team'
 import { formatDateTime } from '@/server/time'
 import { carregarConta } from '../_data'
+import { alternarAcesso, convidarMembro, reenviarConvite, trocarPapel } from '../actions'
 import { TeamPanel } from '../TeamPanel'
 
 export const metadata: Metadata = { title: 'Equipe da conta | AgendaFlui' }
@@ -23,7 +24,15 @@ export default async function EquipePage({ params }: { params: Promise<{ id: str
   return (
     <Paper raised={1} className="af-listpanel">
       <h2 className="af-section__title">Equipe</h2>
-      <TeamPanel businessId={conta.id} membros={membros} />
+      <TeamPanel
+        membros={membros}
+        acoes={{
+          trocarPapel: trocarPapel.bind(null, conta.id),
+          alternarAcesso: alternarAcesso.bind(null, conta.id),
+          reenviarConvite: reenviarConvite.bind(null, conta.id),
+          convidarMembro: convidarMembro.bind(null, conta.id),
+        }}
+      />
     </Paper>
   )
 }

@@ -2,8 +2,11 @@
 import { useActionState, useState } from 'react'
 import { ConfirmDialog, DataList, EmptyState, Button, Field, Input, Select, Stamp } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
-import { alternarAcesso, convidarMembro, reenviarConvite, trocarPapel } from './actions'
 import { estadoInicial } from './forms'
+import type { AcaoConta } from './forms'
+
+/** As ações da equipe, já com o id da conta ligado no servidor pela página. */
+export type AcoesEquipe = { trocarPapel: AcaoConta; alternarAcesso: AcaoConta; reenviarConvite: AcaoConta; convidarMembro: AcaoConta }
 
 export type Membro = {
   membershipId: string
@@ -30,11 +33,10 @@ function Aviso({ ok, message }: { ok: boolean; message: string | null }) {
   )
 }
 
-function Papel({ businessId, m }: { businessId: string; m: Membro }) {
-  const [state, action, pending] = useActionState(trocarPapel, estadoInicial({ businessId, membershipId: m.membershipId, role: m.role }))
+function Papel({ acoes, m }: { acoes: AcoesEquipe; m: Membro }) {
+  const [state, action, pending] = useActionState(acoes.trocarPapel, estadoInicial({ membershipId: m.membershipId, role: m.role }))
   return (
     <form action={action} className="af-teamcell">
-      <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="membershipId" value={m.membershipId} />
       <Select name="role" defaultValue={state.values.role ?? m.role} aria-label={`Papel de ${m.name}`}>
         {PAPEIS.map(([v, l]) => (
@@ -51,15 +53,14 @@ function Papel({ businessId, m }: { businessId: string; m: Membro }) {
   )
 }
 
-function Acesso({ businessId, m }: { businessId: string; m: Membro }) {
+function Acesso({ acoes, m }: { acoes: AcoesEquipe; m: Membro }) {
   const [aberto, setAberto] = useState(false)
-  const [state, action, pending] = useActionState(alternarAcesso, estadoInicial({ businessId, membershipId: m.membershipId, active: 'true', confirmName: '' }))
-  const inicial = estadoInicial({ businessId, membershipId: m.membershipId, active: 'false', confirmName: '' })
+  const [state, action, pending] = useActionState(acoes.alternarAcesso, estadoInicial({ membershipId: m.membershipId, active: 'true', confirmName: '' }))
+  const inicial = estadoInicial({ membershipId: m.membershipId, active: 'false', confirmName: '' })
   if (!m.active) {
     return (
       <form action={action} className="af-teamcell">
-        <input type="hidden" name="businessId" value={businessId} />
-        <input type="hidden" name="membershipId" value={m.membershipId} />
+          <input type="hidden" name="membershipId" value={m.membershipId} />
         <input type="hidden" name="active" value="true" />
         <Button type="submit" size="sm" loading={pending} aria-label={`Reativar o acesso de ${m.name}`}>
           Reativar acesso
@@ -78,22 +79,21 @@ function Acesso({ businessId, m }: { businessId: string; m: Membro }) {
         onClose={() => setAberto(false)}
         title={`Desativar o acesso de ${m.name}`}
         description="A pessoa sai das sessões abertas e deixa de entrar nesta conta. Você pode reativar o acesso depois."
-        action={alternarAcesso}
+        action={acoes.alternarAcesso}
         initialState={inicial}
         confirmLabel="Desativar acesso"
         targetName={m.name}
-        hidden={{ businessId, membershipId: m.membershipId, active: 'false' }}
+        hidden={{ membershipId: m.membershipId, active: 'false' }}
       />
     </>
   )
 }
 
-function Convite({ businessId, m }: { businessId: string; m: Membro }) {
-  const [state, action, pending] = useActionState(reenviarConvite, estadoInicial({ businessId, membershipId: m.membershipId }))
+function Convite({ acoes, m }: { acoes: AcoesEquipe; m: Membro }) {
+  const [state, action, pending] = useActionState(acoes.reenviarConvite, estadoInicial({ membershipId: m.membershipId }))
   if (m.hasPassword || !m.active) return null
   return (
     <form action={action} className="af-teamcell">
-      <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="membershipId" value={m.membershipId} />
       <Button type="submit" size="sm" loading={pending} aria-label={`Reenviar o convite de ${m.name}`}>
         Reenviar convite
@@ -104,12 +104,11 @@ function Convite({ businessId, m }: { businessId: string; m: Membro }) {
 }
 
 /** Convite de uma pessoa nova: nome, e-mail e papel. Funciona sem JavaScript; as mensagens do domínio aparecem no formulário. */
-function ConvidarForm({ businessId }: { businessId: string }) {
-  const [state, action, pending] = useActionState(convidarMembro, estadoInicial({ businessId, name: '', email: '', role: 'PROFESSIONAL' }))
+function ConvidarForm({ acoes }: { acoes: AcoesEquipe }) {
+  const [state, action, pending] = useActionState(acoes.convidarMembro, estadoInicial({ name: '', email: '', role: 'PROFESSIONAL' }))
   const erro = state.ok ? undefined : state.message
   return (
     <form action={action} className="af-invite">
-      <input type="hidden" name="businessId" value={businessId} />
       <div className="af-invite__fields">
         <Field label="Nome" error={state.fields.name}>
           <Input name="name" defaultValue={state.values.name ?? ''} autoComplete="off" />
@@ -147,7 +146,7 @@ function ConvidarForm({ businessId }: { businessId: string }) {
 }
 
 /** Equipe da conta: papel, situação, último acesso e as ações. As mensagens do domínio (último dono etc.) aparecem na linha. */
-export function TeamPanel({ businessId, membros }: { businessId: string; membros: Membro[] }) {
+export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Membro[] }) {
   const colunas: DataColumn<Membro>[] = [
     {
       key: 'pessoa',
@@ -160,7 +159,7 @@ export function TeamPanel({ businessId, membros }: { businessId: string; membros
         </span>
       ),
     },
-    { key: 'papel', header: 'Papel', cell: (m) => <Papel businessId={businessId} m={m} /> },
+    { key: 'papel', header: 'Papel', cell: (m) => <Papel acoes={acoes} m={m} /> },
     {
       key: 'situacao',
       header: 'Situação',
@@ -178,15 +177,15 @@ export function TeamPanel({ businessId, membros }: { businessId: string; membros
       header: <span className="af-sr">Ações</span>,
       cell: (m) => (
         <span className="af-rowactions">
-          <Acesso businessId={businessId} m={m} />
-          <Convite businessId={businessId} m={m} />
+          <Acesso acoes={acoes} m={m} />
+          <Convite acoes={acoes} m={m} />
         </span>
       ),
     },
   ]
   return (
     <div className="af-team">
-      <ConvidarForm businessId={businessId} />
+      <ConvidarForm acoes={acoes} />
       <DataList
         label="Equipe da conta"
         columns={colunas}

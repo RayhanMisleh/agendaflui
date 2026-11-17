@@ -31,7 +31,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { url } = await startSupport(admin, id)
     return para(url)
   } catch (err) {
-    if (!(err instanceof DomainError)) throw err
+    // Erro inesperado também volta à conta (não um 500 na nova aba); só o NOME do erro vai para o log.
+    if (!(err instanceof DomainError)) {
+      console.error(JSON.stringify({ level: 'error', event: 'support_start_failed', error: err instanceof Error ? err.name : 'unknown' }))
+      return para(`/contas/${encodeURIComponent(id)}?suporte=falhou`)
+    }
     return para(`/contas/${encodeURIComponent(id)}?suporte=${err.code === 'business_unavailable' ? 'arquivada' : 'falhou'}`)
   }
 }

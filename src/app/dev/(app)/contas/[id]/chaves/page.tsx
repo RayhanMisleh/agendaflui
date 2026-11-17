@@ -3,6 +3,7 @@ import { listApiKeys } from '@/server/domain/platform/api-keys'
 import { usageSummary } from '@/server/domain/platform/api-usage'
 import { addMinutes, formatDateTime } from '@/server/time'
 import { carregarConta } from '../_data'
+import { criarChave, editarOrigens, revogarChave } from '../actions'
 import { KeysPanel } from '../KeysPanel'
 
 export const metadata: Metadata = { title: 'Chaves da conta | AgendaFlui' }
@@ -35,5 +36,5 @@ export default async function ChavesPage({ params }: { params: Promise<{ id: str
       }
     }),
   )
-  return <KeysPanel businessId={conta.id} chaves={dados} />
+  return <KeysPanel chaves={dados} acoes={{ criarChave: criarChave.bind(null, conta.id), editarOrigens: editarOrigens.bind(null, conta.id), revogarChave: revogarChave.bind(null, conta.id) }} />
 }

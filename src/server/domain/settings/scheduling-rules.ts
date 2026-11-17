@@ -14,7 +14,16 @@ export type SchedulingRules = {
   autoConfirm: boolean
 }
 
-const SLOT_STEPS: readonly number[] = [5, 10, 15, 20, 30, 60]
+/** Grades de horário aceitas, em minutos. */
+export const SLOT_STEPS: readonly number[] = [5, 10, 15, 20, 30, 60]
+
+/** Limites de cada regra numérica (os mesmos do esquema abaixo); as telas leem daqui em vez de repetir os números. */
+export const RULE_LIMITS = {
+  minLeadMin: { min: 0, max: 10080 },
+  maxAdvanceDays: { min: 1, max: 365 },
+  customerChangeWindowMin: { min: 0, max: 10080 },
+  bufferMin: { min: 0, max: 120, step: 5 },
+} as const
 
 const rulesSchema = z
   .object({
@@ -24,24 +33,24 @@ const rulesSchema = z
     minLeadMin: z
       .number()
       .int('Informe minutos inteiros.')
-      .min(0, 'A antecedência não pode ser negativa.')
-      .max(10080, 'A antecedência máxima é de 7 dias (10080 minutos).'),
+      .min(RULE_LIMITS.minLeadMin.min, 'A antecedência não pode ser negativa.')
+      .max(RULE_LIMITS.minLeadMin.max, 'A antecedência máxima é de 7 dias (10080 minutos).'),
     maxAdvanceDays: z
       .number()
       .int('Informe dias inteiros.')
-      .min(1, 'Permita marcar com pelo menos 1 dia de alcance.')
-      .max(365, 'O alcance máximo é de 365 dias.'),
+      .min(RULE_LIMITS.maxAdvanceDays.min, 'Permita marcar com pelo menos 1 dia de alcance.')
+      .max(RULE_LIMITS.maxAdvanceDays.max, 'O alcance máximo é de 365 dias.'),
     customerChangeWindowMin: z
       .number()
       .int('Informe minutos inteiros.')
-      .min(0, 'O prazo não pode ser negativo.')
-      .max(10080, 'O prazo máximo é de 7 dias (10080 minutos).'),
+      .min(RULE_LIMITS.customerChangeWindowMin.min, 'O prazo não pode ser negativo.')
+      .max(RULE_LIMITS.customerChangeWindowMin.max, 'O prazo máximo é de 7 dias (10080 minutos).'),
     bufferMin: z
       .number()
       .int('Informe minutos inteiros.')
-      .min(0, 'O intervalo não pode ser negativo.')
-      .max(120, 'O intervalo máximo é de 120 minutos.')
-      .multipleOf(5, 'O intervalo deve ser múltiplo de 5 minutos.'),
+      .min(RULE_LIMITS.bufferMin.min, 'O intervalo não pode ser negativo.')
+      .max(RULE_LIMITS.bufferMin.max, 'O intervalo máximo é de 120 minutos.')
+      .multipleOf(RULE_LIMITS.bufferMin.step, 'O intervalo deve ser múltiplo de 5 minutos.'),
     autoConfirm: z.boolean(),
   })
   .partial()

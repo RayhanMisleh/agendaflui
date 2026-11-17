@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Paper } from '@/ui/components'
 import { getCustomization } from '@/server/domain/platform/customization'
 import { carregarConta } from '../_data'
+import { salvarMarca } from '../actions'
 import { ImagensForm, MarcaForm } from '../BrandForm'
 
 export const metadata: Metadata = { title: 'Marca da conta | AgendaFlui' }
@@ -38,8 +39,8 @@ export default async function MarcaPage({
       <Paper raised={1} className="af-listpanel">
         <h2 className="af-section__title">Cores, material e fonte</h2>
         <MarcaForm
+          action={salvarMarca.bind(null, conta.id)}
           valores={{
-            businessId: conta.id,
             version: String(brand.version),
             displayName: brand.displayName,
             primary: brand.primary,

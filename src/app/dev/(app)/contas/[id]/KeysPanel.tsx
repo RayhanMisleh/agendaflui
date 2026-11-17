@@ -1,9 +1,12 @@
 'use client'
 import { useActionState, useState } from 'react'
 import { ConfirmDialog, Button, EmptyState, Field, Paper, SecretBox, Stamp, Textarea, Input } from '@/ui/components'
-import { criarChave, editarOrigens, revogarChave } from './actions'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
+import type { AcaoConta } from './forms'
+
+/** As ações das chaves, já com o id da conta ligado no servidor pela página. */
+export type AcoesChaves = { criarChave: AcaoConta; editarOrigens: AcaoConta; revogarChave: AcaoConta }
 
 const INT = new Intl.NumberFormat('pt-BR')
 
@@ -48,11 +51,10 @@ function Uso({ uso }: { uso: ChaveUso }) {
   )
 }
 
-function Origens({ businessId, k }: { businessId: string; k: Chave }) {
-  const [state, action, pending] = useActionState(editarOrigens, estadoInicial({ businessId, keyId: k.id, origins: k.origins.join('\n') }))
+function Origens({ acoes, k }: { acoes: AcoesChaves; k: Chave }) {
+  const [state, action, pending] = useActionState(acoes.editarOrigens, estadoInicial({ keyId: k.id, origins: k.origins.join('\n') }))
   return (
     <form action={action} className="af-keycard__origins" noValidate>
-      <input type="hidden" name="businessId" value={businessId} />
       <input type="hidden" name="keyId" value={k.id} />
       <Field label="Origens permitidas" hint="Uma por linha, como https://app.exemplo.com. Em branco, qualquer origem com a chave." error={state.fields.origins ?? (state.ok ? undefined : state.message ?? undefined)}>
         <Textarea name="origins" rows={2} defaultValue={state.values.origins} />
@@ -71,7 +73,7 @@ function Origens({ businessId, k }: { businessId: string; k: Chave }) {
   )
 }
 
-function Cartao({ businessId, k }: { businessId: string; k: Chave }) {
+function Cartao({ acoes, k }: { acoes: AcoesChaves; k: Chave }) {
   const [aberto, setAberto] = useState(false)
   return (
     <Paper as="li" raised={1} className="af-keycard">
@@ -87,7 +89,7 @@ function Cartao({ businessId, k }: { businessId: string; k: Chave }) {
         <p className="af-account__slug">Origens: {k.origins.length > 0 ? k.origins.join(', ') : 'qualquer origem'}.</p>
       ) : (
         <>
-          <Origens businessId={businessId} k={k} />
+          <Origens acoes={acoes} k={k} />
           <div>
             <Button variant="danger" size="sm" onClick={() => setAberto(true)} aria-label={`Revogar a chave ${k.name}`}>
               Revogar chave
@@ -97,11 +99,11 @@ function Cartao({ businessId, k }: { businessId: string; k: Chave }) {
               onClose={() => setAberto(false)}
               title={`Revogar a chave ${k.name}`}
               description="O aplicativo que usa esta chave para de funcionar na hora. Não dá para desfazer: crie uma chave nova para substituir."
-              action={revogarChave}
-              initialState={estadoInicial({ businessId, keyId: k.id, confirmName: '' })}
+              action={acoes.revogarChave}
+              initialState={estadoInicial({ keyId: k.id, confirmName: '' })}
               confirmLabel="Revogar chave"
               targetName={k.name}
-              hidden={{ businessId, keyId: k.id }}
+              hidden={{ keyId: k.id }}
             />
           </div>
         </>
@@ -111,12 +113,12 @@ function Cartao({ businessId, k }: { businessId: string; k: Chave }) {
 }
 
 /** Chaves de app da conta: criar (o segredo aparece uma vez, no estado da ação), listar com uso, editar origens e revogar. */
-export function KeysPanel({ businessId, chaves }: { businessId: string; chaves: Chave[] }) {
+export function KeysPanel({ acoes, chaves }: { acoes: AcoesChaves; chaves: Chave[] }) {
   return (
     <div className="af-keys">
       <Paper raised={1} className="af-keys__new">
         <h2 className="af-keys__title">Nova chave</h2>
-        <ContaForm action={criarChave} initial={estadoInicial({ businessId, name: '', origins: '' })} submit="Criar chave">
+        <ContaForm action={acoes.criarChave} initial={estadoInicial({ name: '', origins: '' })} submit="Criar chave">
           {({ values: v, fields, ok }) => (
             <>
               {ok && v.secret ? <SecretBox name={v.keyName ?? 'Chave de app'} secret={v.secret} /> : null}
@@ -135,7 +137,7 @@ export function KeysPanel({ businessId, chaves }: { businessId: string; chaves: 
       ) : (
         <ul className="af-keys__list" aria-label="Chaves da conta">
           {chaves.map((k) => (
-            <Cartao key={k.id} businessId={businessId} k={k} />
+            <Cartao key={k.id} acoes={acoes} k={k} />
           ))}
         </ul>
       )}

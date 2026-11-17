@@ -1,14 +1,14 @@
 'use client'
+import { useId } from 'react'
 import { Checkbox, Field, Input, Select, Textarea } from '@/ui/components'
-import { salvarAvisos, salvarDados, salvarModulos, salvarRegras, salvarTermos } from './actions'
 import { ContaForm } from './ContaForm'
-import { AVISOS, estadoInicial } from './forms'
-import type { Campos } from './forms'
+import { estadoInicial } from './forms'
+import type { AcaoConta, Campos } from './forms'
 
 /** Dados cadastrais: a versão vem do servidor a cada carga; versão velha vira o aviso de conflito. */
-export function DadosForm({ valores }: { valores: Campos }) {
+export function DadosForm({ action, valores }: { action: AcaoConta; valores: Campos }) {
   return (
-    <ContaForm action={salvarDados} initial={estadoInicial(valores)} submit="Salvar dados">
+    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar dados">
       {({ values: v, fields }) => (
         <>
           <div className="af-wizard__grid">
@@ -40,9 +40,9 @@ export function DadosForm({ valores }: { valores: Campos }) {
   )
 }
 
-export function TermosForm({ valores }: { valores: Campos }) {
+export function TermosForm({ action, valores }: { action: AcaoConta; valores: Campos }) {
   return (
-    <ContaForm action={salvarTermos} initial={estadoInicial(valores)} submit="Salvar termos">
+    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar termos">
       {({ values: v, fields }) => (
         <div className="af-wizard__grid">
           <Field label="Profissional (singular)" error={fields.professionalSingular}>
@@ -72,54 +72,74 @@ export function TermosForm({ valores }: { valores: Campos }) {
   )
 }
 
-export function ModulosForm({ valores }: { valores: Campos }) {
+export function ModulosForm({ action, valores }: { action: AcaoConta; valores: Campos }) {
   return (
-    <ContaForm action={salvarModulos} initial={estadoInicial(valores)} submit="Salvar módulos">
-      {({ values: v, fields }) => (
-        <div className="af-wizard__checks">
-          <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" defaultChecked={v.loyalty === 'on'} />
-          <Checkbox name="banners" label="Banners: avisos e promoções no app" defaultChecked={v.banners === 'on'} />
-          <Checkbox name="store" label="Loja: produtos e pedidos" defaultChecked={v.store === 'on'} />
-          <Checkbox name="vouchers" label="Vouchers: vendidos dentro de um pedido da Loja" defaultChecked={v.vouchers === 'on'} />
-          {fields.vouchers ? <p className="af-field__error">{fields.vouchers}</p> : null}
-          <p className="af-wizard__note">Módulo desligado some do menu, das telas e da API desta conta. Vouchers só funcionam com a Loja ligada.</p>
-        </div>
-      )}
+    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar módulos">
+      {({ values: v, fields }) => <ModulosCampos v={v} erroVouchers={fields.vouchers} />}
     </ContaForm>
+  )
+}
+
+/** O erro de "vouchers exigem Loja" fica ligado ao checkbox de vouchers (`aria-describedby`), não solto no formulário. */
+function ModulosCampos({ v, erroVouchers }: { v: Campos; erroVouchers: string | undefined }) {
+  const uid = useId()
+  const erroId = erroVouchers ? `${uid}-vouchers-erro` : undefined
+  return (
+    <div className="af-wizard__checks">
+      <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" defaultChecked={v.loyalty === 'on'} />
+      <Checkbox name="banners" label="Banners: avisos e promoções no app" defaultChecked={v.banners === 'on'} />
+      <Checkbox name="store" label="Loja: produtos e pedidos" defaultChecked={v.store === 'on'} />
+      <Checkbox
+        name="vouchers"
+        label="Vouchers: vendidos dentro de um pedido da Loja"
+        defaultChecked={v.vouchers === 'on'}
+        {...(erroId ? { 'aria-describedby': erroId, 'aria-invalid': true } : {})}
+      />
+      {erroVouchers ? (
+        <p id={erroId} className="af-field__error">
+          {erroVouchers}
+        </p>
+      ) : null}
+      <p className="af-wizard__note">Módulo desligado some do menu, das telas e da API desta conta. Vouchers só funcionam com a Loja ligada.</p>
+    </div>
   )
 }
 
 export type FusosParaLista = { top: Array<{ value: string; label: string }>; rest: string[] }
 
-const GRADES = [5, 10, 15, 20, 30, 60]
+/** Grades e limites das regras, lidos do domínio pela página (a tela não repete número de regra). */
+export type LimitesDeRegras = {
+  grades: readonly number[]
+  limites: { minLeadMin: { min: number; max: number }; maxAdvanceDays: { min: number; max: number }; customerChangeWindowMin: { min: number; max: number }; bufferMin: { min: number; max: number; step: number } }
+}
 
 /** Regras de agenda e fuso. A lista de fusos põe os do Brasil no topo e deixa os demais num grupo à parte. */
-export function RegrasForm({ valores, fusos }: { valores: Campos; fusos: FusosParaLista }) {
+export function RegrasForm({ action, valores, fusos, grades, limites }: { action: AcaoConta; valores: Campos; fusos: FusosParaLista } & LimitesDeRegras) {
   return (
-    <ContaForm action={salvarRegras} initial={estadoInicial(valores)} submit="Salvar regras e fuso">
+    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar regras e fuso">
       {({ values: v, fields }) => (
         <>
           <div className="af-wizard__grid">
             <Field label="Grade de horários" hint="De quanto em quanto tempo um horário pode começar." error={fields.slotStepMin}>
               <Select name="slotStepMin" defaultValue={v.slotStepMin}>
-                {GRADES.map((g) => (
+                {grades.map((g) => (
                   <option key={g} value={String(g)}>
                     {g} minutos
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Intervalo entre atendimentos (minutos)" hint="Múltiplo de 5, até 120." error={fields.bufferMin}>
-              <Input name="bufferMin" type="number" inputMode="numeric" min={0} max={120} step={5} defaultValue={v.bufferMin} />
+            <Field label="Intervalo entre atendimentos (minutos)" hint={`Múltiplo de ${limites.bufferMin.step}, até ${limites.bufferMin.max}.`} error={fields.bufferMin}>
+              <Input name="bufferMin" type="number" inputMode="numeric" min={limites.bufferMin.min} max={limites.bufferMin.max} step={limites.bufferMin.step} defaultValue={v.bufferMin} />
             </Field>
             <Field label="Antecedência mínima (minutos)" hint="Quanto antes do horário o cliente ainda pode marcar." error={fields.minLeadMin}>
-              <Input name="minLeadMin" type="number" inputMode="numeric" min={0} max={10080} defaultValue={v.minLeadMin} />
+              <Input name="minLeadMin" type="number" inputMode="numeric" min={limites.minLeadMin.min} max={limites.minLeadMin.max} defaultValue={v.minLeadMin} />
             </Field>
             <Field label="Alcance da agenda (dias)" hint="Até quantos dias à frente se pode marcar." error={fields.maxAdvanceDays}>
-              <Input name="maxAdvanceDays" type="number" inputMode="numeric" min={1} max={365} defaultValue={v.maxAdvanceDays} />
+              <Input name="maxAdvanceDays" type="number" inputMode="numeric" min={limites.maxAdvanceDays.min} max={limites.maxAdvanceDays.max} defaultValue={v.maxAdvanceDays} />
             </Field>
             <Field label="Prazo para o cliente mudar (minutos)" hint="Até quanto tempo antes o cliente pode remarcar ou cancelar." error={fields.customerChangeWindowMin}>
-              <Input name="customerChangeWindowMin" type="number" inputMode="numeric" min={0} max={10080} defaultValue={v.customerChangeWindowMin} />
+              <Input name="customerChangeWindowMin" type="number" inputMode="numeric" min={limites.customerChangeWindowMin.min} max={limites.customerChangeWindowMin.max} defaultValue={v.customerChangeWindowMin} />
             </Field>
             <Field
               label="Fuso horário"
@@ -152,9 +172,9 @@ export function RegrasForm({ valores, fusos }: { valores: Campos; fusos: FusosPa
 }
 
 /** Avisos por tipo e canal: uma caixa por combinação, com o nome completo para leitor de tela. */
-export function AvisosForm({ valores }: { valores: Campos }) {
+export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; valores: Campos; avisos: Array<{ kind: string; label: string }> }) {
   return (
-    <ContaForm action={salvarAvisos} initial={estadoInicial(valores)} submit="Salvar avisos">
+    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar avisos">
       {({ values: v }) => (
         <table className="af-matrix">
           <caption className="af-sr">Avisos por tipo e canal</caption>
@@ -166,7 +186,7 @@ export function AvisosForm({ valores }: { valores: Campos }) {
             </tr>
           </thead>
           <tbody>
-            {AVISOS.map((a) => (
+            {avisos.map((a) => (
               <tr key={a.kind}>
                 <th scope="row">{a.label}</th>
                 <td>

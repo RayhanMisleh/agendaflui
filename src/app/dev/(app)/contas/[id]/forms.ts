@@ -3,6 +3,8 @@ import type { FormState } from '../../_lib/form-state'
 /** Campos de um formulário da conta, em texto, como vêm do navegador. Caixa marcada vale `'on'`; desmarcada, `''`. */
 export type Campos = Record<string, string>
 export type EstadoConta = FormState<Campos>
+/** Ação de formulário da conta já com o id da conta ligado no servidor (`acao.bind(null, id)`). */
+export type AcaoConta = (prev: EstadoConta, form: FormData) => Promise<EstadoConta>
 
 export const MSG_CONFLITO = 'Outra pessoa alterou esta conta. Recarregue para ver a versão atual.'
 
@@ -46,18 +48,3 @@ export const ROTULOS: Record<string, string> = {
   confirmName: 'Confirmação',
   version: 'Versão',
 }
-
-/** Os avisos que o sistema manda, com o nome que a pessoa entende. */
-export const AVISOS: ReadonlyArray<{ kind: string; label: string }> = [
-  { kind: 'APPOINTMENT_REQUESTED', label: 'Pedido de agendamento recebido' },
-  { kind: 'APPOINTMENT_CONFIRMED', label: 'Agendamento confirmado' },
-  { kind: 'APPOINTMENT_CANCELED', label: 'Agendamento cancelado' },
-  { kind: 'APPOINTMENT_RESCHEDULED', label: 'Agendamento remarcado' },
-  { kind: 'APPOINTMENT_REMINDER_24H', label: 'Lembrete 24 horas antes' },
-  { kind: 'APPOINTMENT_REMINDER_1H', label: 'Lembrete 1 hora antes' },
-  { kind: 'APPOINTMENT_COMPLETED', label: 'Atendimento concluído' },
-  { kind: 'PROFESSIONAL_FREE_EARLY', label: 'Profissional livre mais cedo' },
-  { kind: 'STAFF_NEW_APPOINTMENT', label: 'Equipe: novo agendamento' },
-  { kind: 'STAFF_APPOINTMENT_CANCELED', label: 'Equipe: agendamento cancelado' },
-  { kind: 'STAFF_APPOINTMENT_RESCHEDULED', label: 'Equipe: agendamento remarcado' },
-]

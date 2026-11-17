@@ -3,6 +3,7 @@ import { DoorOpen } from 'lucide-react'
 import { Button, CopyButton, LinkButton, NavTabs, Paper, StatusLamp } from '@/ui/components'
 import { DevFrame } from '../../DevFrame'
 import { carregarConta } from './_data'
+import { arquivarConta, reativarConta, suspenderConta } from './actions'
 import { StatusMenu } from './StatusMenu'
 import { accountTabs } from './tabs'
 
@@ -47,7 +48,12 @@ export default async function ContaLayout({ children, params }: { children: Reac
               </Button>
             </form>
           )}
-          <StatusMenu key={conta.status} businessId={conta.id} name={conta.name} status={conta.status} />
+          <StatusMenu
+            key={conta.status}
+            name={conta.name}
+            status={conta.status}
+            acoes={{ suspender: suspenderConta.bind(null, conta.id), reativar: reativarConta.bind(null, conta.id), arquivar: arquivarConta.bind(null, conta.id) }}
+          />
         </div>
       </Paper>
       <NavTabs label="Abas da conta" items={accountTabs(conta.id)} />
