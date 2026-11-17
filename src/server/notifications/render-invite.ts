@@ -19,10 +19,10 @@ export function renderOwnerInvite(i: { ownerName: string; businessName: string; 
   const body = emailFrame(PLATFORM_MAIL_BRAND, title, {
     paragraphs: [
       saudacao(i.ownerName),
-      `A conta ${conta} foi criada para você no AgendaFlui. Abra o link abaixo para escolher sua senha e entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
-      i.link,
+      `A conta ${conta} foi criada para você no AgendaFlui. Escolha sua senha para entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
       'Se você não esperava este e-mail, ignore-o: nada será feito sem a sua senha.',
     ],
+    action: { label: 'Escolher minha senha', href: i.link },
   })
   return { subject: `AgendaFlui: defina sua senha para entrar em ${conta}`, ...body }
 }
@@ -35,9 +35,9 @@ export function renderAccessGranted(i: { ownerName: string; businessName: string
     paragraphs: [
       saudacao(i.ownerName),
       `Você agora tem acesso a ${conta} no AgendaFlui. Entre com o seu e-mail e a senha que você já usa. Se tiver mais de uma conta, escolha ${conta} na lista.`,
-      i.entryLink,
       'Se você não esperava este acesso, fale com o suporte do AgendaFlui.',
     ],
+    action: { label: `Entrar em ${conta}`, href: i.entryLink },
   })
   return { subject: `AgendaFlui: você agora tem acesso a ${conta}`, ...body }
 }
@@ -49,10 +49,10 @@ export function renderMemberInvite(i: { name: string; businessName: string; role
   const body = emailFrame(PLATFORM_MAIL_BRAND, title, {
     paragraphs: [
       saudacao(i.name),
-      `Você foi adicionado à equipe de ${conta} no AgendaFlui, como ${limpo(i.roleLabel)}. Abra o link abaixo para escolher sua senha e entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
-      i.link,
+      `Você foi adicionado à equipe de ${conta} no AgendaFlui, como ${limpo(i.roleLabel)}. Escolha sua senha para entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
       'Se você não esperava este e-mail, ignore-o: nada será feito sem a sua senha.',
     ],
+    action: { label: 'Escolher minha senha', href: i.link },
   })
   return { subject: `AgendaFlui: defina sua senha para entrar em ${conta}`, ...body }
 }

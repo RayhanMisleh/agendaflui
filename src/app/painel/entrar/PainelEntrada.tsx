@@ -19,8 +19,10 @@ export function PainelEntrada({ marca }: { marca: Marca }) {
     <EntryScreen
       theme={marca.theme}
       brand={marca}
+      headline={marca.platform ? 'A agenda que flui.' : marca.name}
+      lede={marca.platform ? null : marca.loginMessage}
       title="Entrar na agenda"
-      message={marca.loginMessage}
+      message="Use o e-mail e a senha da sua conta."
       testId="painel-entry"
     >
       <LoginForm action={loginMember} />

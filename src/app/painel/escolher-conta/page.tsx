@@ -5,7 +5,7 @@ import { requireMemberSession } from '@/server/auth/guards'
 import { roleLabel } from '@/server/auth/role-labels'
 import { tenantDb } from '@/server/db/tenant'
 import { getPublicBrandById } from '@/server/domain/platform/branding'
-import { cx } from '@/ui/components/cx'
+import { Avatar } from '@/ui/components'
 import { ThemeScope } from '@/ui/theme/ThemeScope'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 import { deriveTheme } from '@/ui/theme/derive'
@@ -35,7 +35,8 @@ export default async function EscolherContaPage() {
   return (
     <EntryScreen
       theme={THEME}
-      brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }}
+      brand={{ name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }}
+      headline="A agenda que flui."
       title="Escolha a conta"
       message={disponiveis.length > 0 ? `Olá, ${session.user.name.split(' ')[0]}. Em qual agenda você quer entrar?` : null}
       testId="escolher-conta"
@@ -43,22 +44,33 @@ export default async function EscolherContaPage() {
     >
       {disponiveis.length > 0 ? (
         <ul className="af-choices">
-          {disponiveis.map((c) => (
-            <li key={c.businessId}>
-              <ThemeScope theme={c.marca.theme}>
-                <form action={chooseBusiness}>
-                  <input type="hidden" name="businessId" value={c.businessId} />
-                  <button type="submit" className={cx('af-choice af-cover af-stitched')}>
-                    <span className="af-choice__text">
-                      <span className="af-choice__name af-engraved">{c.marca.name}</span>
-                      <span className="af-choice__role af-on-cover-text">{c.papel}</span>
-                    </span>
-                    <ChevronRight className="af-choice__go" size={22} aria-hidden="true" />
-                  </button>
-                </form>
-              </ThemeScope>
-            </li>
-          ))}
+          {disponiveis.map((c) => {
+            const imagem = c.marca.symbolUrl ?? c.marca.logoUrl
+            return (
+              <li key={c.businessId}>
+                <ThemeScope theme={c.marca.theme}>
+                  <form action={chooseBusiness}>
+                    <input type="hidden" name="businessId" value={c.businessId} />
+                    <button type="submit" className="af-choice">
+                      <span className="af-choice__mark" aria-hidden="true">
+                        {imagem ? (
+                          // eslint-disable-next-line @next/next/no-img-element -- a imagem vem do armazenamento da conta
+                          <img src={imagem} alt="" className="af-choice__img" />
+                        ) : (
+                          <Avatar name={c.marca.name} size="md" />
+                        )}
+                      </span>
+                      <span className="af-choice__text">
+                        <span className="af-choice__name">{c.marca.name}</span>
+                        <span className="af-choice__role">{c.papel}</span>
+                      </span>
+                      <ChevronRight className="af-choice__go" size={22} aria-hidden="true" />
+                    </button>
+                  </form>
+                </ThemeScope>
+              </li>
+            )
+          })}
         </ul>
       ) : (
         <div className="af-entry__form">

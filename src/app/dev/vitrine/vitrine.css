@@ -240,4 +240,17 @@
     border: 1px solid var(--line);
     background-color: var(--surface);
   }
+
+  /* ---- Molduras em miniatura ---- */
+  .vt-frame-body {
+    display: grid;
+    gap: 1rem;
+  }
+  .vt-phone {
+    width: 375px;
+    max-width: 100%;
+  }
+  .vt-row--top {
+    align-items: flex-start;
+  }
 }

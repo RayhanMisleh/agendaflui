@@ -21,7 +21,7 @@ export type PublicBusiness = {
     material: 'LEATHER' | 'LINEN' | 'WOOD' | 'ENAMEL'
     paper: 'WHITE' | 'CREAM' | 'GRAY'
     fontPair: 'CLASSIC' | 'MODERN' | 'FRIENDLY'
-    /** Variáveis de tema derivadas da marca (`--cover`, `--accent` …), prontas para o app aplicar. */
+    /** Variáveis de tema derivadas da marca (`--brand`, `--accent` …), prontas para o app aplicar. */
     tokens: Record<string, string>
   }
   terms: { professional: Term; customer: Term; points: Term; club: string }

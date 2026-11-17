@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CalendarDays, ChartNoAxesColumn, House, Scissors, Settings, UserRound, Users } from 'lucide-react'
+import { ArrowLeftRight, CalendarDays, ChartNoAxesColumn, House, Scissors, Settings, UserRound, Users } from 'lucide-react'
 import { requireMemberSession } from '@/server/auth/guards'
 import type { TenantContext } from '@/server/auth/actor'
 import { roleLabel } from '@/server/auth/role-labels'
@@ -51,10 +51,14 @@ export async function PainelFrame({
       user={{ name: nome, roleLabel: papel, avatarUrl: null }}
       title={title}
       {...(suporte ? { supportBanner: `Você está em modo suporte na conta ${marca.name}`, supportAction: <EncerrarSuporte /> } : {})}
-      actions={
+      accountActions={
         suporte ? null : (
           <>
-            {session.kind === 'member' && session.memberships.length > 1 ? <LinkButton href="/escolher-conta">Trocar de conta</LinkButton> : null}
+            {session.kind === 'member' && session.memberships.length > 1 ? (
+              <LinkButton href="/escolher-conta" variant="secondary" icon={<ArrowLeftRight size={18} />}>
+                Trocar de conta
+              </LinkButton>
+            ) : null}
             <SairDaConta />
           </>
         )

@@ -48,6 +48,7 @@ import { deriveTheme } from '@/ui/theme/derive'
 import type { CoverMaterial } from '@/ui/theme/derive'
 import { DEMO_ACCOUNTS } from './accounts'
 import { BrandSection } from './BrandSection'
+import { Molduras } from './Molduras'
 import './vitrine.css'
 
 function Spec({ title, note, children, wide }: { title: string; note?: string; children: ReactNode; wide?: boolean }) {
@@ -441,6 +442,7 @@ export function Vitrine() {
         </header>
         <BrandSection night={scheme === 'night'} />
         <Componentes key={account.id} account={account} />
+        <Molduras />
       </main>
     </ToastProvider>
   )

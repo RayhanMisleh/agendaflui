@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   referrer: 'no-referrer',
 }
 
-const MARCA = { name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }
+const MARCA = { name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }
 const TEMA = deriveTheme(AGENDAFLUI_BRAND)
 
 /** Tela do convite do dono: escolhe a senha. Ainda não há conta escolhida, então vale a marca AgendaFlui. */
@@ -23,7 +23,7 @@ export default async function DefinirSenhaPage({ params }: { params: Promise<{ t
   const convite = await readInvite(token, new Date())
   if (!convite) {
     return (
-      <EntryScreen theme={TEMA} brand={MARCA} title="Convite sem validade" message={INVITE_INVALID_MESSAGE} testId="definir-senha-invalido">
+      <EntryScreen theme={TEMA} brand={MARCA} headline="A agenda que flui." title="Convite sem validade" message={INVITE_INVALID_MESSAGE} testId="definir-senha-invalido">
         <LinkButton href="/entrar">Ir para a entrada</LinkButton>
       </EntryScreen>
     )
@@ -32,6 +32,7 @@ export default async function DefinirSenhaPage({ params }: { params: Promise<{ t
     <EntryScreen
       theme={TEMA}
       brand={MARCA}
+      headline="A agenda que flui."
       title="Defina sua senha"
       message={`Olá, ${convite.userName.split(' ')[0]}. Escolha a senha para entrar com ${convite.email}.`}
       testId="definir-senha"

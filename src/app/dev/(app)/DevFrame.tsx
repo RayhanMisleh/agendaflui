@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { LogOut, UserRound } from 'lucide-react'
 import type { Actor } from '@/server/auth/actor'
 import { Button, LinkButton } from '@/ui/components'
 import { DevShell } from '@/ui/shells'
@@ -22,14 +23,14 @@ export function DevFrame({
       nav={DEV_NAV}
       admin={{ name: admin.name }}
       title={title}
-      actions={
+      actions={actions}
+      accountActions={
         <>
-          {actions}
-          <LinkButton href="/perfil" variant="ghost">
+          <LinkButton href="/perfil" variant="secondary" icon={<UserRound size={18} />}>
             Meu perfil
           </LinkButton>
           <form action={logoutAdmin}>
-            <Button type="submit" variant="secondary">
+            <Button type="submit" variant="secondary" icon={<LogOut size={18} />}>
               Sair
             </Button>
           </form>

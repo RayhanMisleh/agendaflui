@@ -13,7 +13,7 @@ export type FrameContent = {
   rows?: [label: string, value: string][]
   /** Código em destaque. */
   code?: string
-  /** Botão em pílula na cor da conta. O endereço também vai por extenso na versão em texto puro. */
+  /** Botão em pílula na cor da conta. O endereço também vai por extenso, em texto logo abaixo do botão e na versão em texto puro. */
   action?: { label: string; href: string }
 }
 
@@ -88,7 +88,8 @@ export function emailFrame(brand: Brand, title: string, content: FrameContent): 
     ? `<p style="margin:0 0 16px;padding:12px 16px;border-radius:10px;background:${c.tint};font-size:32px;line-height:1.2;letter-spacing:6px;font-weight:700;color:${c.ink};font-family:Menlo,Consolas,monospace">${escapeHtml(content.code)}</p>`
     : ''
   const action = content.action
-    ? `<p style="margin:0 0 16px"><a href="${escapeHtml(content.action.href)}" style="display:inline-block;padding:12px 24px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:16px;line-height:20px;font-weight:700;text-decoration:none">${escapeHtml(content.action.label)}</a></p>`
+    ? `<p style="margin:8px 0 12px"><a href="${escapeHtml(content.action.href)}" style="display:inline-block;padding:12px 24px;border-radius:999px;background:${c.bg};color:${c.fg};font-size:16px;line-height:20px;font-weight:700;text-decoration:none">${escapeHtml(content.action.label)}</a></p>` +
+      `<p style="margin:0 0 16px;font-size:13px;line-height:1.4;color:${c.soft};word-break:break-all">${escapeHtml(content.action.href)}</p>`
     : ''
   const html =
     `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title></head>` +

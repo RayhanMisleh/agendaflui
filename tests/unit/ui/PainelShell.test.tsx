@@ -5,7 +5,7 @@ import { PainelShell } from '@/ui/shells/PainelShell'
 import { deriveTheme } from '@/ui/theme/derive'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 
-const theme = deriveTheme({ ...AGENDAFLUI_BRAND, material: 'LEATHER' })
+const theme = deriveTheme(AGENDAFLUI_BRAND)
 const base = {
   theme,
   brand: { name: 'Patas e Pelos', logoUrl: null, symbolUrl: null },
@@ -61,7 +61,7 @@ test('supportAction aparece dentro da faixa e só com a faixa', () => {
 test('o tema chega ao elemento raiz', () => {
   render(<PainelShell {...base}>x</PainelShell>)
   const root = screen.getByTestId('painel-shell')
-  expect(root).toHaveAttribute('data-material', 'leather')
+  expect(root).toHaveAttribute('data-font', theme.fontPair)
   expect(root).toHaveAttribute('data-scheme', 'day')
   expect(root.style.getPropertyValue('--brand').toUpperCase()).toBe(theme.vars['--brand'])
 })

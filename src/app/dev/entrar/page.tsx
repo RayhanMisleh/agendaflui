@@ -1,21 +1,18 @@
 import type { Metadata } from 'next'
 import { LoginForm } from '@/app/_lib/LoginForm'
-import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
-import { deriveTheme } from '@/ui/theme/derive'
 import { EntryScreen } from '@/ui/shells'
 import { loginAdmin } from './actions'
 
 export const metadata: Metadata = { title: 'Entrar | AgendaFlui' }
 
-const THEME = deriveTheme(AGENDAFLUI_BRAND)
-
 export default function EntrarPage() {
   return (
     <EntryScreen
-      theme={THEME}
       variant="dev"
-      brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }}
-      title="Entrar na mesa de controle"
+      brand={{ name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }}
+      headline="Painel da plataforma"
+      lede="Contas, chaves e sistema da Agenda Flui, num lugar só."
+      title="Entrar no painel"
       message="Acesso para quem administra a plataforma."
       testId="dev-entry"
     >

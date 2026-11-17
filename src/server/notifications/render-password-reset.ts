@@ -14,10 +14,10 @@ export function renderPanelPasswordReset(i: { name: string; link: string; ttlMin
   const body = emailFrame(PLATFORM_MAIL_BRAND, title, {
     paragraphs: [
       `Olá, ${limpo(i.name)}.`,
-      `Abra o link abaixo para escolher uma senha nova para entrar no AgendaFlui${conta}. O link vale por ${i.ttlMin} minutos e só pode ser usado uma vez.`,
-      i.link,
+      `Escolha uma senha nova para entrar no AgendaFlui${conta}. O link vale por ${i.ttlMin} minutos e só pode ser usado uma vez.`,
       'Se você não pediu a redefinição, ignore este e-mail: sua senha continua a mesma.',
     ],
+    action: { label: 'Redefinir minha senha', href: i.link },
   })
   return { subject: 'AgendaFlui: redefina sua senha', ...body }
 }

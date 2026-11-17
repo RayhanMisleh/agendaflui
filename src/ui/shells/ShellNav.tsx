@@ -21,19 +21,19 @@ export type NavNode = {
 const MAX_BAR = 5
 const KEEP_WITH_MORE = 4
 
-function Divider({ item, onNavigate }: { item: NavNode; onNavigate?: () => void }) {
+function NavLink({ item, onNavigate }: { item: NavNode; onNavigate?: () => void }) {
   const inner = (
     <>
-      <span className="af-divider__icon" aria-hidden="true">
+      <span className="af-navlink__icon" aria-hidden="true">
         {item.icon}
       </span>
-      <span className="af-divider__label">{item.label}</span>
-      {item.disabled ? <Lock className="af-divider__lock" size={14} aria-hidden="true" /> : null}
+      <span className="af-navlink__label">{item.label}</span>
+      {item.disabled ? <Lock className="af-navlink__lock" size={14} aria-hidden="true" /> : null}
     </>
   )
   if (item.disabled) {
     return (
-      <span className="af-divider af-divider--disabled" aria-disabled="true">
+      <span className="af-navlink af-navlink--disabled" aria-disabled="true">
         {inner}
       </span>
     )
@@ -41,7 +41,7 @@ function Divider({ item, onNavigate }: { item: NavNode; onNavigate?: () => void 
   return (
     <Link
       href={item.href}
-      className={cx('af-divider', item.active && 'af-divider--active')}
+      className={cx('af-navlink', item.active && 'af-navlink--active')}
       aria-current={item.active ? 'page' : undefined}
       onClick={onNavigate}
     >
@@ -50,7 +50,7 @@ function Divider({ item, onNavigate }: { item: NavNode; onNavigate?: () => void 
   )
 }
 
-/** Menu em divisórias de fichário. No celular vira a barra da base, com "Mais" quando há muitos itens. */
+/** Menu em linhas-pílula. No celular vira a barra flutuante da base, com "Mais" quando há muitos destinos. */
 export function ShellNav({ items: given, userPlate }: { items: NavNode[]; userPlate: ReactNode }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const pathname = usePathname()
@@ -67,21 +67,21 @@ export function ShellNav({ items: given, userPlate }: { items: NavNode[]; userPl
         <ul className="af-nav">
           {items.map((item, i) => (
             <li key={item.href + item.label} className={cx('af-nav__item', i >= keep && 'af-nav__item--overflow')}>
-              <Divider item={item} />
+              <NavLink item={item} />
             </li>
           ))}
           {hasMore ? (
             <li className="af-nav__item af-nav__item--more">
               <button
                 type="button"
-                className={cx('af-divider', overflowActive && 'af-divider--active')}
+                className={cx('af-navlink', overflowActive && 'af-navlink--active')}
                 aria-haspopup="dialog"
                 onClick={() => setMoreOpen(true)}
               >
-                <span className="af-divider__icon" aria-hidden="true">
+                <span className="af-navlink__icon" aria-hidden="true">
                   <Ellipsis size={20} />
                 </span>
-                <span className="af-divider__label">Mais</span>
+                <span className="af-navlink__label">Mais</span>
               </button>
             </li>
           ) : null}
@@ -93,7 +93,7 @@ export function ShellNav({ items: given, userPlate }: { items: NavNode[]; userPl
           <ul className="af-more__list">
             {overflow.map((item) => (
               <li key={item.href + item.label}>
-                <Divider item={item} onNavigate={() => setMoreOpen(false)} />
+                <NavLink item={item} onNavigate={() => setMoreOpen(false)} />
               </li>
             ))}
           </ul>
