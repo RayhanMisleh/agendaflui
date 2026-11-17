@@ -199,4 +199,237 @@
       min-width: 0;
     }
   }
+
+  /* ---- Listas e fichas (serviços, clientes, equipe) ---- */
+  .af-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+  }
+  .af-toolbar .af-navtabs {
+    margin: 0;
+  }
+  .af-formgrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+  }
+  @media (min-width: 30rem) {
+    .af-formgrid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .af-moneyfield {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Serviço: ícone + nome */
+  .af-service {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-service__icon {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-service__text {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .af-service__name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-service__desc {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-weight: 400;
+    line-height: var(--text-small-lh);
+  }
+
+  /* Escolha de ícone */
+  .af-iconpick {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+  .af-iconpick__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+    gap: 0.5rem;
+  }
+  .af-iconpick__item {
+    position: relative;
+    display: block;
+    min-width: 0;
+  }
+  .af-iconpick__input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .af-iconpick__face {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    min-height: 44px;
+    padding: 0.5rem 0.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-chip);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-small);
+    line-height: 1.2;
+    text-align: center;
+  }
+  .af-iconpick__input:checked + .af-iconpick__face {
+    border-color: var(--brand);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+    font-weight: 700;
+  }
+  .af-iconpick__input:focus-visible + .af-iconpick__face {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Ficha: cabeçalho, dados, contato rápido */
+  .af-profile {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .af-profile__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1rem;
+  }
+  .af-profile__name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+  .af-profile__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    color: var(--ink-muted);
+  }
+  .af-quick {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .af-profile__cols {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  @media (min-width: 64rem) {
+    .af-profile__cols {
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      align-items: start;
+    }
+  }
+  .af-facts {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+  }
+  .af-facts dt {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  .af-visit {
+    display: grid;
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+    gap: 0.25rem 0.75rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .af-visit:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .af-visit__when {
+    display: grid;
+    gap: 0.125rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+  }
+  .af-visit__time {
+    color: var(--ink-muted);
+    font-weight: 600;
+    font-size: var(--text-small);
+  }
+  .af-visit__main {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+  .af-visit__what {
+    overflow-wrap: anywhere;
+  }
+  .af-visit__detail {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-careful {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .af-careful__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--line);
+  }
+  .af-careful__row:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .af-careful__text {
+    display: grid;
+    gap: 0.125rem;
+    max-width: 32rem;
+  }
+  .af-careful__title {
+    font-weight: 700;
+  }
+  .af-careful__help {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
 }

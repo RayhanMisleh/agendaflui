@@ -10,6 +10,7 @@ export function LinkButton({
   size = 'md',
   icon,
   className,
+  external,
   children,
 }: {
   href: string
@@ -17,10 +18,12 @@ export function LinkButton({
   size?: 'sm' | 'md' | 'lg'
   icon?: ReactNode
   className?: string
+  /** Abre em outra aba (WhatsApp, e-mail, endereços de fora do painel). */
+  external?: boolean
   children: ReactNode
 }) {
   return (
-    <Link href={href} className={cx('af-button', `af-button--${variant}`, `af-button--${size}`, className)}>
+    <Link href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})} className={cx('af-button', `af-button--${variant}`, `af-button--${size}`, className)}>
       <span className="af-button__label">
         {icon ? (
           <span className="af-button__icon" aria-hidden="true">

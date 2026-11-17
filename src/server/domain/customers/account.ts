@@ -9,7 +9,7 @@ import { tenantDb } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { anonymizeCustomer } from '@/server/domain/customers/customers'
 import { normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
-import { DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
+import { authorize, DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import {
@@ -395,4 +395,28 @@ export async function deleteOwnAccount(ctx: TenantContext, input: { password: st
   const i = parse(deleteSchema, input)
   await assertOwnPassword(ctx, customerId, i.password)
   await anonymizeCustomer(ctx, customerId)
+}
+
+/**
+ * A equipe manda ao cliente o código para ele redefinir a senha do app (o mesmo do "esqueci a senha"). Só para cliente com
+ * conta no app e e-mail, e nunca pelo suporte da plataforma. O envio respeita os limites do pedido de código: se o limite
+ * já foi atingido, nada sai e a pessoa espera.
+ */
+export async function sendCustomerPasswordReset(ctx: TenantContext, customerId: string): Promise<void> {
+  authorize(ctx, 'manage_clients')
+  if (ctx.actor.kind !== 'member') {
+    throw new DomainError('forbidden', 'O suporte não pode mandar redefinição de senha. Peça a um dono ou gerente da conta.')
+  }
+  const customer = z.uuid().safeParse(customerId).success
+    ? await ctx.db.customer.findUnique({ where: { id: customerId }, select: { id: true, email: true, passwordHash: true, archivedAt: true, anonymizedAt: true } })
+    : null
+  if (!customer) throw new DomainError('not_found', 'Cliente não encontrado.')
+  if (customer.archivedAt !== null || customer.anonymizedAt !== null) {
+    throw new DomainError('conflict', 'Este cadastro está arquivado. Restaure o cadastro antes de mandar a redefinição.')
+  }
+  if (customer.passwordHash === null || customer.email === null) {
+    throw new DomainError('conflict', 'Este cliente ainda não tem conta no app. Só quem tem conta no app redefine a senha.')
+  }
+  await (await requestPasswordReset(ctx.businessId, customer.email, ctx.request ?? { ip: null, userAgent: null }, ctx.clock()))()
+  await audit(ctx, { action: 'customer.password_reset_sent', targetType: 'Customer', targetId: customer.id })
 }

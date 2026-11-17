@@ -21,7 +21,7 @@ const DEV_COOKIE = 'af_dev_session'
 const PAINEL_COOKIE = 'af_painel_session'
 const MARCAS_DE_ERRO = ['__next_error__', 'Application error', /Digest: \d+/]
 
-/** Páginas pedidas. `{conta}` vira o id da primeira conta do seed. Acrescente aqui as telas novas de cada tarefa. */
+/** Páginas pedidas. `{conta}` vira o id da primeira conta do seed; `{cliente}` e `{profissional}`, o primeiro cliente e o primeiro profissional dela. Acrescente aqui as telas novas de cada tarefa. */
 const PAGINAS = [
   '/',
   '/contas',
@@ -54,7 +54,16 @@ const PAGINAS = [
 ]
 
 /** Páginas do painel do negócio, pedidas como o dono da conta de demonstração. Acrescente aqui as telas novas de cada tarefa. */
-const PAGINAS_PAINEL = ['/']
+const PAGINAS_PAINEL = [
+  '/',
+  '/servicos',
+  '/servicos?situacao=arquivados',
+  '/clientes',
+  '/clientes?search=a&situacao=arquivados',
+  '/clientes?search=%00&cursor=nao-existe',
+  '/clientes/novo',
+  '/clientes/{cliente}',
+]
 
 type Resposta = { status: number; corpo: string }
 
@@ -184,6 +193,8 @@ async function main(): Promise<number> {
       await dormir(500)
     }
 
+    const cliente = await prisma.customer.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
+    const profissional = await prisma.professional.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     let falhas = 0
     const hostPainel = `painel.localhost:${porta}`
     const lotes = [
@@ -192,7 +203,13 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id)
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '')
+        if (caminho.includes('//') || caminho.endsWith('/')) {
+          if (modelo !== '/') {
+            console.log(`PULOU      ${lote.rotulo} ${modelo}  (o seed não tem esse registro)`)
+            continue
+          }
+        }
         let linha: string
         try {
           const r = await pedir(porta, lote.host, caminho, lote.cookie)

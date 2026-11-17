@@ -34,3 +34,16 @@ export function shortDate(isoDate: string): string {
   const [, month, day] = isoDate.split('-')
   return month && day ? `${day}/${month}` : isoDate
 }
+
+const BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
+
+/** Centavos como reais: `3590` → `R$ 35,90`. */
+export function formatMoney(cents: number): string {
+  return BRL.format(cents / 100).replace(/ /g, ' ')
+}
+
+/** `AAAA-MM-DD` como `DD/MM/AAAA`. */
+export function formatLocalDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-')
+  return year && month && day ? `${day}/${month}/${year}` : isoDate
+}

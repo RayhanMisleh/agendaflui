@@ -1,8 +1,10 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { Service } from '@/server/db/generated/client'
+import type { TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
+import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 
 export type ServiceView = {
   id: string
@@ -110,6 +112,18 @@ function archivedConflict(): DomainError {
   return new DomainError('conflict', 'Este serviço está arquivado. Restaure o serviço antes de alterá-lo.')
 }
 
+/** Opções de gravação. `onGrid`: a duração precisa ser múltipla da grade de horários da conta (o painel liga; a API não usa). */
+export type ServiceWriteOptions = { onGrid?: boolean }
+
+async function assertOnGrid(ctx: TenantContext, durationMin: number | undefined): Promise<void> {
+  if (durationMin === undefined) return
+  const { slotStepMin } = await getSchedulingRules(ctx)
+  if (durationMin % slotStepMin !== 0) {
+    const mensagem = `Use uma duração múltipla de ${slotStepMin} minutos, a grade de horários da conta.`
+    throw new DomainError('validation', mensagem, { fields: { durationMin: mensagem } })
+  }
+}
+
 export async function listServices(
   ctx: TenantContext,
   opts: { includeInactive?: boolean; includeArchived?: boolean } = {},
@@ -130,10 +144,12 @@ export async function getService(ctx: TenantContext, id: string): Promise<Servic
   return toServiceView(await loadService(ctx, id))
 }
 
-export async function createService(ctx: TenantContext, input: ServiceInput): Promise<ServiceView> {
+export async function createService(ctx: TenantContext, input: ServiceInput, opts: ServiceWriteOptions = {}): Promise<ServiceView> {
   authorize(ctx, 'manage_catalog')
   const data = parse(createSchema, input)
+  if (opts.onGrid) await assertOnGrid(ctx, data.durationMin)
   const created = await ctx.db.$transaction(async (tx) => {
+    await tx.$lockKey('catalog', ctx.businessId)
     const last = await tx.service.aggregate({ where: { archivedAt: null }, _max: { displayOrder: true } })
     const service = await tx.service.create({
       data: { ...data, businessId: ctx.businessId, displayOrder: (last._max.displayOrder ?? 0) + 1 },
@@ -148,9 +164,11 @@ export async function updateService(
   ctx: TenantContext,
   id: string,
   input: Partial<ServiceInput>,
+  opts: ServiceWriteOptions = {},
 ): Promise<ServiceView> {
   authorize(ctx, 'manage_catalog')
   const data = definedOnly(parse(updateSchema, input))
+  if (opts.onGrid) await assertOnGrid(ctx, data.durationMin)
   const current = await loadService(ctx, id)
   if (current.archivedAt !== null) throw archivedConflict()
   const fields = Object.keys(data)
@@ -194,6 +212,7 @@ export async function restoreService(ctx: TenantContext, id: string): Promise<Se
   if (current.archivedAt === null) return toServiceView(current)
   try {
     const restored = await ctx.db.$transaction(async (tx) => {
+      await tx.$lockKey('catalog', ctx.businessId)
       const last = await tx.service.aggregate({ where: { archivedAt: null }, _max: { displayOrder: true } })
       const service = await tx.service.update({
         where: { id },
@@ -209,26 +228,58 @@ export async function restoreService(ctx: TenantContext, id: string): Promise<Se
   }
 }
 
-/** A lista precisa ter exatamente os serviços não arquivados da conta, cada um uma vez. */
+/**
+ * A lista precisa ter exatamente os serviços não arquivados da conta, cada um uma vez. A ordem é gravada sob a trava do
+ * catálogo e as linhas são atualizadas em ordem de id: duas pessoas ordenando ao mesmo tempo se enfileiram (vale a última
+ * lista inteira), sem impasse no banco e sem posição repetida.
+ */
 export async function reorderServices(ctx: TenantContext, orderedIds: string[]): Promise<void> {
   authorize(ctx, 'manage_catalog')
   const { orderedIds: ids } = parse(reorderSchema, { orderedIds })
   await ctx.db.$transaction(async (tx) => {
-    const existing = await tx.service.findMany({ where: { archivedAt: null }, select: { id: true } })
-    const expected = new Set(existing.map((s) => s.id))
-    const received = new Set(ids)
-    const exact = received.size === ids.length && received.size === expected.size && ids.every((x) => expected.has(x))
-    if (!exact) {
-      throw new DomainError(
-        'validation',
-        'A lista de serviços está desatualizada. Recarregue a página e ordene de novo.',
-        { fields: { orderedIds: 'Envie todos os serviços não arquivados, cada um uma vez.' } },
-      )
+    await tx.$lockKey('catalog', ctx.businessId)
+    await writeOrder(ctx, tx, ids)
+  })
+}
+
+async function writeOrder(ctx: TenantContext, tx: TenantTx, ids: string[]): Promise<void> {
+  const existing = await tx.service.findMany({ where: { archivedAt: null }, select: { id: true } })
+  const expected = new Set(existing.map((s) => s.id))
+  const received = new Set(ids)
+  const exact = received.size === ids.length && received.size === expected.size && ids.every((x) => expected.has(x))
+  if (!exact) {
+    throw new DomainError(
+      'validation',
+      'A lista de serviços está desatualizada. Recarregue a página e ordene de novo.',
+      { fields: { orderedIds: 'Envie todos os serviços não arquivados, cada um uma vez.' } },
+    )
+  }
+  if (ids.length === 0) return
+  const posicao = new Map(ids.map((id, index) => [id, index + 1]))
+  for (const id of [...ids].sort()) await tx.service.update({ where: { id }, data: { displayOrder: posicao.get(id) ?? 0 } })
+  await audit(ctx, { action: 'service.reordered', targetType: 'Service', metadata: { count: ids.length } }, tx)
+}
+
+/** Sobe ou desce um serviço uma posição, lendo a lista sob a trava (dois cliques seguidos de pessoas diferentes somam). */
+export async function moveService(ctx: TenantContext, id: string, direction: 'up' | 'down'): Promise<void> {
+  authorize(ctx, 'manage_catalog')
+  if (!idSchema.safeParse(id).success) throw notFound()
+  await ctx.db.$transaction(async (tx) => {
+    await tx.$lockKey('catalog', ctx.businessId)
+    const lista = await tx.service.findMany({
+      where: { archivedAt: null },
+      select: { id: true },
+      orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+    })
+    const ids = lista.map((s) => s.id)
+    const i = ids.indexOf(id)
+    if (i < 0) throw notFound()
+    const j = direction === 'up' ? i - 1 : i + 1
+    const vizinho = ids[j]
+    if (vizinho !== undefined) {
+      ids[j] = id
+      ids[i] = vizinho
     }
-    if (ids.length === 0) return
-    for (const [index, id] of ids.entries()) {
-      await tx.service.update({ where: { id }, data: { displayOrder: index + 1 } })
-    }
-    await audit(ctx, { action: 'service.reordered', targetType: 'Service', metadata: { count: ids.length } }, tx)
+    await writeOrder(ctx, tx, ids)
   })
 }

@@ -109,6 +109,7 @@ const listSchema = z.object({
   search: z.string().max(80, 'Use até 80 caracteres na busca.').optional(),
   clubOnly: z.boolean().optional(),
   includeArchived: z.boolean().optional(),
+  onlyArchived: z.boolean().optional(),
   cursor: z.string().max(1024).optional(),
   limit: z
     .number()
@@ -222,10 +223,10 @@ function decodeCursor(cursor: string): Cursor {
 
 export async function listCustomers(
   ctx: TenantContext,
-  q: { search?: string; clubOnly?: boolean; includeArchived?: boolean; cursor?: string; limit?: number } = {},
+  q: { search?: string; clubOnly?: boolean; includeArchived?: boolean; onlyArchived?: boolean; cursor?: string; limit?: number } = {},
 ): Promise<{ items: CustomerView[]; nextCursor: string | null }> {
   authorize(ctx, 'view_clients')
-  const { search, clubOnly, includeArchived, cursor, limit = DEFAULT_LIMIT } = parse(listSchema, q)
+  const { search, clubOnly, includeArchived, onlyArchived, cursor, limit = DEFAULT_LIMIT } = parse(listSchema, q)
   const after = cursor === undefined ? null : decodeCursor(cursor)
   const term = search?.trim() ?? ''
   const key = searchKey(term)
@@ -247,7 +248,7 @@ export async function listCustomers(
   const rows = await ctx.db.customer.findMany({
     where: {
       ...(clubOnly ? { isClubMember: true } : {}),
-      ...(includeArchived ? {} : { archivedAt: null }),
+      ...(onlyArchived ? { archivedAt: { not: null } } : includeArchived ? {} : { archivedAt: null }),
       ...(conditions.length > 0 ? { AND: conditions } : {}),
     },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
