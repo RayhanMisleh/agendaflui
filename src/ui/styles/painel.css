@@ -432,4 +432,117 @@
     font-size: var(--text-small);
     line-height: var(--text-small-lh);
   }
+
+  /* Foto, serviços marcados, bloqueios */
+  .af-avatarup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .af-avatarup__body {
+    display: grid;
+    gap: 0.5rem;
+    flex: 1 1 16rem;
+    min-width: 0;
+  }
+  .af-avatarup__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .af-profile__photo > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    color: var(--brand-text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .af-profile__photo[open] > summary {
+    margin-bottom: 0.5rem;
+  }
+  .af-profile--narrow {
+    max-width: 40rem;
+  }
+  .af-checklist {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+    gap: 0.5rem 1rem;
+  }
+  .af-blocks {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-blocks__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .af-blocks__item:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .af-blocks__text {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .af-blocks__when {
+    font-weight: 700;
+  }
+  .af-blocks__why {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+
+  /* Expediente da semana */
+  .af-week {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-week__day {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-chip);
+    min-width: 0;
+  }
+  .af-week__name {
+    padding: 0 0.25rem;
+    font-weight: 700;
+  }
+  .af-week__closed {
+    margin: 0;
+    color: var(--ink-muted);
+  }
+  .af-week__range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .af-week__time {
+    width: 8rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-week__error {
+    flex: 1 1 100%;
+    margin: 0;
+  }
+  .af-week__tools {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
 }

@@ -63,6 +63,13 @@ const PAGINAS_PAINEL = [
   '/clientes?search=%00&cursor=nao-existe',
   '/clientes/novo',
   '/clientes/{cliente}',
+  '/equipe',
+  '/equipe/novo',
+  '/equipe/{profissional}',
+  '/equipe/{profissional}?aba=servicos',
+  '/equipe/{profissional}?aba=expediente',
+  '/equipe/{profissional}?aba=bloqueios',
+  '/equipe/{profissional}?aba=acesso&foto=ok',
 ]
 
 type Resposta = { status: number; corpo: string }

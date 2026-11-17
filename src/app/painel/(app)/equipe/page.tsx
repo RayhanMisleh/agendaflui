@@ -1,0 +1,57 @@
+import type { Metadata } from 'next'
+import { UserPlus } from 'lucide-react'
+import { requireTenant } from '@/server/auth/guards'
+import { roleLabel } from '@/server/auth/role-labels'
+import { getPainelContext } from '@/server/domain/settings/painel-context'
+import { listTeamOverview } from '@/server/domain/team/sheet'
+import { Card, EmptyState, LinkButton } from '@/ui/components'
+import { PainelFrame } from '../PainelFrame'
+import { EquipeTabela } from './EquipeTabela'
+import type { EquipeLinha } from './EquipeTabela'
+
+export const metadata: Metadata = { title: 'Equipe | AgendaFlui' }
+
+export default async function EquipePage() {
+  const ctx = await requireTenant('manage_team')
+  const [painel, equipe] = await Promise.all([getPainelContext(ctx), listTeamOverview(ctx)])
+  const { terms } = painel
+  const novo = `Adicionar ${terms.professionalSingular.toLowerCase()}`
+  const linhas = equipe.map((r): EquipeLinha => ({
+    id: r.professional.id,
+    name: r.professional.name,
+    avatarUrl: r.professional.avatarUrl,
+    servicos: r.serviceNames,
+    ativo: r.professional.active === true,
+    papel: r.access ? roleLabel(r.access.role, terms.professionalSingular) : null,
+    acesso: r.access ? (!r.access.active ? 'desativado' : r.access.pending ? 'convite' : 'ativo') : 'sem',
+  }))
+
+  return (
+    <PainelFrame
+      ctx={ctx}
+      title={terms.professionalPlural}
+      actions={
+        <LinkButton href="/equipe/novo" variant="primary" icon={<UserPlus size={18} />}>
+          {novo}
+        </LinkButton>
+      }
+    >
+      <Card className="af-listpanel" as="section" aria-label={terms.professionalPlural}>
+        <EquipeTabela
+          linhas={linhas}
+          vazio={
+            <EmptyState
+              title={`Cadastre o primeiro ${terms.professionalSingular.toLowerCase()}`}
+              description="Cada ficha tem foto, serviços, expediente e, se a pessoa for usar o painel, um acesso próprio."
+              action={
+                <LinkButton href="/equipe/novo" variant="primary" icon={<UserPlus size={18} />}>
+                  {novo}
+                </LinkButton>
+              }
+            />
+          }
+        />
+      </Card>
+    </PainelFrame>
+  )
+}
