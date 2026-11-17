@@ -73,7 +73,11 @@ export function PlannerDay({
   const current = columns.some((c) => c.id === active) ? active : (columns[0]?.id ?? '')
   const nowMin = useNowMinute(nowFromServer)
   const bodies = useRef(new Map<string, HTMLElement>())
-  const { preview, announcement, bind } = useDragReschedule({ columns, windowStartMin: startMin, windowEndMin: endMin, step, canCross, onMove, bodies })
+  const { preview, announcement, bind, restoreFocus } = useDragReschedule({ columns, windowStartMin: startMin, windowEndMin: endMin, step, canCross, onMove, bodies })
+  // A cada renderização: quando a ficha enviada pelo teclado reaparece em outra coluna, o foco volta para ela.
+  useEffect(() => {
+    restoreFocus()
+  })
   const height = (endMin - startMin) * PX_PER_MIN
   const gridStyle: CSSProperties & Record<`--${string}`, string> = { '--af-pxmin': String(PX_PER_MIN), '--af-cols': String(Math.max(1, columns.length)) }
   const showNow = nowMin !== null && nowMin >= startMin && nowMin <= endMin

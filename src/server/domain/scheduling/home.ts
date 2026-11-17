@@ -39,9 +39,10 @@ export async function getHomeOverview(ctx: TenantContext): Promise<HomeOverview>
   const scope = await staffScope(ctx, actorKind(ctx))
   const now = ctx.clock()
   const { iso: date, label: dateLabel } = todayLine(now, ctx.timeZone)
-  const summary = await getDaySummary(ctx, date)
-  const base = { date, dateLabel, weekday: weekdayOf(date), scope: scope.all ? ('all' as const) : ('own' as const), unlinked: !scope.all && scope.ownId === null, summary }
-  if (!scope.all && scope.ownId === null) return { ...base, next: null, later: [], counts: { today: 0, month: 0 } }
+  const weekday = weekdayOf(date)
+  const unlinked = !scope.all && scope.ownId === null
+  const head = { date, dateLabel, weekday, scope: scope.all ? ('all' as const) : ('own' as const), unlinked }
+  if (unlinked) return { ...head, summary: await getDaySummary(ctx, date), next: null, later: [], counts: { today: 0, month: 0 } }
 
   const mine: Prisma.AppointmentWhereInput = scope.all ? {} : { professionalId: scope.ownId ?? '' }
   const day = localDayRange(date, ctx.timeZone)
@@ -49,25 +50,27 @@ export async function getHomeOverview(ctx: TenantContext): Promise<HomeOverview>
   const open = { status: { in: [...OPEN_STATUSES] }, endsAt: { gt: now } }
   const notCanceled = { status: { not: 'CANCELED' as const } }
 
-  const changeWindowMin = (await getSchedulingRules(ctx)).customerChangeWindowMin
-  const next: Row | null = await ctx.db.appointment.findFirst({
-    where: { ...mine, ...open },
-    include,
-    orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-  })
-  const todayRows: Row[] = await ctx.db.appointment.findMany({
-    where: { ...mine, ...open, startsAt: { gte: day.start, lt: day.end } },
-    include,
-    orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
-    take: TODAY_LIMIT,
-  })
-  const today = await ctx.db.appointment.count({ where: { ...mine, ...notCanceled, startsAt: { gte: day.start, lt: day.end } } })
-  const inMonth = await ctx.db.appointment.count({ where: { ...mine, ...notCanceled, startsAt: { gte: month.start, lt: month.end } } })
+  const [summary, next, todayRows, today, inMonth] = await Promise.all([
+    getDaySummary(ctx, date),
+    ctx.db.appointment.findFirst({ where: { ...mine, ...open }, include, orderBy: [{ startsAt: 'asc' }, { id: 'asc' }] }),
+    ctx.db.appointment.findMany({
+      where: { ...mine, ...open, startsAt: { gte: day.start, lt: day.end } },
+      include,
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      take: TODAY_LIMIT,
+    }),
+    ctx.db.appointment.count({ where: { ...mine, ...notCanceled, startsAt: { gte: day.start, lt: day.end } } }),
+    ctx.db.appointment.count({ where: { ...mine, ...notCanceled, startsAt: { gte: month.start, lt: month.end } } }),
+  ])
+  // A janela de mudança só serve para montar a visão de um atendimento: sem atendimento, nem lê as regras.
+  const changeWindowMin = next || todayRows.length > 0 ? (await getSchedulingRules(ctx)).customerChangeWindowMin : 0
+  const view = (r: Row): AppointmentView => toView(ctx, r, scope, changeWindowMin)
 
   return {
-    ...base,
-    next: next ? toView(ctx, next, scope, changeWindowMin) : null,
-    later: todayRows.filter((r) => r.id !== next?.id).map((r) => toView(ctx, r, scope, changeWindowMin)),
+    ...head,
+    summary,
+    next: next ? view(next) : null,
+    later: todayRows.filter((r) => r.id !== next?.id).map(view),
     counts: { today, month: inMonth },
   }
 }

@@ -11,6 +11,11 @@ export type MovePreview = { slipId: string; professionalId: string; startMin: nu
 
 /** Quantos pixels o ponteiro precisa andar para um clique virar arrasto. */
 const LIMIAR = 4
+/** Falado pela região viva quando o movimento acaba sem enviar nada (Esc ou perda de foco). */
+const CANCELADO = 'Movimento cancelado.'
+const ENVIADO = 'Enviado para confirmar.'
+/** Quanto tempo (ms) a ficha que acabou de ser enviada espera para recuperar o foco depois de trocar de coluna. */
+const FOCO_ESPERA_MS = 8000
 
 type Args = {
   columns: PageColumn[]
@@ -98,6 +103,7 @@ export function useDragReschedule(args: Args) {
         if (ev.key !== 'Escape') return
         s.cancelled = true
         setPreview(null)
+        setAnnouncement(CANCELADO)
       }
       window.addEventListener('pointermove', mover)
       window.addEventListener('pointerup', soltar)
@@ -114,11 +120,36 @@ export function useDragReschedule(args: Args) {
   )
 
   const teclado = useRef<MovePreview | null>(null)
-  const fixarTeclado = (p: MovePreview | null, nome?: string) => {
+  const fixarTeclado = (p: MovePreview | null, nome?: string, fala = '') => {
     teclado.current = p
     setPreview(p)
-    setAnnouncement(p ? `Mover para ${p.label}${nome ? ` com ${nome}` : ''}. Enter confirma, Esc cancela.` : '')
+    setAnnouncement(p ? `Mover para ${p.label}${nome ? ` com ${nome}` : ''}. Enter confirma, Esc cancela.` : fala)
   }
+
+  // A ficha enviada pelo teclado pode trocar de coluna: o React a remonta e o foco cairia no corpo da página. Guardamos
+  // qual era para devolver o foco quando ela reaparecer (e só se ninguém mais o tiver pegado nem houver diálogo aberto).
+  const foco = useRef<{ id: string; ate: number } | null>(null)
+  const restoreFocus = useCallback(() => {
+    const f = foco.current
+    if (!f) return
+    if (performance.now() > f.ate) {
+      foco.current = null
+      return
+    }
+    if (document.querySelector('dialog[open]')) return
+    const ativo = document.activeElement
+    const alvo = Array.from(document.querySelectorAll<HTMLElement>('[data-slip]')).find((el) => el.dataset.slip === f.id)
+    if (ativo && ativo !== document.body && ativo !== alvo) {
+      foco.current = null
+      return
+    }
+    if (ativo === document.body || ativo === null) {
+      if (alvo) {
+        alvo.focus()
+        foco.current = null
+      }
+    }
+  }, [])
 
   const aoTeclar = useCallback((slip: PageSlip, e: KeyboardEvent<HTMLElement>) => {
     const a = latest.current
@@ -127,14 +158,18 @@ export function useDragReschedule(args: Args) {
     if (e.key === 'Escape' && atual) {
       e.preventDefault()
       e.stopPropagation()
-      fixarTeclado(null)
+      fixarTeclado(null, undefined, CANCELADO)
       return
     }
     if (e.key === 'Enter' && atual) {
       e.preventDefault()
       const alvo = { professionalId: atual.professionalId, startMin: atual.startMin }
-      fixarTeclado(null)
-      if (!igual(alvo, origem(slip))) a.onMove(slip.id, alvo)
+      const mudou = !igual(alvo, origem(slip))
+      fixarTeclado(null, undefined, mudou ? ENVIADO : CANCELADO)
+      if (mudou) {
+        foco.current = { id: slip.id, ate: performance.now() + FOCO_ESPERA_MS }
+        a.onMove(slip.id, alvo)
+      }
       return
     }
     const base = atual ?? { slipId: slip.id, ...origem(slip), heightMin: slip.box.heightMin, label: '' }
@@ -161,11 +196,11 @@ export function useDragReschedule(args: Args) {
     onPointerDown: (e: ReactPointerEvent<HTMLElement>) => aoPressionar(slip, e),
     onKeyDown: (e: KeyboardEvent<HTMLElement>) => aoTeclar(slip, e),
     onBlur: () => {
-      if (teclado.current?.slipId === slip.id) fixarTeclado(null)
+      if (teclado.current?.slipId === slip.id) fixarTeclado(null, undefined, CANCELADO)
     },
     /** Depois de um arrasto o clique que o navegador solta junto não abre a ficha. */
     consumeClick: () => suppress.current,
   })
 
-  return { preview, announcement, bind }
+  return { preview, announcement, bind, restoreFocus }
 }

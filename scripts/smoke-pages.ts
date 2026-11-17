@@ -237,6 +237,7 @@ async function main(): Promise<number> {
     const cliente = await prisma.customer.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     const profissional = await prisma.professional.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     let falhas = 0
+    let pulados = 0
     const hostPainel = `painel.localhost:${porta}`
     const lotes = [
       { host, cookie: `${DEV_COOKIE}=${token}`, paginas: PAGINAS, rotulo: 'dev' },
@@ -245,11 +246,12 @@ async function main(): Promise<number> {
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
         const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '')
-        if (caminho.includes('//') || caminho.endsWith('/')) {
-          if (modelo !== '/') {
-            console.log(`PULOU      ${lote.rotulo} ${modelo}  (o seed não tem esse registro)`)
-            continue
-          }
+        const faltaRegistro =
+          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
+        if (faltaRegistro) {
+          pulados++
+          console.log(`PULOU      ${lote.rotulo} ${modelo}  (o seed não tem esse registro)`)
+          continue
         }
         let linha: string
         try {
@@ -265,8 +267,9 @@ async function main(): Promise<number> {
         console.log(linha)
       }
     }
-    const total = PAGINAS.length + PAGINAS_PAINEL.length
-    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro.` : `\nFumaça: ${falhas} de ${total} páginas falharam.`)
+    const total = PAGINAS.length + PAGINAS_PAINEL.length - pulados
+    const aviso = pulados > 0 ? ` (${pulados} puladas por falta de registro no seed)` : ''
+    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
     return falhas === 0 ? 0 : 1
   } finally {
     await encerrar()

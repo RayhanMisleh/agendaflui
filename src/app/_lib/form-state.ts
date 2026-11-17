@@ -6,7 +6,12 @@ import { toIsoInstant } from '@/server/time'
 export type FormState<V> = { ok: boolean; message: string | null; fields: Record<string, string>; values: V; conflict?: Conflito }
 
 /** Horário ocupado: os próximos horários livres que o domínio devolveu (instante exato e rótulo local pronto). */
-export type Conflito = { nearest: { iso: string; label: string }[] }
+export type Conflito = { nearest: { iso: string; label: string; date: string }[] }
+
+/** O texto de um horário sugerido: só `HH:mm`, e com o dia (`HH:mm (dd/mm)`) quando cai em outro dia que `dia` (`AAAA-MM-DD`). */
+export function rotuloDoHorario(n: Conflito['nearest'][number], dia: string): string {
+  return n.date !== '' && n.date !== dia ? `${n.label} (${n.date.slice(8, 10)}/${n.date.slice(5, 7)})` : n.label
+}
 
 /** Lê `details.nearest` de um erro de horário ocupado; sem a lista (ou de outro erro), não há conflito a mostrar. */
 function conflitoDe(err: DomainError): Conflito | undefined {
@@ -16,7 +21,8 @@ function conflitoDe(err: DomainError): Conflito | undefined {
   const nearest: Conflito['nearest'] = []
   for (const item of lista) {
     if (typeof item === 'object' && item !== null && 'startsAt' in item && item.startsAt instanceof Date && 'label' in item && typeof item.label === 'string') {
-      nearest.push({ iso: toIsoInstant(item.startsAt), label: item.label })
+      // `date` é o dia local do horário sugerido: quem o usa manda o dia junto, senão a ação vê o dia antigo e recusa.
+      nearest.push({ iso: toIsoInstant(item.startsAt), label: item.label, date: 'date' in item && typeof item.date === 'string' ? item.date : '' })
     }
   }
   return { nearest }

@@ -108,7 +108,7 @@ async function slotTaken(
   i: { startsAt: Date; durationMin: number; professionalIds: string[]; ignoreAppointmentId?: string },
 ): Promise<DomainError> {
   // `nearest` usa as regras do cliente (grade e folga) também quando quem pede é a equipe.
-  let nearest: { startsAt: Date; label: string }[] = []
+  let nearest: { startsAt: Date; label: string; date: string }[] = []
   try {
     const rules = await getSchedulingRules(ctx, db)
     const starts = await computeFreeStarts(
@@ -126,7 +126,7 @@ async function slotTaken(
       .filter((s) => s.startsAt.getTime() > i.startsAt.getTime())
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
       .slice(0, 3)
-      .map((s) => ({ startsAt: s.startsAt, label: formatTime(s.startsAt, ctx.timeZone) }))
+      .map((s) => ({ startsAt: s.startsAt, label: formatTime(s.startsAt, ctx.timeZone), date: localParts(s.startsAt, ctx.timeZone).date }))
   } catch {
     nearest = []
   }

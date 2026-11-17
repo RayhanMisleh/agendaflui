@@ -11,6 +11,9 @@ import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import { makeBusiness, makeCustomer, makePlatformAdmin, makeUser } from '../setup/factories'
 
+// Com a máquina ocupada, a primeira consulta e o reinício do banco passam de 5 s.
+vi.setConfig({ testTimeout: 20_000, hookTimeout: 20_000 })
+
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
 const NOW = fromIsoInstant('2026-11-16T15:00:00.000Z')

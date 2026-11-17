@@ -1,7 +1,6 @@
 import { CalendarDays, ChartNoAxesColumn, House, Scissors, Settings, UserRound, UserRoundCog, Users } from 'lucide-react'
 import type { Capability } from '@/server/auth/capabilities'
-import type { Modules } from '@/server/domain/settings/painel-context'
-import type { Terms } from '@/server/domain/settings/terms'
+import type { Modules } from '@/shared/modules'
 import type { NavItem } from './nav'
 
 /**
@@ -10,7 +9,7 @@ import type { NavItem } from './nav'
  * gerencia as configurações da conta chega ao seu perfil por "Meu perfil" (mesma rota). Os módulos opcionais são da Fase 5:
  * ainda não criam destinos, por isso `modules` só marca o lugar onde eles entram.
  */
-export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules; terms: Terms }): NavItem[] {
+export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules; terms: { customerPlural: string; professionalPlural: string } }): NavItem[] {
   const { can, terms } = ctx
   const items: (NavItem | null)[] = [
     can('view_dashboard') ? { href: '/', label: 'Início', icon: House } : null,

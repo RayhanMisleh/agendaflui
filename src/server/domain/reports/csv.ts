@@ -17,13 +17,13 @@ const STATUS_LABEL: Record<ReportRow['status'], string> = {
 const HEADER = ['Início', 'Término', 'Cliente', 'Profissional', 'Serviços', 'Situação', 'Valor', 'Comissão']
 
 /**
- * Uma célula do CSV (separador `;`). Texto que começa com `=`, `+`, `-`, `@`, tabulação ou retorno de carro ganha um
- * apóstrofo na frente, para a planilha não o executar como fórmula. Números não passam por essa regra. Aspas dobradas.
+ * Uma célula do CSV (separador `;`). Texto que começa com `=`, `+`, `-`, `@`, tabulação ou retorno de carro (também depois de espaços ou
+ * tabulações à esquerda) ganha um apóstrofo na frente, para a planilha não o executar como fórmula. Números não passam por essa regra. Aspas dobradas.
  */
 export function csvCell(value: string | number | null): string {
   if (value === null) return ''
   let text = String(value)
-  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(text)) text = `'${text}`
+  if (typeof value === 'string' && /^[=+\-@\t\r]|^[ \t]*[=+\-@]/.test(text)) text = `'${text}`
   return /[;"\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 

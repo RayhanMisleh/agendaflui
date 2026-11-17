@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { rotuloDoHorario } from '@/app/_lib/form-state'
 import type { PageDetail } from '@/server/domain/scheduling/agenda-page'
 import { Button, Dialog } from '@/ui/components'
 import { PainelForm } from '../_lib/PainelForm'
@@ -10,7 +11,7 @@ import { horarioEfetivo } from './consultas'
 export type AlvoRemarcar = { id: string; professionalId: string; professionalName: string; date: string; startLabel: string }
 
 function Formulario({ alvo, detalhe, onClose }: { alvo: AlvoRemarcar; detalhe: PageDetail; onClose: () => void }) {
-  const [usar, setUsar] = useState<{ iso: string; label: string } | null>(null)
+  const [usar, setUsar] = useState<{ iso: string; label: string; date: string } | null>(null)
   const inicial: EstadoPainel = { ok: false, message: null, fields: {}, values: {} }
   const [efetivo, setEfetivo] = useState<string | null>(null)
   useEffect(() => {
@@ -23,7 +24,7 @@ function Formulario({ alvo, detalhe, onClose }: { alvo: AlvoRemarcar; detalhe: P
     }
   }, [alvo.date, alvo.startLabel])
   // O que vai ser gravado: o horário oferecido, ou o digitado já convertido pelo servidor (hora que não existe avança).
-  const label = usar?.label ?? efetivo ?? alvo.startLabel
+  const label = usar ? rotuloDoHorario(usar, alvo.date) : (efetivo ?? alvo.startLabel)
   const avancou = !usar && efetivo !== null && efetivo !== alvo.startLabel
   return (
     <PainelForm action={remarcarAtendimento} initial={inicial} submit="Remarcar atendimento" onDone={onClose} secondary={<Button variant="ghost" onClick={onClose}>Voltar</Button>}>
@@ -33,7 +34,7 @@ function Formulario({ alvo, detalhe, onClose }: { alvo: AlvoRemarcar; detalhe: P
           <input type="hidden" name="fromStartsAt" value={detalhe.startsAtIso} />
           <input type="hidden" name="fromProfessionalId" value={detalhe.professional.id} />
           <input type="hidden" name="professionalId" value={alvo.professionalId} />
-          <input type="hidden" name="date" value={usar ? '' : alvo.date} />
+          <input type="hidden" name="date" value={usar && usar.date !== '' ? usar.date : alvo.date} />
           <input type="hidden" name="time" value={usar ? '' : alvo.startLabel} />
           <input type="hidden" name="startsAt" value={usar?.iso ?? ''} />
           <p className="af-confirm__text">
@@ -46,7 +47,7 @@ function Formulario({ alvo, detalhe, onClose }: { alvo: AlvoRemarcar; detalhe: P
               <div className="af-pick__times">
                 {state.conflict.nearest.map((n) => (
                   <Button key={n.iso} size="sm" variant="secondary" onClick={() => setUsar(n)}>
-                    Usar {n.label}
+                    Usar {rotuloDoHorario(n, alvo.date)}
                   </Button>
                 ))}
               </div>

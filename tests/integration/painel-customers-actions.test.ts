@@ -12,7 +12,7 @@ vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', async (original) => {
   const real = await original<typeof import('next/navigation')>()
-  return { ...real, redirect: vi.fn((destino: string) => { throw new Error(`NEXT_REDIRECT ${destino}`) }) }
+  return { ...real, redirect: vi.fn((destino: string) => { throw Object.assign(new Error(`NEXT_REDIRECT ${destino}`), { digest: `NEXT_REDIRECT;replace;${destino};307;` }) }) }
 })
 
 import {
@@ -175,6 +175,27 @@ describe('redefinição de senha do app', () => {
     const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
     expect(r.ok).toBe(true)
     expect(mail.sent.filter((m) => m.to === 'dani@exemplo.com')).toHaveLength(1)
+  })
+
+  test('no limite de pedidos a tela não diz "enviada" e a auditoria não registra envio', async () => {
+    const c = await comConta()
+    for (let i = 0; i < 3; i += 1) expect((await enviarRedefinicaoCliente(ini, form({ id: c.id }))).ok).toBe(true)
+    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toContain('Espere alguns minutos')
+    expect(r.message).not.toContain('enviada')
+    expect(mail.sent.filter((m) => m.to === 'dani@exemplo.com')).toHaveLength(3)
+    const registros = await prisma.auditLog.count({ where: { businessId, action: 'customer.password_reset_sent' } })
+    expect(registros).toBe(3)
+  })
+
+  test('cadastro arquivado é recusado e nada é enviado', async () => {
+    const c = await comConta()
+    await prisma.customer.update({ where: { id: c.id }, data: { archivedAt: new Date() } })
+    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toContain('arquivado')
+    expect(mail.sent).toHaveLength(0)
   })
 
   test('cliente sem conta no app: recusa dizendo o motivo, e nada é enviado', async () => {

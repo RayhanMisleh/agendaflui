@@ -25,8 +25,8 @@ const mn = (dia: number, h: number, m = 0): Date => new Date(Date.UTC(2026, 10, 
 
 type Status = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
 
-async function montar() {
-  const b = await makeBusiness({ timezone: MANAUS })
+async function montar(timezone = MANAUS) {
+  const b = await makeBusiness({ timezone })
   const banho = await makeService(b.id, { name: 'Banho', durationMin: 30, priceCents: 8000 })
   const tosa = await makeService(b.id, { name: 'Tosa', durationMin: 30, priceCents: 5000 })
   const ana = await makeProfessional(b.id, { name: 'Ana', serviceIds: [banho.id, tosa.id] })
@@ -84,10 +84,25 @@ describe('período local da conta', () => {
 
   test('o período máximo é de 366 dias; 367 dão validação', async () => {
     const s = await montar()
-    await expect(getReportSummary(s.dono, { from: '2026-01-01', to: '2026-12-31' })).resolves.toBeDefined()
+    await expect(getReportSummary(s.dono, { from: '2026-01-01', to: '2027-01-01' })).resolves.toBeDefined()
     const erro = await domainError(getReportSummary(s.dono, { from: '2026-01-01', to: '2027-01-02' }))
     expect(erro.code).toBe('validation')
     expect(erro.fields).toHaveProperty('to')
+  })
+
+  test('dia de 25 horas (fim do horário de verão): byDay usa o dia local de verdade', async () => {
+    const s = await montar('America/New_York')
+    const dono = s.dono
+    // 2026-11-01: o relógio recua às 02:00 (EDT, UTC-4) para 01:00 (EST, UTC-5).
+    await atender(s, { endsAt: new Date('2026-11-01T04:30:00Z') }) // 00:30 EDT, dia 1
+    await atender(s, { endsAt: new Date('2026-11-02T04:30:00Z') }) // 23:30 EST, ainda dia 1 (24 h depois de 04:30Z seria dia 2)
+    await atender(s, { endsAt: new Date('2026-11-02T05:30:00Z') }) // 00:30 EST do dia 2
+    const r = await getReportSummary(dono, { from: '2026-11-01', to: '2026-11-02' })
+    expect(r.byDay).toEqual([
+      { date: '2026-11-01', revenueCents: 16000, completed: 2 },
+      { date: '2026-11-02', revenueCents: 8000, completed: 1 },
+    ])
+    expect(r.completed).toBe(3)
   })
 
   test('data final antes da inicial dá validação', async () => {
@@ -229,6 +244,40 @@ describe('filtro de serviço em atendimento com dois serviços', () => {
     expect(linhas.items.map((i) => i.totalCents)).toEqual([10000])
   })
 
+  test('o mesmo serviço duas vezes no atendimento: count conta itens e o resumo conta um atendimento', async () => {
+    const s = await montar()
+    const ag = await prisma.appointment.create({
+      data: {
+        businessId: s.b.id,
+        customerId: s.cliente.id,
+        professionalId: s.ana.id,
+        startsAt: mn(10, 9),
+        endsAt: mn(10, 10),
+        status: 'COMPLETED',
+        source: 'PANEL',
+        totalCents: 16000,
+        totalDurationMin: 60,
+        createdByType: 'SYSTEM',
+        items: {
+          create: [1, 2].map((posicao) => ({
+            businessId: s.b.id,
+            serviceId: s.banho.id,
+            name: s.banho.name,
+            priceCents: s.banho.priceCents,
+            durationMin: 30,
+            rewardPoints: 0,
+            position: posicao,
+          })),
+        },
+      },
+    })
+    expect(ag.id).toBeDefined()
+    expect(await getReportByService(s.dono, DIA10)).toEqual([
+      { serviceId: s.banho.id, name: 'Banho', count: 2, revenueCents: 16000 },
+    ])
+    expect(await getReportSummary(s.dono, DIA10)).toMatchObject({ completed: 1, revenueCents: 16000 })
+  })
+
   test('sem filtro, a receita é a do atendimento inteiro e a comissão é numérica', async () => {
     const { s } = await doisServicos()
     const r = await getReportSummary(s.dono, DIA10)
@@ -348,6 +397,36 @@ describe('listReportRows', () => {
     expect(items[1]?.commissionCents).toBeNull()
   })
 
+  test('cursor forjado de outro filtro só restringe: não abre linhas de colega nem de outra conta', async () => {
+    const s = await montar()
+    const outra = await montar()
+    const ctx = await ctxWithRole(s.b, 'PROFESSIONAL', { now: AGORA })
+    const dani = await makeProfessional(s.b.id, {
+      name: 'Dani',
+      membershipId: memberOf(ctx).membershipId,
+      serviceIds: [s.banho.id],
+    })
+    await atender(s, { endsAt: mn(10, 9), professionalId: s.ana.id })
+    await atender(s, { endsAt: mn(10, 10), professionalId: dani.id })
+    await atender(s, { endsAt: mn(10, 11), professionalId: s.ana.id })
+    await atender(s, { endsAt: mn(10, 12), professionalId: dani.id })
+    await atender(outra, { endsAt: mn(10, 13) })
+    // O dono pagina todo o movimento; o cursor da primeira página vira "chave" na mão da Dani.
+    const paginaDono = await listReportRows(s.dono, { ...DIA10, limit: 1 })
+    const cursor = paginaDono.nextCursor
+    expect(cursor).not.toBeNull()
+    const depois = await listReportRows(ctx, { ...DIA10, cursor: cursor ?? '' })
+    expect(depois.items.every((i) => i.professionalId === dani.id)).toBe(true)
+    expect(depois.items.map((i) => i.endLabel)).toEqual(['10/11/2026 10:00', '10/11/2026 12:00'])
+    // Cursor de outra conta: ainda só as linhas desta conta.
+    const deOutra = await listReportRows(outra.dono, { ...DIA10, limit: 1 })
+    const noDono = await listReportRows(s.dono, { ...DIA10, cursor: deOutra.nextCursor ?? paginaDono.nextCursor ?? '' })
+    expect(noDono.items.length).toBeLessThanOrEqual(4)
+    expect(noDono.items.every((i) => i.customerName === 'Bia')).toBe(true)
+    const ids = new Set((await listReportRows(s.dono, DIA10)).items.map((i) => i.id))
+    expect(noDono.items.every((i) => ids.has(i.id))).toBe(true)
+  })
+
   test('limite acima de 100 e cursor inválido dão validação', async () => {
     const s = await montar()
     expect((await domainError(listReportRows(s.dono, { ...DIA10, limit: 101 }))).code).toBe('validation')
@@ -400,6 +479,41 @@ describe('reportCsv', () => {
     for await (const p of reportCsv(s.dono, DIA10)) texto += p
     expect(texto).toContain(`;"'=HYPERLINK(""x"")";`)
     expect(texto).toContain(';80,00;')
+  })
+
+  test('o CSV do profissional traz só as linhas dele e a própria comissão', async () => {
+    const s = await montar()
+    const ctx = await ctxWithRole(s.b, 'PROFESSIONAL', { now: AGORA })
+    const dani = await makeProfessional(s.b.id, {
+      name: 'Dani',
+      membershipId: memberOf(ctx).membershipId,
+      serviceIds: [s.banho.id],
+    })
+    await atender(s, { endsAt: mn(10, 9), professionalId: s.ana.id, commissionCents: 1111 })
+    await atender(s, { endsAt: mn(10, 10), professionalId: dani.id, commissionCents: 2400 })
+    await atender(s, { endsAt: mn(10, 11), professionalId: s.caio.id, commissionCents: 3333 })
+    let texto = ''
+    for await (const p of reportCsv(ctx, DIA10)) texto += p
+    const linhas = texto.slice(1).split('\r\n').filter(Boolean)
+    expect(linhas).toHaveLength(2)
+    expect(linhas[1]).toBe('10/11/2026 09:30;10/11/2026 10:00;Bia;Dani;Banho;Concluído;80,00;24,00')
+    expect(texto).not.toContain('Ana')
+    expect(texto).not.toContain('Caio')
+    expect(texto).not.toContain('11,11')
+    expect(texto).not.toContain('33,33')
+  })
+
+  test('valor só dos concluídos e comissão vazia nos cancelados', async () => {
+    const s = await montar()
+    await atender(s, { endsAt: mn(10, 9), commissionCents: 1500 })
+    await atender(s, { endsAt: mn(10, 10), status: 'CANCELED', commissionCents: 999 })
+    await atender(s, { endsAt: mn(10, 11), status: 'NO_SHOW', commissionCents: 888 })
+    let texto = ''
+    for await (const p of reportCsv(s.dono, DIA10)) texto += p
+    const linhas = texto.slice(1).split('\r\n').filter(Boolean)
+    expect(linhas[1]).toBe('10/11/2026 08:30;10/11/2026 09:00;Bia;Ana;Banho;Concluído;80,00;15,00')
+    expect(linhas[2]).toBe('10/11/2026 09:30;10/11/2026 10:00;Bia;Ana;Banho;Cancelado;;')
+    expect(linhas[3]).toBe('10/11/2026 10:30;10/11/2026 11:00;Bia;Ana;Banho;Não compareceu;;')
   })
 
   test('sem movimento, sai só o cabeçalho', async () => {

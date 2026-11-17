@@ -74,6 +74,34 @@ describe('startsAt velho não vence o dia escolhido', () => {
   })
 })
 
+describe('horário sugerido de outro dia', () => {
+  test('o conflito traz o dia local de cada horário sugerido', async () => {
+    await marcado(10)
+    const r = await marcarHorario(ini, form({ customerId: m.cliente.id, serviceIds: [m.banho.id], professionalId: m.ana.id, date: '2026-11-17', time: '10:00', startsAt: '' }))
+    expect(r.ok).toBe(false)
+    expect(r.conflict?.nearest.length).toBeGreaterThan(0)
+    for (const n of r.conflict?.nearest ?? []) expect(n.date).toBe('2026-11-17')
+  })
+
+  test('com o dia do horário sugerido a ação marca; com o dia antigo recusa e nada é marcado', async () => {
+    // Um horário sugerido que cai no dia 18 (terça é 17; o expediente de quarta não existe, mas o horário avulso vale).
+    const sugerido = { iso: mn(18, 10).toISOString(), label: '10:00', date: '2026-11-18' }
+    const velho = await marcarHorario(
+      ini,
+      form({ customerId: m.cliente.id, serviceIds: [m.banho.id], professionalId: m.ana.id, date: '2026-11-17', time: sugerido.label, startsAt: sugerido.iso }),
+    )
+    expect(velho.ok).toBe(false)
+    expect(velho.fields.date).toBeTruthy()
+    expect(await prisma.appointment.count({ where: { businessId: m.b.id } })).toBe(0)
+    const novo = await marcarHorario(
+      ini,
+      form({ customerId: m.cliente.id, serviceIds: [m.banho.id], professionalId: m.ana.id, date: sugerido.date, time: sugerido.label, startsAt: sugerido.iso }),
+    )
+    expect(novo.ok).toBe(true)
+    expect((await prisma.appointment.findFirstOrThrow({ where: { businessId: m.b.id } })).startsAt).toEqual(mn(18, 10))
+  })
+})
+
 describe('remarcar confere a origem que a tela mostrava', () => {
   const origem = (a: { startsAt: Date; professionalId: string }) => ({ fromStartsAt: a.startsAt.toISOString(), fromProfessionalId: a.professionalId })
 

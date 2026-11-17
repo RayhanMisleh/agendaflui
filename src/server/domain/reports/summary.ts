@@ -82,7 +82,7 @@ export async function getReportSummary(ctx: TenantContext, f: ReportFilter): Pro
     canceled: of('CANCELED')?._count._all ?? 0,
     noShow: of('NO_SHOW')?._count._all ?? 0,
     averageTicketCents: completed === 0 ? 0 : Math.round(revenueCents / completed),
-    commissionCents: !scope.serviceId && seesCommissionOf(scope, scope.professionalId ?? '') ? (done?._sum.commissionCents ?? 0) : null,
+    commissionCents: !scope.serviceId && (scope.professionalId === undefined ? scope.seesAllCommission : seesCommissionOf(scope, scope.professionalId)) ? (done?._sum.commissionCents ?? 0) : null,
     byDay,
   }
 }

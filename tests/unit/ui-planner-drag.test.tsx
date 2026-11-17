@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { PlannerDay } from '@/ui/components'
 import type { PlannerColumn } from '@/ui/components'
@@ -162,5 +162,73 @@ describe('ponteiro', () => {
     fireEvent.pointerMove(window, { pointerType: 'mouse', clientX: 350, clientY: 200, pointerId: 1 })
     fireEvent.pointerUp(window, { pointerType: 'mouse', clientX: 350, clientY: 200, pointerId: 1 })
     expect(onMove).not.toHaveBeenCalled()
+  })
+})
+
+describe('avisos e foco', () => {
+  test('Esc, perda de foco e envio são falados na região viva', async () => {
+    montar()
+    ficha().focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('status')).toHaveTextContent('Mover para 14:15')
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('status')).toHaveTextContent('Movimento cancelado.')
+
+    await userEvent.keyboard('{ArrowDown}')
+    expect(screen.getByRole('status')).toHaveTextContent('Mover para 14:15')
+    act(() => ficha().blur())
+    expect(screen.getByRole('status')).toHaveTextContent('Movimento cancelado.')
+
+    ficha().focus()
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    expect(screen.getByRole('status')).toHaveTextContent('Enviado para confirmar.')
+  })
+
+  test('Esc durante o arrasto com o mouse também é falado', () => {
+    montar()
+    const f = ficha()
+    fireEvent.pointerDown(f, { pointerType: 'mouse', button: 0, clientX: 150, clientY: 640, pointerId: 1 })
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.getByRole('status')).toHaveTextContent('Movimento cancelado.')
+  })
+
+  test('quando a ficha enviada troca de coluna, o foco vai com ela', async () => {
+    const onMove = vi.fn()
+    const props = { startMin: 480, endMin: 1080, hours: HORAS, nowMin: null, step: 15, canCross: true, onMove, onOpenSlip: () => {}, onBookGap: () => {}, label: 'Agenda' }
+    const { rerender } = render(<PlannerDay columns={COLUNAS} {...props} />)
+    ficha().focus()
+    await userEvent.keyboard('{ArrowRight}{Enter}')
+    expect(onMove).toHaveBeenCalledWith('s1', { professionalId: 'caio', startMin: 840 })
+    const movida: PlannerColumn[] = [
+      { ...COLUNAS[0]!, slips: COLUNAS[0]!.slips.filter((x) => x.id !== 's1') },
+      { ...COLUNAS[1]!, slips: [slip('s1', 'caio', 360)] },
+    ]
+    rerender(<PlannerDay columns={movida} {...props} />)
+    expect(ficha()).toHaveFocus()
+  })
+
+  test('quem pegou o foco em outro lugar não o perde para a ficha', async () => {
+    const onMove = vi.fn()
+    const props = { startMin: 480, endMin: 1080, hours: HORAS, nowMin: null, step: 15, canCross: true, onMove, onOpenSlip: () => {}, onBookGap: () => {}, label: 'Agenda' }
+    const { rerender } = render(
+      <>
+        <button type="button">Outro</button>
+        <PlannerDay columns={COLUNAS} {...props} />
+      </>,
+    )
+    ficha().focus()
+    await userEvent.keyboard('{ArrowRight}{Enter}')
+    screen.getByRole('button', { name: 'Outro' }).focus()
+    const movida: PlannerColumn[] = [
+      { ...COLUNAS[0]!, slips: COLUNAS[0]!.slips.filter((x) => x.id !== 's1') },
+      { ...COLUNAS[1]!, slips: [slip('s1', 'caio', 360)] },
+    ]
+    rerender(
+      <>
+        <button type="button">Outro</button>
+        <PlannerDay columns={movida} {...props} />
+      </>,
+    )
+    expect(screen.getByRole('button', { name: 'Outro' })).toHaveFocus()
   })
 })

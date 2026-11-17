@@ -4,7 +4,7 @@ import { prisma } from '@/server/db/client'
 import { moveService, reorderServices } from '@/server/domain/catalog/services'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makeService } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeService } from '../setup/factories'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
@@ -148,13 +148,12 @@ describe('ordem', () => {
   })
 
   test('serviço arquivado fica fora da ordem', async () => {
-    const { a, b, c } = await tres()
+    const { a, b } = await tres()
     await arquivarServico(ini, form({ id: b.id }))
     await moverServico(ini, form({ id: a.id, direction: 'down' }))
     const ativos = (await servicos()).filter((s) => s.archivedAt === null)
     expect(ativos.map((s) => s.name).join('')).toBe('CA')
     expect(new Set(ativos.map((s) => s.displayOrder)).size).toBe(2)
-    expect(c.id).toBeTruthy()
   })
 
   test('duas pessoas ordenando ao mesmo tempo terminam com a ordem sem repetição', async () => {
@@ -206,5 +205,4 @@ test('sem sessão a ação redireciona e não grava', async () => {
   guards.requireTenant.mockRejectedValue(new Error('NEXT_REDIRECT'))
   await expect(criarServico(ini, form(CAMPOS))).rejects.toThrow('NEXT_REDIRECT')
   expect(await prisma.service.count()).toBe(0)
-  void makeCtx
 })

@@ -1,5 +1,5 @@
 'use client'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { Camera, Trash2 } from 'lucide-react'
 import { Avatar } from './Avatar'
 import { Button } from './Button'
@@ -15,6 +15,11 @@ export function AvatarUpload({ action, name, src, size = 'lg' }: { action: strin
   const id = useId()
   const [previa, setPrevia] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  // A URL de prévia vive enquanto a imagem escolhida está na tela; trocar a escolha ou sair do componente a revoga.
+  useEffect(() => {
+    if (previa === null) return
+    return () => URL.revokeObjectURL(previa)
+  }, [previa])
   return (
     <form method="post" action={action} encType="multipart/form-data" className="af-avatarup">
       <Avatar name={name} src={previa ?? src} size={size} />

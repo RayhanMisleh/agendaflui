@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { rotuloDoHorario } from '@/app/_lib/form-state'
 import type { Conflito } from '@/app/_lib/form-state'
 import { Button, Field, Input, TimeChip } from '@/ui/components'
 import { buscarHorarios } from './consultas'
@@ -134,11 +135,14 @@ export function HorarioFields({
                 size="sm"
                 variant="secondary"
                 onClick={() => {
+                  // O horário sugerido leva o próprio dia: sem isso a ação vê o dia antigo e recusa. Trocar o dia refaz a
+                  // consulta e solta a escolha da lista; o dia e a hora locais dão o mesmo horário.
+                  if (n.date !== '' && n.date !== date) onDate(n.date)
                   onChosen(n.iso)
                   onTime(n.label)
                 }}
               >
-                Usar {n.label}
+                Usar {rotuloDoHorario(n, date)}
               </Button>
             ))}
           </div>

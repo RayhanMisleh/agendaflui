@@ -156,6 +156,30 @@ describe('agenda e resumo', () => {
     expect((jsonObject(filtrada.json).days as { professionals: { id: string }[] }[])[0]?.professionals.map((p) => p.id)).toEqual([biaId])
   })
 
+  test('o profissional não recebe atendimento, comissão nem nota do colega na agenda; o gerente recebe os dois', async () => {
+    const idAna = await marcado(c.dia(-1), '10:00', { notes: 'nota secreta da Ana' })
+    const idBia = await marcado(c.dia(-1), '12:00', { professionalId: biaId, notes: 'nota da Bia' })
+    expect((await acao(concluir, gerente, idAna, 'complete')).status).toBe(200)
+    expect((await acao(concluir, gerente, idBia, 'complete')).status).toBe(200)
+    const consulta = { query: `?from=${c.dia(-1)}&to=${c.dia(-1)}` }
+    type Linha = { id: string; commissionCents: number | null; notes: string | null }
+    const colunas = (r: CalledRoute) =>
+      (jsonObject(r.json).days as { professionals: { id: string; appointments: Linha[] }[] }[]).flatMap((d) => d.professionals)
+
+    const daBia = await chamar(agenda, 'GET', '/v1/staff/agenda', bia, consulta)
+    expect(daBia.status).toBe(200)
+    const propria = colunas(daBia).flatMap((p) => p.appointments)
+    expect(propria.map((i) => i.id)).toEqual([idBia])
+    expect(propria[0]).toMatchObject({ notes: 'nota da Bia' })
+    expect(propria[0]?.commissionCents).toEqual(expect.any(Number))
+    expect(daBia.text).not.toContain(idAna)
+    expect(daBia.text).not.toContain('nota secreta da Ana')
+
+    const doGerente = colunas(await chamar(agenda, 'GET', '/v1/staff/agenda', gerente, consulta)).flatMap((p) => p.appointments)
+    expect(doGerente.map((i) => i.id).sort()).toEqual([idAna, idBia].sort())
+    for (const item of doGerente) expect(item.commissionCents).toEqual(expect.any(Number))
+  })
+
   test('a agenda usa os mesmos nomes do expediente (start/end e startMin/endMin) e do bloqueio (local com data e hora)', async () => {
     const dia = c.dia(1)
     await prisma.timeBlock.create({
@@ -278,7 +302,6 @@ describe('marcar e agir sobre agendamentos', () => {
     expect(outra.status).toBe(200)
     const itens = jsonObject(outra.json).items as { id: string; commissionCents: number | null; notes: string | null }[]
     expect(itens.map((i) => i.id)).toEqual([])
-    expect(idGerente).not.toBe(idAna)
   })
 
   test('concluir antes do início: 409 too_early', async () => {

@@ -34,26 +34,23 @@ describe('parseMoney', () => {
 })
 
 describe('MoneyField', () => {
-  test('aceita vírgula e ponto e leva os centavos num campo escondido', async () => {
+  test('aceita vírgula e ponto, leva só o texto no campo e não cria campo escondido', async () => {
     const { container } = render(<MoneyField name="price" aria-label="Preço" />)
     const campo = screen.getByLabelText('Preço')
-    const escondido = container.querySelector<HTMLInputElement>('input[type="hidden"][name="priceCents"]')
     await userEvent.type(campo, '35,90')
-    expect(escondido?.value).toBe('3590')
+    expect(campo).toHaveValue('35,90')
     await userEvent.clear(campo)
     await userEvent.type(campo, '35.90')
-    expect(escondido?.value).toBe('3590')
+    expect(campo).toHaveValue('35.90')
     expect(campo).not.toHaveAttribute('aria-invalid')
+    expect(container.querySelector('input[type="hidden"]')).toBeNull()
   })
 
-  test('recusa texto: marca o campo como inválido e não manda centavos', async () => {
-    const onCents = vi.fn()
-    const { container } = render(<MoneyField name="price" aria-label="Preço" onCentsChange={onCents} />)
+  test('recusa texto: marca o campo como inválido e avisa', async () => {
+    render(<MoneyField name="price" aria-label="Preço" />)
     const campo = screen.getByLabelText('Preço')
     await userEvent.type(campo, 'abc')
     expect(campo).toHaveAttribute('aria-invalid', 'true')
-    expect(container.querySelector<HTMLInputElement>('input[name="priceCents"]')?.value).toBe('')
-    expect(onCents).toHaveBeenLastCalledWith(null)
     expect(screen.getByRole('status')).toHaveTextContent('Digite um valor em reais')
   })
 

@@ -288,8 +288,9 @@ describe('bookAppointment pela equipe', () => {
     expect(e.code).toBe('conflict')
     expect(e.reason).toBe('slot_taken')
     expect(e.message).toBe('Esse horário acabou de ser ocupado. Escolha outro.')
-    const nearest = e.details?.['nearest'] as { startsAt: Date; label: string }[]
+    const nearest = e.details?.['nearest'] as { startsAt: Date; label: string; date: string }[]
     expect(nearest).toHaveLength(3)
+    expect(nearest.map((n) => n.date)).toEqual(['2026-11-16', '2026-11-16', '2026-11-16'])
     expect(nearest.map((n) => n.label)).toEqual(['11:00', '13:00', '13:30'])
     expect(nearest[0]?.startsAt).toEqual(hora(11))
     expect(await total(s.b.id)).toBe(1)

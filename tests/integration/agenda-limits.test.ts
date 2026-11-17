@@ -67,6 +67,23 @@ describe('teto da agenda', () => {
     expect(erro.code).toBe('validation')
     expect(erro.message).toContain('menos dias')
   })
+
+  test('mais de 5.000 bloqueios no período também dão erro claro', async () => {
+    const s = await montar()
+    const inicio = sp(2, 0)
+    await prisma.timeBlock.createMany({
+      data: Array.from({ length: 5001 }, (_, i) => ({
+        businessId: s.b.id,
+        professionalId: s.ana.id,
+        startsAt: addMinutes(inicio, i),
+        endsAt: addMinutes(inicio, i + 1),
+        createdByType: 'SYSTEM' as const,
+      })),
+    })
+    const erro = await domainError(getAgenda(s.ctx, { from: '2026-11-02', to: '2026-11-08' }))
+    expect(erro.code).toBe('validation')
+    expect(erro.message).toContain('menos dias')
+  })
 })
 
 describe('resumo do dia', () => {
@@ -101,6 +118,16 @@ describe('resumo do dia', () => {
     const s = await montar()
     await bloquear(s.b.id, s.ana.id, sp(15, 20), sp(16, 10))
     expect((await getDaySummary(s.ctx, SEGUNDA)).workingMinutes).toBe(960 - 60)
+  })
+
+  test('dia de 25 horas: o bloqueio maior que o expediente de parede nunca deixa o total negativo', async () => {
+    const ny = await makeBusiness({ timezone: 'America/New_York' })
+    const prof = await makeProfessional(ny.id, { name: 'Ana' })
+    // 2026-11-01 (domingo): o relógio recua às 02:00; de 00:00 a 04:00 de parede passam 5 horas reais.
+    await makeWorkingHours(ny.id, prof.id, 'SUNDAY', [{ startMin: 0, endMin: 240 }])
+    await bloquear(ny.id, prof.id, new Date('2026-11-01T04:00:00Z'), new Date('2026-11-01T09:00:00Z'))
+    const ctx = await ctxWithRole(ny, 'MANAGER', { now: new Date('2026-11-01T12:00:00Z') })
+    expect((await getDaySummary(ctx, '2026-11-01')).workingMinutes).toBe(0)
   })
 
   test('profissional inativo com atendimento no dia aparece na agenda e no resumo', async () => {

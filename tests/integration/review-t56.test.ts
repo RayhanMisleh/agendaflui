@@ -8,7 +8,7 @@ import { removeProfessional } from '@/server/domain/team/removal'
 import { setProfessionalAvatar } from '@/server/domain/team/avatar'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeAppointment, makeBusiness, makeCtx, makeCustomer, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeAppointment, makeBusiness, makeCtx, makeCustomer, makePlatformAdmin, makeProfessional, makeService, memberOf } from '../setup/factories'
 
 const AGORA = new Date('2026-11-17T12:00:00Z')
 beforeEach(resetDb)
@@ -159,9 +159,7 @@ describe('foto do profissional', () => {
     await Promise.all([setProfessionalAvatar(dono, ficha.id, await png('#aa0000')), setProfessionalAvatar(dono, ficha.id, await png('#00aa00'))])
     expect(await prisma.upload.count({ where: { businessId: b.id } })).toBe(1)
     const atual = await prisma.professional.findUniqueOrThrow({ where: { id: ficha.id } })
-    expect(await prisma.upload.findUniqueOrThrow({ where: { id: atual.avatarUploadId ?? '' } })).toBeTruthy()
+    expect((await prisma.upload.findUniqueOrThrow({ where: { id: atual.avatarUploadId ?? '' } })).id).toBe(atual.avatarUploadId)
   })
 })
 
-void makeMembership
-void makeUser

@@ -11,7 +11,7 @@ import { WEEKDAYS, isLocalDate, isLocalTime, parseMinuteLabel, toInstant } from 
 import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
 import { DomainError } from '@/server/domain/errors'
-import { parsePercentBps } from '@/ui/money'
+import { parsePercentBps } from '@/shared/percent'
 import { tenantAction } from '../_lib/action'
 import { atualizarPainel } from '../_lib/revalidar'
 

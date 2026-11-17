@@ -3,9 +3,9 @@ import { roleLabel } from '@/server/auth/role-labels'
 import { authorize } from '@/server/domain/errors'
 import { getTermLabels } from '@/server/domain/settings/business-profile'
 import type { Terms } from '@/server/domain/settings/terms'
+import type { Modules } from '@/shared/modules'
 
-/** Os módulos opcionais da conta (da Fase 5 em diante); desligados por padrão. */
-export type Modules = { loyalty: boolean; banners: boolean; store: boolean; vouchers: boolean }
+export type { Modules }
 
 export type PainelContext = {
   terms: Terms

@@ -12,7 +12,9 @@ import type { FormState } from '@/app/_lib/form-state'
  * antes de ler o formulário (sem sessão, o guarda redireciona e nada roda). Quem não tem a `capability` recebe "sem
  * permissão" como estado do formulário (e `run` não é chamado); `null` vale para qualquer membro. `parse` só lê os
  * campos; quem valida é o domínio, que confere a capacidade de novo. O erro vira estado de formulário (`formError`); o
- * sucesso devolve o estado de `done` ou redireciona (o `redirect` dentro de `done` passa adiante).
+ * sucesso devolve o estado de `done` ou redireciona (`redirect` e `notFound` lançados por `run` ou `done` passam adiante).
+ * Com `capability: null` qualquer membro passa, e o suporte (impersonator) conta com todas as capacidades: quem protege
+ * o dado é o domínio, que confere o papel de novo.
  */
 export function tenantAction<V, R>(
   capability: Capability | null,
@@ -31,12 +33,11 @@ export function tenantAction<V, R>(
     } catch (err) {
       return formError(err, prev.values, MENSAGEM_GENERICA_NEGOCIO)
     }
-    let resultado: R
     try {
-      resultado = await run(ctx, valores)
+      return done(await run(ctx, valores), valores)
     } catch (err) {
+      // `run` e `done` passam pelo mesmo tratamento: erro vira estado; `redirect` e `notFound` seguem adiante.
       return formError(err, valores, MENSAGEM_GENERICA_NEGOCIO)
     }
-    return done(resultado, valores)
   }
 }

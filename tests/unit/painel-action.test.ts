@@ -1,3 +1,4 @@
+import { notFound, redirect } from 'next/navigation'
 import { DomainError } from '@/server/domain/errors'
 import { tenantAction } from '@/app/painel/(app)/_lib/action'
 import type { FormState } from '@/app/_lib/form-state'
@@ -119,4 +120,54 @@ test('erro inesperado vira a mensagem genérica, sem o texto original e sem a se
   expect(JSON.stringify(estado)).not.toContain('postgres://')
   expect(JSON.stringify(estado)).not.toContain('segredo-123')
   expect(JSON.stringify(log.mock.calls)).not.toContain('postgres://')
+})
+
+describe('redirect e notFound passam adiante, de run e de done', () => {
+  const generico = (fd: FormData): V => ({ nome: String(fd.get('nome') ?? '') })
+
+  test('redirect lançado por run', async () => {
+    guards.requireTenant.mockResolvedValue(membro('OWNER'))
+    const run = async (): Promise<string> => redirect('/equipe')
+    await expect(tenantAction('manage_team', generico, run, done)(vazio, formulario('x'))).rejects.toMatchObject({
+      digest: expect.stringContaining('NEXT_REDIRECT'),
+    })
+  })
+
+  test('redirect lançado por done', async () => {
+    guards.requireTenant.mockResolvedValue(membro('OWNER'))
+    const fim = (): FormState<V> => redirect('/equipe')
+    await expect(tenantAction('manage_team', generico, async () => 'ok', fim)(vazio, formulario('x'))).rejects.toMatchObject({
+      digest: expect.stringContaining('NEXT_REDIRECT'),
+    })
+  })
+
+  test('notFound lançado por run e por done', async () => {
+    guards.requireTenant.mockResolvedValue(membro('OWNER'))
+    const run = async (): Promise<string> => notFound()
+    await expect(tenantAction('manage_team', generico, run, done)(vazio, formulario('x'))).rejects.toMatchObject({
+      digest: expect.stringContaining('NEXT_HTTP_ERROR_FALLBACK'),
+    })
+    const fim = (): FormState<V> => notFound()
+    await expect(tenantAction('manage_team', generico, async () => 'ok', fim)(vazio, formulario('x'))).rejects.toMatchObject({
+      digest: expect.stringContaining('NEXT_HTTP_ERROR_FALLBACK'),
+    })
+  })
+})
+
+test('erro inesperado dentro de done vira a mensagem genérica, sem o texto original', async () => {
+  guards.requireTenant.mockResolvedValue(membro('OWNER'))
+  vi.spyOn(console, 'error').mockImplementation(() => {})
+  const fim = (): FormState<V> => {
+    throw new Error('falha com postgres://u:senha@host')
+  }
+  const estado = await tenantAction('manage_team', parse, async () => 'ok', fim)(vazio, formulario('x'))
+  expect(estado.ok).toBe(false)
+  expect(estado.message).toMatch(/fale com o suporte/)
+  expect(JSON.stringify(estado)).not.toContain('postgres://')
+})
+
+test('capacidade nula com o suporte (impersonator) executa', async () => {
+  guards.requireTenant.mockResolvedValue(contexto({ kind: 'impersonator', adminId: 'a1', name: 'Suporte' }))
+  const estado = await tenantAction(null, parse, async () => 'feito', done)(vazio, formulario('x'))
+  expect(estado.ok).toBe(true)
 })

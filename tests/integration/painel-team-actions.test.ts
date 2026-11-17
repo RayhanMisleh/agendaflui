@@ -10,7 +10,7 @@ import { getTeamSheet } from '@/server/domain/team/sheet'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeAppointment, makeBusiness, makeCtx, makeCustomer, makeMembership, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeAppointment, makeBusiness, makeCtx, makeCustomer, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
@@ -18,7 +18,7 @@ vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('next/navigation', async (original) => {
   const real = await original<typeof import('next/navigation')>()
-  return { ...real, redirect: vi.fn((destino: string) => { throw new Error(`NEXT_REDIRECT ${destino}`) }) }
+  return { ...real, redirect: vi.fn((destino: string) => { throw Object.assign(new Error(`NEXT_REDIRECT ${destino}`), { digest: `NEXT_REDIRECT;replace;${destino};307;` }) }) }
 })
 const disco = vi.hoisted(() => ({ storage: null as import('@/server/storage/storage').Storage | null }))
 vi.mock('@/server/storage/storage', async (original) => {
@@ -286,6 +286,53 @@ describe('bloqueios', () => {
   })
 })
 
+describe('removerBloqueio: recusas', () => {
+  const novoBloqueio = (professionalId: string, empresa = businessId) =>
+    prisma.timeBlock.create({
+      data: {
+        businessId: empresa,
+        professionalId,
+        startsAt: new Date('2026-11-20T12:00:00Z'),
+        endsAt: new Date('2026-11-20T14:00:00Z'),
+        createdByType: 'SYSTEM',
+      },
+    })
+
+  test('o profissional não remove o bloqueio de um colega', async () => {
+    const eu = await comoProfissional('Ana')
+    const colega = await makeProfessional(businessId, { name: 'Caio' })
+    const b = await novoBloqueio(colega.id)
+    guards.requireTenant.mockResolvedValue(eu.ctx)
+    const r = await removerBloqueio(ini, form({ id: b.id }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toContain('Você não tem permissão para alterar a agenda deste profissional')
+    expect(await prisma.timeBlock.count({ where: { id: b.id } })).toBe(1)
+  })
+
+  test('id de outra conta, inexistente ou malformado: não encontrado, e o bloqueio alheio fica', async () => {
+    const outra = await makeBusiness()
+    const alheia = await makeProfessional(outra.id, { name: 'Alheia' })
+    const b = await novoBloqueio(alheia.id, outra.id)
+    for (const id of [b.id, '11111111-1111-4111-8111-111111111111', 'x']) {
+      const r = await removerBloqueio(ini, form({ id }))
+      expect(r.ok).toBe(false)
+      expect(r.message).toMatch(/não encontrad/i)
+    }
+    expect(await prisma.timeBlock.count({ where: { id: b.id } })).toBe(1)
+  })
+
+  test('o suporte (entrando como) tem os poderes do dono e remove o bloqueio', async () => {
+    const p = await makeProfessional(businessId, { name: 'Caio' })
+    const b = await novoBloqueio(p.id)
+    const admin = await makePlatformAdmin()
+    guards.requireTenant.mockResolvedValue(
+      await makeCtx({ id: businessId }, { actor: { kind: 'impersonator', adminId: admin.id, name: admin.name }, now: AGORA }),
+    )
+    expect((await removerBloqueio(ini, form({ id: b.id }))).ok).toBe(true)
+    expect(await prisma.timeBlock.count({ where: { id: b.id } })).toBe(0)
+  })
+})
+
 describe('acessos', () => {
   test('convidar o acesso para a ficha cria o vínculo ligado e manda o convite', async () => {
     const p = await makeProfessional(businessId, { name: 'Caio' })
@@ -304,6 +351,9 @@ describe('acessos', () => {
     guards.requireTenant.mockResolvedValue(await ctxWithRole({ id: businessId }, 'MANAGER'))
     const r = await convidarAcesso(ini, form({ id: p.id, name: 'Chefe', email: 'chefe@exemplo.com', role: 'OWNER' }))
     expect(r.ok).toBe(false)
+    expect(r.message).toBeTruthy()
+    expect(r.message).not.toBe(NEGADO)
+    expect(await prisma.membership.count({ where: { businessId, role: 'OWNER' } })).toBe(1)
     guards.requireTenant.mockResolvedValue((await comoProfissional('Ana')).ctx)
     expect((await convidarAcesso(ini, form({ id: p.id, name: 'X', email: 'x@exemplo.com', role: 'PROFESSIONAL' }))).message).toBe(NEGADO)
   })

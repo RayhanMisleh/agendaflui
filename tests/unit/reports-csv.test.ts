@@ -8,6 +8,9 @@ describe('csvCell', () => {
     ['@x', "'@x"],
     ['\tabc', "'\tabc"],
     ['\rabc', "'\rabc"],
+    [' =1+1', "' =1+1"],
+    ['\t  @x', "'\t  @x"],
+    ['  -5', "'  -5"],
   ])('texto %j que começa como fórmula ganha apóstrofo', (entrada, saida) => {
     const out = csvCell(entrada)
     // A célula que tem retorno de carro também vai entre aspas.
@@ -22,6 +25,11 @@ describe('csvCell', () => {
     expect(csvCell('a;b')).toBe('"a;b"')
     expect(csvCell('linha 1\nlinha 2')).toBe('"linha 1\nlinha 2"')
     expect(csvCell('a\r\nb')).toBe('"a\r\nb"')
+  })
+
+  test('espaço antes de texto comum não ganha apóstrofo', () => {
+    expect(csvCell('  Ana')).toBe('  Ana')
+    expect(csvCell('a=b')).toBe('a=b')
   })
 
   test('texto comum, vazio e nulo passam como estão', () => {

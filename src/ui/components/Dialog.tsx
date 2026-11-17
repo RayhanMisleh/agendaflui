@@ -6,11 +6,43 @@ import { cx } from './cx'
 
 const FOCAVEIS = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])'
 
+/** Falso para o que não aparece: `display: none`, `visibility: hidden` e o conteúdo de um `details` fechado. */
+function visivel(el: HTMLElement, dialog: HTMLElement): boolean {
+  if (getComputedStyle(el).visibility === 'hidden') return false
+  for (let a: HTMLElement | null = el; a && a !== dialog; a = a.parentElement) {
+    if (getComputedStyle(a).display === 'none') return false
+    const pai: HTMLElement | null = a.parentElement
+    if (pai instanceof HTMLDetailsElement && !pai.open && a !== pai.querySelector(':scope > summary')) return false
+  }
+  return true
+}
+
+/** Num grupo de rádio só um item entra no anel: o marcado, ou o primeiro quando nenhum está marcado. */
+function umPorGrupo(lista: HTMLElement[]): HTMLElement[] {
+  const grupos = new Map<string, HTMLInputElement[]>()
+  for (const el of lista) {
+    if (!(el instanceof HTMLInputElement) || el.type !== 'radio' || el.name === '') continue
+    const chave = `${el.form ? 'f' : ''}${el.name}`
+    grupos.set(chave, [...(grupos.get(chave) ?? []), el])
+  }
+  const fora = new Set<HTMLElement>()
+  for (const radios of grupos.values()) {
+    const escolhido = radios.find((r) => r.checked) ?? radios[0]
+    for (const r of radios) if (r !== escolhido) fora.add(r)
+  }
+  return lista.filter((el) => !fora.has(el))
+}
+
 /** Elementos que o Tab alcança dentro do diálogo, na ordem do documento. */
 function focaveis(dialog: HTMLElement): HTMLElement[] {
-  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCAVEIS)).filter(
-    (el) => !el.hasAttribute('disabled') && el.getAttribute('tabindex') !== '-1' && !el.closest('[hidden], [inert]'),
+  const lista = Array.from(dialog.querySelectorAll<HTMLElement>(FOCAVEIS)).filter(
+    (el) =>
+      !el.matches(':disabled') &&
+      el.getAttribute('tabindex') !== '-1' &&
+      !el.closest('[hidden], [inert]') &&
+      visivel(el, dialog),
   )
+  return umPorGrupo(lista)
 }
 
 /**

@@ -38,7 +38,7 @@ export function Cuidados({
             {suporte
               ? 'O suporte não envia redefinição de senha. Peça a um dono ou gerente da conta.'
               : hasAppAccess
-                ? `Envia ao e-mail d${sing === 'tutor' ? 'o' : 'o'} ${sing} um código para escolher uma senha nova.`
+                ? `Envia ao e-mail deste ${sing} um código para escolher uma senha nova.`
                 : `Este ${sing} ainda não tem conta no app. Quando criar uma, você poderá mandar a redefinição daqui.`}
           </span>
         </div>

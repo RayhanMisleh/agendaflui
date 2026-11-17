@@ -147,3 +147,16 @@ describe('CSS da lista', () => {
     }
   })
 })
+
+test('cabeçalho vazio ou só de ícone não repete rótulo na célula', () => {
+  const cols = [
+    { key: 'n', header: 'Nome', cell: (r: { n: string }) => r.n, primary: true },
+    { key: 'v', header: '', cell: () => 'vazio' },
+    { key: 'i', header: <svg aria-hidden="true" data-testid="icone" />, cell: () => 'icone' },
+    { key: 't', header: 'Telefone', cell: () => '1199' },
+    { key: 'e', header: <span>Situação</span>, cell: () => 'ok' },
+  ]
+  const { container } = render(<DataList columns={cols} rows={[{ n: 'Ana' }]} rowKey={(r) => r.n} empty={null} />)
+  const rotulos = Array.from(container.querySelectorAll('tbody .af-datalist__label')).map((e) => e.textContent)
+  expect(rotulos).toEqual(['Telefone', 'Situação'])
+})

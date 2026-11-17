@@ -67,20 +67,21 @@ test('tentativas demais mostram o limite', async ({ page }, info) => {
 test('link de entrada da conta já vem com a marca dela', async ({ page }) => {
   await page.goto(`${PAINEL}/entrar/patas-e-cia`)
   await expect(page.getByText('Patas & Cia')).toBeVisible()
-  await expect(page.locator('[data-material="linen"]').first()).toBeVisible()
+  await expect(page.locator('[data-theme]').first()).toBeVisible()
 })
 
 test('slug inexistente é 404', async ({ page }) => {
   expect((await page.goto(`${PAINEL}/entrar/nao-existe`))?.status()).toBe(404)
 })
 
-test('dono de duas contas escolhe, entra, e a entrada passa a lembrar a marca', async ({ page }) => {
+test('dono de duas contas escolhe, entra, e a entrada passa a lembrar a marca', async ({ page }, info) => {
   await page.goto(`${PAINEL}/entrar`)
   await preencher(page, process.env.SEED_MULTI_EMAIL!, senhaUsuarios())
   await expect(page).toHaveURL(`${PAINEL}/escolher-conta`)
   await page.getByRole('button', { name: /Navalha de Ouro/ }).click()
-  await expect(page.locator('[data-material="leather"]').first()).toBeVisible()
-  await expect(page.getByText('Barbeiros')).toBeVisible()
+  await expect(page.locator('[data-theme]').first()).toBeVisible()
+  // O dono vê o destino da equipe; no celular ele fica na folha "Mais", então só confere no computador.
+  if (info.project.name === 'desktop') await expect(page.locator('nav[aria-label="Principal"] a', { hasText: 'Barbeiros' })).toBeVisible()
   await page.getByRole('button', { name: 'Sair' }).click()
   await expect(page).toHaveURL(`${PAINEL}/entrar`)
   await expect(page.getByText('Navalha de Ouro')).toBeVisible()
@@ -98,16 +99,17 @@ test('painel do negócio não alcança rotas do painel dev', async ({ page }) =>
   expect((await page.goto(`${PAINEL}/dev/entrar`))?.status()).toBe(404)
 })
 
-test('profissional entra e vê a própria conta, com a marca dela', async ({ page }) => {
+test('profissional entra e vê a própria conta, com a marca dela e só os destinos dele', async ({ page }) => {
   await entrarNoPainel(page, demoEmail('navalha', 'profissional'), 'navalha-de-ouro')
-  await expect(page.locator('[data-material="leather"]').first()).toBeVisible()
-  await expect(page.getByText('Olá, Davi')).toBeVisible()
-  await expect(page.getByText('Barbeiros')).toBeVisible()
+  await expect(page.locator('[data-theme]').first()).toBeVisible()
+  await expect(page.getByText('Davi Castro').filter({ visible: true }).first()).toBeVisible()
   await expect(page.getByText('Patas & Cia')).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Trocar de conta' })).toHaveCount(0)
-  const atual = page.getByRole('navigation', { name: 'Principal' }).locator('[aria-current="page"]')
-  await expect(atual).toHaveCount(1)
-  await expect(page.getByRole('navigation', { name: 'Principal' }).locator('[aria-disabled="true"]').first()).toBeAttached()
+  const nav = page.locator('nav[aria-label="Principal"]')
+  await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
+  // O profissional não gerencia a equipe nem o catálogo: esses destinos nem aparecem.
+  await expect(nav.locator('a', { hasText: 'Barbeiros' })).toHaveCount(0)
+  await expect(nav.locator('a', { hasText: 'Serviços' })).toHaveCount(0)
 })
 
 test('sessão revogada em outra aba leva de volta a /entrar', async ({ page, context }) => {
@@ -142,9 +144,9 @@ test('/escolher-conta só lista contas de que o usuário é membro', async ({ pa
 test('a página inicial mostra a data no fuso da conta', async ({ page }) => {
   await entrarNoPainel(page, demoEmail('navalha', 'dono'))
   const hoje = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Manaus', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date())
-  await expect(page.getByText('Olá, Rafael')).toBeVisible()
-  await expect(page.getByText(hoje)).toBeVisible()
-  await expect(page.getByText('Você entra como Dono')).toBeVisible()
+  await expect(page.getByText('Rafael Menezes').filter({ visible: true }).first()).toBeVisible()
+  await expect(page.getByText(hoje).first()).toBeVisible()
+  await expect(page.getByText('Dono', { exact: true }).filter({ visible: true }).first()).toBeVisible()
 })
 
 test('as telas de entrada a 375 px não têm rolagem horizontal', async ({ page }) => {

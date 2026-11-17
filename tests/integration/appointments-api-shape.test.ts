@@ -238,7 +238,7 @@ describe('change.allowed diz se o ator pode alterar', () => {
     })
     const base = { customerId: s.customer.id, serviceId: s.banho.id }
     const meu = await makeAppointment(s.b.id, { ...base, professionalId: minha.id, startsAt: DEZ })
-    const doColega = await makeAppointment(s.b.id, {
+    await makeAppointment(s.b.id, {
       ...base,
       professionalId: s.ana.id,
       startsAt: new Date('2026-11-16T15:00:00Z'),
@@ -246,7 +246,6 @@ describe('change.allowed diz se o ator pode alterar', () => {
     const lista = await listCustomerAppointments(eu, { customerId: s.customer.id, scope: 'upcoming' })
     const allowed = Object.fromEntries(lista.items.map((v) => [v.id, v.change.allowed]))
     expect(allowed).toEqual({ [meu.id]: true })
-    expect(doColega.id).toBeTruthy()
     const gerente = await listCustomerAppointments(s.gerente, { customerId: s.customer.id, scope: 'upcoming' })
     expect(gerente.items.map((v) => v.change.allowed)).toEqual([true, true])
   })

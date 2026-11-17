@@ -293,28 +293,36 @@ export async function loginCustomer(
  * nada que dependa de o e-mail existir roda antes dela.
  */
 export async function requestPasswordReset(businessId: string, email: string, _meta: RequestMeta, now: Date): Promise<() => Promise<void>> {
-  const parsed = emailField.safeParse(email)
   return async () => {
-    if (!parsed.success) return
-    if (!(await allowCodeRequest(businessId, 'PASSWORD_RESET', parsed.data, now))) return
-    const db = tenantDb(businessId)
-    const customer = await db.customer.findFirst({
-      where: { email: parsed.data, archivedAt: null, anonymizedAt: null },
-      select: { id: true, name: true },
-    })
-    if (!customer) return
-    const code = await issueCodeWithRetry(db, {
-      businessId,
-      purpose: 'PASSWORD_RESET',
-      email: parsed.data,
-      payload: { customerId: customer.id },
-      now,
-    })
-    if (code === null) return
-    await deliver(businessId, 'password_reset', parsed.data, (brand) =>
-      renderPasswordResetCode(brand, { customerName: customer.name, code, ttlMin: CODE_TTL_MINUTES }),
-    )
+    await sendResetCode(businessId, email, now)
   }
+}
+
+/** O que o envio do código de redefinição fez: `sent`, `limit` (limite de pedidos atingido) ou `skipped` (nada a enviar). */
+type ResetOutcome = 'sent' | 'limit' | 'skipped'
+
+async function sendResetCode(businessId: string, email: string, now: Date): Promise<ResetOutcome> {
+  const parsed = emailField.safeParse(email)
+  if (!parsed.success) return 'skipped'
+  if (!(await allowCodeRequest(businessId, 'PASSWORD_RESET', parsed.data, now))) return 'limit'
+  const db = tenantDb(businessId)
+  const customer = await db.customer.findFirst({
+    where: { email: parsed.data, archivedAt: null, anonymizedAt: null },
+    select: { id: true, name: true },
+  })
+  if (!customer) return 'skipped'
+  const code = await issueCodeWithRetry(db, {
+    businessId,
+    purpose: 'PASSWORD_RESET',
+    email: parsed.data,
+    payload: { customerId: customer.id },
+    now,
+  })
+  if (code === null) return 'skipped'
+  await deliver(businessId, 'password_reset', parsed.data, (brand) =>
+    renderPasswordResetCode(brand, { customerName: customer.name, code, ttlMin: CODE_TTL_MINUTES }),
+  )
+  return 'sent'
 }
 
 /** Redefine a senha com o código: troca a senha e revoga todos os tokens de renovação do cliente. */
@@ -400,7 +408,7 @@ export async function deleteOwnAccount(ctx: TenantContext, input: { password: st
 /**
  * A equipe manda ao cliente o código para ele redefinir a senha do app (o mesmo do "esqueci a senha"). Só para cliente com
  * conta no app e e-mail, e nunca pelo suporte da plataforma. O envio respeita os limites do pedido de código: se o limite
- * já foi atingido, nada sai e a pessoa espera.
+ * já foi atingido, nada sai, nada é auditado e a equipe recebe a recusa pedindo para esperar.
  */
 export async function sendCustomerPasswordReset(ctx: TenantContext, customerId: string): Promise<void> {
   authorize(ctx, 'manage_clients')
@@ -417,6 +425,12 @@ export async function sendCustomerPasswordReset(ctx: TenantContext, customerId: 
   if (customer.passwordHash === null || customer.email === null) {
     throw new DomainError('conflict', 'Este cliente ainda não tem conta no app. Só quem tem conta no app redefine a senha.')
   }
-  await (await requestPasswordReset(ctx.businessId, customer.email, ctx.request ?? { ip: null, userAgent: null }, ctx.clock()))()
+  const outcome = await sendResetCode(ctx.businessId, customer.email, ctx.clock())
+  if (outcome === 'limit') {
+    throw new DomainError('conflict', 'Já foi enviado um código há pouco. Espere alguns minutos e tente de novo.')
+  }
+  if (outcome !== 'sent') {
+    throw new DomainError('conflict', 'Não foi possível enviar o código agora. Tente de novo em instantes.')
+  }
   await audit(ctx, { action: 'customer.password_reset_sent', targetType: 'Customer', targetId: customer.id })
 }

@@ -49,7 +49,10 @@ export async function getReportByProfessional(
     .sort((a, b) => b.revenueCents - a.revenueCents || a.name.localeCompare(b.name) || a.professionalId.localeCompare(b.professionalId))
 }
 
-/** Por serviço: a receita é a soma dos itens do serviço nos atendimentos concluídos (um atendimento pode ter vários serviços). */
+/**
+ * Por serviço: a receita é a soma dos itens do serviço nos atendimentos concluídos (um atendimento pode ter vários
+ * serviços). `count` conta ITENS, não atendimentos: o mesmo serviço duas vezes no atendimento conta 2.
+ */
 export async function getReportByService(
   ctx: TenantContext,
   f: ReportFilter,

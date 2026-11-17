@@ -98,3 +98,52 @@ test('o título é um h2 próprio, sem estar dentro de outro título', () => {
   expect(h.tagName).toBe('H2')
   expect(h.closest('h1, h2, h3, h4, h5, h6, [role="heading"]')).toBe(h)
 })
+
+describe('anel de Tab', () => {
+  test('ignora o que está escondido ou desabilitado no fim do diálogo', async () => {
+    render(
+      <Dialog open onClose={() => {}} title="Anel">
+        <button type="button">Salvar</button>
+        <button type="button" style={{ display: 'none' }}>
+          Escondido
+        </button>
+        <details>
+          <summary>Mais</summary>
+          <button type="button">Dentro do fechado</button>
+        </details>
+        <button type="button" disabled>
+          Desabilitado
+        </button>
+      </Dialog>,
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+    // O último alcançável é o "Mais" (o resumo do details fechado).
+    await userEvent.tab()
+    expect(screen.getByText('Mais')).toHaveFocus()
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'Fechar' })).toHaveFocus()
+    await userEvent.tab({ shift: true })
+    expect(screen.getByText('Mais')).toHaveFocus()
+  })
+
+  test('num grupo de rádio só o marcado entra no anel', async () => {
+    render(
+      <Dialog open onClose={() => {}} title="Anel">
+        <label>
+          A <input type="radio" name="g" defaultChecked={false} />
+        </label>
+        <label>
+          B <input type="radio" name="g" defaultChecked />
+        </label>
+        <label>
+          C <input type="radio" name="g" defaultChecked={false} />
+        </label>
+      </Dialog>,
+    )
+    screen.getByRole('radio', { name: 'B' }).focus()
+    await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'Fechar' })).toHaveFocus()
+    await userEvent.tab({ shift: true })
+    expect(screen.getByRole('radio', { name: 'B' })).toHaveFocus()
+  })
+})

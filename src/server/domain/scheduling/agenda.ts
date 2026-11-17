@@ -450,7 +450,7 @@ export async function getDaySummary(
     for (const p of considered) {
       const mine = blocks.filter((b) => b.professionalId === p.id)
       for (const r of hours.get(p.id)?.get(weekday) ?? []) {
-        summary.workingMinutes += r.endMin - r.startMin - blockedMinutes(parsed.date, r, mine, ctx.timeZone)
+        summary.workingMinutes += Math.max(0, r.endMin - r.startMin - blockedMinutes(parsed.date, r, mine, ctx.timeZone))
       }
     }
   }

@@ -1,4 +1,5 @@
 'use client'
+import { isValidElement } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
 import { cx } from './cx'
 
@@ -11,6 +12,15 @@ export type DataColumn<T> = {
   nowrap?: boolean
   /** Alinhamento na tabela; `end` para números. */
   align?: 'start' | 'end'
+}
+
+/** Verdadeiro quando o cabeçalho tem texto para ler: vazio e ícone sozinho (sem texto dentro) não têm. */
+function temTexto(node: ReactNode): boolean {
+  if (typeof node === 'string') return node.trim() !== ''
+  if (typeof node === 'number') return true
+  if (Array.isArray(node)) return node.some(temTexto)
+  if (isValidElement<{ children?: ReactNode }>(node)) return temTexto(node.props.children)
+  return false
 }
 
 function colClass(c: { nowrap?: boolean; align?: 'start' | 'end' }): string | undefined {
@@ -85,7 +95,7 @@ export function DataList<T>({
                   data-primary={i === primaryIdx ? '' : undefined}
                   className={cx(colClass(c), onRowClick && i === primaryIdx && 'af-cell-hit') || undefined}
                 >
-                  {i === primaryIdx ? null : (
+                  {i === primaryIdx || !temTexto(c.header) ? null : (
                     <span className="af-datalist__label">{c.header}</span>
                   )}
                   {onRowClick && i === primaryIdx ? (
