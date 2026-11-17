@@ -101,6 +101,24 @@ enum PartyType {
   @@map("party_type")
 }
 
+enum LoyaltyEntryKind {
+  EARN
+  EARN_REVERSAL
+  REDEEM
+  REDEEM_REVERSAL
+  ADJUST
+
+  @@map("loyalty_entry_kind")
+}
+
+enum RedemptionStatus {
+  PENDING
+  DELIVERED
+  CANCELED
+
+  @@map("redemption_status")
+}
+
 enum NotificationKind {
   APPOINTMENT_CONFIRMED
   APPOINTMENT_CANCELED
@@ -283,6 +301,9 @@ model Business {
   closures             BusinessClosure[]
   appointments         Appointment[]
   appointmentItems     AppointmentItem[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  prizes               Prize[]
+  prizeRedemptions     PrizeRedemption[]
   notifications        Notification[]
   apiKeys              ApiKey[]
   apiUsage             ApiUsageHourly[]
@@ -491,6 +512,7 @@ model Upload {
   userAvatars         User[]             @relation("UserAvatar")
   customerAvatars     Customer[]         @relation("CustomerAvatar")
   professionalAvatars Professional[]     @relation("ProfessionalAvatar")
+  prizeImages         Prize[]            @relation("PrizeImage")
 
   @@unique([businessId, id])
   @@index([businessId])
@@ -548,6 +570,9 @@ model Customer {
   notifications Notification[]
   refreshTokens RefreshToken[]
   devices       Device[]
+
+  loyaltyTransactions LoyaltyTransaction[]
+  prizeRedemptions    PrizeRedemption[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -716,6 +741,8 @@ model Appointment {
 
   items         AppointmentItem[]
   notifications Notification[]
+
+  loyaltyTransactions LoyaltyTransaction[]
 
   @@unique([businessId, id])
   @@index([businessId, startsAt])
@@ -912,4 +939,90 @@ model ApiUsageHourly {
   @@unique([apiKeyId, businessId, route, hour])
   @@index([businessId, hour])
   @@map("api_usage_hourly")
+}
+
+/// Razão de pontos do cliente: o saldo é SEMPRE a soma desta tabela (não existe coluna de saldo). Só se acrescenta linha.
+/// CHECKs de sinal por tipo e do motivo do ajuste, e o índice único de `dedupe_key`, vivem na migração.
+model LoyaltyTransaction {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String           @map("business_id") @db.Uuid
+  customerId    String           @map("customer_id") @db.Uuid
+  kind          LoyaltyEntryKind
+  points        Int
+  appointmentId String?          @map("appointment_id") @db.Uuid
+  redemptionId  String?          @map("redemption_id") @db.Uuid
+  reason        String?
+  dedupeKey     String           @map("dedupe_key")
+  createdByType PartyType        @map("created_by_type")
+  createdById   String?          @map("created_by_id") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business    Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer    Customer         @relation(fields: [customerId], references: [id], onDelete: NoAction)
+  appointment Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: NoAction)
+  redemption  PrizeRedemption? @relation(fields: [redemptionId], references: [id], onDelete: NoAction)
+
+  @@unique([businessId, id])
+  @@unique([businessId, dedupeKey])
+  @@index([businessId, customerId, createdAt])
+  @@index([appointmentId])
+  @@map("loyalty_transactions")
+}
+
+model Prize {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String    @map("business_id") @db.Uuid
+  name          String
+  description   String?
+  imageUploadId String?   @map("image_upload_id") @db.Uuid
+  costPoints    Int       @map("cost_points")
+  /// Nulo = sem limite.
+  stock         Int?
+  active        Boolean   @default(true)
+  displayOrder  Int       @default(0) @map("display_order")
+  archivedAt    DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  image    Upload?  @relation("PrizeImage", fields: [imageUploadId], references: [id], onDelete: SetNull)
+
+  redemptions PrizeRedemption[]
+
+  @@unique([businessId, id])
+  @@index([businessId, displayOrder])
+  @@map("prizes")
+}
+
+model PrizeRedemption {
+  id                     String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId             String           @map("business_id") @db.Uuid
+  customerId             String           @map("customer_id") @db.Uuid
+  prizeId                String           @map("prize_id") @db.Uuid
+  /// Cópias do momento do resgate.
+  prizeName              String           @map("prize_name")
+  costPoints             Int              @map("cost_points")
+  status                 RedemptionStatus @default(PENDING)
+  requestedByType        PartyType        @map("requested_by_type")
+  requestedById          String?          @map("requested_by_id") @db.Uuid
+  deliveredAt            DateTime?        @map("delivered_at") @db.Timestamptz(3)
+  canceledAt             DateTime?        @map("canceled_at") @db.Timestamptz(3)
+  cancelReason           String?          @map("cancel_reason")
+  // O índice único parcial (business_id, customer_id, idempotency_key) WHERE idempotency_key IS NOT NULL vive só na migração.
+  idempotencyKey         String?          @map("idempotency_key")
+  idempotencyRequestHash String?          @map("idempotency_request_hash")
+  createdAt              DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: NoAction)
+  prize    Prize    @relation(fields: [prizeId], references: [id], onDelete: NoAction)
+
+  transactions LoyaltyTransaction[]
+
+  @@unique([businessId, id])
+  @@index([businessId, status, createdAt])
+  @@index([businessId, customerId, createdAt])
+  @@map("prize_redemptions")
 }

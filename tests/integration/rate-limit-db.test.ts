@@ -127,6 +127,7 @@ test('os limites combinados', () => {
     codeEmailDaily: { limit: 6, windowSec: 86400 },
     codeFailures: { limit: 10, windowSec: 86400 },
     booking: { limit: 20, windowSec: 60 },
+    redeem: { limit: 10, windowSec: 60 },
     availability: { limit: 60, windowSec: 60 },
   })
 })

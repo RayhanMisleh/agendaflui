@@ -12,6 +12,7 @@ import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { formatPhone } from '@/server/domain/customers/contact'
 import { isCustomer } from '@/server/domain/input'
 import { DomainError, z } from '@/server/domain/errors'
+import { applyAppointmentLoyalty } from '@/server/domain/loyalty/appointment-points'
 import { enqueueAppointmentEvent } from '@/server/domain/notifications/outbox'
 import { ownProfessionalId } from '@/server/domain/team/professionals'
 import { customerChangeDeadline, withinCustomerWindow } from '@/server/domain/scheduling/change-window'
@@ -89,8 +90,8 @@ export type ChangeExtra = {
 }
 
 /**
- * Ponto único dos avisos de cada operação. Roda dentro da transação, depois da gravação, para o aviso
- * nascer junto com a mudança ou não nascer.
+ * Ponto único dos efeitos de cada operação: os pontos de fidelidade e depois os avisos. Roda dentro da transação, depois da
+ * gravação, para o efeito nascer junto com a mudança ou não nascer.
  */
 export async function afterChange(
   tx: TenantTx,
@@ -100,6 +101,7 @@ export async function afterChange(
   extra: ChangeExtra = {},
 ): Promise<void> {
   if (event === 'adjusted') return
+  await applyAppointmentLoyalty(tx, ctx, event, appointment, extra)
   const previous = typeof extra.previousStartsAt === 'number' ? fromEpochMs(extra.previousStartsAt) : undefined
   const professional = typeof extra.previousProfessionalId === 'string' ? extra.previousProfessionalId : undefined
   await enqueueAppointmentEvent(tx, ctx, event, appointment, {

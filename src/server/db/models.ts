@@ -21,6 +21,9 @@ export const TENANT_MODELS: Modelos = [
   'RefreshToken',
   'Device',
   'VerificationCode',
+  'LoyaltyTransaction',
+  'Prize',
+  'PrizeRedemption',
 ]
 
 /**

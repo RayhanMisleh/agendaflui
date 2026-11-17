@@ -18,38 +18,44 @@ import * as r15 from '@/app/api/v1/availability/days/route'
 import * as r16 from '@/app/api/v1/availability/route'
 import * as r17 from '@/app/api/v1/business/route'
 import * as r18 from '@/app/api/v1/health/route'
-import * as r19 from '@/app/api/v1/me/delete/route'
-import * as r20 from '@/app/api/v1/me/devices/[pushToken]/route'
-import * as r21 from '@/app/api/v1/me/devices/route'
-import * as r22 from '@/app/api/v1/me/notifications/route'
-import * as r23 from '@/app/api/v1/me/password/route'
-import * as r24 from '@/app/api/v1/me/route'
-import * as r25 from '@/app/api/v1/openapi.json/route'
-import * as r26 from '@/app/api/v1/professionals/route'
-import * as r27 from '@/app/api/v1/services/route'
-import * as r28 from '@/app/api/v1/staff/agenda/route'
-import * as r29 from '@/app/api/v1/staff/appointments/[id]/adjust/route'
-import * as r30 from '@/app/api/v1/staff/appointments/[id]/cancel/route'
-import * as r31 from '@/app/api/v1/staff/appointments/[id]/complete/route'
-import * as r32 from '@/app/api/v1/staff/appointments/[id]/confirm/route'
-import * as r33 from '@/app/api/v1/staff/appointments/[id]/free-early/route'
-import * as r34 from '@/app/api/v1/staff/appointments/[id]/no-show/route'
-import * as r35 from '@/app/api/v1/staff/appointments/[id]/reschedule/route'
-import * as r36 from '@/app/api/v1/staff/appointments/[id]/route'
-import * as r37 from '@/app/api/v1/staff/appointments/[id]/undo/route'
-import * as r38 from '@/app/api/v1/staff/appointments/route'
-import * as r39 from '@/app/api/v1/staff/customers/[id]/appointments/route'
-import * as r40 from '@/app/api/v1/staff/customers/[id]/route'
-import * as r41 from '@/app/api/v1/staff/customers/route'
-import * as r42 from '@/app/api/v1/staff/devices/[pushToken]/route'
-import * as r43 from '@/app/api/v1/staff/devices/route'
-import * as r44 from '@/app/api/v1/staff/me/route'
-import * as r45 from '@/app/api/v1/staff/professionals/route'
-import * as r46 from '@/app/api/v1/staff/services/route'
-import * as r47 from '@/app/api/v1/staff/summary/route'
-import * as r48 from '@/app/api/v1/staff/time-blocks/[id]/route'
-import * as r49 from '@/app/api/v1/staff/time-blocks/route'
-import * as r50 from '@/app/api/v1/staff/working-hours/[professionalId]/route'
+import * as r19 from '@/app/api/v1/loyalty/me/route'
+import * as r20 from '@/app/api/v1/loyalty/me/statement/route'
+import * as r21 from '@/app/api/v1/loyalty/prizes/route'
+import * as r22 from '@/app/api/v1/loyalty/ranking/route'
+import * as r23 from '@/app/api/v1/loyalty/redemptions/[id]/cancel/route'
+import * as r24 from '@/app/api/v1/loyalty/redemptions/route'
+import * as r25 from '@/app/api/v1/me/delete/route'
+import * as r26 from '@/app/api/v1/me/devices/[pushToken]/route'
+import * as r27 from '@/app/api/v1/me/devices/route'
+import * as r28 from '@/app/api/v1/me/notifications/route'
+import * as r29 from '@/app/api/v1/me/password/route'
+import * as r30 from '@/app/api/v1/me/route'
+import * as r31 from '@/app/api/v1/openapi.json/route'
+import * as r32 from '@/app/api/v1/professionals/route'
+import * as r33 from '@/app/api/v1/services/route'
+import * as r34 from '@/app/api/v1/staff/agenda/route'
+import * as r35 from '@/app/api/v1/staff/appointments/[id]/adjust/route'
+import * as r36 from '@/app/api/v1/staff/appointments/[id]/cancel/route'
+import * as r37 from '@/app/api/v1/staff/appointments/[id]/complete/route'
+import * as r38 from '@/app/api/v1/staff/appointments/[id]/confirm/route'
+import * as r39 from '@/app/api/v1/staff/appointments/[id]/free-early/route'
+import * as r40 from '@/app/api/v1/staff/appointments/[id]/no-show/route'
+import * as r41 from '@/app/api/v1/staff/appointments/[id]/reschedule/route'
+import * as r42 from '@/app/api/v1/staff/appointments/[id]/route'
+import * as r43 from '@/app/api/v1/staff/appointments/[id]/undo/route'
+import * as r44 from '@/app/api/v1/staff/appointments/route'
+import * as r45 from '@/app/api/v1/staff/customers/[id]/appointments/route'
+import * as r46 from '@/app/api/v1/staff/customers/[id]/route'
+import * as r47 from '@/app/api/v1/staff/customers/route'
+import * as r48 from '@/app/api/v1/staff/devices/[pushToken]/route'
+import * as r49 from '@/app/api/v1/staff/devices/route'
+import * as r50 from '@/app/api/v1/staff/me/route'
+import * as r51 from '@/app/api/v1/staff/professionals/route'
+import * as r52 from '@/app/api/v1/staff/services/route'
+import * as r53 from '@/app/api/v1/staff/summary/route'
+import * as r54 from '@/app/api/v1/staff/time-blocks/[id]/route'
+import * as r55 from '@/app/api/v1/staff/time-blocks/route'
+import * as r56 from '@/app/api/v1/staff/working-hours/[professionalId]/route'
 
 /*
  * Manifesto das rotas da API: o ÚNICO lugar que liga o documento OpenAPI aos arquivos `route.ts`. O Next carrega cada
@@ -78,38 +84,44 @@ export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unkn
   'availability/route.ts': r16,
   'business/route.ts': r17,
   'health/route.ts': r18,
-  'me/delete/route.ts': r19,
-  'me/devices/[pushToken]/route.ts': r20,
-  'me/devices/route.ts': r21,
-  'me/notifications/route.ts': r22,
-  'me/password/route.ts': r23,
-  'me/route.ts': r24,
-  'openapi.json/route.ts': r25,
-  'professionals/route.ts': r26,
-  'services/route.ts': r27,
-  'staff/agenda/route.ts': r28,
-  'staff/appointments/[id]/adjust/route.ts': r29,
-  'staff/appointments/[id]/cancel/route.ts': r30,
-  'staff/appointments/[id]/complete/route.ts': r31,
-  'staff/appointments/[id]/confirm/route.ts': r32,
-  'staff/appointments/[id]/free-early/route.ts': r33,
-  'staff/appointments/[id]/no-show/route.ts': r34,
-  'staff/appointments/[id]/reschedule/route.ts': r35,
-  'staff/appointments/[id]/route.ts': r36,
-  'staff/appointments/[id]/undo/route.ts': r37,
-  'staff/appointments/route.ts': r38,
-  'staff/customers/[id]/appointments/route.ts': r39,
-  'staff/customers/[id]/route.ts': r40,
-  'staff/customers/route.ts': r41,
-  'staff/devices/[pushToken]/route.ts': r42,
-  'staff/devices/route.ts': r43,
-  'staff/me/route.ts': r44,
-  'staff/professionals/route.ts': r45,
-  'staff/services/route.ts': r46,
-  'staff/summary/route.ts': r47,
-  'staff/time-blocks/[id]/route.ts': r48,
-  'staff/time-blocks/route.ts': r49,
-  'staff/working-hours/[professionalId]/route.ts': r50,
+  'loyalty/me/route.ts': r19,
+  'loyalty/me/statement/route.ts': r20,
+  'loyalty/prizes/route.ts': r21,
+  'loyalty/ranking/route.ts': r22,
+  'loyalty/redemptions/[id]/cancel/route.ts': r23,
+  'loyalty/redemptions/route.ts': r24,
+  'me/delete/route.ts': r25,
+  'me/devices/[pushToken]/route.ts': r26,
+  'me/devices/route.ts': r27,
+  'me/notifications/route.ts': r28,
+  'me/password/route.ts': r29,
+  'me/route.ts': r30,
+  'openapi.json/route.ts': r31,
+  'professionals/route.ts': r32,
+  'services/route.ts': r33,
+  'staff/agenda/route.ts': r34,
+  'staff/appointments/[id]/adjust/route.ts': r35,
+  'staff/appointments/[id]/cancel/route.ts': r36,
+  'staff/appointments/[id]/complete/route.ts': r37,
+  'staff/appointments/[id]/confirm/route.ts': r38,
+  'staff/appointments/[id]/free-early/route.ts': r39,
+  'staff/appointments/[id]/no-show/route.ts': r40,
+  'staff/appointments/[id]/reschedule/route.ts': r41,
+  'staff/appointments/[id]/route.ts': r42,
+  'staff/appointments/[id]/undo/route.ts': r43,
+  'staff/appointments/route.ts': r44,
+  'staff/customers/[id]/appointments/route.ts': r45,
+  'staff/customers/[id]/route.ts': r46,
+  'staff/customers/route.ts': r47,
+  'staff/devices/[pushToken]/route.ts': r48,
+  'staff/devices/route.ts': r49,
+  'staff/me/route.ts': r50,
+  'staff/professionals/route.ts': r51,
+  'staff/services/route.ts': r52,
+  'staff/summary/route.ts': r53,
+  'staff/time-blocks/[id]/route.ts': r54,
+  'staff/time-blocks/route.ts': r55,
+  'staff/working-hours/[professionalId]/route.ts': r56,
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const

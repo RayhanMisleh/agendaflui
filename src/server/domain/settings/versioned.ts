@@ -45,6 +45,7 @@ export type SettingsWrite = {
       | 'termPointsSingular'
       | 'termPointsPlural'
       | 'termClub'
+      | 'loyaltyRankingEnabled'
     >
   > & { notifications?: Prisma.InputJsonObject }
 }
