@@ -1,8 +1,26 @@
 import { unstable_rethrow } from 'next/navigation'
 import { DomainError } from '@/server/domain/errors'
+import { toIsoInstant } from '@/server/time'
 
 /** Estado de um formulário dos painéis (dev e do negócio): o que a ação devolveu e o que a pessoa digitou. */
-export type FormState<V> = { ok: boolean; message: string | null; fields: Record<string, string>; values: V }
+export type FormState<V> = { ok: boolean; message: string | null; fields: Record<string, string>; values: V; conflict?: Conflito }
+
+/** Horário ocupado: os próximos horários livres que o domínio devolveu (instante exato e rótulo local pronto). */
+export type Conflito = { nearest: { iso: string; label: string }[] }
+
+/** Lê `details.nearest` de um erro de horário ocupado; sem a lista (ou de outro erro), não há conflito a mostrar. */
+function conflitoDe(err: DomainError): Conflito | undefined {
+  if (err.reason !== 'slot_taken') return undefined
+  const lista: unknown = err.details?.nearest
+  if (!Array.isArray(lista)) return { nearest: [] }
+  const nearest: Conflito['nearest'] = []
+  for (const item of lista) {
+    if (typeof item === 'object' && item !== null && 'startsAt' in item && item.startsAt instanceof Date && 'label' in item && typeof item.label === 'string') {
+      nearest.push({ iso: toIsoInstant(item.startsAt), label: item.label })
+    }
+  }
+  return { nearest }
+}
 
 export const MENSAGEM_GENERICA = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise quem cuida da plataforma.'
 /** A mesma frase para quem usa o painel do negócio: quem cuida é o suporte do AgendaFlui. */
@@ -35,7 +53,8 @@ export function formError<V>(err: unknown, values: V, generica: string = MENSAGE
   unstable_rethrow(err)
   const seguros = semSegredos(values) as V
   if (err instanceof DomainError) {
-    return { ok: false, message: err.message, fields: { ...(err.fields ?? {}) }, values: seguros }
+    const conflict = conflitoDe(err)
+    return { ok: false, message: err.message, fields: { ...(err.fields ?? {}) }, values: seguros, ...(conflict ? { conflict } : {}) }
   }
   console.error(JSON.stringify({ level: 'error', event: 'form_action_failed', error: err instanceof Error ? err.name : 'unknown' }))
   return { ok: false, message: generica, fields: {}, values: seguros }

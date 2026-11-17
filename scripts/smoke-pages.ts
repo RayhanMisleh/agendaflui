@@ -56,6 +56,12 @@ const PAGINAS = [
 /** Páginas do painel do negócio, pedidas como o dono da conta de demonstração. Acrescente aqui as telas novas de cada tarefa. */
 const PAGINAS_PAINEL = [
   '/',
+  '/agenda',
+  '/agenda?visao=dia&data=2026-11-17',
+  '/agenda?visao=semana',
+  '/agenda?visao=semana&data=2026-11-17&profissional=nao-existe',
+  '/agenda?data=lixo&visao=%00&acao=marcar',
+  '/agenda?acao=bloquear',
   '/servicos',
   '/servicos?situacao=arquivados',
   '/clientes',

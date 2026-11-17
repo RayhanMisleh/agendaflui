@@ -1,9 +1,9 @@
 import { StatusBadge } from './StatusBadge'
 import type { BadgeTone } from './StatusBadge'
 
-type Situacao = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
+export type Situacao = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELED' | 'NO_SHOW'
 
-const SITUACOES: Record<Situacao, { tone: BadgeTone; texto: string }> = {
+export const SITUACOES: Record<Situacao, { tone: BadgeTone; texto: string }> = {
   PENDING: { tone: 'pending', texto: 'Aguardando confirmação' },
   CONFIRMED: { tone: 'confirmed', texto: 'Confirmado' },
   COMPLETED: { tone: 'done', texto: 'Concluído' },
