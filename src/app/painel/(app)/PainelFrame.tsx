@@ -15,7 +15,7 @@ import { SairDaConta } from '../SairDaConta'
  * Rotas do painel que já têm tela. As outras aparecem na barra esmaecidas (com cadeado) até a tela existir: cada tarefa de
  * tela acrescenta a sua rota aqui.
  */
-const ROTAS_PRONTAS: ReadonlySet<string> = new Set(['/', '/agenda', '/servicos', '/clientes', '/equipe', '/relatorios', '/configuracoes'])
+const ROTAS_PRONTAS: ReadonlySet<string> = new Set(['/', '/agenda', '/servicos', '/clientes', '/equipe', '/relatorios', '/configuracoes', '/fidelidade', '/banners'])
 
 /** Moldura do painel do negócio com a marca, a navegação por capacidade e o usuário da conta ativa. */
 export async function PainelFrame({

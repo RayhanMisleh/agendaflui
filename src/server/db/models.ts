@@ -24,6 +24,7 @@ export const TENANT_MODELS: Modelos = [
   'LoyaltyTransaction',
   'Prize',
   'PrizeRedemption',
+  'Banner',
 ]
 
 /**

@@ -6,7 +6,7 @@ import { tenantDb, type TenantClient, type TenantTx } from '@/server/db/tenant'
 import { createPlatformUpload } from '@/server/db/uploads'
 import { getStorage, type Storage } from './storage'
 
-export type ImagePurpose = 'logo' | 'symbol' | 'favicon' | 'login' | 'avatar' | 'generic'
+export type ImagePurpose = 'logo' | 'symbol' | 'favicon' | 'login' | 'avatar' | 'banner' | 'generic'
 
 export type ImageErrorCode = 'too_large' | 'not_an_image' | 'unsupported_format' | 'too_many_pixels' | 'too_small'
 
@@ -35,6 +35,7 @@ export const REGRAS: Record<ImagePurpose, Regra> = {
   favicon: { w: 64, h: 64, square: true, png: true },
   login: { w: 2400, h: 2400, square: false },
   avatar: { w: 512, h: 512, square: true },
+  banner: { w: 1920, h: 1080, square: false, min: 400 },
   generic: { w: 1600, h: 1600, square: false },
 }
 

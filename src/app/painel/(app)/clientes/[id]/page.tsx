@@ -1,20 +1,24 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Mail, MessageCircle } from 'lucide-react'
+import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { getCustomer, isCustomerAnonymized } from '@/server/domain/customers/customers'
 import type { CustomerView } from '@/server/domain/customers/customers'
+import { getCustomerLoyalty, listLoyaltyEntries } from '@/server/domain/loyalty/ledger'
+import { listPrizes } from '@/server/domain/loyalty/prizes'
 import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
-import { AppointmentStatusBadge, Avatar, Card, EmptyHint, LinkButton, Pagination, PhoneLink, StatusDot } from '@/ui/components'
+import { AppointmentStatusBadge, Avatar, Card, EmptyHint, LinkButton, Pagination, PhoneLink, StatNumber, StatusDot } from '@/ui/components'
 import { formatDuration, formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../../PainelFrame'
 import { ClienteForm } from '../ClienteForm'
 import { Cuidados } from '../Cuidados'
+import { PontosAcoes } from './PontosAcoes'
 
 export const metadata: Metadata = { title: 'Ficha | AgendaFlui' }
 
@@ -36,6 +40,24 @@ function Atendimento({ a, comProfissional }: { a: AppointmentView; comProfission
   )
 }
 
+const TIPOS_DO_EXTRATO: Record<string, string> = {
+  EARN: 'Pontos por atendimento',
+  EARN_REVERSAL: 'Atendimento desfeito',
+  REDEEM: 'Resgate de prêmio',
+  REDEEM_REVERSAL: 'Resgate cancelado',
+  ADJUST: 'Ajuste',
+}
+
+/** Saldo e extrato (todo membro com `view_clients`) e, para `manage_loyalty`, os prêmios do resgate no balcão. */
+async function carregarPontos(ctx: TenantContext, customerId: string, cursor: string | null, gerencia: boolean) {
+  const [resumo, extrato, premios] = await Promise.all([
+    getCustomerLoyalty(ctx, customerId),
+    listLoyaltyEntries(ctx, customerId, { limit: 10, ...(cursor ? { cursor } : {}) }),
+    gerencia ? listPrizes(ctx) : Promise.resolve([]),
+  ])
+  return { saldo: resumo.balance, extrato, premios: premios.filter((p) => p.stock === null || p.stock > 0).map((p) => ({ id: p.id, name: p.name, costPoints: p.costPoints })) }
+}
+
 export default async function ClientePage({
   params,
   searchParams,
@@ -45,7 +67,9 @@ export default async function ClientePage({
 }) {
   const ctx = await requireTenant('view_clients')
   const { id } = await params
-  const cursor = um((await searchParams).cursor) || null
+  const q = await searchParams
+  const cursor = um(q.cursor) || null
+  const cursorExtrato = um(q.extrato) || null
 
   let cliente: CustomerView
   try {
@@ -66,6 +90,7 @@ export default async function ClientePage({
   const todos = can(ctx.actor, 'view_all_agendas')
   const zap = cliente.phone ? `https://wa.me/${cliente.phone.replace(/\D/g, '')}` : null
   const clube = painel.modules.loyalty ? terms.club : null
+  const pontos = painel.modules.loyalty ? await carregarPontos(ctx, id, cursorExtrato, can(ctx.actor, 'manage_loyalty')) : null
 
   return (
     <PainelFrame
@@ -148,6 +173,42 @@ export default async function ClientePage({
           </div>
 
           <div className="af-profile">
+            {pontos ? (
+              <Card as="section" aria-labelledby="cliente-pontos" className="af-profile">
+                <h2 id="cliente-pontos" className="af-section__title">
+                  {terms.pointsPlural}
+                </h2>
+                <StatNumber value={pontos.saldo} label={`Saldo de ${terms.pointsPlural.toLowerCase()}`} size="md" />
+                {can(ctx.actor, 'manage_loyalty') && !cliente.archived ? (
+                  <PontosAcoes customerId={cliente.id} nome={cliente.name} premios={pontos.premios} pontos={terms.pointsPlural} ponto={terms.pointsSingular} />
+                ) : null}
+                {pontos.extrato.items.length > 0 ? (
+                  <ul className="af-home__list">
+                    {pontos.extrato.items.map((e) => (
+                      <li key={e.id} className="af-visit">
+                        <div className="af-visit__when">
+                          <span className="af-visit__time af-tabular">{e.points > 0 ? `+${e.points}` : String(e.points)}</span>
+                        </div>
+                        <div className="af-visit__main">
+                          <span className="af-visit__what">{TIPOS_DO_EXTRATO[e.kind] ?? e.kind}</span>
+                          <span className="af-visit__detail">{[e.createdLabel, e.reason ?? ''].filter((p) => p !== '').join(' · ')}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyHint>Ainda não há movimentos de {terms.pointsPlural.toLowerCase()}.</EmptyHint>
+                )}
+                <Pagination
+                  basePath={`/clientes/${cliente.id}`}
+                  params={{ cursor: cursor ?? undefined }}
+                  cursor={cursorExtrato}
+                  nextCursor={pontos.extrato.nextCursor}
+                  paramName="extrato"
+                />
+              </Card>
+            ) : null}
+
             <Card as="section" aria-labelledby="cliente-proximos" className="af-profile">
               <h2 id="cliente-proximos" className="af-section__title">
                 Próximos atendimentos
@@ -176,7 +237,7 @@ export default async function ClientePage({
               ) : (
                 <EmptyHint>Ainda não há atendimentos no histórico.</EmptyHint>
               )}
-              <Pagination basePath={`/clientes/${cliente.id}`} params={{}} cursor={cursor} nextCursor={historico.nextCursor} />
+              <Pagination basePath={`/clientes/${cliente.id}`} params={{ extrato: cursorExtrato ?? undefined }} cursor={cursor} nextCursor={historico.nextCursor} />
             </Card>
           </div>
         </div>

@@ -303,6 +303,7 @@ model Business {
   appointmentItems     AppointmentItem[]
   loyaltyTransactions  LoyaltyTransaction[]
   prizes               Prize[]
+  banners              Banner[]
   prizeRedemptions     PrizeRedemption[]
   notifications        Notification[]
   apiKeys              ApiKey[]
@@ -513,6 +514,7 @@ model Upload {
   customerAvatars     Customer[]         @relation("CustomerAvatar")
   professionalAvatars Professional[]     @relation("ProfessionalAvatar")
   prizeImages         Prize[]            @relation("PrizeImage")
+  bannerImages        Banner[]           @relation("BannerImage")
 
   @@unique([businessId, id])
   @@index([businessId])
@@ -1025,4 +1027,26 @@ model PrizeRedemption {
   @@index([businessId, status, createdAt])
   @@index([businessId, customerId, createdAt])
   @@map("prize_redemptions")
+}
+
+model Banner {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String    @map("business_id") @db.Uuid
+  title         String
+  imageUploadId String?   @map("image_upload_id") @db.Uuid
+  linkUrl       String?   @map("link_url")
+  /// Datas locais da conta, inclusive nas duas pontas.
+  startsOn      DateTime? @map("starts_on") @db.Date
+  endsOn        DateTime? @map("ends_on") @db.Date
+  active        Boolean   @default(false)
+  displayOrder  Int       @default(0) @map("display_order")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  image    Upload?  @relation("BannerImage", fields: [imageUploadId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, id])
+  @@index([businessId, displayOrder])
+  @@map("banners")
 }

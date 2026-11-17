@@ -3,12 +3,12 @@ import { ArrowLeftToLine, ArrowRight } from 'lucide-react'
 import { cx } from './cx'
 
 /** Endereço de uma página da lista: a busca e os filtros ficam, o cursor entra por último. Vazios somem. */
-export function pageHref(basePath: string, params: Record<string, string | undefined>, cursor: string | null): string {
+export function pageHref(basePath: string, params: Record<string, string | undefined>, cursor: string | null, paramName = 'cursor'): string {
   const q = new URLSearchParams()
   for (const [chave, valor] of Object.entries(params)) {
     if (valor !== undefined && valor !== '') q.set(chave, valor)
   }
-  if (cursor) q.set('cursor', cursor)
+  if (cursor) q.set(paramName, cursor)
   const texto = q.toString()
   return texto ? `${basePath}?${texto}` : basePath
 }
@@ -26,18 +26,21 @@ export function Pagination({
   cursor,
   nextCursor,
   summary,
+  paramName,
 }: {
   basePath: string
   params: Record<string, string | undefined>
   cursor: string | null
   nextCursor: string | null
   summary?: string
+  /** Nome do parâmetro do cursor na URL (`cursor` por padrão); uma tela com duas listas paginadas dá um nome a cada uma. */
+  paramName?: string
 }) {
   if (!cursor && !nextCursor) return null
   return (
     <nav aria-label="Páginas da lista" className="af-pager">
       {cursor ? (
-        <Link href={pageHref(basePath, params, null)} className={LINK}>
+        <Link href={pageHref(basePath, params, null, paramName)} className={LINK}>
           <span className="af-button__label">
             <span className="af-button__icon" aria-hidden="true">
               <ArrowLeftToLine size={18} />
@@ -48,7 +51,7 @@ export function Pagination({
       ) : null}
       {summary ? <p className="af-pager__summary">{summary}</p> : null}
       {nextCursor ? (
-        <Link href={pageHref(basePath, params, nextCursor)} className={cx(LINK, 'af-pager__next')} rel="next">
+        <Link href={pageHref(basePath, params, nextCursor, paramName)} className={cx(LINK, 'af-pager__next')} rel="next">
           <span className="af-button__label">
             Próxima página
             <span className="af-button__icon" aria-hidden="true">

@@ -101,7 +101,16 @@ const PAGINAS_PAINEL = [
 ]
 
 /** Páginas dos módulos, pedidas como o dono da conta com TODOS os módulos ligados. Cada tarefa de módulo acrescenta as suas. */
-const PAGINAS_MODULOS: string[] = []
+const PAGINAS_MODULOS: string[] = [
+  '/banners',
+  '/banners/novo',
+  '/banners/{banner}',
+  '/fidelidade',
+  '/fidelidade?aba=resgates',
+  '/fidelidade?aba=clube',
+  '/fidelidade?aba=ajustes',
+  '/fidelidade/premios/novo',
+]
 
 /** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
 const PAGINAS_LOJA_DESLIGADA = ['/fidelidade', '/banners', '/loja', '/vouchers']
@@ -261,6 +270,11 @@ async function main(): Promise<number> {
 
     const cliente = await prisma.customer.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     const profissional = await prisma.professional.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
+    // Um banner de demonstração (inativo, sem imagem) para a ficha; sai ao fim, junto com as sessões.
+    const banner = await prisma.banner.create({ data: { businessId: conta.id, title: 'Banner da fumaça' }, select: { id: true } })
+    limpezas.push(async () => {
+      await prisma.banner.deleteMany({ where: { id: banner.id } })
+    })
     let falhas = 0
     let pulados = 0
     const hostPainel = `painel.localhost:${porta}`
@@ -271,7 +285,7 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '')
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id)
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
