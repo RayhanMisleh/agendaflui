@@ -93,3 +93,16 @@ export function appointmentWhere(
     ...(scope.serviceId ? { items: { some: { serviceId: scope.serviceId } } } : {}),
   }
 }
+
+/** Itens do serviço filtrado, em atendimentos concluídos do relatório (a conta de `getReportByService`). */
+export function serviceItemWhere(
+  scope: ReportScope,
+  serviceId: string,
+  extra: { range?: { start: Date; end: Date }; professionalId?: string } = {},
+): Prisma.AppointmentItemWhereInput {
+  const base = appointmentWhere({ ...scope, serviceId: undefined }, ['COMPLETED'], extra.range ?? scope)
+  return {
+    serviceId,
+    appointment: { is: extra.professionalId ? { ...base, professionalId: extra.professionalId } : base },
+  }
+}

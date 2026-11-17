@@ -1,6 +1,7 @@
 import type { TenantContext } from '@/server/auth/actor'
 import {
   appointmentWhere,
+  serviceItemWhere,
   REPORT_STATUSES,
   resolveScope,
   seesCommissionOf,
@@ -10,6 +11,11 @@ import { addDays, compareLocalDates, localDayRange } from '@/server/time'
 
 export type { ReportFilter, ReportRange } from '@/server/domain/reports/shared'
 
+/**
+ * Com `serviceId` no filtro, `revenueCents` (total e de cada dia) é a soma dos itens daquele serviço nos concluídos, o
+ * ticket médio é essa receita por atendimento concluído e `commissionCents` é `null`: a comissão é gravada por atendimento,
+ * não por serviço (a tela mostra "—").
+ */
 export type ReportSummary = {
   revenueCents: number
   completed: number
@@ -34,7 +40,14 @@ export async function getReportSummary(ctx: TenantContext, f: ReportFilter): Pro
   const of = (status: (typeof REPORT_STATUSES)[number]) => groups.find((g) => g.status === status)
   const done = of('COMPLETED')
   const completed = done?._count._all ?? 0
-  const revenueCents = done?._sum.totalCents ?? 0
+  const revenueCents = scope.serviceId
+    ? ((
+        await ctx.db.appointmentItem.aggregate({
+          where: serviceItemWhere(scope, scope.serviceId),
+          _sum: { priceCents: true },
+        })
+      )._sum.priceCents ?? 0)
+    : (done?._sum.totalCents ?? 0)
 
   // Um agregado por dia local: o banco não conhece o fuso da conta, e o dia local tem limites próprios (horário de verão).
   const dates: string[] = []
@@ -44,12 +57,20 @@ export async function getReportSummary(ctx: TenantContext, f: ReportFilter): Pro
     const batch = dates.slice(i, i + DAY_BATCH)
     const days = await Promise.all(
       batch.map(async (date) => {
+        const range = localDayRange(date, ctx.timeZone)
         const sum = await ctx.db.appointment.aggregate({
-          where: appointmentWhere(scope, ['COMPLETED'], localDayRange(date, ctx.timeZone)),
+          where: appointmentWhere(scope, ['COMPLETED'], range),
           _count: { _all: true },
           _sum: { totalCents: true },
         })
-        return { date, revenueCents: sum._sum.totalCents ?? 0, completed: sum._count._all }
+        const items = scope.serviceId
+          ? await ctx.db.appointmentItem.aggregate({
+              where: serviceItemWhere(scope, scope.serviceId, { range }),
+              _sum: { priceCents: true },
+            })
+          : null
+        const revenue = items ? items._sum.priceCents : sum._sum.totalCents
+        return { date, revenueCents: revenue ?? 0, completed: sum._count._all }
       }),
     )
     byDay.push(...days)
@@ -61,7 +82,7 @@ export async function getReportSummary(ctx: TenantContext, f: ReportFilter): Pro
     canceled: of('CANCELED')?._count._all ?? 0,
     noShow: of('NO_SHOW')?._count._all ?? 0,
     averageTicketCents: completed === 0 ? 0 : Math.round(revenueCents / completed),
-    commissionCents: seesCommissionOf(scope, scope.professionalId ?? '') ? (done?._sum.commissionCents ?? 0) : null,
+    commissionCents: !scope.serviceId && seesCommissionOf(scope, scope.professionalId ?? '') ? (done?._sum.commissionCents ?? 0) : null,
     byDay,
   }
 }

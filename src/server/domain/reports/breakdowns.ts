@@ -2,10 +2,12 @@ import type { TenantContext } from '@/server/auth/actor'
 import {
   appointmentWhere,
   resolveScope,
+  serviceItemWhere,
   seesCommissionOf,
   type ReportFilter,
 } from '@/server/domain/reports/shared'
 
+/** Com `serviceId`, a receita é a dos itens daquele serviço e a comissão vem `null` (ela é gravada por atendimento). */
 export async function getReportByProfessional(
   ctx: TenantContext,
   f: ReportFilter,
@@ -22,13 +24,27 @@ export async function getReportByProfessional(
     select: { id: true, name: true },
   })
   const nameOf = new Map(names.map((p) => [p.id, p.name]))
+  const serviceId = scope.serviceId
+  const itemRevenue = new Map<string, number>()
+  if (serviceId) {
+    await Promise.all(
+      groups.map(async (g) => {
+        const sum = await ctx.db.appointmentItem.aggregate({
+          where: serviceItemWhere(scope, serviceId, { professionalId: g.professionalId }),
+          _sum: { priceCents: true },
+        })
+        itemRevenue.set(g.professionalId, sum._sum.priceCents ?? 0)
+      }),
+    )
+  }
   return groups
     .map((g) => ({
       professionalId: g.professionalId,
       name: nameOf.get(g.professionalId) ?? '',
       completed: g._count._all,
-      revenueCents: g._sum.totalCents ?? 0,
-      commissionCents: seesCommissionOf(scope, g.professionalId) ? (g._sum.commissionCents ?? 0) : null,
+      revenueCents: serviceId ? (itemRevenue.get(g.professionalId) ?? 0) : (g._sum.totalCents ?? 0),
+      commissionCents:
+        !serviceId && seesCommissionOf(scope, g.professionalId) ? (g._sum.commissionCents ?? 0) : null,
     }))
     .sort((a, b) => b.revenueCents - a.revenueCents || a.name.localeCompare(b.name) || a.professionalId.localeCompare(b.professionalId))
 }

@@ -178,6 +178,66 @@ describe('por profissional e por serviço', () => {
   })
 })
 
+describe('filtro de serviço em atendimento com dois serviços', () => {
+  async function doisServicos() {
+    const s = await montar()
+    const a = await makeService(s.b.id, { name: 'Serviço A', priceCents: 6000 })
+    const b = await makeService(s.b.id, { name: 'Serviço B', priceCents: 4000 })
+    const ag = await prisma.appointment.create({
+      data: {
+        businessId: s.b.id,
+        customerId: s.cliente.id,
+        professionalId: s.ana.id,
+        startsAt: mn(10, 9),
+        endsAt: mn(10, 10),
+        status: 'COMPLETED',
+        source: 'PANEL',
+        totalCents: 10000,
+        totalDurationMin: 60,
+        commissionCents: 2000,
+        createdByType: 'SYSTEM',
+        items: {
+          create: [a, b].map((sv, i) => ({
+            businessId: s.b.id,
+            serviceId: sv.id,
+            name: sv.name,
+            priceCents: sv.priceCents,
+            durationMin: 30,
+            rewardPoints: 0,
+            position: i + 1,
+          })),
+        },
+      },
+    })
+    return { s, a, b, ag }
+  }
+
+  test('com filtro por A, tudo soma só os itens de A e a comissão é null', async () => {
+    const { s, a } = await doisServicos()
+    const f = { ...DIA10, serviceId: a.id }
+    const r = await getReportSummary(s.dono, f)
+    expect(r).toMatchObject({ revenueCents: 6000, completed: 1, averageTicketCents: 6000, commissionCents: null })
+    expect(r.byDay).toEqual([{ date: '2026-11-10', revenueCents: 6000, completed: 1 }])
+    expect(await getReportByProfessional(s.dono, f)).toEqual([
+      { professionalId: s.ana.id, name: 'Ana', completed: 1, revenueCents: 6000, commissionCents: null },
+    ])
+    expect(await getReportByService(s.dono, f)).toEqual([
+      { serviceId: a.id, name: 'Serviço A', count: 1, revenueCents: 6000 },
+    ])
+    // A lista continua com o atendimento inteiro.
+    const linhas = await listReportRows(s.dono, f)
+    expect(linhas.items.map((i) => i.totalCents)).toEqual([10000])
+  })
+
+  test('sem filtro, a receita é a do atendimento inteiro e a comissão é numérica', async () => {
+    const { s } = await doisServicos()
+    const r = await getReportSummary(s.dono, DIA10)
+    expect(r).toMatchObject({ revenueCents: 10000, averageTicketCents: 10000, commissionCents: 2000 })
+    expect(r.byDay[0]?.revenueCents).toBe(10000)
+    expect((await getReportByProfessional(s.dono, DIA10))[0]).toMatchObject({ revenueCents: 10000, commissionCents: 2000 })
+  })
+})
+
 describe('permissões', () => {
   async function comProfissional(s: Cena) {
     const ctx = await ctxWithRole(s.b, 'PROFESSIONAL', { now: AGORA })

@@ -83,3 +83,4 @@
 ## Telas de configurações (Fase 4)
 
 - Termos, regras de agenda e avisos compartilham `business_settings.version`: cada tela de configurações precisa recarregar a versão depois de cada gravação (use a versão devolvida), senão a próxima gravação da mesma página recebe `stale_version`.
+- Relatórios: `byDay` faz uma agregação por dia local (até 366, em lotes de 8). Se pesar, trocar por uma consulta única com `AT TIME ZONE` num ajudante do cliente por conta.
