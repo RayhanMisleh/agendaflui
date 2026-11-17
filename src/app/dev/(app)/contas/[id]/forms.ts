@@ -1,4 +1,4 @@
-import type { FormState } from '../../_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 /** Campos de um formulário da conta, em texto, como vêm do navegador. Caixa marcada vale `'on'`; desmarcada, `''`. */
 export type Campos = Record<string, string>

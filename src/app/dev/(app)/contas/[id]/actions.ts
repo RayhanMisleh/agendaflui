@@ -11,9 +11,9 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notifica
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { adminAction } from '../../_lib/action'
-import { erroDeCampo, feito, ler, renomear } from '../../_lib/campos'
+import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
 import type { PlatformAdminActor } from '../../_lib/action'
-import type { FormState } from '../../_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 import { MSG_CONFLITO } from './forms'
 import type { Campos } from './forms'
 

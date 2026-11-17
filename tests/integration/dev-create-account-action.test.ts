@@ -35,7 +35,7 @@ vi.mock('@/server/domain/platform/api-keys', async (original) => {
 
 import { criarConta } from '@/app/dev/(app)/contas/nova/actions'
 import { EMPTY_VALUES, type WizardData } from '@/app/dev/(app)/contas/nova/fields'
-import type { FormState } from '@/app/dev/(app)/_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 const inicial: FormState<WizardData> = { ok: false, message: null, fields: {}, values: EMPTY_VALUES }
 

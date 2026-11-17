@@ -256,25 +256,6 @@
     }
   }
 
-  /* ---- Páginas iniciais dos painéis ---- */
-  .af-home {
-    display: grid;
-    gap: 1rem;
-    max-width: 60rem;
-  }
-  .af-home__hello {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: var(--text-h2);
-    font-weight: 700;
-    line-height: var(--text-h2-lh);
-    letter-spacing: var(--text-h2-ls);
-  }
-  .af-home__meta {
-    margin: 0.5rem 0 0;
-    font-size: var(--text-body-lg);
-    line-height: var(--text-body-lg-lh);
-  }
   .af-link-break {
     color: var(--brand-text);
     overflow-wrap: break-word;

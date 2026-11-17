@@ -1,8 +1,8 @@
 import { toIsoInstant } from '@/server/time'
 import { PLATFORM_TIME_ZONE, quando, tamanho, taxaDeSucesso } from '@/app/dev/(app)/_lib/format'
-import { renomear } from '@/app/dev/(app)/_lib/campos'
+import { renomear } from '@/app/_lib/campos'
 import { DomainError } from '@/server/domain/errors'
-import { porCodigo, um } from '@/app/dev/(app)/_lib/params'
+import { porCodigo, um } from '@/app/_lib/params'
 import { traduzirFaltou, traduzirSuporte } from '@/app/dev/(app)/contas/[id]/codigos-url'
 import { formatInt } from '@/ui/format'
 import { lerFiltros } from '@/app/dev/(app)/auditoria/filtros'
@@ -114,4 +114,20 @@ test('renomear troca o nome inteiro do campo (owner.email) ou só o começo (ori
   expect(r).toBeInstanceOf(DomainError)
   expect((r as DomainError).fields).toEqual({ ownerEmail: 'a', origins: 'b', outro: 'c', constructor: 'd' })
   expect(renomear(new Error('y'), {})).toBeInstanceOf(Error)
+})
+
+test('formatDuration: minutos, horas cheias e horas com minutos', async () => {
+  const { formatDuration } = await import('@/ui/format')
+  expect(formatDuration(45)).toBe('45 min')
+  expect(formatDuration(60)).toBe('1 h')
+  expect(formatDuration(90)).toBe('1 h 30')
+  expect(formatDuration(125)).toBe('2 h 05')
+  expect(formatDuration(-5)).toBe('0 min')
+})
+
+test('weekdayName e shortDate: nomes em português e data curta', async () => {
+  const { weekdayName, shortDate } = await import('@/ui/format')
+  expect(weekdayName('TUESDAY')).toBe('Terça-feira')
+  expect(weekdayName('SATURDAY')).toBe('Sábado')
+  expect(shortDate('2026-11-18')).toBe('18/11')
 })

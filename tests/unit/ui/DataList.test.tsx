@@ -61,14 +61,48 @@ test('a troca tabela e cartões depende do contêiner, não da tela', () => {
   expect(css).not.toMatch(/@media \(min-width: 768px\)/)
 })
 
-test('no celular cada célula aparece uma vez só nos cartões, com o cabeçalho como rótulo', () => {
+test('cada célula é desenhada uma vez só, com o cabeçalho como rótulo dentro dela', () => {
+  const cell = vi.fn((r: { n: string; t: string }) => r.t)
   const cols = [
     { key: 'n', header: 'Nome', cell: (r: { n: string; t: string }) => r.n, primary: true },
-    { key: 't', header: 'Telefone', cell: (r: { n: string; t: string }) => r.t },
+    { key: 't', header: 'Telefone', cell: cell },
   ]
-  const { container } = render(<DataList columns={cols} rows={[{ n: 'Ana', t: '(11) 98421-7733' }]} rowKey={(r) => r.n} empty={null} />)
-  const cartao = container.querySelector('.af-datalist__item') as HTMLElement
-  expect(cartao.textContent?.split('Ana').length).toBe(2)
-  expect(cartao.textContent?.split('(11) 98421-7733').length).toBe(2)
-  expect(cartao.querySelector('dt')).toHaveTextContent('Telefone')
+  const { container } = render(<DataList columns={cols} rows={[{ n: 'Ana', t: '(11) 98421-7733' }, { n: 'Bia', t: '(11) 90000-0000' }]} rowKey={(r) => r.n} empty={null} />)
+  expect(cell).toHaveBeenCalledTimes(2)
+  expect(screen.getAllByText('(11) 98421-7733')).toHaveLength(1)
+  expect(screen.getAllByText('Ana')).toHaveLength(1)
+  expect(container.querySelectorAll('.af-datalist__item, ul.af-datalist__cards, dl')).toHaveLength(0)
+  const celulaTelefone = screen.getByText('(11) 98421-7733').closest('td')!
+  expect(celulaTelefone.querySelector('.af-datalist__label')).toHaveTextContent('Telefone')
+})
+
+test('a coluna principal vira o título do cartão', () => {
+  const cols = [
+    { key: 't', header: 'Telefone', cell: (r: { n: string; t: string }) => r.t },
+    { key: 'n', header: 'Nome', cell: (r: { n: string; t: string }) => r.n, primary: true },
+  ]
+  render(<DataList columns={cols} rows={[{ n: 'Ana', t: '1' }]} rowKey={(r) => r.n} empty={null} />)
+  expect(screen.getByText('Ana').closest('td')).toHaveAttribute('data-primary')
+  expect(screen.getByText('1').closest('td')).not.toHaveAttribute('data-primary')
+})
+
+test('o limite entre tabela e cartões é de cada lista: stack escolhe o tamanho', () => {
+  const rows = [{ n: 'Ana' }]
+  const { container, rerender } = render(<DataList columns={columns} rows={rows} rowKey={(r) => r.n} empty={null} />)
+  expect(container.querySelector('.af-datalist')).toHaveAttribute('data-stack', 'md')
+  rerender(<DataList columns={columns} rows={rows} rowKey={(r) => r.n} empty={null} stack="lg" />)
+  expect(container.querySelector('.af-datalist')).toHaveAttribute('data-stack', 'lg')
+  rerender(<DataList columns={columns} rows={rows} rowKey={(r) => r.n} empty={null} stack="sm" />)
+  expect(container.querySelector('.af-datalist')).toHaveAttribute('data-stack', 'sm')
+  const css = readFileSync(resolve(process.cwd(), 'src/ui/styles/data.css'), 'utf8')
+  expect(css).toMatch(/@container af-datalist \(min-width: 28rem\)/)
+  expect(css).toMatch(/@container af-datalist \(min-width: 48rem\)/)
+})
+
+test('a tabela mantém a semântica de tabela mesmo quando o CSS a desenha como cartões', () => {
+  render(<DataList columns={columns} rows={[{ n: 'Ana' }]} rowKey={(r) => r.n} empty={null} label="Clientes" />)
+  expect(screen.getByRole('table', { name: 'Clientes' })).toBeInTheDocument()
+  expect(screen.getByRole('columnheader', { name: 'Nome' })).toBeInTheDocument()
+  expect(screen.getAllByRole('row')).toHaveLength(2)
+  expect(screen.getByRole('cell', { name: /Ana/ })).toBeInTheDocument()
 })

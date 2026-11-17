@@ -4,9 +4,20 @@ import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cx } from './cx'
 
+const FOCAVEIS = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex]:not([tabindex="-1"])'
+
+/** Elementos que o Tab alcança dentro do diálogo, na ordem do documento. */
+function focaveis(dialog: HTMLElement): HTMLElement[] {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCAVEIS)).filter(
+    (el) => !el.hasAttribute('disabled') && el.getAttribute('tabindex') !== '-1' && !el.closest('[hidden], [inert]'),
+  )
+}
+
 /**
- * Diálogo (no celular sobe da base como folha). `<dialog>` nativo com showModal(): o navegador cuida do foco preso e do fundo inerte.
- * Esc, clique fora e o botão Fechar chamam onClose; quem decide fechar é o dono do estado.
+ * Diálogo (no celular sobe da base como folha). `<dialog>` nativo com showModal(): o navegador cuida do fundo inerte; o
+ * Tab também é fechado em anel aqui, para o foco nunca sair em nenhum navegador.
+ * Esc, clique fora e o botão Fechar chamam onClose; quem decide fechar é o dono do estado. Um Esc que um filho já tratou
+ * (lista aberta, campo de busca) não fecha o diálogo.
  */
 export function Dialog({
   open,
@@ -58,9 +69,27 @@ export function Dialog({
         onCloseRef.current()
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Escape') {
+        if (e.key === 'Escape' && !e.defaultPrevented) {
           e.preventDefault()
           onCloseRef.current()
+        }
+        if (e.key === 'Tab' && !e.defaultPrevented) {
+          const lista = focaveis(e.currentTarget)
+          const primeiro = lista[0]
+          const ultimo = lista[lista.length - 1]
+          if (!primeiro || !ultimo) {
+            e.preventDefault()
+            return
+          }
+          const ativo = document.activeElement
+          const dentro = ativo instanceof HTMLElement && lista.includes(ativo)
+          if (e.shiftKey && (!dentro || ativo === primeiro)) {
+            e.preventDefault()
+            ultimo.focus()
+          } else if (!e.shiftKey && (!dentro || ativo === ultimo)) {
+            e.preventDefault()
+            primeiro.focus()
+          }
         }
       }}
       onPointerDown={(e) => {

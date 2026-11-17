@@ -2,20 +2,179 @@
  * Dados e navegação: lista (tabela que vira cartões), abas em pílula, páginas e trilho de etapas.
  */
 @layer components {
-  /* ---- Lista: tabela dentro de um Card; a troca por cartões empilhados depende da largura do CONTÊINER ---- */
+  /*
+   * ---- Lista: uma tabela só, com duas aparências conforme a largura do CONTÊINER (`data-stack`: sm 28 rem, md 36 rem, lg 48 rem) ----
+   * Abaixo do limite cada linha é um cartão (a coluna principal é o título e o cabeçalho vira o rótulo da célula);
+   * a partir dele volta a ser tabela. Cada célula existe uma vez só no HTML.
+   */
   .af-datalist {
     container: af-datalist / inline-size;
     min-width: 0;
     /* Último recurso: se uma coluna que não quebra linha não couber, a tabela rola por dentro do cartão. */
     overflow-x: auto;
   }
-  .af-datalist__table {
-    display: none;
+  .af-datalist__table,
+  .af-datalist__table tbody {
+    display: grid;
+    gap: 0.625rem;
     width: 100%;
-    border-collapse: collapse;
+  }
+  .af-datalist__table thead {
+    display: none;
+  }
+  .af-datalist__table tr {
+    position: relative;
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-chip);
+    background-color: var(--ground);
+  }
+  .af-datalist__table td {
+    display: grid;
+    grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: start;
+    min-width: 0;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+  }
+  .af-datalist__table td[data-primary] {
+    display: block;
+    font-weight: 700;
+  }
+  .af-datalist__label {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-weight: 400;
+    line-height: var(--text-small-lh);
+  }
+  .af-datalist__value {
+    min-width: 0;
+  }
+  .af-row-hit {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    cursor: pointer;
+  }
+  /* Em cartão, o cartão inteiro é a área de toque da linha. */
+  .af-row-hit::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+  }
+  .af-col--nowrap {
+    white-space: nowrap;
+  }
+  .af-col--end {
+    text-align: end;
+  }
+
+  /* Tabela: a partir do limite de cada lista. */
+  @container af-datalist (min-width: 36rem) {
+    .af-datalist[data-stack='md'] .af-datalist__table {
+      --cell-px: 0.875rem;
+      --cell-py: 0.75rem;
+      --cell-border: 1px solid var(--line);
+      display: table;
+      border-collapse: collapse;
+    }
+    .af-datalist[data-stack='md'] .af-datalist__table thead {
+      display: table-header-group;
+    }
+    .af-datalist[data-stack='md'] .af-datalist__table tbody {
+      display: table-row-group;
+    }
+    .af-datalist[data-stack='md'] .af-datalist__table tr {
+      display: table-row;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background-color: transparent;
+    }
+    .af-datalist[data-stack='md'] .af-datalist__table th,
+    .af-datalist[data-stack='md'] .af-datalist__table td {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .af-datalist[data-stack='md'] .af-datalist__label {
+      display: none;
+    }
+    .af-datalist[data-stack='md'] .af-row-hit::after {
+      content: none;
+    }
+  }
+  @container af-datalist (min-width: 28rem) {
+    .af-datalist[data-stack='sm'] .af-datalist__table {
+      --cell-px: 0.875rem;
+      --cell-py: 0.75rem;
+      --cell-border: 1px solid var(--line);
+      display: table;
+      border-collapse: collapse;
+    }
+    .af-datalist[data-stack='sm'] .af-datalist__table thead {
+      display: table-header-group;
+    }
+    .af-datalist[data-stack='sm'] .af-datalist__table tbody {
+      display: table-row-group;
+    }
+    .af-datalist[data-stack='sm'] .af-datalist__table tr {
+      display: table-row;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background-color: transparent;
+    }
+    .af-datalist[data-stack='sm'] .af-datalist__table th,
+    .af-datalist[data-stack='sm'] .af-datalist__table td {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .af-datalist[data-stack='sm'] .af-datalist__label {
+      display: none;
+    }
+    .af-datalist[data-stack='sm'] .af-row-hit::after {
+      content: none;
+    }
+  }
+  @container af-datalist (min-width: 48rem) {
+    .af-datalist[data-stack='lg'] .af-datalist__table {
+      --cell-px: 0.875rem;
+      --cell-py: 0.75rem;
+      --cell-border: 1px solid var(--line);
+      display: table;
+      border-collapse: collapse;
+    }
+    .af-datalist[data-stack='lg'] .af-datalist__table thead {
+      display: table-header-group;
+    }
+    .af-datalist[data-stack='lg'] .af-datalist__table tbody {
+      display: table-row-group;
+    }
+    .af-datalist[data-stack='lg'] .af-datalist__table tr {
+      display: table-row;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background-color: transparent;
+    }
+    .af-datalist[data-stack='lg'] .af-datalist__table th,
+    .af-datalist[data-stack='lg'] .af-datalist__table td {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .af-datalist[data-stack='lg'] .af-datalist__label {
+      display: none;
+    }
+    .af-datalist[data-stack='lg'] .af-row-hit::after {
+      content: none;
+    }
   }
   .af-datalist__table th {
-    padding: 0.625rem 0.875rem;
+    padding: 0.625rem var(--cell-px, 0);
     border-bottom: 1px solid var(--line);
     color: var(--ink-muted);
     font-size: var(--text-small);
@@ -25,11 +184,8 @@
     overflow-wrap: anywhere;
   }
   .af-datalist__table td {
-    padding: 0.75rem 0.875rem;
-    border-bottom: 1px solid var(--line);
-    color: var(--ink);
-    vertical-align: middle;
-    overflow-wrap: anywhere;
+    padding: var(--cell-py, 0) var(--cell-px, 0);
+    border-bottom: var(--cell-border, 0);
   }
   .af-datalist__table tbody tr:last-child td {
     border-bottom: 0;
@@ -38,73 +194,11 @@
     padding: 0;
   }
   .af-row-hit {
-    display: flex;
-    align-items: center;
-    min-height: 44px;
-    padding: 0.75rem 0.875rem;
-    cursor: pointer;
+    padding: var(--cell-py, 0) var(--cell-px, 0);
   }
   @media (hover: hover) {
     .af-datalist__table tbody tr:hover {
       background-color: var(--ground);
-    }
-  }
-  .af-col--nowrap {
-    white-space: nowrap;
-  }
-  .af-col--end {
-    text-align: end;
-  }
-
-  /* No celular cada linha é um cartão e cada célula aparece uma vez só, com o cabeçalho como rótulo. */
-  .af-datalist__cards {
-    display: grid;
-    gap: 0.625rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .af-datalist__item {
-    display: grid;
-    gap: 0.5rem;
-    padding: 0.875rem 1rem;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-chip);
-    background-color: var(--ground);
-  }
-  .af-datalist__item--clickable {
-    cursor: pointer;
-  }
-  .af-datalist__title {
-    font-weight: 700;
-    overflow-wrap: anywhere;
-  }
-  .af-datalist__fields {
-    display: grid;
-    gap: 0.375rem;
-    margin: 0;
-  }
-  .af-datalist__field {
-    display: grid;
-    grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
-    gap: 0.5rem;
-    align-items: start;
-  }
-  .af-datalist__field dt {
-    color: var(--ink-muted);
-    font-size: var(--text-small);
-    line-height: var(--text-small-lh);
-  }
-  .af-datalist__field dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-  }
-  @container af-datalist (min-width: 36rem) {
-    .af-datalist__table {
-      display: table;
-    }
-    .af-datalist__cards {
-      display: none;
     }
   }
 

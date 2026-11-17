@@ -15,7 +15,7 @@ import { criarAdmin, desativarAdmin, reativarAdmin } from '@/app/dev/(app)/admin
 import { criarChavePlataforma, revogarChave } from '@/app/dev/(app)/chaves/actions'
 import { salvarPerfil, trocarSenha } from '@/app/dev/(app)/perfil/actions'
 import { tentarDeNovo } from '@/app/dev/(app)/sistema/actions'
-import type { FormState } from '@/app/dev/(app)/_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as FormState<Record<string, never>> as never
 

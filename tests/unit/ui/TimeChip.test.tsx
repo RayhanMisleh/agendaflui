@@ -29,3 +29,9 @@ test('ocupado: desabilitado, não chama o manipulador e diz "ocupado" em texto',
   expect(onSelect).not.toHaveBeenCalled()
   expect(chip).toHaveClass('af-timechip--busy')
 })
+
+test('somente leitura: o horário em destaque, sem botão', () => {
+  render(<TimeChip time="14:30" readOnly />)
+  expect(screen.queryByRole('button')).toBeNull()
+  expect(screen.getByText('14:30')).toHaveClass('af-timechip', 'af-timechip--static')
+})

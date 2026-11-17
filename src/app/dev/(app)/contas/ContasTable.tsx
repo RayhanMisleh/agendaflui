@@ -4,7 +4,7 @@ import { useActionState } from 'react'
 import { ArrowRight, DoorOpen } from 'lucide-react'
 import { Button, CopyButton, DataList, LinkButton, StatusDot, businessStatusDot } from '@/ui/components'
 import type { BusinessStatusKey, DataColumn } from '@/ui/components'
-import type { FormState } from '../_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 import { entrarComo } from './actions'
 
 export type ContaLinha = {

@@ -25,7 +25,7 @@ import {
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL } from '@/shared/theme/labels'
-import type { FormState } from '../../_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 import type { LimitesDeRegras } from '../[id]/FormsConta'
 import { criarConta } from './actions'
 import { FUSOS, STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'

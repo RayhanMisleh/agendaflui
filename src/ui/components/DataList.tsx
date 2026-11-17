@@ -31,10 +31,14 @@ function hitProps(onActivate: () => void) {
   }
 }
 
+/** Largura do contêiner a partir da qual a lista vira tabela: `sm` 28 rem, `md` 36 rem (o padrão), `lg` 48 rem. */
+export type DataListStack = 'sm' | 'md' | 'lg'
+
 /**
- * Tabela dentro de um Card quando o CONTÊINER da lista tem ao menos 36rem (576 px); abaixo disso, lista de cartões
- * com a coluna `primary` como título. Quem decide é a largura da folha, não a da tela.
- * As duas versões ficam no HTML e o CSS alterna entre elas.
+ * Uma tabela só, desenhada pelo CSS de duas formas conforme a largura do CONTÊINER da lista (não a da tela): tabela
+ * a partir do limite (`stack`, 36 rem por padrão) e, abaixo dele, uma pilha de cartões com a coluna `primary` como título
+ * e o cabeçalho de cada coluna como rótulo da célula. Cada célula é desenhada uma vez (nada de duas listas no HTML).
+ * Os papéis ARIA ficam explícitos para a semântica de tabela sobreviver à troca de aparência.
  */
 export function DataList<T>({
   columns,
@@ -44,6 +48,7 @@ export function DataList<T>({
   empty,
   label,
   className,
+  stack = 'md',
 }: {
   columns: DataColumn<T>[]
   rows: T[]
@@ -52,36 +57,43 @@ export function DataList<T>({
   empty: ReactNode
   label?: string
   className?: string
+  stack?: DataListStack
 }) {
   if (rows.length === 0) return <>{empty}</>
 
   const primaryIdx = Math.max(0, columns.findIndex((c) => c.primary))
-  const primary = columns[primaryIdx]
-  const others = columns.filter((_, i) => i !== primaryIdx)
 
   return (
-    <div className={cx('af-datalist', className)}>
-      <table className="af-datalist__table" aria-label={label}>
-        <thead>
-          <tr>
+    <div className={cx('af-datalist', className)} data-stack={stack}>
+      <table className="af-datalist__table" role="table" aria-label={label}>
+        <thead role="rowgroup">
+          <tr role="row">
             {columns.map((c) => (
-              <th key={c.key} scope="col" className={colClass(c)}>
+              <th key={c.key} role="columnheader" scope="col" className={colClass(c)}>
                 {c.header}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {rows.map((row) => (
-            <tr key={rowKey(row)} data-clickable={onRowClick ? '' : undefined}>
+            <tr key={rowKey(row)} role="row" data-clickable={onRowClick ? '' : undefined}>
               {columns.map((c, i) => (
-                <td key={c.key} className={cx(colClass(c), onRowClick && i === primaryIdx && 'af-cell-hit') || undefined}>
+                <td
+                  key={c.key}
+                  role="cell"
+                  data-primary={i === primaryIdx ? '' : undefined}
+                  className={cx(colClass(c), onRowClick && i === primaryIdx && 'af-cell-hit') || undefined}
+                >
+                  {i === primaryIdx ? null : (
+                    <span className="af-datalist__label">{c.header}</span>
+                  )}
                   {onRowClick && i === primaryIdx ? (
                     <div className="af-row-hit" {...hitProps(() => onRowClick(row))}>
                       {c.cell(row)}
                     </div>
                   ) : (
-                    c.cell(row)
+                    <div className="af-datalist__value">{c.cell(row)}</div>
                   )}
                 </td>
               ))}
@@ -89,27 +101,6 @@ export function DataList<T>({
           ))}
         </tbody>
       </table>
-
-      <ul className="af-datalist__cards" aria-label={label}>
-        {rows.map((row) => (
-          <li key={rowKey(row)}>
-            <div
-              className={cx('af-datalist__item', onRowClick && 'af-datalist__item--clickable')}
-              {...(onRowClick ? hitProps(() => onRowClick(row)) : {})}
-            >
-              {primary ? <div className="af-datalist__title">{primary.cell(row)}</div> : null}
-              <dl className="af-datalist__fields">
-                {others.map((c) => (
-                  <div key={c.key} className="af-datalist__field">
-                    <dt>{c.header}</dt>
-                    <dd>{c.cell(row)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </li>
-        ))}
-      </ul>
     </div>
   )
 }

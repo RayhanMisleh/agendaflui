@@ -4,3 +4,33 @@ const INT = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 })
 export function formatInt(n: number): string {
   return INT.format(n)
 }
+
+/** Duração em minutos como texto curto: `45 min`, `1 h`, `1 h 30`. */
+export function formatDuration(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes))
+  if (m < 60) return `${m} min`
+  const h = Math.floor(m / 60)
+  const rest = m % 60
+  return rest === 0 ? `${h} h` : `${h} h ${String(rest).padStart(2, '0')}`
+}
+
+const WEEKDAY_PT: Record<string, string> = {
+  SUNDAY: 'Domingo',
+  MONDAY: 'Segunda-feira',
+  TUESDAY: 'Terça-feira',
+  WEDNESDAY: 'Quarta-feira',
+  THURSDAY: 'Quinta-feira',
+  FRIDAY: 'Sexta-feira',
+  SATURDAY: 'Sábado',
+}
+
+/** Nome do dia da semana em português (`TUESDAY` → `Terça-feira`). */
+export function weekdayName(weekday: string): string {
+  return WEEKDAY_PT[weekday] ?? weekday
+}
+
+/** `AAAA-MM-DD` como `DD/MM` (sem o ano), para datas próximas. */
+export function shortDate(isoDate: string): string {
+  const [, month, day] = isoDate.split('-')
+  return month && day ? `${day}/${month}` : isoDate
+}

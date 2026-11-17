@@ -37,7 +37,7 @@ import {
   trocarPapel,
 } from '@/app/dev/(app)/contas/[id]/actions'
 import { createApiKey, listApiKeys } from '@/server/domain/platform/api-keys'
-import type { FormState } from '@/app/dev/(app)/_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 const vazio: FormState<Record<string, never>> = { ok: false, message: null, fields: {}, values: {} }
 // As ações aceitam qualquer estado anterior; o teste só precisa de um estado inicial.

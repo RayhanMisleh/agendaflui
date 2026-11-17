@@ -1,6 +1,6 @@
 import { DomainError } from '@/server/domain/errors'
-import { formError } from '@/app/dev/(app)/_lib/form-state'
-import type { FormState } from '@/app/dev/(app)/_lib/form-state'
+import { formError } from '@/app/_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 const guards = vi.hoisted(() => ({ requirePlatformAdmin: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)

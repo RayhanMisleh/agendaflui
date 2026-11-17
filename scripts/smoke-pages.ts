@@ -1,5 +1,6 @@
-// Fumaça por HTTP das telas do painel dev: sobe `next start`, entra com uma sessão temporária de admin e pede cada
-// página da lista abaixo. Falha se alguma não responder 200 ou trouxer marca de erro do Next. Sem navegador.
+// Fumaça por HTTP das telas dos dois painéis: sobe `next start`, entra com uma sessão temporária de admin (painel dev) e
+// outra de membro, o dono da conta de demonstração (painel do negócio), e pede cada página das listas abaixo. Falha se
+// alguma não responder 200 ou trouxer marca de erro do Next. Sem navegador. As sessões temporárias são apagadas no fim.
 // Antes: `npm run build` e o banco de desenvolvimento com o seed (este script sobe o banco se a porta 54329 estiver livre).
 import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
@@ -17,6 +18,7 @@ try {
 }
 
 const DEV_COOKIE = 'af_dev_session'
+const PAINEL_COOKIE = 'af_painel_session'
 const MARCAS_DE_ERRO = ['__next_error__', 'Application error', /Digest: \d+/]
 
 /** Páginas pedidas. `{conta}` vira o id da primeira conta do seed. Acrescente aqui as telas novas de cada tarefa. */
@@ -51,11 +53,14 @@ const PAGINAS = [
   '/vitrine',
 ]
 
+/** Páginas do painel do negócio, pedidas como o dono da conta de demonstração. Acrescente aqui as telas novas de cada tarefa. */
+const PAGINAS_PAINEL = ['/']
+
 type Resposta = { status: number; corpo: string }
 
 function pedir(porta: number, host: string, caminho: string, cookie: string): Promise<Resposta> {
   return new Promise((ok, falhou) => {
-    const req = request({ host: '127.0.0.1', port: porta, path: caminho, headers: { host, cookie: `${DEV_COOKIE}=${cookie}` } }, (res) => {
+    const req = request({ host: '127.0.0.1', port: porta, path: caminho, headers: { host, cookie } }, (res) => {
       const partes: Buffer[] = []
       res.on('data', (p: Buffer) => partes.push(p))
       res.on('end', () => ok({ status: res.statusCode ?? 0, corpo: Buffer.concat(partes).toString('utf8') }))
@@ -144,10 +149,21 @@ async function main(): Promise<number> {
     const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
     if (!admin || !conta) throw new Error('O banco não tem admin nem conta de demonstração. Rode `npm run dev` uma vez para criar o seed.')
 
+    const dono = await prisma.membership.findFirst({
+      where: { businessId: conta.id, role: 'OWNER', active: true, business: { status: 'ACTIVE' } },
+      select: { userId: true },
+    })
+    if (!dono) throw new Error('A conta de demonstração não tem um dono ativo. Rode `npm run dev` uma vez para criar o seed.')
+
     const { token, hash } = generateToken()
     const sessao = await prisma.platformSession.create({ data: { adminId: admin.id, tokenHash: hash, expiresAt: addMinutes(new Date(), 30) } })
+    const membro = generateToken()
+    const sessaoMembro = await prisma.session.create({
+      data: { userId: dono.userId, activeBusinessId: conta.id, tokenHash: membro.hash, expiresAt: addMinutes(new Date(), 30) },
+    })
     limpar = async () => {
       await prisma.platformSession.deleteMany({ where: { id: sessao.id, tokenHash: hashToken(token) } })
+      await prisma.session.deleteMany({ where: { id: sessaoMembro.id, tokenHash: hashToken(membro.token) } })
       await prisma.$disconnect()
     }
 
@@ -169,22 +185,30 @@ async function main(): Promise<number> {
     }
 
     let falhas = 0
-    for (const modelo of PAGINAS) {
-      const caminho = modelo.replace('{conta}', conta.id)
-      let linha: string
-      try {
-        const r = await pedir(porta, host, caminho, token)
-        const marca = MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
-        const bom = r.status === 200 && marca === undefined
-        if (!bom) falhas++
-        linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} ${modelo}${marca ? `  (marca de erro: ${String(marca)})` : ''}`
-      } catch (err) {
-        falhas++
-        linha = `FALHA --- ${modelo}  (${err instanceof Error ? err.message : 'erro'})`
+    const hostPainel = `painel.localhost:${porta}`
+    const lotes = [
+      { host, cookie: `${DEV_COOKIE}=${token}`, paginas: PAGINAS, rotulo: 'dev' },
+      { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
+    ]
+    for (const lote of lotes) {
+      for (const modelo of lote.paginas) {
+        const caminho = modelo.replace('{conta}', conta.id)
+        let linha: string
+        try {
+          const r = await pedir(porta, lote.host, caminho, lote.cookie)
+          const marca = MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
+          const bom = r.status === 200 && marca === undefined
+          if (!bom) falhas++
+          linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} ${lote.rotulo} ${modelo}${marca ? `  (marca de erro: ${String(marca)})` : ''}`
+        } catch (err) {
+          falhas++
+          linha = `FALHA --- ${lote.rotulo} ${modelo}  (${err instanceof Error ? err.message : 'erro'})`
+        }
+        console.log(linha)
       }
-      console.log(linha)
     }
-    console.log(falhas === 0 ? `\nFumaça: ${PAGINAS.length} páginas responderam 200 sem marca de erro.` : `\nFumaça: ${falhas} de ${PAGINAS.length} páginas falharam.`)
+    const total = PAGINAS.length + PAGINAS_PAINEL.length
+    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro.` : `\nFumaça: ${falhas} de ${total} páginas falharam.`)
     return falhas === 0 ? 0 : 1
   } finally {
     await encerrar()

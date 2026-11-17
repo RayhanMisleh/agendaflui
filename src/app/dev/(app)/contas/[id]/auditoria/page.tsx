@@ -4,7 +4,7 @@ import { DomainError } from '@/server/domain/errors'
 import { listAudit } from '@/server/domain/platform/audit-log'
 import { HorariosNota } from '../../../_lib/HorariosNota'
 import { quando } from '../../../_lib/format'
-import { um } from '../../../_lib/params'
+import { um } from '@/app/_lib/params'
 import { carregarConta } from '../_data'
 import { AuditTable } from '../AuditTable'
 

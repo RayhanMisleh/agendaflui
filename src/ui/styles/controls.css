@@ -451,6 +451,15 @@
     text-decoration: line-through;
     cursor: not-allowed;
   }
+  /* Só mostra a hora: sem cursor de botão, na cor do estado "livre"; quem usa troca o fundo (o próximo atendimento é caramelo). */
+  .af-timechip--static {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--brand-tint);
+    color: var(--ink);
+    cursor: default;
+  }
   @media (hover: hover) {
     .af-timechip--free:hover {
       background-color: color-mix(in srgb, var(--brand-tint) 80%, var(--brand));

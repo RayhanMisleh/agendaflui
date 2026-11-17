@@ -4,7 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EMPTY_VALUES } from '@/app/dev/(app)/contas/nova/fields'
 import type { WizardData } from '@/app/dev/(app)/contas/nova/fields'
-import type { FormState } from '@/app/dev/(app)/_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 const acao = vi.hoisted(() => ({ criarConta: vi.fn() }))
 vi.mock('@/app/dev/(app)/contas/nova/actions', () => acao)

@@ -67,3 +67,34 @@ test('devolve o foco ao gatilho ao fechar', async () => {
   rerender(<Host open={false} />)
   expect(trigger).toHaveFocus()
 })
+
+test('Esc que um filho já tratou não fecha o diálogo', async () => {
+  const onClose = vi.fn()
+  render(
+    <Dialog open onClose={onClose} title="Novo agendamento">
+      <input
+        aria-label="Busca"
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') e.preventDefault()
+        }}
+      />
+    </Dialog>,
+  )
+  screen.getByRole('textbox', { name: 'Busca' }).focus()
+  await userEvent.keyboard('{Escape}')
+  expect(onClose).not.toHaveBeenCalled()
+  screen.getByRole('dialog').focus()
+  await userEvent.keyboard('{Escape}')
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
+
+test('o título é um h2 próprio, sem estar dentro de outro título', () => {
+  render(
+    <Dialog open onClose={() => {}} title="Novo agendamento">
+      x
+    </Dialog>,
+  )
+  const h = screen.getByRole('heading', { name: 'Novo agendamento' })
+  expect(h.tagName).toBe('H2')
+  expect(h.closest('h1, h2, h3, h4, h5, h6, [role="heading"]')).toBe(h)
+})

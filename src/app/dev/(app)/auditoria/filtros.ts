@@ -1,6 +1,6 @@
 import { isLocalDate, localDayRange } from '@/server/time'
 import { PLATFORM_TIME_ZONE } from '../_lib/format'
-import { um } from '../_lib/params'
+import { um } from '@/app/_lib/params'
 
 export const TIPOS_DE_ATOR = [
   { value: 'PLATFORM_ADMIN', label: 'Admin da plataforma' },

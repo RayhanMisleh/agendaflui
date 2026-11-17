@@ -3,11 +3,12 @@ import { revalidatePath } from 'next/cache'
 import { DomainError } from '@/server/domain/errors'
 import { createAdmin, listAdmins, setAdminActive } from '@/server/domain/platform/admins'
 import { adminAction } from '../_lib/action'
-import { erroDeCampo, feito, ler, porAlvo, renomear } from '../_lib/campos'
-import type { EstadoGlobal } from '../_lib/campos'
+import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
+import { porAlvo } from '../_lib/campos'
+import type { EstadoCampos } from '@/app/_lib/campos'
 
 /** Cria um admin. A senha nunca volta no estado do formulário (o nome do campo começa com "senha"). */
-export async function criarAdmin(prev: EstadoGlobal, fd: FormData): Promise<EstadoGlobal> {
+export async function criarAdmin(prev: EstadoCampos, fd: FormData): Promise<EstadoCampos> {
   return adminAction(
     (f) => ler(f, ['name', 'email', 'senha']),
     async (admin, v) => {

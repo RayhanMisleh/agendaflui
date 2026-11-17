@@ -5,10 +5,10 @@ import { DEV_COOKIE, readCookie } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { changeOwnPassword, updateOwnProfile } from '@/server/domain/platform/admins'
 import { adminAction } from '../_lib/action'
-import { erroDeCampo, feito, ler, renomear } from '../_lib/campos'
-import type { EstadoGlobal } from '../_lib/campos'
+import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
+import type { EstadoCampos } from '@/app/_lib/campos'
 
-export async function salvarPerfil(prev: EstadoGlobal, fd: FormData): Promise<EstadoGlobal> {
+export async function salvarPerfil(prev: EstadoCampos, fd: FormData): Promise<EstadoCampos> {
   return adminAction(
     (f) => ler(f, ['name']),
     (admin, v) => updateOwnProfile(admin, { name: v.name ?? '' }),
@@ -23,7 +23,7 @@ export async function salvarPerfil(prev: EstadoGlobal, fd: FormData): Promise<Es
  * Troca a senha. O token da sessão atual vem do cookie, no servidor (nunca do formulário), para o domínio manter esta
  * sessão e revogar as outras. Os campos de senha começam com "senha": nunca voltam ao navegador.
  */
-export async function trocarSenha(prev: EstadoGlobal, fd: FormData): Promise<EstadoGlobal> {
+export async function trocarSenha(prev: EstadoCampos, fd: FormData): Promise<EstadoCampos> {
   return adminAction(
     (f) => ler(f, ['senhaAtual', 'senhaNova', 'senhaRepetida']),
     async (admin, v) => {

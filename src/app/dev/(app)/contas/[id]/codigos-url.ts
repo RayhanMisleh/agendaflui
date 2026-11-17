@@ -1,4 +1,4 @@
-import { porCodigo } from '../../_lib/params'
+import { porCodigo } from '@/app/_lib/params'
 
 /** O que cada código de `?faltou=` quer dizer. O código vem da criação em etapas; nunca traz segredo. */
 const FALTOU: Record<string, string> = {

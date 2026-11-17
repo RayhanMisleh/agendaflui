@@ -1,0 +1,202 @@
+/*
+ * Telas do painel do negócio ("dia claro"). Início: bloco "Hoje" na cor da conta, cartão branco do próximo atendimento,
+ * lista do resto do dia, números e atalhos. Uma coluna no celular; no computador o bloco e o próximo atendimento ficam lado
+ * a lado. Tudo por tokens; cartão sem sombra; o caramelo só no próximo atendimento.
+ */
+@layer components {
+  .af-home {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .af-home__top {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .af-home__section-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  /* Bloco "Hoje" */
+  .af-home__hero {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+    min-width: 0;
+  }
+  .af-home__hero-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+  }
+  .af-home__date {
+    margin: 0;
+    font-size: var(--text-body-lg);
+    line-height: var(--text-body-lg-lh);
+  }
+  .af-home__occupancy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 0.75rem;
+    margin: 0.5rem 0 0;
+  }
+  .af-home__occupancy-value {
+    font-family: var(--font-display);
+    font-size: var(--text-display);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .af-home__occupancy-text {
+    font-size: var(--text-body-lg);
+    line-height: var(--text-body-lg-lh);
+  }
+  .af-home__summary {
+    margin: 0;
+    max-width: 34rem;
+    line-height: var(--text-body-lh);
+  }
+
+  /* Próximo atendimento: cartão branco; o horário é o único caramelo da tela. */
+  .af-home__next {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+    min-width: 0;
+  }
+  .af-home__next-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .af-home__next .af-timechip--static {
+    min-width: 5rem;
+    background-color: var(--accent);
+    color: var(--on-accent);
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+  }
+  .af-home__next-when {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: var(--text-small-lh);
+  }
+  .af-home__next-name {
+    margin: 0;
+    font-size: var(--text-body-lg);
+    font-weight: 700;
+    line-height: var(--text-body-lg-lh);
+    overflow-wrap: anywhere;
+  }
+  .af-home__next-detail {
+    margin: 0;
+    color: var(--ink-muted);
+    overflow-wrap: anywhere;
+  }
+  .af-home__next-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+  }
+
+  /* Resto do dia */
+  .af-home__card {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-home__list {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-home__row {
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    gap: 0.75rem;
+    align-items: start;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .af-home__row:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+  .af-home__row-time {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: var(--text-body-lg-lh);
+  }
+  .af-home__row-main {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .af-home__row-name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-home__row-detail {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+    overflow-wrap: anywhere;
+  }
+
+  /* Números e atalhos */
+  .af-home__numbers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .af-home__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  @media (min-width: 64rem) {
+    .af-home__top {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      align-items: stretch;
+    }
+    .af-home__lower {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    .af-home__side {
+      display: grid;
+      gap: 1rem;
+      min-width: 0;
+    }
+  }
+  @media (max-width: 63.99rem) {
+    .af-home__lower,
+    .af-home__side {
+      display: grid;
+      gap: 1rem;
+      min-width: 0;
+    }
+  }
+}

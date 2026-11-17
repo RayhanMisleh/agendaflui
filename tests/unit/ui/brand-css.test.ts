@@ -8,9 +8,9 @@ const semComentarios = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
 /** Arquivos de componente: tudo nasce dos tokens. */
 const COMPONENTES = ['base.css', 'controls.css', 'surfaces.css', 'feedback.css', 'data.css']
 /** Molduras, entrada e telas do painel dev (R3 e R4): as mesmas regras dos componentes. */
-const MOLDURAS = ['shells.css', 'entry.css', 'account.css', 'overview.css', 'screens.css', 'wizard.css']
+const MOLDURAS = ['shells.css', 'entry.css', 'account.css', 'overview.css', 'screens.css', 'wizard.css', 'painel.css']
 /** Os seis arquivos de moldura e de tela que as etapas R3 e R4 refazem. */
-const TELAS = ['shells.css', 'entry.css', 'account.css', 'overview.css', 'screens.css', 'wizard.css']
+const TELAS = ['shells.css', 'entry.css', 'account.css', 'overview.css', 'screens.css', 'wizard.css', 'painel.css']
 
 describe('CSS dos componentes no desenho da marca', () => {
   test.each([...COMPONENTES, ...MOLDURAS])('%s: nenhuma cor fixa (só tokens)', (f) => {

@@ -3,11 +3,12 @@ import { revalidatePath } from 'next/cache'
 import { DomainError } from '@/server/domain/errors'
 import { createApiKey, listApiKeys, revokeApiKey } from '@/server/domain/platform/api-keys'
 import { adminAction } from '../_lib/action'
-import { erroDeCampo, feito, ler, linhasDe, porAlvo, renomear } from '../_lib/campos'
-import type { Campos, EstadoGlobal } from '../_lib/campos'
+import { erroDeCampo, feito, ler, linhasDe, renomear } from '@/app/_lib/campos'
+import { porAlvo } from '../_lib/campos'
+import type { Campos, EstadoCampos } from '@/app/_lib/campos'
 
 /** Cria uma chave de PLATAFORMA (as de conta nascem na página da conta). O segredo volta uma vez, no estado. */
-export async function criarChavePlataforma(prev: EstadoGlobal, fd: FormData): Promise<EstadoGlobal> {
+export async function criarChavePlataforma(prev: EstadoCampos, fd: FormData): Promise<EstadoCampos> {
   return adminAction(
     (f) => ler(f, ['name', 'origins']),
     async (admin, v: Campos) => {

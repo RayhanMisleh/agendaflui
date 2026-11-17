@@ -6,7 +6,7 @@ import { listBusinesses } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
 import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
-import { um } from '../_lib/params'
+import { um } from '@/app/_lib/params'
 import { ContasTable } from './ContasTable'
 
 export const metadata: Metadata = { title: 'Contas | AgendaFlui' }

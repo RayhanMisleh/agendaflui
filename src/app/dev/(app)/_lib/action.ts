@@ -1,8 +1,8 @@
 import 'server-only'
 import type { Actor } from '@/server/auth/actor'
 import { requirePlatformAdmin } from '@/server/auth/guards'
-import { formError } from './form-state'
-import type { FormState } from './form-state'
+import { formError } from '@/app/_lib/form-state'
+import type { FormState } from '@/app/_lib/form-state'
 
 export type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
