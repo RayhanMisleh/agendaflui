@@ -66,7 +66,7 @@ const PAGINAS_PAINEL = [
   '/servicos?situacao=arquivados',
   '/clientes',
   '/clientes?search=a&situacao=arquivados',
-  '/clientes?search=%00&cursor=nao-existe',
+  '/clientes?search=ab%00&cursor=nao-existe',
   '/clientes/novo',
   '/clientes/{cliente}',
   '/equipe',

@@ -4,7 +4,7 @@ import { Mail, MessageCircle } from 'lucide-react'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
-import { getCustomer } from '@/server/domain/customers/customers'
+import { getCustomer, isCustomerAnonymized } from '@/server/domain/customers/customers'
 import type { CustomerView } from '@/server/domain/customers/customers'
 import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
@@ -62,7 +62,7 @@ export default async function ClientePage({
   const { terms } = painel
   const podeEscrever = can(ctx.actor, 'manage_clients')
   const suporte = ctx.actor.kind === 'impersonator'
-  const removido = cliente.name === 'Cliente removido' && cliente.phone === null && cliente.email === null && cliente.archived
+  const removido = await isCustomerAnonymized(ctx, id)
   const todos = can(ctx.actor, 'view_all_agendas')
   const zap = cliente.phone ? `https://wa.me/${cliente.phone.replace(/\D/g, '')}` : null
   const clube = painel.modules.loyalty ? terms.club : null

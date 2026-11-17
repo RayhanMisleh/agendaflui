@@ -261,7 +261,7 @@ describe('marcar e agir sobre agendamentos', () => {
     expect((await chamar(obterAgendamento, 'GET', '/v1/staff/appointments/x', gerente, { params: { id: 'x' } })).status).toBe(422)
   })
 
-  test('concluir devolve a comissão ao gerente e ao próprio profissional, e null a outro profissional que lê depois', async () => {
+  test('concluir devolve a comissão ao gerente e ao próprio profissional; outro profissional não vê esses atendimentos no histórico do cliente', async () => {
     const idGerente = await marcado(c.dia(-1), '10:00')
     const feito = await acao(concluir, gerente, idGerente, 'complete')
     expect(feito.status, feito.text).toBe(200)
@@ -277,8 +277,8 @@ describe('marcar e agir sobre agendamentos', () => {
     })
     expect(outra.status).toBe(200)
     const itens = jsonObject(outra.json).items as { id: string; commissionCents: number | null; notes: string | null }[]
-    expect(itens.map((i) => i.id).sort()).toEqual([idGerente, idAna].sort())
-    for (const item of itens) expect(item).toMatchObject({ commissionCents: null, notes: null })
+    expect(itens.map((i) => i.id)).toEqual([])
+    expect(idGerente).not.toBe(idAna)
   })
 
   test('concluir antes do início: 409 too_early', async () => {

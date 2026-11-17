@@ -67,6 +67,8 @@ const MAX_AGENDA_ROWS = 5000
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 const UPCOMING: AppointmentStatus[] = [...OPEN_STATUSES]
+/** Um UUID que nenhum profissional tem: o filtro de quem não tem ficha não casa com nada. */
+const NO_PROFESSIONAL = '00000000-0000-0000-0000-000000000000'
 
 const localDate = z.string().refine(isLocalDate, 'Use uma data válida no formato AAAA-MM-DD.')
 const idSchema = z.uuid()
@@ -353,6 +355,8 @@ export async function listCustomerAppointments(
   }
   const direction = upcoming ? 'asc' : 'desc'
   const viewer = await viewScope(ctx)
+  // Quem não vê todas as agendas só vê, no histórico do cliente, os atendimentos do próprio profissional (e sem ficha ligada, nenhum).
+  if (ctx.actor.kind !== 'customer' && !viewer.all) conditions.push({ professionalId: viewer.ownId ?? NO_PROFESSIONAL })
   const rows: Row[] = await ctx.db.appointment.findMany({
     where: { AND: conditions },
     include,

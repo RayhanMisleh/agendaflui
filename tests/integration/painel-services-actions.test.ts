@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { TenantContext } from '@/server/auth/actor'
 import { prisma } from '@/server/db/client'
-import { reorderServices } from '@/server/domain/catalog/services'
+import { moveService, reorderServices } from '@/server/domain/catalog/services'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import { ctxWithRole, makeBusiness, makeCtx, makeService } from '../setup/factories'
@@ -172,6 +172,13 @@ describe('ordem', () => {
     for (const r of resultados) expect(r.status).toBe('fulfilled')
     const ordens = (await servicos()).map((s) => s.displayOrder).sort((x, y) => x - y)
     expect(ordens).toEqual([1, 2, 3, 4, 5, 6])
+  })
+
+  test('vários "descer" no mesmo serviço ao mesmo tempo se somam: o primeiro vai ao fim, sem perder movimento', async () => {
+    const lista = await Promise.all(['A', 'B', 'C', 'D', 'E', 'F'].map((nome, i) => makeService(businessId, { name: nome, displayOrder: i + 1 })))
+    const [a] = lista
+    await Promise.all(Array.from({ length: 5 }, () => moveService(dono, a?.id ?? '', 'down')))
+    expect(await nomes()).toBe('BCDEFA')
   })
 
   test('lista desatualizada na reordenação é recusada sem mexer em nada', async () => {

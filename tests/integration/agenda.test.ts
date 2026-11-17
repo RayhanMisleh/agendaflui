@@ -537,12 +537,14 @@ describe('listCustomerAppointments', () => {
     expect((await domainError(listCustomerAppointments(s.gerente, { customerId: '00000000-0000-4000-8000-000000000000', scope: 'upcoming' }))).code).toBe('not_found')
   })
 
-  test('o papel PROFESSIONAL vê todos os agendamentos do cliente, inclusive de colegas; sem permissão de ver clientes, forbidden', async () => {
+  test('o papel PROFESSIONAL vê só os agendamentos do cliente que são dele, não os de colegas; sem permissão de ver clientes, forbidden', async () => {
     const s = await montar()
     const h = await historico(s)
     const eu = await comoProfissional(s, s.ana.id)
     const lista = await listCustomerAppointments(eu, { customerId: s.cliente.id, scope: 'upcoming' })
-    expect(lista.items.map((x) => x.id)).toEqual(h.futuros)
+    expect(lista.items.length).toBeGreaterThan(0)
+    expect(lista.items.length).toBeLessThan(h.futuros.length)
+    for (const x of lista.items) expect(x.professional.id).toBe(s.ana.id)
     const sistema = await makeCtx(s.b, { actor: { kind: 'system' }, now: s.now })
     expect((await domainError(listCustomerAppointments(sistema, { customerId: s.cliente.id, scope: 'upcoming' }))).code).toBe('forbidden')
   })

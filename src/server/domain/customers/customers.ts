@@ -106,7 +106,12 @@ const updateSchema = createSchema.partial()
 const idSchema = z.uuid()
 
 const listSchema = z.object({
-  search: z.string().max(80, 'Use até 80 caracteres na busca.').optional(),
+  // O Postgres não aceita o caractere NUL em texto: ele sai da busca antes de chegar ao banco.
+  search: z
+    .string()
+    .max(80, 'Use até 80 caracteres na busca.')
+    .transform((texto) => texto.replace(/\0/g, ''))
+    .optional(),
   clubOnly: z.boolean().optional(),
   includeArchived: z.boolean().optional(),
   onlyArchived: z.boolean().optional(),
@@ -248,7 +253,8 @@ export async function listCustomers(
   const rows = await ctx.db.customer.findMany({
     where: {
       ...(clubOnly ? { isClubMember: true } : {}),
-      ...(onlyArchived ? { archivedAt: { not: null } } : includeArchived ? {} : { archivedAt: null }),
+      // Anonimizado não é "arquivado": o cadastro virou "Cliente removido" e não volta.
+      ...(onlyArchived ? { archivedAt: { not: null }, anonymizedAt: null } : includeArchived ? {} : { archivedAt: null }),
       ...(conditions.length > 0 ? { AND: conditions } : {}),
     },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
@@ -261,6 +267,14 @@ export async function listCustomers(
     items: page.map((row) => toView(ctx, row)),
     nextCursor: rows.length > limit && last ? encodeCursor(last) : null,
   }
+}
+
+/** O cadastro foi anonimizado a pedido (dados apagados, sem volta)? Fica fora de `CustomerView` para não mudar o contrato da API. */
+export async function isCustomerAnonymized(ctx: TenantContext, id: string): Promise<boolean> {
+  authorize(ctx, 'view_clients')
+  if (!idSchema.safeParse(id).success) throw notFound()
+  const row = orNotFound(await ctx.db.customer.findUnique({ where: { id }, select: { anonymizedAt: true } }), 'Cliente')
+  return row.anonymizedAt !== null
 }
 
 export async function getCustomer(ctx: TenantContext, id: string): Promise<CustomerView> {

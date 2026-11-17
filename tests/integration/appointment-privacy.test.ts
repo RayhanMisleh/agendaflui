@@ -63,12 +63,12 @@ describe('comissão e observações do agendamento', () => {
     expect(v.notes).toBe('observação interna')
   })
 
-  test('na lista do cliente, o profissional vê os campos do próprio e não os do colega', async () => {
+  test('na lista do cliente, o profissional vê os campos do próprio e nenhum atendimento do colega', async () => {
     const s = await montar()
     const { items } = await listCustomerAppointments(s.eu, { customerId: s.cliente.id, scope: 'upcoming' })
     const por = new Map(items.map((i) => [i.id, i]))
     expect(por.get(s.meu.id)).toMatchObject({ commissionCents: 1500, notes: 'observação interna' })
-    expect(por.get(s.doColega.id)).toMatchObject({ commissionCents: null, notes: null })
+    expect(por.has(s.doColega.id)).toBe(false)
   })
 
   test('no próximo agendamento do cliente, o do colega vem sem campos internos', async () => {

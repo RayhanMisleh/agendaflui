@@ -33,6 +33,8 @@ export async function setProfessionalAvatar(ctx: TenantContext, professionalId: 
   let antiga: string | null = null
   try {
     antiga = await ctx.db.$transaction(async (tx) => {
+      // Duas trocas ao mesmo tempo se enfileiram: a segunda lê a foto que a primeira deixou e apaga a antiga certa.
+      await tx.$lockKey('professional', professionalId)
       const atual = orNotFound(await tx.professional.findUnique({ where: { id: professionalId }, select: { avatarUploadId: true } }), 'Profissional')
       await tx.professional.update({ where: { id: professionalId }, data: { avatarUploadId: nova?.id ?? null } })
       await audit(ctx, { action: 'professional.avatar_changed', targetType: 'Professional', targetId: professionalId, metadata: { change: nova === null ? 'removed' : atual.avatarUploadId === null ? 'added' : 'replaced' } }, tx)

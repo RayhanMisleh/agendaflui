@@ -168,8 +168,9 @@ export async function updateService(
 ): Promise<ServiceView> {
   authorize(ctx, 'manage_catalog')
   const data = definedOnly(parse(updateSchema, input))
-  if (opts.onGrid) await assertOnGrid(ctx, data.durationMin)
   const current = await loadService(ctx, id)
+  // A grade só vale para uma duração nova: editar o nome de quem ficou fora da grade (a conta mudou o passo) segue possível.
+  if (opts.onGrid && data.durationMin !== current.durationMin) await assertOnGrid(ctx, data.durationMin)
   if (current.archivedAt !== null) throw archivedConflict()
   const fields = Object.keys(data)
   if (fields.length === 0) return toServiceView(current)

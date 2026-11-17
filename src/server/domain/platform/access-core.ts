@@ -327,57 +327,73 @@ export async function alterarVinculo(
     await lockKeyRaw(tx, businessId, 'business_owners', businessId)
     await travarVinculos(tx, businessId, autor, membershipId)
     const quem = await exigirAutor(tx, autor, businessId)
-    const atual = await tx.membership.findFirst({ where: { id: membershipId, businessId }, select: SELECAO })
-    if (!atual) throw vinculoInexistente()
-    const novo = alterar({ role: atual.role, active: atual.active })
-    conferirAlvo(quem, { id: atual.id, role: atual.role }, { proprio: true, novoPapel: novo.role })
-    if (novo.role === atual.role && novo.active === atual.active) return paraMembro(atual)
-
-    // Dono com convite pendente (ainda sem senha) conta como dono ativo: a conta não fica órfã, porque o admin pode reenviar
-    // o convite (`resendInvite`) ou entrar em suporte. Por isso o filtro abaixo olha só vínculo e papel, não a senha.
-    const deixaDeSerDonoAtivo = atual.role === 'OWNER' && atual.active && !(novo.role === 'OWNER' && novo.active)
-    if (deixaDeSerDonoAtivo) {
-      const outros = await tx.membership.count({ where: { businessId, role: 'OWNER', active: true, id: { not: membershipId } } })
-      if (outros === 0) {
-        throw new DomainError(
-          'conflict',
-          'Esta conta ficaria sem nenhum dono ativo. Torne outra pessoa dona da conta antes de rebaixar ou desativar este acesso.',
-        )
-      }
-    }
-    await tx.membership.update({ where: { id: membershipId }, data: { role: novo.role, active: novo.active } })
-
-    const rebaixou = DEGRAU[novo.role] < DEGRAU[atual.role]
-    const desativou = atual.active && !novo.active
-    if (rebaixou || desativou) {
-      await tx.session.updateMany({
-        where: { userId: atual.user.id, activeBusinessId: businessId, revokedAt: null },
-        data: { revokedAt: now },
-      })
-      await revokeMemberTokensIn(tx, businessId, membershipId, now)
-    }
-    // Quem fica sem nenhum acesso ativo não define nem redefine a senha por um link antigo.
-    if (desativou && (await tx.membership.count({ where: { userId: atual.user.id, active: true } })) === 0) {
-      await tx.userToken.deleteMany({ where: { userId: atual.user.id, purpose: { in: ['INVITE', 'PASSWORD_RESET'] }, usedAt: null } })
-    }
-    if (novo.role !== atual.role) {
-      await auditar(tx, autor, businessId, {
-        action: 'team.role_changed',
-        targetType: 'membership',
-        targetId: membershipId,
-        metadata: { from: atual.role, to: novo.role },
-      })
-    }
-    if (novo.active !== atual.active) {
-      await auditar(tx, autor, businessId, {
-        action: novo.active ? 'team.member_activated' : 'team.member_deactivated',
-        targetType: 'membership',
-        targetId: membershipId,
-        metadata: { role: novo.role },
-      })
-    }
-    return paraMembro(await tx.membership.findUniqueOrThrow({ where: { id: membershipId }, select: SELECAO }))
+    return alterarVinculoEm(tx, autor, quem, businessId, membershipId, alterar, now)
   })
+}
+
+/**
+ * O miolo de `alterarVinculo`, para quem já está numa transação com as travas dos donos e dos vínculos e o autor conferido
+ * (a remoção de profissional faz isso junto com o arquivamento da ficha).
+ */
+async function alterarVinculoEm(
+  tx: Prisma.TransactionClient,
+  autor: Autor,
+  quem: Quem,
+  businessId: string,
+  membershipId: string,
+  alterar: Alteracao,
+  now: Date,
+): Promise<TeamMember> {
+  const atual = await tx.membership.findFirst({ where: { id: membershipId, businessId }, select: SELECAO })
+  if (!atual) throw vinculoInexistente()
+  const novo = alterar({ role: atual.role, active: atual.active })
+  conferirAlvo(quem, { id: atual.id, role: atual.role }, { proprio: true, novoPapel: novo.role })
+  if (novo.role === atual.role && novo.active === atual.active) return paraMembro(atual)
+
+  // Dono com convite pendente (ainda sem senha) conta como dono ativo: a conta não fica órfã, porque o admin pode reenviar
+  // o convite (`resendInvite`) ou entrar em suporte. Por isso o filtro abaixo olha só vínculo e papel, não a senha.
+  const deixaDeSerDonoAtivo = atual.role === 'OWNER' && atual.active && !(novo.role === 'OWNER' && novo.active)
+  if (deixaDeSerDonoAtivo) {
+    const outros = await tx.membership.count({ where: { businessId, role: 'OWNER', active: true, id: { not: membershipId } } })
+    if (outros === 0) {
+      throw new DomainError(
+        'conflict',
+        'Esta conta ficaria sem nenhum dono ativo. Torne outra pessoa dona da conta antes de rebaixar ou desativar este acesso.',
+      )
+    }
+  }
+  await tx.membership.update({ where: { id: membershipId }, data: { role: novo.role, active: novo.active } })
+
+  const rebaixou = DEGRAU[novo.role] < DEGRAU[atual.role]
+  const desativou = atual.active && !novo.active
+  if (rebaixou || desativou) {
+    await tx.session.updateMany({
+      where: { userId: atual.user.id, activeBusinessId: businessId, revokedAt: null },
+      data: { revokedAt: now },
+    })
+    await revokeMemberTokensIn(tx, businessId, membershipId, now)
+  }
+  // Quem fica sem nenhum acesso ativo não define nem redefine a senha por um link antigo.
+  if (desativou && (await tx.membership.count({ where: { userId: atual.user.id, active: true } })) === 0) {
+    await tx.userToken.deleteMany({ where: { userId: atual.user.id, purpose: { in: ['INVITE', 'PASSWORD_RESET'] }, usedAt: null } })
+  }
+  if (novo.role !== atual.role) {
+    await auditar(tx, autor, businessId, {
+      action: 'team.role_changed',
+      targetType: 'membership',
+      targetId: membershipId,
+      metadata: { from: atual.role, to: novo.role },
+    })
+  }
+  if (novo.active !== atual.active) {
+    await auditar(tx, autor, businessId, {
+      action: novo.active ? 'team.member_activated' : 'team.member_deactivated',
+      targetType: 'membership',
+      targetId: membershipId,
+      metadata: { role: novo.role },
+    })
+  }
+  return paraMembro(await tx.membership.findUniqueOrThrow({ where: { id: membershipId }, select: SELECAO }))
 }
 
 const MEMBRO = {
@@ -462,4 +478,42 @@ export async function enviarRedefinicao(autor: Autor, businessId: string, member
       ttlMin: PANEL_RESET_TTL_MINUTES,
     }),
   )
+}
+
+/**
+ * Remove um profissional numa transação só: confere o autor e as regras de acesso (ninguém altera o próprio acesso, gerente
+ * não mexe em dono, a conta não fica sem dono ativo), recusa se há agendamento futuro, desativa o acesso ligado à ficha,
+ * desliga o vínculo e arquiva a ficha. Se qualquer regra recusar, nada muda. Ficha já arquivada não faz nada.
+ */
+export async function removerProfissional(autor: Autor, businessId: string, professionalId: string, now: Date): Promise<void> {
+  const inexistente = () => new DomainError('not_found', 'Profissional não encontrado.')
+  if (!UUID.test(professionalId) || !UUID.test(businessId)) throw inexistente()
+  await prisma.$transaction(async (tx) => {
+    const previa = await tx.professional.findFirst({ where: { id: professionalId, businessId }, select: { membershipId: true } })
+    if (!previa) throw inexistente()
+    // Ordem das travas: donos, vínculos (autor e alvo, em ordem de id) e por fim o profissional.
+    await lockKeyRaw(tx, businessId, 'business_owners', businessId)
+    await travarVinculos(tx, businessId, autor, previa.membershipId)
+    await lockKeyRaw(tx, businessId, 'professional', professionalId)
+    const quem = await exigirAutor(tx, autor, businessId)
+    const ficha = await tx.professional.findFirst({ where: { id: professionalId, businessId }, select: { membershipId: true, archivedAt: true } })
+    if (!ficha) throw inexistente()
+    if (ficha.archivedAt !== null) return
+    if (ficha.membershipId !== previa.membershipId) {
+      throw new DomainError('conflict', 'Esta ficha mudou enquanto você a editava. Abra-a de novo.', { reason: 'changed' })
+    }
+    const abertos = await tx.appointment.count({
+      where: { businessId, professionalId, status: { in: ['PENDING', 'CONFIRMED'] }, endsAt: { gt: now } },
+    })
+    if (abertos > 0) {
+      const quantos = abertos === 1 ? 'Há 1 agendamento futuro' : `Há ${abertos} agendamentos futuros`
+      throw new DomainError('conflict', `${quantos} com este profissional. Cancele ou remaneje os agendamentos antes de arquivar.`, {
+        reason: 'has_future_appointments',
+        details: { count: abertos },
+      })
+    }
+    if (ficha.membershipId) await alterarVinculoEm(tx, autor, quem, businessId, ficha.membershipId, (atual) => ({ role: atual.role, active: false }), now)
+    await tx.professional.update({ where: { id: professionalId }, data: { archivedAt: now, membershipId: null } })
+    await auditar(tx, autor, businessId, { action: 'professional.archived', targetType: 'Professional', targetId: professionalId })
+  })
 }
