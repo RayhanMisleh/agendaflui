@@ -6,6 +6,8 @@ import {
   enviarRedefinicao,
   listarEquipe,
   papelSchema,
+  recortarParaConta,
+  recortarUm,
   reenviarConvite,
   type Autor,
   type TeamMember,
@@ -24,10 +26,10 @@ export type { TeamMember } from '@/server/domain/platform/access-core'
 
 const comoConta = (ctx: TenantContext): Autor => ({ kind: 'conta', ctx })
 
-/** Todos os acessos da conta (ativos ou não), do mais antigo ao mais novo. */
+/** Todos os acessos da conta (ativos ou não), do mais antigo ao mais novo, só com o que é desta conta (`recortarParaConta`). */
 export async function listAccess(ctx: TenantContext): Promise<TeamMember[]> {
   authorize(ctx, 'manage_team')
-  return listarEquipe(ctx.businessId)
+  return recortarParaConta(ctx.businessId, await listarEquipe(ctx.businessId))
 }
 
 /** Convida alguém para a equipe; com `professionalId`, liga o acesso à ficha de profissional. Só dono convida dono. */
@@ -36,18 +38,24 @@ export async function inviteAccess(
   i: { name: string; email: string; role: MembershipRole; professionalId?: string | null },
 ): Promise<TeamMember> {
   authorize(ctx, 'manage_team')
-  return convidar(comoConta(ctx), ctx.businessId, i, ctx.clock())
+  return recortarUm(ctx.businessId, await convidar(comoConta(ctx), ctx.businessId, i, ctx.clock()))
 }
 
 export async function changeAccessRole(ctx: TenantContext, membershipId: string, role: MembershipRole): Promise<TeamMember> {
   authorize(ctx, 'manage_team')
   const papel = parse(papelSchema, role)
-  return alterarVinculo(comoConta(ctx), ctx.businessId, membershipId, (atual) => ({ role: papel, active: atual.active }), ctx.clock())
+  return recortarUm(
+    ctx.businessId,
+    await alterarVinculo(comoConta(ctx), ctx.businessId, membershipId, (atual) => ({ role: papel, active: atual.active }), ctx.clock()),
+  )
 }
 
 export async function setAccessActive(ctx: TenantContext, membershipId: string, active: boolean): Promise<TeamMember> {
   authorize(ctx, 'manage_team')
-  return alterarVinculo(comoConta(ctx), ctx.businessId, membershipId, (atual) => ({ role: atual.role, active }), ctx.clock())
+  return recortarUm(
+    ctx.businessId,
+    await alterarVinculo(comoConta(ctx), ctx.businessId, membershipId, (atual) => ({ role: atual.role, active }), ctx.clock()),
+  )
 }
 
 /** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. */

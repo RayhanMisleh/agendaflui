@@ -57,6 +57,10 @@ export async function loginStaff(
   const db = tenantDb(businessId)
   const result = await db.$transaction(async (tx) => {
     await tx.$lockKey('membership', membership.id)
+    // Quem troca ou redefine a senha trava este mesmo vínculo (`lockUserAccess`) antes de gravar o hash e revogar os tokens:
+    // sob a trava, o hash lido aqui é o definitivo. Se mudou desde a conferência, a senha usada é a antiga e nada é emitido.
+    const hashAtual = await prisma.user.findUnique({ where: { id: user.id }, select: { passwordHash: true } })
+    if (hashAtual?.passwordHash !== user.passwordHash) return null
     // Relê sob a trava, por garantia de que o vínculo ainda está ativo. Desativar o vínculo não revoga tokens: o contexto
     // (a cada requisição) e a renovação releem o vínculo e recusam.
     const atual = await tx.membership.findFirst({ where: { id: membership.id, active: true }, select: { role: true } })
@@ -65,7 +69,7 @@ export async function loginStaff(
     return { pair, role: atual.role, professionalId: await professionalIdOf(tx, membership.id) }
   })
   if (!result) throw new AuthError('invalid_credentials')
-  await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: now } })
+  await prisma.user.updateMany({ where: { id: user.id }, data: { lastLoginAt: now } })
   await clearLoginLimit(area, email, meta.ip ?? undefined)
   return {
     pair: result.pair,

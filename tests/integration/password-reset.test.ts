@@ -168,6 +168,20 @@ describe('readPanelPasswordReset', () => {
   })
 })
 
+describe('link de quem só tem acesso em conta que não está ativa', () => {
+  test('conta suspensa ou arquivada: o link não lê nem redefine, como o pedido já exigia', async () => {
+    const { user } = await pessoa()
+    const token = await emitido(user.email)
+    for (const status of ['SUSPENDED', 'ARCHIVED'] as const) {
+      await prisma.business.update({ where: { id: businessId }, data: { status } })
+      expect(await readPanelPasswordReset(token, AGORA)).toBeNull()
+      expect((await domainError(resetPanelPassword({ token, password: 'senha-nova-bem-longa' }, META, AGORA))).code).toBe('not_found')
+    }
+    await prisma.business.update({ where: { id: businessId }, data: { status: 'ACTIVE' } })
+    expect(await readPanelPasswordReset(token, AGORA)).toEqual({ email: user.email })
+  })
+})
+
 describe('resetPanelPassword', () => {
   test('troca a senha, o token não serve duas vezes e a pessoa entra com a nova', async () => {
     const { user } = await pessoa()

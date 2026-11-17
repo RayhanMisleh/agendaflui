@@ -406,12 +406,91 @@ describe('sendAccessPasswordReset', () => {
 describe('listAccess', () => {
   test('lista todos os vínculos da conta, ativos ou não, com ficha, senha e último acesso', async () => {
     const ficha = await makeProfessional(businessId)
-    const user = await makeUser({ lastLoginAt: AGORA })
+    const user = await makeUser({ lastLoginAt: new Date('2026-01-01T00:00:00.000Z') })
     const m = await makeMembership(businessId, user.id, 'PROFESSIONAL')
+    await prisma.session.create({
+      data: { userId: user.id, activeBusinessId: businessId, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600), createdAt: AGORA },
+    })
     await prisma.professional.update({ where: { id: ficha.id }, data: { membershipId: m.id } })
     await prisma.membership.update({ where: { id: m.id }, data: { active: false } })
     const lista = await listAccess(gerente)
     expect(lista).toHaveLength(4)
     expect(lista.find((x) => x.membershipId === m.id)).toMatchObject({ active: false, hasPassword: true, professionalId: ficha.id, lastLoginAt: AGORA })
+  })
+})
+
+describe('sendAccessPasswordReset: limite e conta arquivada', () => {
+  test('reusa o limite por e-mail do pedido de redefinição: o 4º envio em 15 minutos é recusado e não manda e-mail', async () => {
+    const alvo = await vinculo('PROFESSIONAL')
+    for (let i = 0; i < 3; i++) await sendAccessPasswordReset(dono, alvo.membership.id)
+    expect(mailTo(alvo.user.email)).toHaveLength(3)
+    const e = await domainError(sendAccessPasswordReset(gerente, alvo.membership.id))
+    expect(e.code).toBe('conflict')
+    expect(e.reason).toBe('too_early')
+    expect(mailTo(alvo.user.email)).toHaveLength(3)
+    expect(await prisma.userToken.count({ where: { userId: alvo.user.id } })).toBe(1)
+  })
+
+  test('conta arquivada depois do contexto montado: recusa e não envia nada', async () => {
+    const alvo = await vinculo('PROFESSIONAL')
+    await prisma.business.update({ where: { id: businessId }, data: { status: 'ARCHIVED' } })
+    const e = await domainError(sendAccessPasswordReset(dono, alvo.membership.id))
+    expect(['forbidden', 'business_unavailable']).toContain(e.code)
+    expect(mail.sent).toHaveLength(0)
+    expect(await prisma.userToken.count({ where: { userId: alvo.user.id } })).toBe(0)
+  })
+})
+
+describe('o que o dono vê do usuário: só o que é da própria conta', () => {
+  const sessaoEm = (userId: string, b: string, quando: Date) =>
+    prisma.session.create({ data: { userId, activeBusinessId: b, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600), createdAt: quando } })
+
+  test('lastLoginAt global não aparece: só a última sessão registrada NESTA conta, senão null', async () => {
+    const outra = (await makeBusiness()).id
+    const pessoa = await makeUser({ lastLoginAt: new Date('2026-11-16T10:00:00.000Z') })
+    const m = await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
+    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await sessaoEm(pessoa.id, outra, new Date('2026-11-16T10:00:00.000Z'))
+    expect((await listAccess(dono)).find((x) => x.membershipId === m.id)?.lastLoginAt).toBeNull()
+    await sessaoEm(pessoa.id, businessId, new Date('2026-11-10T08:00:00.000Z'))
+    await sessaoEm(pessoa.id, businessId, new Date('2026-11-12T09:30:00.000Z'))
+    expect((await listAccess(gerente)).find((x) => x.membershipId === m.id)?.lastLoginAt).toEqual(new Date('2026-11-12T09:30:00.000Z'))
+  })
+
+  test('convidar quem já existe em outra conta não devolve o último acesso nem a senha de lá', async () => {
+    const outra = (await makeBusiness()).id
+    const existente = await makeUser({ email: 'carla@exemplo.test', password: 'senha-da-carla-1', lastLoginAt: AGORA })
+    await makeMembership(outra, existente.id, 'OWNER')
+    const m = await inviteAccess(dono, { name: 'Carla', email: 'carla@exemplo.test', role: 'PROFESSIONAL' })
+    expect(m.lastLoginAt).toBeNull()
+    expect((await listAccess(dono)).find((x) => x.userId === existente.id)?.lastLoginAt).toBeNull()
+  })
+
+  test('hasPassword é "convite pendente" desta conta: falso só para convite emitido por ela a quem ainda não tem senha', async () => {
+    const pendente = await inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' })
+    expect(pendente.hasPassword).toBe(false)
+    expect((await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasPassword).toBe(false)
+    expect((await resendAccessInvite(dono, pendente.membershipId), (await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasPassword)).toBe(false)
+    const comSenha = await vinculo('PROFESSIONAL')
+    expect((await listAccess(dono)).find((x) => x.membershipId === comSenha.membership.id)?.hasPassword).toBe(true)
+    await prisma.user.update({ where: { id: pendente.userId }, data: { passwordHash: comSenha.user.passwordHash } })
+    expect((await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasPassword).toBe(true)
+  })
+
+  test('o suporte também vê só o que é da conta', async () => {
+    const outra = (await makeBusiness()).id
+    const pessoa = await makeUser({ lastLoginAt: AGORA })
+    await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
+    await makeMembership(outra, pessoa.id, 'MANAGER')
+    expect((await listAccess(suporte)).find((x) => x.userId === pessoa.id)?.lastLoginAt).toBeNull()
+  })
+
+  test('as ações devolvem o membro no mesmo recorte da conta', async () => {
+    const outra = (await makeBusiness()).id
+    const pessoa = await makeUser({ lastLoginAt: AGORA })
+    const m = await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
+    await makeMembership(outra, pessoa.id, 'MANAGER')
+    expect((await changeAccessRole(dono, m.id, 'MANAGER')).lastLoginAt).toBeNull()
+    expect((await setAccessActive(dono, m.id, false)).lastLoginAt).toBeNull()
   })
 })

@@ -36,31 +36,19 @@ function autor(actor: Actor): Autor {
   }
 }
 
-/** Registra uma ação na auditoria da conta (o `businessId` entra pelo `ctx.db`). */
+/** Registra uma ação na auditoria da conta (no cliente por conta o `businessId` é o do contexto; `auditIn` o grava). */
 export async function audit(
   ctx: TenantContext,
   entry: { action: string; targetType?: string; targetId?: string; metadata?: Prisma.InputJsonObject },
   db: Pick<TenantClient | TenantTx, 'auditLog'> = ctx.db,
 ): Promise<void> {
-  const a = autor(ctx.actor)
-  await db.auditLog.create({
-    data: {
-      actorType: a.actorType,
-      actorId: a.actorId,
-      actorName: a.actorName,
-      onBehalf: a.onBehalf,
-      action: entry.action,
-      targetType: entry.targetType ?? null,
-      targetId: entry.targetId ?? null,
-      metadata: { ...entry.metadata, ...a.extra },
-      ip: ctx.request.ip,
-    },
-  })
+  await auditIn(db, ctx, entry)
 }
 
 /**
- * A mesma linha de `audit`, para o domínio de plataforma, que escreve numa transação do `prisma` cru (a escrita também
- * toca usuários e sessões, que `tenantDb` recusa). O autor sai do ator do contexto: membro, ou admin em suporte (com a marca).
+ * Corpo único da linha de auditoria da conta: `audit` o usa com o cliente por conta, e o domínio de plataforma o usa numa
+ * transação do `prisma` cru (a escrita também toca usuários e sessões, que `tenantDb` recusa). O autor sai do ator do
+ * contexto: membro, ou admin em suporte (com a marca).
  */
 export async function auditIn(
   tx: { auditLog: { create(args: { data: Prisma.AuditLogUncheckedCreateInput }): PromiseLike<unknown> } },

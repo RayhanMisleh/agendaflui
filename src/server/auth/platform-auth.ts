@@ -25,18 +25,18 @@ export async function loginPlatformAdmin(i: {
   if (!admin || !ok) throw new AuthError('invalid_credentials')
   if (!admin.active) throw new AuthError('account_inactive')
 
-  await clearLoginLimit('dev', email, i.ip)
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, SESSAO_MINUTOS)
-  await prisma.$transaction([
-    prisma.platformAdmin.update({ where: { id: admin.id }, data: { lastLoginAt: now } }),
-    prisma.platformSession.create({
-      data: { adminId: admin.id, tokenHash: hash, expiresAt, ip: i.ip, userAgent: i.userAgent },
-    }),
-    ...(i.previousToken
-      ? [prisma.platformSession.updateMany({ where: { tokenHash: hashToken(i.previousToken), revokedAt: null }, data: { revokedAt: now } })]
-      : []),
-  ])
+  await prisma.$transaction(async (tx) => {
+    // Condicional ao hash conferido: troca de senha no meio do caminho não deixa sessão para a senha antiga.
+    const gravado = await tx.platformAdmin.updateMany({ where: { id: admin.id, passwordHash: admin.passwordHash }, data: { lastLoginAt: now } })
+    if (gravado.count !== 1) throw new AuthError('invalid_credentials')
+    await tx.platformSession.create({ data: { adminId: admin.id, tokenHash: hash, expiresAt, ip: i.ip, userAgent: i.userAgent } })
+    if (i.previousToken) {
+      await tx.platformSession.updateMany({ where: { tokenHash: hashToken(i.previousToken), revokedAt: null }, data: { revokedAt: now } })
+    }
+  })
+  await clearLoginLimit('dev', email, i.ip)
   return { token, expiresAt }
 }
 

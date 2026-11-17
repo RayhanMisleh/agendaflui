@@ -4,7 +4,7 @@ import type { TenantContext } from '@/server/auth/actor'
 import { revokeMemberTokensIn } from '@/server/auth/api-tokens'
 import { can } from '@/server/auth/capabilities'
 import { INVITE_TTL_DAYS, issueInvite } from '@/server/auth/invites'
-import { issuePanelPasswordReset, PANEL_RESET_TTL_MINUTES } from '@/server/auth/password-reset'
+import { allowResetEmail, issuePanelPasswordReset, lockUserAccess, PANEL_RESET_TTL_MINUTES } from '@/server/auth/password-reset'
 import { assertPlatformAdmin, requireActiveAdmin, type PlatformAdminActor } from '@/server/auth/platform-actor'
 import { roleLabel } from '@/server/auth/role-labels'
 import { prisma } from '@/server/db/client'
@@ -25,9 +25,9 @@ import { emailSchema, personNameSchema } from './schemas'
  * (`Autor`); o núcleo relê o autor dentro da transação (admin ativo; membro ainda ativo e com `manage_team`) e aplica as
  * regras de quem pode mexer em quem. Usa o cliente cru porque toca usuários, sessões e tokens, que `tenantDb` recusa.
  *
- * Ordem das travas (sempre esta, em toda transação deste arquivo): `business_owners` da conta, depois os vínculos
- * envolvidos (o do autor e o do alvo) em ordem crescente de id, depois a linha do usuário. Quem trava na mesma ordem nunca
- * espera em círculo.
+ * Ordem das travas, a mesma em todo o código de acesso (veja `lockUserAccess` em `auth/password-reset.ts`): `business_owners`
+ * da conta -> vínculos envolvidos (o do autor, o do alvo e, quando a transação mexe no usuário, todos os do usuário) em
+ * ordem crescente de id -> linha do usuário -> tokens e sessões. Quem trava na mesma ordem nunca espera em círculo.
  */
 
 export type TeamMember = {
@@ -90,8 +90,8 @@ function paraMembro(m: Bruto): TeamMember {
 
 const NEGADO = 'Você não tem permissão para fazer isso.'
 const proibido = (mensagem: string = NEGADO): DomainError => new DomainError('forbidden', mensagem)
-const contaArquivada = (): DomainError =>
-  new DomainError('business_unavailable', 'Esta conta está arquivada. Reative a conta antes de convidar alguém.')
+const contaArquivada = (mensagem = 'Esta conta está arquivada. Reative a conta antes de convidar alguém.'): DomainError =>
+  new DomainError('business_unavailable', mensagem)
 export const contaInexistente = (): DomainError => new DomainError('not_found', 'Conta não encontrada.')
 const vinculoInexistente = (): DomainError => new DomainError('not_found', 'Acesso da equipe não encontrado.')
 
@@ -101,6 +101,42 @@ class UsuarioCriadoPorOutro extends Error {}
 export async function listarEquipe(businessId: string): Promise<TeamMember[]> {
   const linhas = await prisma.membership.findMany({ where: { businessId }, select: SELECAO, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
   return linhas.map(paraMembro)
+}
+
+/**
+ * Recorte da equipe para a porta da conta (dono, gerente e suporte): o que é global do usuário não passa. `lastLoginAt` é a
+ * última sessão do painel registrada NESTA conta (senão `null`; a sessão some na limpeza periódica). `hasPassword` é o estado
+ * do acesso nesta conta: falso só quando o convite foi emitido por ela (convite, reenvio ou criação da conta, todos na
+ * auditoria dela) e a pessoa ainda não tem senha; senão é verdadeiro. A porta do admin devolve os dados globais, como sempre.
+ */
+export async function recortarParaConta(businessId: string, membros: TeamMember[]): Promise<TeamMember[]> {
+  if (membros.length === 0) return []
+  const userIds = [...new Set(membros.map((m) => m.userId))]
+  const sessoes = await prisma.session.groupBy({
+    by: ['userId'],
+    where: { userId: { in: userIds }, activeBusinessId: businessId },
+    _max: { createdAt: true },
+  })
+  const ultimo = new Map(sessoes.map((s) => [s.userId, s._max.createdAt]))
+  const convidados = new Set(
+    (
+      await prisma.auditLog.findMany({
+        where: { businessId, action: { in: ['team.member_invited', 'team.invite_resent'] }, targetId: { in: membros.map((m) => m.membershipId) } },
+        select: { targetId: true },
+      })
+    ).map((l) => l.targetId),
+  )
+  const criacao = await prisma.auditLog.findFirst({ where: { businessId, action: 'business.created' }, select: { metadata: true } })
+  const donoDaCriacao = z.object({ ownerUserId: z.string() }).safeParse(criacao?.metadata)
+  return membros.map((m) => ({
+    ...m,
+    lastLoginAt: ultimo.get(m.userId) ?? null,
+    hasPassword: m.hasPassword || !(convidados.has(m.membershipId) || (donoDaCriacao.success && donoDaCriacao.data.ownerUserId === m.userId)),
+  }))
+}
+
+export async function recortarUm(businessId: string, membro: TeamMember): Promise<TeamMember> {
+  return (await recortarParaConta(businessId, [membro]))[0] ?? membro
 }
 
 /** Conta do vínculo, para a porta do admin (que não tem conta no contexto). `not_found` se o vínculo não existe. */
@@ -392,16 +428,27 @@ export async function enviarRedefinicao(autor: Autor, businessId: string, member
   if (autor.kind !== 'conta' || autor.ctx.actor.kind !== 'member') throw proibido()
   if (!UUID.test(membershipId) || !UUID.test(businessId)) throw vinculoInexistente()
   const feito = await prisma.$transaction(async (tx) => {
-    await travarVinculos(tx, businessId, autor, membershipId)
+    // O alvo é lido sem trava só para saber de qual usuário é (um vínculo nunca troca de usuário); as travas vêm todas
+    // juntas, em ordem crescente: vínculo do autor, vínculos do alvo e o do usuário, que a emissão do token trava de novo.
+    const previo = await tx.membership.findFirst({ where: { id: membershipId, businessId }, select: { userId: true } })
+    if (!previo) throw vinculoInexistente()
+    const eu = autor.ctx.actor.kind === 'member' ? [{ id: autor.ctx.actor.membershipId, businessId }] : []
+    await lockUserAccess(tx, previo.userId, eu)
     const quem = await exigirAutor(tx, autor, businessId)
     const m = await tx.membership.findFirst({ where: { id: membershipId, businessId }, select: MEMBRO })
     if (!m) throw vinculoInexistente()
     conferirAlvo(quem, { id: m.id, role: m.role })
+    if (m.business.status === 'ARCHIVED') throw contaArquivada('Esta conta está arquivada. Reative a conta antes de mandar a redefinição de senha.')
     if (!m.active) throw new DomainError('conflict', 'Este acesso está desativado. Reative-o antes de mandar a redefinição de senha.')
     if (m.user.passwordHash === null) {
       throw new DomainError('conflict', 'Esta pessoa ainda não definiu a senha. Reenvie o convite para ela escolher a senha.')
     }
-    const emitido = await issuePanelPasswordReset(tx, m.user.id, now)
+    if (!(await allowResetEmail(m.user.email, now, tx))) {
+      throw new DomainError('conflict', 'Já mandamos várias redefinições de senha para esta pessoa. Aguarde alguns minutos e tente de novo.', {
+        reason: 'too_early',
+      })
+    }
+    const emitido = await issuePanelPasswordReset(tx, m.user.id, now, eu)
     await auditar(tx, autor, businessId, { action: 'team.password_reset_sent', targetType: 'membership', targetId: membershipId })
     return { m, emitido }
   })

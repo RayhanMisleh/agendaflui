@@ -37,17 +37,38 @@ const invalido = (): DomainError => new DomainError('not_found', RESET_INVALID_M
 export type ResetTx = Prisma.TransactionClient
 
 /**
- * Trava a linha do usuário até o fim da transação (sem bloquear quem só lê nem as chaves estrangeiras de outras tabelas):
- * serializa emissão, redefinição e troca de senha da mesma pessoa. Nas transações que também pegam travas de vínculo, esta
- * vem primeiro.
+ * ORDEM ÚNICA DE TRAVAS em todo o código de acesso (convite, papel, desativação, redefinição, troca de senha, login do app):
+ * `business_owners` da conta -> vínculos em ordem crescente de id -> linha do usuário -> tokens e sessões. Quem pega
+ * travas só nessa ordem nunca espera em círculo (deadlock do Postgres, 40P01, que viraria erro 500).
+ *
+ * Trava os vínculos do usuário (todos, ativos ou não, de qualquer conta) em ordem crescente de id e depois a linha dele
+ * (`FOR NO KEY UPDATE`: não bloqueia quem só lê nem as chaves estrangeiras de outras tabelas). `extra` junta ao mesmo
+ * passo vínculos de OUTRAS pessoas que a transação também precisa (o do autor da ação), para a ordem crescente valer para o
+ * conjunto todo. Quem já segura `business_owners` o fez antes de chamar. Trava repetida na mesma transação não espera.
  */
-export async function lockUser(tx: ResetTx, userId: string): Promise<void> {
+export async function lockUserAccess(
+  tx: ResetTx,
+  userId: string,
+  extra: { id: string; businessId: string }[] = [],
+): Promise<void> {
+  const proprios = await tx.membership.findMany({ where: { userId }, select: { id: true, businessId: true } })
+  const todos = new Map<string, { id: string; businessId: string }>()
+  for (const v of [...proprios, ...extra]) todos.set(v.id.toLowerCase(), v)
+  for (const id of [...todos.keys()].sort()) {
+    const v = todos.get(id)
+    if (v) await lockKeyRaw(tx, v.businessId, 'membership', v.id)
+  }
   await tx.$queryRaw`select id from users where id = ${userId}::uuid for no key update`
 }
 
 /** Emite o token de redefinição e apaga o anterior ainda não usado. O token em texto só existe neste retorno, para ir no e-mail. */
-export async function issuePanelPasswordReset(tx: ResetTx, userId: string, now: Date): Promise<{ token: string; expiresAt: Date }> {
-  await lockUser(tx, userId)
+export async function issuePanelPasswordReset(
+  tx: ResetTx,
+  userId: string,
+  now: Date,
+  extra: { id: string; businessId: string }[] = [],
+): Promise<{ token: string; expiresAt: Date }> {
+  await lockUserAccess(tx, userId, extra)
   await tx.userToken.deleteMany({ where: { userId, purpose: 'PASSWORD_RESET', usedAt: null } })
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, PANEL_RESET_TTL_MINUTES)
@@ -57,12 +78,10 @@ export async function issuePanelPasswordReset(tx: ResetTx, userId: string, now: 
 
 /**
  * Revoga as sessões do painel do usuário (todas, de qualquer conta, menos a do token indicado) e os tokens do app de todos
- * os vínculos dele, ativos ou não. Os vínculos são travados em ordem crescente de id, a mesma de quem trava mais de um
- * (`lockMemberships`), para duas transações nunca esperarem uma pela outra. Chame depois de `lockUser`.
+ * os vínculos dele, ativos ou não. Chame depois de `lockUserAccess` (as travas dos vínculos já estão na transação).
  */
 export async function revokeUserAccess(tx: ResetTx, userId: string, now: Date, keepSessionToken?: string): Promise<void> {
-  const vinculos = await tx.membership.findMany({ where: { userId }, select: { id: true, businessId: true }, orderBy: { id: 'asc' } })
-  for (const v of vinculos) await lockKeyRaw(tx, v.businessId, 'membership', v.id)
+  const vinculos = await tx.membership.findMany({ where: { userId }, select: { id: true } })
   await tx.session.updateMany({
     where: { userId, revokedAt: null, ...(keepSessionToken ? { NOT: { tokenHash: hashToken(keepSessionToken) } } : {}) },
     data: { revokedAt: now },
@@ -79,15 +98,23 @@ const pedidoSchema = z.object({
   email: emailSchema.refine(isSafeRecipient, 'Informe um e-mail válido, por exemplo nome@exemplo.com.'),
 })
 
-/** Conta o pedido: origem primeiro (um IP barrado não gasta o teto do e-mail), depois o e-mail (3 em 15 minutos, 6 por dia). */
+/**
+ * Conta um e-mail de redefinição para o endereço (3 em 15 minutos, 6 por dia). Vale para o "esqueci a senha" e para o envio
+ * pelo dono ou gerente: os dois dividem o mesmo teto. `false` quando passou do limite.
+ */
+export async function allowResetEmail(email: string, now: Date, db?: ResetTx): Promise<boolean> {
+  const curto = await hitRateLimit(limitKey('redefinir-painel:email', email), LIMITS.codeEmail, now, db)
+  if (!curto.allowed) return false
+  return (await hitRateLimit(limitKey('redefinir-painel-dia:email', email), LIMITS.codeEmailDaily, now, db)).allowed
+}
+
+/** Conta o pedido: origem primeiro (um IP barrado não gasta o teto do e-mail), depois o e-mail. */
 async function allowRequest(email: string, ip: string | null | undefined, now: Date): Promise<boolean> {
   if (ip) {
     const porIp = await hitRateLimit(limitKey('redefinir-painel:ip', ipLimitKeyPart(ip)), LIMITS.panelResetIp, now)
     if (!porIp.allowed) return false
   }
-  const curto = await hitRateLimit(limitKey('redefinir-painel:email', email), LIMITS.codeEmail, now)
-  if (!curto.allowed) return false
-  return (await hitRateLimit(limitKey('redefinir-painel-dia:email', email), LIMITS.codeEmailDaily, now)).allowed
+  return allowResetEmail(email, now)
 }
 
 /**
@@ -117,7 +144,7 @@ export async function requestPanelPasswordReset(email: string, meta: RequestMeta
     if (!usuario || !vinculo) return
     if (usuario.passwordHash === null) {
       const convite = await prisma.$transaction(async (tx) => {
-        await lockUser(tx, usuario.id)
+        await lockUserAccess(tx, usuario.id)
         const atual = await tx.user.findUnique({ where: { id: usuario.id }, select: { passwordHash: true } })
         // Definiu a senha entre a consulta e a trava: o convite não vale mais, e o pedido acaba aqui.
         return atual?.passwordHash === null ? issueInvite(tx, usuario.id, now) : null
@@ -149,13 +176,16 @@ export async function requestPanelPasswordReset(email: string, meta: RequestMeta
   }
 }
 
-/** Token vivo de redefinição de quem ainda tem vínculo ativo: a condição que `readPanelPasswordReset` e a troca usam. */
+/** Quem ainda entra: ao menos um vínculo ativo numa conta ativa (a mesma condição do pedido de redefinição). */
+const aindaEntra: Prisma.UserWhereInput = { memberships: { some: { active: true, business: { status: 'ACTIVE' } } } }
+
+/** Token vivo de redefinição de quem ainda entra: a condição que `readPanelPasswordReset` e a troca usam. */
 const tokenVivo = (hash: string, now: Date): Prisma.UserTokenWhereInput => ({
   tokenHash: hash,
   purpose: 'PASSWORD_RESET',
   usedAt: null,
   expiresAt: { gt: now },
-  user: { memberships: { some: { active: true } } },
+  user: aindaEntra,
 })
 
 /** E-mail de quem recebeu o link, ou `null` se o token não existe, venceu, já foi usado ou a pessoa perdeu o acesso. */
@@ -168,25 +198,25 @@ export async function readPanelPasswordReset(token: string, now: Date): Promise<
 const novaSenhaSchema = z.object({ password: passwordSchema })
 
 /**
- * Define a senha nova com o link. O token é consumido por um UPDATE condicional: de duas redefinições simultâneas só uma
- * passa. Na mesma transação, revoga todas as sessões do painel da pessoa e os tokens do app de todos os vínculos dela.
+ * Define a senha nova com o link. Descobre a pessoa pelo hash do token SEM travar a linha do token, trava o acesso dela na
+ * ordem única (`lockUserAccess`) e só então consome o token por um UPDATE condicional: de duas redefinições simultâneas só
+ * uma passa. Na mesma transação, revoga todas as sessões do painel da pessoa e os tokens do app de todos os vínculos dela.
  * Link que não vale: `not_found` com a mesma frase em todos os casos.
  */
 export async function resetPanelPassword(i: { token: string; password: string }, _meta: RequestMeta, now: Date): Promise<void> {
   const { password } = parse(novaSenhaSchema, { password: i.password })
-  if ((await readPanelPasswordReset(i.token, now)) === null) throw invalido()
-  const passwordHash = await hashPassword(password)
   const tokenHash = hashToken(i.token)
+  const previo = i.token === '' ? null : await prisma.userToken.findFirst({ where: tokenVivo(tokenHash, now), select: { userId: true } })
+  if (!previo) throw invalido()
+  const passwordHash = await hashPassword(password)
   await prisma.$transaction(async (tx) => {
-    const usado = await tx.userToken.updateMany({ where: tokenVivo(tokenHash, now), data: { usedAt: now } })
+    await lockUserAccess(tx, previo.userId)
+    const usado = await tx.userToken.updateMany({ where: { ...tokenVivo(tokenHash, now), userId: previo.userId }, data: { usedAt: now } })
+    // Outra redefinição ou a perda do último acesso ativo venceu a corrida: o link não vale mais.
     if (usado.count !== 1) throw invalido()
-    const { userId } = await tx.userToken.findUniqueOrThrow({ where: { tokenHash }, select: { userId: true } })
-    await lockUser(tx, userId)
-    // Quem perdeu o último vínculo ativo entre a leitura e a trava não troca a senha (a transação desfaz o consumo do token).
-    if ((await tx.membership.count({ where: { userId, active: true } })) === 0) throw invalido()
-    await tx.user.update({ where: { id: userId }, data: { passwordHash } })
-    await tx.userToken.deleteMany({ where: { userId, purpose: { in: ['PASSWORD_RESET', 'INVITE'] }, usedAt: null } })
-    await revokeUserAccess(tx, userId, now)
+    await tx.user.update({ where: { id: previo.userId }, data: { passwordHash } })
+    await tx.userToken.deleteMany({ where: { userId: previo.userId, purpose: { in: ['PASSWORD_RESET', 'INVITE'] }, usedAt: null } })
+    await revokeUserAccess(tx, previo.userId, now)
   })
 }
 

@@ -51,6 +51,8 @@ export async function hitRateLimit(
   key: string,
   rule: LimitRule,
   now: Date,
+  /** Cliente ou transação em que contar. Dentro de uma transação, conta na mesma conexão (e desfaz com ela). */
+  db: Pick<typeof prisma, '$queryRaw'> = prisma,
 ): Promise<{ allowed: boolean; remaining: number; retryAfterSec: number }> {
   if (
     !Number.isInteger(rule.windowSec) ||
@@ -66,7 +68,7 @@ export async function hitRateLimit(
   }
   // O instante vai como texto ISO com Z: o banco não o reinterpreta no fuso da sessão.
   const agora = toIsoInstant(now)
-  const rows = await prisma.$queryRaw<{ count: number; window_start: Date }[]>`
+  const rows = await db.$queryRaw<{ count: number; window_start: Date }[]>`
     INSERT INTO rate_limit_buckets AS b ("key", "window_start", "count")
     VALUES (${key}, ${agora}::timestamptz, 1)
     ON CONFLICT ("key") DO UPDATE SET

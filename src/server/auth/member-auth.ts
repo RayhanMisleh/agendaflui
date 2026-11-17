@@ -65,7 +65,6 @@ export async function loginUser(i: {
   const ok = await verifyPassword(user?.passwordHash ?? (await fakePasswordHash), i.password)
   if (!user || !user.passwordHash || !ok) throw new AuthError('invalid_credentials')
 
-  await clearLoginLimit('painel', email, i.ip)
   const memberships = await listMemberships(user.id)
   const only = memberships.length === 1 ? memberships[0] : undefined
   const activeBusinessId = only ? only.businessId : null
@@ -73,12 +72,16 @@ export async function loginUser(i: {
   const { token, hash } = generateToken()
   const expiresAt = addMinutes(now, SESSAO_MINUTOS)
   await prisma.$transaction(async (tx) => {
-    await tx.user.update({ where: { id: user.id }, data: { lastLoginAt: now } })
+    // Condicional ao hash conferido: quem trocou ou redefiniu a senha entre a conferência e aqui (a troca revoga as sessões
+    // sob a trava do usuário) não deixa sessão nova para quem entrou com a senha antiga. A linha do usuário é a trava.
+    const gravado = await tx.user.updateMany({ where: { id: user.id, passwordHash: user.passwordHash }, data: { lastLoginAt: now } })
+    if (gravado.count !== 1) throw new AuthError('invalid_credentials')
     await tx.session.create({
       data: { userId: user.id, activeBusinessId, tokenHash: hash, expiresAt, ip: i.ip, userAgent: i.userAgent },
     })
     await revokeCookieSession(tx, i.previousToken, now)
   })
+  await clearLoginLimit('painel', email, i.ip)
   return {
     token,
     expiresAt,

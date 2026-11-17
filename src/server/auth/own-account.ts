@@ -2,7 +2,7 @@ import 'server-only'
 import { prisma } from '@/server/db/client'
 import type { Prisma } from '@/server/db/generated/client'
 import { uploadUrl } from '@/server/storage/images'
-import { lockUser, revokeUserAccess } from './password-reset'
+import { lockUserAccess, revokeUserAccess } from './password-reset'
 
 /*
  * Leituras e escritas do próprio usuário (nome, foto, senha) para o domínio de conta, que não usa o cliente cru. Cada
@@ -46,7 +46,7 @@ export async function writeOwnPassword(i: {
   registrar: (tx: Prisma.TransactionClient) => Promise<void>
 }): Promise<boolean> {
   return prisma.$transaction(async (tx) => {
-    await lockUser(tx, i.userId)
+    await lockUserAccess(tx, i.userId)
     const gravada = await tx.user.updateMany({ where: { id: i.userId, passwordHash: i.expectedHash }, data: { passwordHash: i.passwordHash } })
     if (gravada.count !== 1) return false
     await tx.userToken.deleteMany({ where: { userId: i.userId, purpose: 'PASSWORD_RESET', usedAt: null } })
