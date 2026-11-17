@@ -25,6 +25,8 @@ export type DemoAgenda = {
   comissaoBps: number
   expediente: DemoExpediente
   clientes: { nome: string; telefone: string; email?: string; notas?: string; clube?: boolean }[]
+  /** Cliente que a conta já arquivou: fica de fora da agenda e só aparece na lista de arquivados. */
+  arquivado: { nome: string; telefone: string; notas: string }
   /** Combinações de serviços (índices em `servicos`) que os agendamentos usam, em rodízio. */
   combinacoes: number[][]
 }
@@ -66,6 +68,7 @@ const AGENDA_PATAS: DemoAgenda = {
     { nome: 'Karina Bastos', telefone: '(11) 90000-0011', notas: 'Nina, maltês.', clube: true },
     { nome: 'Leandro Veloso', telefone: '(11) 90000-0012', email: 'leandro.veloso@agendaflui.localhost', notas: 'Zeca, bulldog francês.' },
   ],
+  arquivado: { nome: 'Marcela Duarte', telefone: '(11) 90000-0013', notas: 'Mudou de cidade e pediu para sair da lista.' },
   combinacoes: [[0], [1], [2], [3], [0, 3], [1], [4], [0], [2], [1, 3], [0, 4], [3]],
 }
 
@@ -104,6 +107,7 @@ const AGENDA_NAVALHA: DemoAgenda = {
     { nome: 'Kleber Nunes', telefone: '(92) 90000-0011' },
     { nome: 'Lucas Amaral', telefone: '(92) 90000-0012', email: 'lucas.amaral@agendaflui.localhost' },
   ],
+  arquivado: { nome: 'Nelson Ferraz', telefone: '(92) 90000-0013', notas: 'Parou de frequentar a casa.' },
   combinacoes: [[0], [2], [1], [0, 3], [4], [0], [1, 3], [2], [0], [1], [4, 3], [2]],
 }
 

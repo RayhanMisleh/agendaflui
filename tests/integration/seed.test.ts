@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { prisma } from '@/server/db/client'
 import { resolveAppKey } from '@/server/domain/platform/api-keys'
 import { createTenantContext } from '@/server/auth/context'
+import { listCustomers } from '@/server/domain/customers/customers'
 import { getAgenda } from '@/server/domain/scheduling/agenda'
 import { fitsWorkingHours, overlaps } from '@/server/domain/scheduling/slots'
 import { dbDateToLocal, localParts, todayIn, weekdayOf, type Weekday } from '@/server/time'
@@ -316,7 +317,7 @@ describe('agenda de demonstração', () => {
       expect({
         servicos: await prisma.service.count({ where: { businessId: id } }),
         profissionais: await prisma.professional.count({ where: { businessId: id } }),
-        clientes: await prisma.customer.count({ where: { businessId: id } }),
+        clientes: await prisma.customer.count({ where: { businessId: id, archivedAt: null } }),
         agendamentos: await prisma.appointment.count({ where: { businessId: id } }),
       }).toEqual(TAMANHO)
     }
@@ -408,7 +409,7 @@ describe('agenda de demonstração', () => {
       ['patas-e-cia', '5511'],
       ['navalha-de-ouro', '5592'],
     ] as const) {
-      const clientes = await prisma.customer.findMany({ where: { business: { slug } } })
+      const clientes = await prisma.customer.findMany({ where: { business: { slug }, archivedAt: null } })
       expect(clientes.every((c) => c.phone?.startsWith(`${ddd}90000`) && c.phone.length === 13)).toBe(true)
       expect(new Set(clientes.map((c) => c.name)).size).toBe(12)
       const comEmail = clientes.filter((c) => c.email !== null)
@@ -416,6 +417,25 @@ describe('agenda de demonstração', () => {
       expect(comEmail.length).toBeLessThan(12)
       expect(comEmail.every((c) => c.email?.endsWith('@agendaflui.localhost'))).toBe(true)
       expect(clientes.filter((c) => c.isClubMember)).toHaveLength(3)
+    }
+  })
+
+  test('cada conta tem um cliente arquivado, sem atendimentos e fora da lista padrão', async () => {
+    for (const [slug, nome] of [
+      ['patas-e-cia', 'Marcela Duarte'],
+      ['navalha-de-ouro', 'Nelson Ferraz'],
+    ] as const) {
+      const conta = await contaDe(slug)
+      const arquivados = await prisma.customer.findMany({ where: { businessId: conta.id, archivedAt: { not: null } } })
+      expect(arquivados.map((c) => c.name)).toEqual([nome])
+      expect(arquivados[0]?.anonymizedAt).toBeNull()
+      expect(await prisma.appointment.count({ where: { customerId: arquivados[0]?.id } })).toBe(0)
+      const ctx = await ctxDaConta(slug)
+      const ativos = await listCustomers(ctx, { limit: 50 })
+      expect(ativos.items).toHaveLength(12)
+      expect(ativos.items.some((c) => c.name === nome)).toBe(false)
+      const lista = await listCustomers(ctx, { onlyArchived: true, limit: 50 })
+      expect(lista.items.map((c) => c.name)).toEqual([nome])
     }
   })
 
@@ -572,7 +592,7 @@ describe('agenda de demonstração', () => {
       contas: await prisma.business.count(),
       usuarios: await prisma.user.count(),
     }).toEqual(antes)
-    expect(antes).toMatchObject({ servicos: 10, profissionais: 6, clientes: 24, agendamentos: 46 })
+    expect(antes).toMatchObject({ servicos: 10, profissionais: 6, clientes: 26, agendamentos: 46 })
   })
 
   test('uma conta sem serviços (banco da Fase 1) recebe a agenda sem mexer na outra', async () => {

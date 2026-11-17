@@ -7,27 +7,20 @@
 
 - Teste sem JavaScript na entrada do painel do negócio (é de navegador).
 
-## Fase 4 (painel do negócio)
+## Fase 4 (painel do negócio): o que ficou para depois
 
 - `listClosures` precisa de visão por ator antes de virar rota.
-- A faixa de suporte e o botão Encerrar existem: conferir em todas as telas novas do painel do negócio.
-- O suporte (ator de suporte) não pode trocar senha de ninguém nem ver segredos quando essas telas existirem.
-- Trocar o nome de um usuário regrava `users.search_name`.
-- Teto de linhas em `getAgenda`.
-- Agenda: `workingMinutes` do resumo não desconta bloqueios; conjunto de profissionais do resumo difere do da agenda em dois casos limite (inativo só com cancelado, inativo só com bloqueio); `occupancy` é limitado a 1 (razão de exibição); a busca de 31 dias não tem teto de linhas (rever com a tela de mês).
+- Agenda: o conjunto de profissionais do resumo difere do da agenda em dois casos limite (inativo só com cancelado, inativo só com bloqueio); `occupancy` é limitado a 1 (razão de exibição).
+- Agenda no celular: com uma coluna visível, a seta para o lado em teclado físico move a prévia para uma coluna oculta; `labelOfMinute` (UI) repete `minuteLabel` (servidor) por regra (só o dia e o minuto trafegam), mas vale comentar na duplicação.
 - Telefone estrangeiro digitado sem `+` e com 10 ou 11 dígitos é tratado como brasileiro: dica na tela.
-- `displayOrder` concorrente de serviços; `isUniqueViolation` de profissionais sem conferir o alvo.
-- `createTimeBlock` e `createClosure` devolvem quantos agendamentos existem no intervalo: a tela avisa antes de confirmar.
-
-- Dados públicos de usuário (nome, e-mail, avatar) para telas de equipe: helper em `src/server/auth`, porque `tenantDb` bloqueia `User`.
-- `DataList`: limite tabela ↔ cartões por instância (36rem é único hoje); células renderizadas duas vezes (ids duplicados, interativo dentro de interativo).
-- `Toast`: região viva reaberta a cada mudança; fica sob um diálogo aberto depois.
+- `isUniqueViolation` de profissionais sem conferir o alvo.
+- `updateRulesAsAdmin` grava regras fora de `updateSchedulingRules`: unificar se o caminho do dono ganhar efeito colateral.
+- Relatórios: `byDay` faz uma agregação por dia local (até 366, em lotes de 8); se pesar, trocar por uma consulta única com `AT TIME ZONE` num ajudante do cliente por conta.
+- `Sheet`: o teste do painel lateral é regex sobre CSS; falta teste da rolagem do fundo travada e de `aria-modal`.
 - `Tabs` com `href` deveriam ser navegação com `aria-current`; abas a 375 px sem pista de rolagem; aba inativa descola 1 px no hover.
 - `Dialog` intercepta Esc de filhos; anel de foco depende do contêiner (papel dentro de capa, `Checkbox` sobre capa); halo de texto duplicado em `base.css` e `feedback.css` e pesado em texto primário.
-- Molduras: título `h2` dentro de `h2` quando embutidas; barra da base do celular deixa de grudar se um ancestral tiver `overflow`; falta teste da barra grudada no meio da rolagem.
-- Papel e termos da conta calculados em dois lugares (`page.tsx` e `PainelFrame.tsx`); texto "Você entra como Dono".
-- Termos, módulos, regras e avisos gravam sem versão (o último a salvar ganha): pôr versão quando o dono também editar.
-- `updateRulesAsAdmin` grava regras fora de `updateSchedulingRules`: unificar se o caminho do dono ganhar efeito colateral.
+- Molduras: a barra da base do celular deixa de grudar se um ancestral tiver `overflow`; falta teste da barra grudada no meio da rolagem.
+- Para o dono conferir no navegador (nenhum agente abriu o painel do negócio): todas as telas a 375 px, foco nos diálogos, arrastar a ficha na agenda (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, faixa de suporte em todas as telas, envio de foto da equipe e do logo, exportação do CSV de relatórios.
 
 ## Fase 5 (módulos)
 
@@ -36,7 +29,6 @@
 
 ## Fase 6 (fechamento e produção)
 
-- `tests/e2e/vitrine.spec.ts` falha porque a vitrine agora exige admin: ajustar quando os testes de navegador voltarem.
 - As telas do painel dev nunca foram vistas em navegador pelos agentes (só fumaça por HTTP): conferência visual e a 375 px pendente com o dono.
 - Ações destrutivas do painel dev exigem JavaScript para a confirmação.
 - Várias instâncias exigem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa.
@@ -49,7 +41,7 @@
 - Retenção: sem limpeza de `notifications` antigas, `api_usage_hourly` e `audit_logs`.
 - Entrega de aviso é "pelo menos uma vez": processo morto no meio do envio reenvia em 2 min.
 - Medir o limite geral de 120/min por chave e IP com tráfego real; gravação de métricas em lote grande × tamanho do pool.
-- Testes de navegador (Playwright) não foram rodados desde a tarefa 12 da Fase 2B, a pedido do dono: rodar e ampliar quando ele for testar.
+- Testes de navegador (Playwright) não foram rodados desde a tarefa 12 da Fase 2B, a pedido do dono: `entrada.spec.ts` e `vitrine.spec.ts` foram atualizados ao desenho novo (vitrine atrás do login de admin, sem `data-material`) sem rodar; rodar, corrigir o que faltar e ampliar quando ele for testar.
 - Telefones de demonstração: são fictícios, mas não há faixa reservada no Brasil.
 - Horário de verão: no dia de 25 horas o cálculo de horários livres esconde alguns horários bons, e no de 23 horas pode oferecer início fora da grade; cobrir com teste (Lisboa e Nova York) e decidir se corrige.
 - Espera da trava por profissional segura uma conexão do pool por até 15 s: observar em carga e dimensionar o pool.
@@ -79,8 +71,3 @@
 - Contorno do nome em baixo-relevo pesado com a fonte arredondada (tela de escolher conta).
 - Carimbo ou lâmpada para a situação na lista de contas do painel dev.
 - Elástico na tela de entrada e parafusos no painel dev (acrescentados por iniciativa do implementador).
-
-## Telas de configurações (Fase 4)
-
-- Termos, regras de agenda e avisos compartilham `business_settings.version`: cada tela de configurações precisa recarregar a versão depois de cada gravação (use a versão devolvida), senão a próxima gravação da mesma página recebe `stale_version`.
-- Relatórios: `byDay` faz uma agregação por dia local (até 366, em lotes de 8). Se pesar, trocar por uma consulta única com `AT TIME ZONE` num ajudante do cliente por conta.

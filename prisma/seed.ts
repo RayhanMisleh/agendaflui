@@ -338,6 +338,15 @@ async function semearAgenda(
     else if (m.desfecho === 'faltar') await d.markNoShow(ctx, marcado.id)
     else if (m.desfecho === 'cancelar') await d.cancelAppointment(ctx, marcado.id, { reason: 'Cliente avisou que não poderá comparecer.' })
   }
+  // Cliente arquivado: depois das marcações, para a distribuição da agenda não depender dele.
+  const arquivado = await d.createCustomer(ctx, {
+    name: agenda.arquivado.nome,
+    phone: agenda.arquivado.telefone,
+    email: null,
+    notes: agenda.arquivado.notas,
+    isClubMember: false,
+  })
+  await d.archiveCustomer(ctx, arquivado.id)
   await d.createClosure(ctx, { startDate: plano.fechamento, endDate: plano.fechamento, reason: DEMO_CLOSURE_REASON })
   // Por último: o marcador de que a agenda desta conta ficou completa. O fechamento não serve, porque o
   // usuário pode apagá-lo pela tela.

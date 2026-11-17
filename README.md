@@ -46,6 +46,18 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
   alguma não responder 200. Rode `npm run build` antes. Só roda em banco local (localhost): ela grava
   uma sessão de admin no banco e recusa qualquer outro endereço ou produção.
 
+## Painel do negócio
+
+- Entre em `http://painel.localhost:3000` (ou no link da conta, `/entrar/patas-e-cia`) com os e-mails de
+  demonstração do `.env.example`: dono, gerente e profissional de cada conta, e o usuário das duas contas.
+- Cada conta de demonstração tem uma semana de agenda variada (concluídos, faltas, cancelado e confirmados),
+  um bloqueio, um fechamento (feriado) e um cliente arquivado.
+- O que cada papel vê depende da capacidade: o profissional só abre a própria agenda, os próprios números e
+  o próprio perfil.
+- `npm run smoke` também pede cada tela do painel do negócio, com uma sessão temporária de dono.
+- A conferência visual (inclusive a 375 px) e os testes de navegador (`npm run test:e2e`) ficam para o dono:
+  nenhum agente abriu o painel do negócio em navegador, e os e2e foram atualizados sem rodar.
+
 ## API
 
 - A documentação OpenAPI está em `/v1/openapi.json` no host da API (`http://api.localhost:3000/v1/openapi.json`).
@@ -65,7 +77,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 | `npm run db:seed` | Cria os dados e as chaves de demonstração (pode repetir sem duplicar) |
 | `npm run db:reset` | Apaga o banco local e recria vazio |
 | `npm run admin:create` | Cria um administrador da plataforma |
-| `npm run smoke` | Fumaça por HTTP das telas do painel dev (só em banco local) |
+| `npm run smoke` | Fumaça por HTTP das telas dos dois painéis (só em banco local) |
 | `npm run typecheck` / `npm run lint` | Tipos e estilo |
 | `npm test` / `npm run test:tz` | Testes unitários e de integração; datas em vários fusos |
 | `npm run test:e2e` | Testes no navegador (sobem o `npm run dev` se preciso) |
