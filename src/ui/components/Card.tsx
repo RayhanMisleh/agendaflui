@@ -13,7 +13,7 @@ export type CardProps = HTMLAttributes<HTMLElement> & {
 /** Cartão: superfície com borda fina, sem sombra. */
 export function Card({ as: Tag = 'div', variant = 'default', bubbles, className, children, ...rest }: CardProps) {
   return (
-    <Tag {...rest} className={cx('af-card', variant !== 'default' && `af-card--${variant}`, className)}>
+    <Tag {...rest} className={cx('af-card', variant !== 'default' && `af-card--${variant}`, variant === 'block' && bubbles && 'af-card--bubbles', className)}>
       {variant === 'block' && bubbles ? <Bubbles on="brand" /> : null}
       {children}
     </Tag>

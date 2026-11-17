@@ -29,6 +29,11 @@
     background-color: var(--brand);
     color: var(--on-brand);
   }
+  /* Com bolhas, o canto direito é delas: o conteúdo não chega lá, em nenhuma largura. */
+  .af-card--bubbles {
+    --bubble-gutter: 3.5rem;
+    padding-inline-end: calc(1.75rem + var(3,5 rem));
+  }
 
   /* ---- Bolhas: a espuma do banho. Poucas, nas bordas, recortadas pelo raio do bloco. ---- */
   .af-bubbles {
@@ -43,27 +48,28 @@
     position: absolute;
     border-radius: 50%;
   }
+  /* Todas ficam no canto direito, a no máximo 3,5 rem da borda; quem usa as bolhas reserva esse canto (3,5 rem). */
   .af-bubble--1 {
-    top: -2.25rem;
-    right: -1.5rem;
-    width: 7.5rem;
-    height: 7.5rem;
+    top: -2.5rem;
+    right: -2.5rem;
+    width: 6rem;
+    height: 6rem;
   }
   .af-bubble--2 {
-    bottom: -2.5rem;
-    left: 22%;
-    width: 5rem;
-    height: 5rem;
+    bottom: -2rem;
+    right: -1.5rem;
+    width: 4.5rem;
+    height: 4.5rem;
   }
   .af-bubble--3 {
-    top: 42%;
-    right: 12%;
-    width: 1.5rem;
-    height: 1.5rem;
+    top: 3.5rem;
+    right: 0.75rem;
+    width: 1.25rem;
+    height: 1.25rem;
   }
   .af-bubble--4 {
-    bottom: 0.75rem;
-    right: 1.5rem;
+    bottom: 3rem;
+    right: 1rem;
     width: 1rem;
     height: 1rem;
   }

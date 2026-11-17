@@ -19,7 +19,8 @@ export function PainelEntrada({ marca }: { marca: Marca }) {
     <EntryScreen
       theme={marca.theme}
       brand={marca}
-      headline={marca.platform ? 'A agenda que flui.' : marca.name}
+      // O nome (ou a logo) da conta já está no topo do bloco: a frase grande é a saudação, para o nome não aparecer duas vezes.
+      headline={marca.platform ? 'A agenda que flui.' : 'Que bom ver você de volta.'}
       lede={marca.platform ? null : marca.loginMessage}
       title="Entrar na agenda"
       message="Use o e-mail e a senha da sua conta."

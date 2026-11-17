@@ -26,3 +26,9 @@ test('um prefixo parecido não ativa o destino errado', () => {
   expect(isNavActive('/contas-antigas', '/contas')).toBe(false)
   expect(isNavActive('/chaves/x', '/contas')).toBe(false)
 })
+
+test('os itens do dev têm rótulo curto para a barra do celular, sem perder o completo', () => {
+  const curtos = DEV_NAV.map((n) => n.shortLabel ?? n.label)
+  expect(curtos.slice(0, 4)).toEqual(['Geral', 'Contas', 'Chaves', 'Sistema'])
+  for (const c of curtos) expect(c.length).toBeLessThanOrEqual(9)
+})

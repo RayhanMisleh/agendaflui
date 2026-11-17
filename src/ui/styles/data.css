@@ -6,6 +6,8 @@
   .af-datalist {
     container: af-datalist / inline-size;
     min-width: 0;
+    /* Último recurso: se uma coluna que não quebra linha não couber, a tabela rola por dentro do cartão. */
+    overflow-x: auto;
   }
   .af-datalist__table {
     display: none;
@@ -20,12 +22,14 @@
     font-weight: 600;
     line-height: var(--text-small-lh);
     text-align: start;
+    overflow-wrap: anywhere;
   }
   .af-datalist__table td {
     padding: 0.75rem 0.875rem;
     border-bottom: 1px solid var(--line);
     color: var(--ink);
     vertical-align: middle;
+    overflow-wrap: anywhere;
   }
   .af-datalist__table tbody tr:last-child td {
     border-bottom: 0;

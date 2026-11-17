@@ -22,6 +22,8 @@ function isPassthrough(pathname: string): boolean {
   return (
     pathname === '/favicon.ico' ||
     pathname.startsWith('/_next/') ||
+    // Arquivos de public/: servidos como estão, em qualquer host conhecido (sem reescrever para a pasta da área).
+    pathname.startsWith('/brand/') ||
     pathname.startsWith('/arquivos/')
   )
 }

@@ -31,14 +31,11 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-    padding: 1.5rem 1.5rem 5rem;
+    /* O canto direito é das bolhas (3,5 rem); embaixo há folga para o cartão do formulário subir sobre o bloco. */
+    padding: 1.5rem 5rem 5rem 1.5rem;
     border-radius: var(--radius-block);
     background-color: var(--brand);
     color: var(--on-brand);
-  }
-  /* As bolhas ficam nos cantos e nunca atrás do texto: a pequena do meio sai. */
-  .af-entry__hero .af-bubble--3 {
-    display: none;
   }
   .af-entry__brand {
     display: flex;
@@ -170,7 +167,7 @@
     .af-entry:not(.af-entry--phone) .af-entry__hero {
       justify-content: space-between;
       gap: 2rem;
-      padding: 3rem;
+      padding: 3rem 6.5rem 3rem 3rem;
     }
     .af-entry:not(.af-entry--phone) .af-entry__headline {
       font-size: var(--text-display);

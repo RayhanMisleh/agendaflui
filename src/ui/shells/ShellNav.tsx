@@ -12,6 +12,7 @@ import { isNavActive } from './nav'
 export type NavNode = {
   href: string
   label: string
+  shortLabel?: string
   icon: ReactNode
   active?: boolean
   disabled?: boolean
@@ -27,7 +28,8 @@ function NavLink({ item, onNavigate }: { item: NavNode; onNavigate?: () => void 
       <span className="af-navlink__icon" aria-hidden="true">
         {item.icon}
       </span>
-      <span className="af-navlink__label">{item.label}</span>
+      <span className="af-navlink__label af-navlink__label--full">{item.label}</span>
+      {item.shortLabel ? <span className="af-navlink__label af-navlink__label--short" aria-hidden="true">{item.shortLabel}</span> : null}
       {item.disabled ? <Lock className="af-navlink__lock" size={14} aria-hidden="true" /> : null}
     </>
   )

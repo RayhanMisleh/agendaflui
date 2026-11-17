@@ -161,7 +161,7 @@ export function Molduras() {
           </EntryScreen>
         </Quadro>
         <Quadro title="Entrada de uma conta" note="O nome da conta e a mensagem de entrada ocupam o destaque." wide>
-          <EntryScreen embedded testId="vt-entrada-conta" theme={conta('LEATHER')} brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }} headline={CONTA.name} lede="Bem-vindo de volta. Sua agenda está esperando." title="Entrar na agenda">
+          <EntryScreen embedded testId="vt-entrada-conta" theme={conta('LEATHER')} brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }} headline="Que bom ver você de volta." lede="Sua agenda está esperando." title="Entrar na agenda">
             <div className="af-entry__form">
               <Button size="lg">Entrar</Button>
             </div>
@@ -170,7 +170,7 @@ export function Molduras() {
         <Quadro title="Entrada no celular e do painel dev" wide>
           <div className="vt-row vt-row--top">
             <div className="vt-phone">
-              <EntryScreen embedded phone testId="vt-entrada-celular" theme={conta('LEATHER')} brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }} headline={CONTA.name} title="Entrar na agenda">
+              <EntryScreen embedded phone testId="vt-entrada-celular" theme={conta('LEATHER')} brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }} headline="Que bom ver você de volta." title="Entrar na agenda">
                 <div className="af-entry__form">
                   <Button size="lg">Entrar</Button>
                 </div>

@@ -45,7 +45,7 @@ export function ShellFrame(p: ShellFrameProps) {
   const Main = p.embedded ? 'section' : 'main'
   const navNodes = p.nav.map((n) => {
     const Icon = n.icon
-    return { href: n.href, label: n.label, active: n.active, disabled: n.disabled, icon: <Icon size={20} strokeWidth={2} /> }
+    return { href: n.href, label: n.label, shortLabel: n.shortLabel, active: n.active, disabled: n.disabled, icon: <Icon size={20} strokeWidth={2} /> }
   })
   // Sobre barra escura, a marca da Agenda Flui e o nome usam a tinta da barra; a do dev é a marca em negativo.
   const markVariant = p.variant === 'dev' ? 'negative' : p.bar === 'dark' ? 'on-color' : 'horizontal'

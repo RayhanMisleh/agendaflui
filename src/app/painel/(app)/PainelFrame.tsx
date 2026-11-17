@@ -35,7 +35,7 @@ export async function PainelFrame({
     { href: '/equipe', label: termos.termProfessionalPlural, icon: UserRound, disabled: true },
     { href: '/servicos', label: 'Serviços', icon: Scissors, disabled: true },
     { href: '/relatorios', label: 'Relatórios', icon: ChartNoAxesColumn, disabled: true },
-    { href: '/configuracoes', label: 'Configurações', icon: Settings, disabled: true },
+    { href: '/configuracoes', label: 'Configurações', shortLabel: 'Ajustes', icon: Settings, disabled: true },
   ]
 
   const papel =

@@ -32,6 +32,12 @@ describe('hosts', () => {
     expect(routeRequest('painel.localhost:3000', '/arquivos/a/b.webp', cfg)).toEqual({ action: 'pass' })
     expect(routeRequest('dev.localhost:3000', '/favicon.ico', cfg)).toEqual({ action: 'pass' })
   })
+  test('arquivos estáticos de public/ (/brand/...) passam nos três hosts, sem reescrita', () => {
+    for (const h of [cfg.dev, cfg.painel, cfg.api])
+      for (const p of ['/brand/agendaflui-horizontal.svg', '/brand/agendaflui-simbolo.svg'])
+        expect(routeRequest(h, p, cfg)).toEqual({ action: 'pass' })
+    expect(routeRequest('evil.com', '/brand/agendaflui-horizontal.svg', cfg)).toEqual({ action: 'not_found' })
+  })
   test('/healthz passa em qualquer host: conhecido, desconhecido ou ausente', () => {
     for (const h of ['dev.localhost:3000', 'localhost:3000', '127.0.0.1:3000', 'evil.com', '', null, undefined])
       expect(routeRequest(h, '/healthz', cfg)).toEqual({ action: 'pass' })

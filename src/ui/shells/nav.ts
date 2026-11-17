@@ -3,6 +3,8 @@ import type { LucideIcon } from 'lucide-react'
 export type NavItem = {
   href: string
   label: string
+  /** Rótulo curto para a barra do celular (cabe em ~5 caracteres por item); o completo vale na barra lateral. */
+  shortLabel?: string
   icon: LucideIcon
   active?: boolean
   /** Módulo desligado ou tela ainda indisponível: aparece esmaecido e não é link. */
