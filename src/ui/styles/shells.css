@@ -777,3 +777,40 @@
       radial-gradient(circle at 38% 34%, #c9d0da 0 1px, #7c8593 2px 4px, #3a424e 4.8px, rgb(0 0 0 / 0) 5.6px) bottom 8px right 8px / 12px 12px no-repeat;
   }
 }
+
+/* A marca Agenda Flui (símbolo + nome em HTML). `flui` em --brand-text sobre fundo claro e em --on-brand no negativo. */
+@layer components {
+  .af-brand--agendaflui {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    line-height: 1;
+  }
+  .af-brand__symbol {
+    flex: none;
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+  .af-brand--lg .af-brand__symbol {
+    width: 2.25rem;
+    height: 2.25rem;
+  }
+  .af-brand__wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+    color: var(--ink);
+  }
+  .af-brand--lg .af-brand__wordmark {
+    font-size: 1.5rem;
+  }
+  .af-brand__flui {
+    color: var(--brand-text);
+  }
+  .af-brand--negative .af-brand__wordmark,
+  .af-brand--negative .af-brand__flui {
+    color: var(--on-brand);
+  }
+}

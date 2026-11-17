@@ -13,6 +13,7 @@ const MARCA_PADRAO = {
   symbolUrl: null,
   loginImageUrl: null,
   loginMessage: null,
+  platform: true,
   theme: deriveTheme(AGENDAFLUI_BRAND),
 }
 

@@ -23,7 +23,7 @@ export function DevShell(p: {
     <ThemeScope theme={THEME} testId={p.testId ?? 'dev-shell'}>
       <ShellFrame
         variant="dev"
-        brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null }}
+        brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }}
         nav={p.nav}
         user={{ name: p.admin.name, roleLabel: 'Administração', avatarUrl: null }}
         title={p.title}

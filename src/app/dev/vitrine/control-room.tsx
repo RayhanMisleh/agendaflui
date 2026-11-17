@@ -68,12 +68,12 @@ function CriacaoDeConta() {
         <StepRail steps={ETAPAS} current={etapa} onSelect={setEtapa} errorSteps={[4]} visitedUntil={3} />
         <div className="vt-brandgrid">
           <div className="vt-stack">
-            <ColorField label="Cor principal" value={cor} onChange={setCor} />
-            <MaterialPicker value={material} onChange={setMaterial} primary={cor} accent="#E0A030" paper="CREAM" fontPair="CLASSIC" />
+            <ColorField label="Cor da conta" value={cor} onChange={setCor} />
+            <MaterialPicker value={material} onChange={setMaterial} primary={cor} accent="#F2A93B" paper="CREAM" fontPair="CLASSIC" />
           </div>
           <BrandPreview
             businessName="Pata Viva"
-            brand={{ primary: cor, accent: '#E0A030', material, paper: 'CREAM', fontPair: 'CLASSIC' }}
+            brand={{ primary: cor, accent: '#F2A93B', material, paper: 'CREAM', fontPair: 'CLASSIC' }}
             terms={{ professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores' }}
           />
         </div>

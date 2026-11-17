@@ -5,33 +5,7 @@
  */
 @layer components {
   :root {
-    /* Valores padrão = deriveTheme(AGENDAFLUI_BRAND). Fora de um ThemeScope os componentes funcionam. */
-    --cover: #0E4F5C;
-    --cover-hi: #2A6673;
-    --cover-lo: #003943;
-    --cover-deep: #001E24;
-    --on-cover: #FFFFFF;
-    --on-cover-soft: #B9CCD0;
-    --accent: #E0A030;
-    --accent-hi: #FBBA4F;
-    --accent-lo: #C58700;
-    --on-accent: #1B1A17;
-    --accent-ink: #976700;
-    --paper: #FBFAF7;
-    --paper-edge: #D3D2D0;
-    --paper-line: #E4E3E0;
-    --paper-sunk: #EEEDEA;
-    --ink: #1B1A17;
-    --ink-soft: #6C6B68;
-    --ink-faint: #92918E;
-    --ok: #1E6B3A;
-    --warn: #8A5A00;
-    --bad: #B3261E;
-
-    /* Cor das sombras (quente, nunca cinza puro). */
-    --shadow-rgb: 38 30 24;
-
-    --font-display: var(--font-display-classic, 'Zilla Slab', Georgia, serif);
+    /* As cores e as fontes vêm de tokens.css (marca Agenda Flui) e do tema da conta. */
 
     /* Escala tipográfica (razão 1,25). */
     --text-xs: 0.8125rem;
@@ -55,16 +29,6 @@
 
     --tap: 44px;
     --ease-key: cubic-bezier(0.3, 1.45, 0.5, 1);
-  }
-
-  [data-font='classic'] {
-    --font-display: var(--font-display-classic, 'Zilla Slab', Georgia, serif);
-  }
-  [data-font='modern'] {
-    --font-display: var(--font-display-modern, 'Schibsted Grotesk', system-ui, sans-serif);
-  }
-  [data-font='friendly'] {
-    --font-display: var(--font-display-friendly, Fredoka, 'Trebuchet MS', sans-serif);
   }
 
   /* Texto só para leitor de tela. */

@@ -22,7 +22,7 @@ import {
 } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
-import type { FontPair, PaperTone } from '@/shared/theme/derive'
+import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL } from '@/shared/theme/labels'
 import type { FormState } from '../../_lib/form-state'
 import type { LimitesDeRegras } from '../[id]/FormsConta'
 import { criarConta } from './actions'
@@ -39,11 +39,11 @@ const ROTULOS: Record<string, string> = {
   contactPhone: 'Telefone',
   internalNotes: 'Observações internas',
   displayName: 'Nome de exibição',
-  primary: 'Cor principal',
-  accent: 'Cor de destaque',
-  material: 'Material da capa',
-  paper: 'Tom do papel',
-  fontPair: 'Par de fontes',
+  primary: PRIMARY_FIELD_LABEL,
+  accent: ACCENT_FIELD_LABEL,
+  material: SIDEBAR_FIELD_LABEL,
+  paper: GROUND_FIELD_LABEL,
+  fontPair: FONT_PAIR_FIELD_LABEL,
   loginMessage: 'Mensagem da tela de entrada',
   professionalSingular: 'Profissional (singular)',
   professionalPlural: 'Profissional (plural)',
@@ -63,17 +63,6 @@ const ROTULOS: Record<string, string> = {
   ownerEmail: 'E-mail do dono',
   keyName: 'Nome da chave',
 }
-
-const PAPEIS: Array<[PaperTone, string]> = [
-  ['WHITE', 'Branco'],
-  ['CREAM', 'Creme'],
-  ['GRAY', 'Cinza'],
-]
-const FONTES: Array<[FontPair, string, string]> = [
-  ['CLASSIC', 'Clássico', 'Títulos com serifa de livro-caixa.'],
-  ['MODERN', 'Moderno', 'Títulos sem serifa, de traço limpo.'],
-  ['FRIENDLY', 'Amigável', 'Títulos de cantos redondos.'],
-]
 
 type Estado = FormState<WizardData>
 
@@ -213,9 +202,9 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             </Field>
           </Etapa>
 
-          <Etapa i={1} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Marca" ajuda="Cores, material da capa, papel e fonte. A prévia ao lado muda na hora, sem enviar nada.">
+          <Etapa i={1} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Marca" ajuda="Cores, barra lateral, fundo e fonte. A prévia ao lado muda na hora, sem enviar nada.">
             <div className="af-wizard__grid">
-              <Field label="Nome de exibição" hint="Aparece na capa do painel e nos e-mails." error={erro('displayName')}>
+              <Field label="Nome de exibição" hint="Aparece na barra lateral do painel e nos e-mails." error={erro('displayName')}>
                 <Input
                   name="displayName"
                   value={v.displayName}
@@ -227,8 +216,8 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
                 />
               </Field>
               <p className="af-wizard__note">A logo, o símbolo, o favicon e a imagem de entrada você envia na aba Marca da conta, logo depois de criá-la.</p>
-              <ColorField label="Cor principal" name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...opcional('error', erro('primary'))} {...opcional('warning', avisoDe(warnings, 'primary'))} />
-              <ColorField label="Cor de destaque" name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...opcional('error', erro('accent'))} {...opcional('warning', avisoDe(warnings, 'accent'))} />
+              <ColorField label={PRIMARY_FIELD_LABEL} name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...opcional('error', erro('primary'))} {...opcional('warning', avisoDe(warnings, 'primary'))} />
+              <ColorField label={ACCENT_FIELD_LABEL} name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...opcional('error', erro('accent'))} {...opcional('warning', avisoDe(warnings, 'accent'))} />
             </div>
             <MaterialPicker
               name="material"
@@ -240,20 +229,20 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               fontPair={v.fontPair}
             />
             <div className="af-wizard__grid">
-              <Field label="Tom do papel" error={erro('paper')}>
+              <Field label={GROUND_FIELD_LABEL} hint={GROUND_OPTIONS.find((o) => o.value === v.paper)?.hint} error={erro('paper')}>
                 <Select name="paper" value={v.paper} onChange={texto('paper')}>
-                  {PAPEIS.map(([valor, rotulo]) => (
-                    <option key={valor} value={valor}>
-                      {rotulo}
+                  {GROUND_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
                     </option>
                   ))}
                 </Select>
               </Field>
-              <Field label="Par de fontes" hint={FONTES.find(([f]) => f === v.fontPair)?.[2]} error={erro('fontPair')}>
+              <Field label={FONT_PAIR_FIELD_LABEL} hint={FONT_PAIR_OPTIONS.find((o) => o.value === v.fontPair)?.hint} error={erro('fontPair')}>
                 <Select name="fontPair" value={v.fontPair} onChange={texto('fontPair')}>
-                  {FONTES.map(([valor, rotulo]) => (
-                    <option key={valor} value={valor}>
-                      {rotulo}
+                  {FONT_PAIR_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
                     </option>
                   ))}
                 </Select>

@@ -1,32 +1,22 @@
-import {
-  Barlow_Condensed,
-  Fredoka,
-  Hanken_Grotesk,
-  Schibsted_Grotesk,
-  Zilla_Slab,
-} from 'next/font/google'
+import { Fredoka, Schibsted_Grotesk } from 'next/font/google'
+import localFont from 'next/font/local'
 
-const ui = Hanken_Grotesk({ subsets: ['latin'], display: 'swap', variable: '--font-ui' })
-const stamp = Barlow_Condensed({
-  subsets: ['latin'],
+// O par da marca Agenda Flui, auto-hospedado (arquivos variáveis em ./fonts): Bricolage Grotesque nos títulos, Figtree no texto.
+const bricolage = localFont({
+  src: './fonts/BricolageGrotesque-Variable.ttf',
+  weight: '200 800',
   display: 'swap',
-  weight: ['600', '700'],
-  variable: '--font-stamp',
+  variable: '--font-bricolage',
 })
-const classic = Zilla_Slab({
-  subsets: ['latin'],
+const figtree = localFont({
+  src: './fonts/Figtree-Variable.ttf',
+  weight: '300 900',
   display: 'swap',
-  weight: ['400', '600', '700'],
-  variable: '--font-display-classic',
+  variable: '--font-figtree',
 })
-const modern = Schibsted_Grotesk({
-  subsets: ['latin'],
-  display: 'swap',
-  variable: '--font-display-modern',
-})
+// Os outros dois pares (`MODERN` e `FRIENDLY`) só trocam a fonte dos títulos; o texto segue em Figtree.
+const modern = Schibsted_Grotesk({ subsets: ['latin'], display: 'swap', variable: '--font-display-modern' })
 const friendly = Fredoka({ subsets: ['latin'], display: 'swap', variable: '--font-display-friendly' })
 
-/** Classes para o <html>. */
-export const fontVariables: string = [ui, stamp, classic, modern, friendly]
-  .map((f) => f.variable)
-  .join(' ')
+/** Classes para o <html>. `--font-display` e `--font-sans` vêm do tema da conta (`deriveTheme`) e usam estas variáveis. */
+export const fontVariables: string = [bricolage, figtree, modern, friendly].map((f) => f.variable).join(' ')

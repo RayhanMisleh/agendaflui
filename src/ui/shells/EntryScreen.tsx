@@ -11,7 +11,7 @@ import { BrandMark } from './BrandMark'
 export function EntryScreen(p: {
   theme: ThemeTokens
   variant?: 'painel' | 'dev'
-  brand: { name: string; logoUrl: string | null; symbolUrl: string | null; loginImageUrl?: string | null }
+  brand: { name: string; logoUrl: string | null; symbolUrl: string | null; loginImageUrl?: string | null; platform?: boolean }
   title: string
   message?: string | null
   children: ReactNode
@@ -36,7 +36,7 @@ export function EntryScreen(p: {
               // eslint-disable-next-line @next/next/no-img-element -- o símbolo vem do armazenamento da conta
               <img src={p.brand.symbolUrl} alt="" className="af-entry__symbol" />
             ) : null}
-            <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" />
+            <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" platform={p.brand.platform} variant="negative" />
           </header>
           <section className="af-paper af-paper--r2 af-entry__card" aria-labelledby="entrada-titulo">
             <h1 id="entrada-titulo" className="af-entry__title af-engraved">

@@ -35,7 +35,7 @@ export default async function EscolherContaPage() {
   return (
     <EntryScreen
       theme={THEME}
-      brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null }}
+      brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }}
       title="Escolha a conta"
       message={disponiveis.length > 0 ? `Olá, ${session.user.name.split(' ')[0]}. Em qual agenda você quer entrar?` : null}
       testId="escolher-conta"

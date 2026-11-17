@@ -3,21 +3,11 @@ import { useState } from 'react'
 import { BrandPreview, Button, ColorField, Field, Input, MaterialPicker, Select, Textarea } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
+import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL } from '@/shared/theme/labels'
 import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
 import type { AcaoConta, Campos } from './forms'
-
-const PAPEIS: Array<[PaperTone, string]> = [
-  ['WHITE', 'Branco'],
-  ['CREAM', 'Creme'],
-  ['GRAY', 'Cinza'],
-]
-const FONTES: Array<[FontPair, string, string]> = [
-  ['CLASSIC', 'Clássico', 'Títulos com serifa de livro-caixa.'],
-  ['MODERN', 'Moderno', 'Títulos sem serifa, de traço limpo.'],
-  ['FRIENDLY', 'Amigável', 'Títulos de cantos redondos.'],
-]
 
 export type Imagens = { logo: string | null; symbol: string | null; favicon: string | null; loginImage: string | null }
 
@@ -29,8 +19,8 @@ export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoCo
     displayName: valores.displayName ?? '',
     primary: valores.primary ?? '',
     accent: valores.accent ?? '',
-    material: (valores.material ?? 'ENAMEL') as CoverMaterial,
-    paper: (valores.paper ?? 'WHITE') as PaperTone,
+    material: (valores.material ?? 'LEATHER') as CoverMaterial,
+    paper: (valores.paper ?? 'CREAM') as PaperTone,
     fontPair: (valores.fontPair ?? 'CLASSIC') as FontPair,
     loginMessage: valores.loginMessage ?? '',
   })
@@ -46,29 +36,29 @@ export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoCo
           {({ fields }) => (
             <>
               <div className="af-wizard__grid">
-                <Field label="Nome de exibição" hint="Aparece na capa do painel e nos e-mails." error={fields.displayName}>
+                <Field label="Nome de exibição" hint="Aparece na barra lateral do painel e nos e-mails." error={fields.displayName}>
                   <Input name="displayName" value={v.displayName} onChange={(e) => set('displayName', e.target.value)} autoComplete="off" />
                 </Field>
                 <span />
-                <ColorField label="Cor principal" name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...(fields.primary ? { error: fields.primary } : {})} {...(avisoPrincipal ? { warning: avisoPrincipal } : {})} />
-                <ColorField label="Cor de destaque" name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...(fields.accent ? { error: fields.accent } : {})} {...(avisoDestaque ? { warning: avisoDestaque } : {})} />
+                <ColorField label={PRIMARY_FIELD_LABEL} name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...(fields.primary ? { error: fields.primary } : {})} {...(avisoPrincipal ? { warning: avisoPrincipal } : {})} />
+                <ColorField label={ACCENT_FIELD_LABEL} name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...(fields.accent ? { error: fields.accent } : {})} {...(avisoDestaque ? { warning: avisoDestaque } : {})} />
               </div>
               <MaterialPicker name="material" value={v.material} onChange={(m) => set('material', m)} primary={v.primary} accent={v.accent} paper={v.paper} fontPair={v.fontPair} />
               <div className="af-wizard__grid">
-                <Field label="Tom do papel" error={fields.paper}>
+                <Field label={GROUND_FIELD_LABEL} hint={GROUND_OPTIONS.find((o) => o.value === v.paper)?.hint} error={fields.paper}>
                   <Select name="paper" value={v.paper} onChange={(e) => set('paper', e.target.value as PaperTone)}>
-                    {PAPEIS.map(([valor, rotulo]) => (
-                      <option key={valor} value={valor}>
-                        {rotulo}
+                    {GROUND_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Par de fontes" hint={FONTES.find(([f]) => f === v.fontPair)?.[2]} error={fields.fontPair}>
+                <Field label={FONT_PAIR_FIELD_LABEL} hint={FONT_PAIR_OPTIONS.find((o) => o.value === v.fontPair)?.hint} error={fields.fontPair}>
                   <Select name="fontPair" value={v.fontPair} onChange={(e) => set('fontPair', e.target.value as FontPair)}>
-                    {FONTES.map(([valor, rotulo]) => (
-                      <option key={valor} value={valor}>
-                        {rotulo}
+                    {FONT_PAIR_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </Select>
@@ -89,7 +79,7 @@ export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoCo
 }
 
 const SLOTS: ReadonlyArray<{ slot: keyof Imagens; label: string; hint: string }> = [
-  { slot: 'logo', label: 'Logo', hint: 'Aparece em baixo-relevo na capa do painel.' },
+  { slot: 'logo', label: 'Logo', hint: 'Aparece na barra lateral do painel.' },
   { slot: 'symbol', label: 'Símbolo', hint: 'A marca em tamanho pequeno, para o menu recolhido.' },
   { slot: 'favicon', label: 'Favicon', hint: 'O ícone da aba do navegador. Use uma imagem quadrada.' },
   { slot: 'loginImage', label: 'Imagem de entrada', hint: 'A imagem da tela de entrada da conta.' },

@@ -1,5 +1,7 @@
 import { TriangleAlert } from 'lucide-react'
 import { previewTheme } from '@/shared/theme/preview'
+import { labelOf, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
+import { themeAttrs } from '../theme/ThemeScope'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
 import { Paper } from './Paper'
@@ -23,7 +25,7 @@ export type PreviewBrand = {
 }
 
 /**
- * Miniatura fiel do painel do negócio: a capa no material e na cor escolhidos (com o nome ou a logo em baixo-relevo),
+ * Miniatura fiel do painel do negócio: a barra lateral no estilo e na cor escolhidos (com o nome ou a logo em baixo-relevo),
  * o menu em divisórias, o papel com abas, uma ficha de agendamento com carimbo e o botão principal, tudo com os termos
  * da conta. Roda no navegador: usa `previewTheme` (o mesmo motor do painel real) e aplica as variáveis no PRÓPRIO
  * elemento, então nada vaza para a página. Os avisos do motor aparecem em texto ao lado. A miniatura é só para olhar:
@@ -40,15 +42,15 @@ export function BrandPreview({
   businessName: string
   className?: string
 }) {
-  const { tokens, warnings, theme } = previewTheme(brand)
+  const { warnings, theme } = previewTheme(brand)
   const nome = businessName.trim() || 'Seu negócio'
   return (
     <div role="group" aria-label={`Prévia do painel de ${nome}`} className={cx('af-bp', className)}>
       <p className="af-sr">
-        Miniatura do painel com capa de {theme.material === 'leather' ? 'couro' : theme.material === 'linen' ? 'linho' : theme.material === 'wood' ? 'madeira' : 'esmalte'}.
-        Ela muda sozinha quando você troca as cores, o material, o papel, a fonte ou os termos.
+        Miniatura do painel com a barra lateral {labelOf(SIDEBAR_OPTIONS, brand.material).toLowerCase()}.
+        Ela muda sozinha quando você troca as cores, a barra lateral, o fundo, a fonte ou os termos.
       </p>
-      <div data-testid="brand-preview" className="af-bp__scope" style={tokens} data-material={theme.material} data-font={theme.fontPair}>
+      <div data-testid="brand-preview" className="af-bp__scope" {...themeAttrs(theme)}>
         <div data-testid="brand-preview-mock" aria-hidden="true" inert className="af-bp__window">
           <div className="af-cover af-bp__cover" data-material={theme.material}>
             <div className="af-bp__brand">

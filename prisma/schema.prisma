@@ -301,10 +301,10 @@ model BusinessBranding {
   faviconUploadId    String?       @map("favicon_upload_id") @db.Uuid
   loginImageUploadId String?       @map("login_image_upload_id") @db.Uuid
   loginMessage       String?       @map("login_message")
-  primaryColor       String        @default("#0E4F5C") @map("primary_color")
-  accentColor        String        @default("#E0A030") @map("accent_color")
-  coverMaterial      CoverMaterial @default(ENAMEL) @map("cover_material")
-  paperTone          PaperTone     @default(WHITE) @map("paper_tone")
+  primaryColor       String        @default("#0B6E66") @map("primary_color")
+  accentColor        String        @default("#F2A93B") @map("accent_color")
+  coverMaterial      CoverMaterial @default(LEATHER) @map("cover_material")
+  paperTone          PaperTone     @default(CREAM) @map("paper_tone")
   fontPair           FontPair      @default(CLASSIC) @map("font_pair")
   /// Controle de edição da marca pelo painel dev: cada gravação exige a versão lida e a incrementa.
   version            Int           @default(1)

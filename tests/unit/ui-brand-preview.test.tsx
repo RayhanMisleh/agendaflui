@@ -4,7 +4,7 @@ import { BrandPreview } from '@/ui/components/BrandPreview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import { previewTheme } from '@/shared/theme/preview'
 
-const marca = { primary: '#7A1F2B', accent: '#E0A030', material: 'LEATHER', paper: 'CREAM', fontPair: 'MODERN' } as const
+const marca = { primary: '#7A1F2B', accent: '#F2A93B', material: 'LEATHER', paper: 'CREAM', fontPair: 'MODERN' } as const
 const termos = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores' }
 
 test('aplica os tokens de previewTheme no elemento raiz, sem vazar para a página', () => {
@@ -12,9 +12,11 @@ test('aplica os tokens de previewTheme no elemento raiz, sem vazar para a págin
   const raiz = screen.getByTestId('brand-preview')
   const { tokens, theme } = previewTheme(marca)
   for (const [variavel, valor] of Object.entries(tokens)) expect(raiz.style.getPropertyValue(variavel)).toBe(valor)
+  expect(raiz).toHaveAttribute('data-theme')
+  expect(raiz).toHaveAttribute('data-scheme', 'day')
   expect(raiz).toHaveAttribute('data-material', theme.material)
   expect(raiz).toHaveAttribute('data-font', theme.fontPair)
-  expect(document.documentElement.style.getPropertyValue('--cover')).toBe('')
+  expect(document.documentElement.style.getPropertyValue('--brand')).toBe('')
 })
 
 test('mostra o nome do negócio e os termos da conta na ficha e nas abas', () => {
@@ -29,7 +31,7 @@ test('muda com a marca: outra cor e outro termo atualizam a prévia', () => {
   const { rerender } = render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
   rerender(<BrandPreview brand={{ ...marca, primary: '#1F4E7A', material: 'WOOD' }} terms={{ ...termos, professionalSingular: 'Barbeiro', professionalPlural: 'Barbeiros' }} businessName="Pata Viva" />)
   const raiz = screen.getByTestId('brand-preview')
-  expect(raiz.style.getPropertyValue('--cover')).toBe(previewTheme({ ...marca, primary: '#1F4E7A', material: 'WOOD' }).tokens['--cover'])
+  expect(raiz.style.getPropertyValue('--brand')).toBe(previewTheme({ ...marca, primary: '#1F4E7A', material: 'WOOD' }).tokens['--brand'])
   expect(raiz).toHaveAttribute('data-material', 'wood')
   expect(screen.getAllByText(/Barbeiro/).length).toBeGreaterThan(0)
   expect(screen.queryByText(/Tosador/)).toBeNull()

@@ -62,7 +62,8 @@ test('o tema chega ao elemento raiz', () => {
   render(<PainelShell {...base}>x</PainelShell>)
   const root = screen.getByTestId('painel-shell')
   expect(root).toHaveAttribute('data-material', 'leather')
-  expect(root.style.getPropertyValue('--cover').toUpperCase()).toBe(theme.vars['--cover'])
+  expect(root).toHaveAttribute('data-scheme', 'day')
+  expect(root.style.getPropertyValue('--brand').toUpperCase()).toBe(theme.vars['--brand'])
 })
 
 test('há um único h1 e o link de pular para o conteúdo', () => {

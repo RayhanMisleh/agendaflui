@@ -3,7 +3,7 @@
 
 body {
   margin: 0;
-  font-family: var(--font-ui, system-ui, sans-serif);
+  font-family: var(--font-sans);
   color: var(--ink);
-  background: var(--paper-sunk);
+  background: var(--ground);
 }

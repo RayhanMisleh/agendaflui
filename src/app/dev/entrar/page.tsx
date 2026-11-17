@@ -14,7 +14,7 @@ export default function EntrarPage() {
     <EntryScreen
       theme={THEME}
       variant="dev"
-      brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null }}
+      brand={{ name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }}
       title="Entrar na mesa de controle"
       message="Acesso para quem administra a plataforma."
       testId="dev-entry"

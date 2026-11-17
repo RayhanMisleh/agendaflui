@@ -9,6 +9,7 @@ type Marca = {
   symbolUrl: string | null
   loginImageUrl: string | null
   loginMessage: string | null
+  platform?: boolean
   theme: ThemeTokens
 }
 

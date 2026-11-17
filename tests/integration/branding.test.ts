@@ -30,7 +30,9 @@ test('devolve o tema derivado das cores gravadas', async () => {
   expect(marca?.loginMessage).toBe('Bem-vindo de volta.')
   expect(marca?.theme.material).toBe('linen')
   expect(marca?.theme.fontPair).toBe('friendly')
-  expect(marca?.theme.vars['--paper']).toBe('#F6EFDD')
+  expect(marca?.theme.vars['--surface']).toBe('#FFFFFF')
+  expect(marca?.theme.vars['--ground']).toMatch(/^#F[0-9A-F]{5}$/)
+  expect(marca?.theme.vars['--ground']).not.toBe('#FFFFFF')
   expect((await getPublicBrandById(b.id))?.slug).toBe('pet')
 })
 

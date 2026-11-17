@@ -10,7 +10,7 @@ export type ShellUser = { name: string; roleLabel: string; avatarUrl: string | n
 
 export type ShellFrameProps = {
   variant: 'painel' | 'dev'
-  brand: { name: string; logoUrl: string | null; symbolUrl: string | null }
+  brand: { name: string; logoUrl: string | null; symbolUrl: string | null; platform?: boolean }
   nav: NavItem[]
   user: ShellUser
   banner?: string
@@ -73,7 +73,7 @@ export function ShellFrame(p: ShellFrameProps) {
                 // eslint-disable-next-line @next/next/no-img-element -- o símbolo vem do armazenamento da conta
                 <img src={p.brand.symbolUrl} alt={p.brand.logoUrl ? p.brand.name : ''} className="af-shell__symbol" />
               ) : null}
-              <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" />
+              <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" platform={p.brand.platform} variant="negative" />
             </div>
             <p className="af-shell__bartitle af-engraved" aria-hidden="true">
               {p.title}

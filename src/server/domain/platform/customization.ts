@@ -100,8 +100,8 @@ const marcaSchema = z.strictObject({
   displayName: displayNameSchema,
   primary: cor,
   accent: cor,
-  material: z.enum(COVER_MATERIALS, { error: 'Escolha um dos materiais da lista.' }),
-  paper: z.enum(PAPER_TONES, { error: 'Escolha um dos tons de papel da lista.' }),
+  material: z.enum(COVER_MATERIALS, { error: 'Escolha uma das barras laterais da lista.' }),
+  paper: z.enum(PAPER_TONES, { error: 'Escolha um dos fundos da lista.' }),
   fontPair: z.enum(FONT_PAIRS, { error: 'Escolha um dos pares de fontes da lista.' }),
   loginMessage: z
     .string()

@@ -54,7 +54,7 @@ describe('contas e acessos', () => {
       include: { branding: true, modules: true, settings: true },
     })
     expect(patas.timezone).toBe('America/Sao_Paulo')
-    expect(patas.branding).toMatchObject({ primaryColor: '#2F6B4F', accentColor: '#E8833A', coverMaterial: 'LINEN', paperTone: 'CREAM', fontPair: 'FRIENDLY' })
+    expect(patas.branding).toMatchObject({ primaryColor: '#2F7D5B', accentColor: '#F29A4B', coverMaterial: 'LEATHER', paperTone: 'CREAM', fontPair: 'FRIENDLY' })
     expect(patas.settings).toMatchObject({ termProfessionalPlural: 'Tosadores', termCustomerPlural: 'Tutores', termPointsPlural: 'Patinhas' })
     expect(patas.modules).toMatchObject({ loyalty: true, banners: true, store: false, vouchers: false })
     const navalha = await prisma.business.findUniqueOrThrow({
@@ -62,7 +62,7 @@ describe('contas e acessos', () => {
       include: { branding: true, modules: true, settings: true },
     })
     expect(navalha.timezone).toBe('America/Manaus')
-    expect(navalha.branding).toMatchObject({ coverMaterial: 'LEATHER', paperTone: 'WHITE', fontPair: 'CLASSIC' })
+    expect(navalha.branding).toMatchObject({ primaryColor: '#243B6B', coverMaterial: 'WOOD', paperTone: 'WHITE', fontPair: 'MODERN' })
     expect(navalha.settings?.termProfessionalPlural).toBe('Barbeiros')
     expect(navalha.modules).toMatchObject({ loyalty: true, banners: true, store: true, vouchers: true })
   })

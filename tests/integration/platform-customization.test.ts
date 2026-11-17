@@ -59,9 +59,9 @@ let biz: Awaited<ReturnType<typeof makeBusiness>>
 const brand: BrandInput = {
   displayName: 'Barbearia Central',
   primary: '#7A1F2B',
-  accent: '#E0A030',
-  material: 'LEATHER',
-  paper: 'CREAM',
+  accent: '#F2A93B',
+  material: 'WOOD',
+  paper: 'GRAY',
   fontPair: 'MODERN',
   loginMessage: 'Bem-vindo de volta.',
 }
@@ -140,10 +140,10 @@ describe('getCustomization', () => {
     const r = await getCustomization(actor, biz.id)
     expect(r.brand).toMatchObject({
       displayName: `Conta ${biz.slug}`,
-      primary: '#0E4F5C',
-      accent: '#E0A030',
-      material: 'ENAMEL',
-      paper: 'WHITE',
+      primary: '#0B6E66',
+      accent: '#F2A93B',
+      material: 'LEATHER',
+      paper: 'CREAM',
       fontPair: 'CLASSIC',
       loginMessage: null,
       logoUrl: null,
@@ -179,19 +179,19 @@ describe('getCustomization', () => {
 
 describe('updateBrand', () => {
   test('grava, normaliza as cores em maiúsculas (#RRGGBB), sobe a versão e audita os campos', async () => {
-    const r = await updateBrand(actor, biz.id, 1, { ...brand, primary: '#7a1f2b', accent: '#e0a030' })
-    expect(r).toMatchObject({ ...brand, primary: '#7A1F2B', accent: '#E0A030', version: 2 })
+    const r = await updateBrand(actor, biz.id, 1, { ...brand, primary: '#7a1f2b', accent: '#f2a93b' })
+    expect(r).toMatchObject({ ...brand, primary: '#7A1F2B', accent: '#F2A93B', version: 2 })
     const linha = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: biz.id } })
-    expect([linha.primaryColor, linha.coverMaterial, linha.paperTone, linha.fontPair]).toEqual(['#7A1F2B', 'LEATHER', 'CREAM', 'MODERN'])
+    expect([linha.primaryColor, linha.coverMaterial, linha.paperTone, linha.fontPair]).toEqual(['#7A1F2B', 'WOOD', 'GRAY', 'MODERN'])
     const [log] = await auditoria('brand.updated')
     expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: actor.adminId, onBehalf: false })
     // Só o que mudou, com antes e depois (o destaque só mudou de caixa, então não entra); a mensagem não vai por extenso.
     expect(log?.metadata).toEqual({
       changes: {
         displayName: { from: `Conta ${biz.slug}`, to: 'Barbearia Central' },
-        primary: { from: '#0E4F5C', to: '#7A1F2B' },
-        material: { from: 'ENAMEL', to: 'LEATHER' },
-        paper: { from: 'WHITE', to: 'CREAM' },
+        primary: { from: '#0B6E66', to: '#7A1F2B' },
+        material: { from: 'LEATHER', to: 'WOOD' },
+        paper: { from: 'CREAM', to: 'GRAY' },
         fontPair: { from: 'CLASSIC', to: 'MODERN' },
       },
       loginMessageChanged: true,
@@ -254,7 +254,7 @@ describe('updateBrand', () => {
     expect(Object.keys(e.fields ?? {})).toContain(campo)
     const linha = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: biz.id } })
     expect(linha.version).toBe(1)
-    expect(linha.primaryColor).toBe('#0E4F5C')
+    expect(linha.primaryColor).toBe('#0B6E66')
   })
 
   test('par de fontes, material e papel fora da lista, nome vazio e mensagem longa são recusados', async () => {
@@ -303,7 +303,7 @@ describe('updateBrand', () => {
   test('cor extrema (branco) é aceita: o ajuste é do motor, não um erro', async () => {
     const r = await updateBrand(actor, biz.id, 1, { ...brand, primary: '#ffffff' })
     expect(r.primary).toBe('#FFFFFF')
-    expect(previewTheme({ ...brand, primary: '#ffffff' }).warnings).toContain('relief_collapsed')
+    expect(previewTheme({ ...brand, primary: '#ffffff' }).warnings).toContain('text_adjusted')
   })
 })
 

@@ -1,9 +1,27 @@
 import { contrastRatio, hexToOklch, normalizeHex, oklchToHex } from '@/ui/theme/color'
-import { deriveTheme } from '@/ui/theme/derive'
+import { COVER_MATERIALS, PAPER_TONES, deriveTheme, type ThemeVar } from '@/ui/theme/derive'
+import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 
-const base = { accent: '#E0A030', material: 'LEATHER', paper: 'WHITE', fontPair: 'CLASSIC' } as const
-const COLORS = ['#0E4F5C','#7A1F2B','#FFFF00','#FFFFFF','#000000','#808080','#FF6600','#2F6B4F','#C9A227','#E91E63','#3F51B5','#9E9E9E']
-const PAPERS = ['WHITE', 'CREAM', 'GRAY'] as const
+const base = { accent: '#F2A93B', material: 'LEATHER', paper: 'CREAM', fontPair: 'CLASSIC' } as const
+const COLORS = ['#0B6E66', '#7A1F2B', '#FFFF00', '#FFFFFF', '#000000', '#808080', '#FF6600', '#2F6B4F', '#C9A227', '#E91E63', '#3F51B5', '#9E9E9E']
+const ACCENTS = ['#F2A93B', '#000000', '#FFFFFF', '#808080', '#1F2A44']
+
+// Valores de design-tokens/agenda-flui-tokens.json (a marca), copiados aqui porque a pasta da marca fica fora do repositório.
+const MARCA_DIA: Partial<Record<ThemeVar, string>> = {
+  '--brand': '#0B6E66',
+  '--brand-strong': '#08534D',
+  '--brand-tint': '#D7EFEB',
+  '--on-brand': '#FFFFFF',
+  '--accent': '#F2A93B',
+  '--accent-tint': '#FCEBD0',
+  '--ground': '#F3F8F6',
+  '--surface': '#FFFFFF',
+  '--ink': '#0F2A27',
+  '--ink-muted': '#4A615D',
+  '--line': '#D3E2DE',
+  '--success': '#1E8A4C',
+  '--danger': '#C8412F',
+}
 
 test('normaliza formatos soltos', () => {
   expect(normalizeHex('#abc')).toBe('#AABBCC')
@@ -17,74 +35,6 @@ test('contraste conhecido', () => {
   expect(contrastRatio('#000000', '#FFFFFF')).toBeCloseTo(21, 0)
   expect(contrastRatio('#777777', '#FFFFFF')).toBeCloseTo(4.48, 1)
 })
-test.each(COLORS)('texto sobre a capa é legível com %s', (primary) => {
-  const t = deriveTheme({ ...base, primary })
-  expect(contrastRatio(t.vars['--on-cover'], t.vars['--cover'])).toBeGreaterThanOrEqual(4.5)
-})
-test.each(COLORS)('destaque %s é legível como texto nos três papéis', (accent) => {
-  for (const paper of PAPERS) {
-    const t = deriveTheme({ ...base, primary: '#0E4F5C', accent, paper })
-    expect(contrastRatio(t.vars['--accent-ink'], t.vars['--paper'])).toBeGreaterThanOrEqual(4.5)
-    expect(contrastRatio(t.vars['--on-accent'], t.vars['--accent'])).toBeGreaterThanOrEqual(4.5)
-    expect(contrastRatio(t.vars['--ink-soft'], t.vars['--paper'])).toBeGreaterThanOrEqual(4.5)
-  }
-})
-test('cor que precisou de ajuste gera aviso; cor boa não', () => {
-  expect(deriveTheme({ ...base, primary: '#808080' }).warnings.length).toBeGreaterThan(0)
-  expect(deriveTheme({ ...base, primary: '#0E4F5C' }).warnings).toEqual([])
-})
-test('avisos usam o texto combinado', () => {
-  const t = deriveTheme({ ...base, primary: '#808080', accent: '#808080' })
-  expect(t.warnings).toEqual([
-    'A cor principal foi escurecida para o texto ficar legível.',
-    'A cor de destaque foi escurecida para o texto ficar legível.',
-  ])
-})
-test('material e par de fontes viram atributos', () => {
-  const t = deriveTheme({ ...base, primary: '#0E4F5C', material: 'LINEN', fontPair: 'FRIENDLY' })
-  expect([t.material, t.fontPair]).toEqual(['linen', 'friendly'])
-})
-test('cores de situação são legíveis em todo papel', () => {
-  for (const paper of PAPERS) {
-    const t = deriveTheme({ ...base, primary: '#0E4F5C', paper })
-    for (const k of ['--ok', '--warn', '--bad'] as const)
-      expect(contrastRatio(t.vars[k], t.vars['--paper'])).toBeGreaterThanOrEqual(4.5)
-  }
-})
-test('deriveTheme é determinística', () => {
-  const input = { ...base, primary: '#7A1F2B' }
-  expect(deriveTheme(input)).toEqual(deriveTheme({ ...input }))
-})
-test.each(COLORS)('texto secundário na capa tem 4.5 com %s', (primary) => {
-  const t = deriveTheme({ ...base, primary })
-  expect(contrastRatio(t.vars['--on-cover-soft'], t.vars['--cover'])).toBeGreaterThanOrEqual(4.5)
-})
-test.each(['#0E4F5C', '#3A2A20', '#2F6B4F'])('texto secundário na capa tem folga de 5,5 com %s', (primary) => {
-  const t = deriveTheme({ ...base, primary })
-  expect(contrastRatio(t.vars['--on-cover-soft'], t.vars['--cover'])).toBeGreaterThanOrEqual(5.5)
-})
-test('o tema padrão em base.css bate com o derivado da marca', async () => {
-  const { readFileSync } = await import('node:fs')
-  const css = readFileSync('src/ui/styles/base.css', 'utf8')
-  const t = deriveTheme({ ...base, primary: '#0E4F5C' })
-  expect(css).toContain(`--on-cover-soft: ${t.vars['--on-cover-soft']};`)
-})
-test('tinta e tinta suave se leem sobre o papel rebaixado', () => {
-  for (const paper of PAPERS) {
-    const t = deriveTheme({ ...base, primary: '#0E4F5C', paper })
-    expect(contrastRatio(t.vars['--ink'], t.vars['--paper-sunk'])).toBeGreaterThanOrEqual(7)
-    expect(contrastRatio(t.vars['--ink-soft'], t.vars['--paper-sunk'])).toBeGreaterThanOrEqual(4.5)
-    expect(contrastRatio(t.vars['--ink-faint'], t.vars['--paper'])).toBeGreaterThanOrEqual(3)
-  }
-})
-test('realce, sombra e costura são cores diferentes e hex válido', () => {
-  const t = deriveTheme({ ...base, primary: '#0E4F5C' })
-  expect(new Set([t.vars['--cover-hi'], t.vars['--cover-lo'], t.vars['--cover-deep']]).size).toBe(3)
-  for (const primary of ['#000000', '#FFFFFF']) {
-    const x = deriveTheme({ ...base, primary })
-    for (const v of Object.values(x.vars)) expect(v).toMatch(/^#[0-9A-F]{6}$/)
-  }
-})
 test.each(COLORS)('ida e volta sRGB → OKLCH → sRGB preserva %s', (hex) => {
   const back = oklchToHex(hexToOklch(hex))
   for (const i of [1, 3, 5]) {
@@ -92,9 +42,102 @@ test.each(COLORS)('ida e volta sRGB → OKLCH → sRGB preserva %s', (hex) => {
     expect(d).toBeLessThanOrEqual(1)
   }
 })
+
+describe('a marca Agenda Flui no dia', () => {
+  const t = deriveTheme(AGENDAFLUI_BRAND)
+  test('o padrão é Água, Caramelo, barra Cheia, fundo Espuma e o par da marca', () => {
+    expect(AGENDAFLUI_BRAND).toMatchObject({ primary: '#0B6E66', accent: '#F2A93B', material: 'LEATHER', paper: 'CREAM', fontPair: 'CLASSIC' })
+  })
+  test.each(Object.entries(MARCA_DIA))('%s bate com o JSON da marca', (nome, valor) => {
+    expect(t.vars[nome as ThemeVar]).toBe(valor)
+  })
+  test('texto na cor da conta é a própria Água; texto sobre o destaque é a tinta; sem avisos', () => {
+    expect(t.vars['--brand-text']).toBe('#0B6E66')
+    expect(t.vars['--on-accent']).toBe('#0F2A27')
+    expect(t.signals).toEqual([])
+    expect(t.scheme).toBe('day')
+  })
+  test('as fontes seguem o par escolhido', () => {
+    expect(t.vars['--font-display']).toContain('Bricolage')
+    expect(t.vars['--font-sans']).toContain('Figtree')
+    expect(deriveTheme({ ...AGENDAFLUI_BRAND, fontPair: 'MODERN' }).vars['--font-display']).toContain('Schibsted')
+    expect(deriveTheme({ ...AGENDAFLUI_BRAND, fontPair: 'FRIENDLY' }).vars['--font-display']).toContain('Fredoka')
+  })
+})
+
+describe('fundo e barra lateral', () => {
+  test('Branco é #FFFFFF com linha mais marcada; Neutro é #F4F5F5', () => {
+    const w = deriveTheme({ ...AGENDAFLUI_BRAND, paper: 'WHITE' }).vars
+    expect([w['--ground'], w['--surface']]).toEqual(['#FFFFFF', '#FFFFFF'])
+    expect(contrastRatio(w['--line'], '#FFFFFF')).toBeGreaterThan(contrastRatio('#D3E2DE', '#FFFFFF'))
+    expect(deriveTheme({ ...AGENDAFLUI_BRAND, paper: 'GRAY' }).vars['--ground']).toBe('#F4F5F5')
+  })
+  test('Espuma toma a matiz da cor da conta', () => {
+    const o = hexToOklch(deriveTheme({ ...AGENDAFLUI_BRAND, primary: '#7A1F2B' }).vars['--ground'])
+    const dh = Math.abs(((o.h - hexToOklch('#7A1F2B').h + 540) % 360) - 180)
+    expect(dh).toBeLessThan(40)
+    expect(o.c).toBeGreaterThan(0.002)
+    expect(o.l).toBeGreaterThan(96)
+  })
+  test('Cheia usa a cor da conta; Suave a Bolha; Noite a tinta escura; Clara a superfície', () => {
+    const v = (material: (typeof COVER_MATERIALS)[number]) => deriveTheme({ ...AGENDAFLUI_BRAND, material }).vars
+    expect(v('LEATHER')['--side-bg']).toBe('#0B6E66')
+    expect(v('LEATHER')['--side-active-bg']).toBe('#FFFFFF')
+    expect(v('LINEN')['--side-bg']).toBe('#D7EFEB')
+    expect(v('LINEN')['--side-active-bg']).toBe('#0B6E66')
+    expect(v('WOOD')['--side-bg']).toBe('#0F2A27')
+    expect(v('ENAMEL')['--side-bg']).toBe('#FFFFFF')
+    expect(v('ENAMEL')['--side-active-bg']).toBe('#D7EFEB')
+  })
+})
+
+describe('contraste por força bruta (dia e noite)', () => {
+  const pares: Array<[ThemeVar, ThemeVar]> = [
+    ['--ink', '--ground'], ['--ink', '--surface'], ['--ink-muted', '--ground'], ['--ink-muted', '--surface'],
+    ['--on-brand', '--brand'], ['--on-brand', '--brand-strong'],
+    ['--brand-text', '--ground'], ['--brand-text', '--surface'], ['--brand-text', '--brand-tint'],
+    ['--ink', '--brand-tint'], ['--ink', '--accent-tint'], ['--ink', '--success-tint'], ['--ink', '--danger-tint'],
+    ['--on-accent', '--accent'],
+    ['--side-ink', '--side-bg'], ['--side-ink-muted', '--side-bg'], ['--side-active-ink', '--side-active-bg'],
+  ]
+  for (const scheme of ['day', 'night'] as const) {
+    test(`todo par texto/fundo promete 4,5 (${scheme})`, () => {
+      for (const primary of COLORS) {
+        for (const accent of ACCENTS) {
+          for (const paper of PAPER_TONES) {
+            for (const material of COVER_MATERIALS) {
+              const t = deriveTheme({ primary, accent, material, paper, fontPair: 'CLASSIC', scheme })
+              for (const [fg, bg] of pares) {
+                const r = contrastRatio(t.vars[fg], t.vars[bg])
+                expect(r, `${scheme} ${primary}/${accent}/${paper}/${material}: ${fg} sobre ${bg} = ${r.toFixed(2)}`).toBeGreaterThanOrEqual(4.5)
+              }
+            }
+          }
+        }
+      }
+    })
+  }
+  test('toda cor sai em hex #RRGGBB', () => {
+    for (const primary of ['#000000', '#FFFFFF']) {
+      const x = deriveTheme({ ...base, primary })
+      for (const [k, v] of Object.entries(x.vars)) if (!k.startsWith('--font')) expect(v, k).toMatch(/^#[0-9A-F]{6}$/)
+    }
+  })
+})
+
+test('a noite usa os fundos e a tinta da marca', () => {
+  const v = deriveTheme({ ...AGENDAFLUI_BRAND, scheme: 'night' }).vars
+  expect([v['--ground'], v['--surface'], v['--ink'], v['--line']]).toEqual(['#0C1A18', '#13241F', '#E8F2EF', '#24403A'])
+  expect(deriveTheme({ ...AGENDAFLUI_BRAND, scheme: 'night' }).scheme).toBe('night')
+})
+
+test('deriveTheme é determinística', () => {
+  const input = { ...base, primary: '#7A1F2B' }
+  expect(deriveTheme(input)).toEqual(deriveTheme({ ...input }))
+})
 test('cor inválida em deriveTheme lança RangeError', () => {
   expect(() => deriveTheme({ ...base, primary: 'vermelho' })).toThrow(RangeError)
-  expect(() => deriveTheme({ ...base, primary: '#0E4F5C', accent: '#12' })).toThrow(RangeError)
+  expect(() => deriveTheme({ ...base, primary: '#0B6E66', accent: '#12' })).toThrow(RangeError)
 })
 
 describe('tema neutro em src/shared', () => {
@@ -104,6 +147,5 @@ describe('tema neutro em src/shared', () => {
     expect(color.normalizeHex).toBe(normalizeHex)
     expect(color.contrastRatio).toBe(contrastRatio)
     expect(derive.deriveTheme).toBe(deriveTheme)
-    expect(color.normalizeHex('#abc')).toBe('#AABBCC')
   })
 })

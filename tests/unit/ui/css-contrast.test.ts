@@ -39,8 +39,8 @@ describe('texto das teclas fica sobre a cor lisa', () => {
     for (const b of states) expect(b.body, b.selector).not.toMatch(/background/)
   })
 
-  test.each(['#1F2A44', '#808080', '#E0A030'])('--on-accent tem 4,5 sobre --accent (%s)', (accent) => {
-    const t = deriveTheme({ primary: '#0E4F5C', accent, material: 'ENAMEL', paper: 'WHITE', fontPair: 'CLASSIC' })
+  test.each(['#1F2A44', '#808080', '#F2A93B'])('--on-accent tem 4,5 sobre --accent (%s)', (accent) => {
+    const t = deriveTheme({ primary: '#0B6E66', accent, material: 'ENAMEL', paper: 'WHITE', fontPair: 'CLASSIC' })
     expect(contrastRatio(t.vars['--on-accent'], t.vars['--accent'])).toBeGreaterThanOrEqual(4.5)
   })
 })

@@ -2,11 +2,12 @@
 import { useMemo, useState } from 'react'
 import { CalendarDays, ChartColumn, Gift, House, Scissors, Settings, UserRound, Users } from 'lucide-react'
 import { Button, Checkbox, ColorField, Field, Input, Paper, Select, ToastProvider } from '@/ui/components'
+import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { PainelShell } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
 import { normalizeHex } from '@/ui/theme/color'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
-import { deriveTheme } from '@/ui/theme/derive'
+import { THEME_WARNING_TEXT, deriveTheme } from '@/ui/theme/derive'
 import type { BrandInput, CoverMaterial, FontPair, PaperTone } from '@/ui/theme/derive'
 import { DemoAgenda, NewAppointmentButton } from './demo-agenda'
 import { SCENARIOS } from './demo-data'
@@ -19,13 +20,19 @@ const PRESETS: Preset[] = [
   {
     label: 'Pet shop',
     name: 'Mundo Animal',
-    brand: { primary: '#2F6B4F', accent: '#E8833A', material: 'LINEN', paper: 'CREAM', fontPair: 'FRIENDLY' },
+    brand: { primary: '#2F7D5B', accent: '#F29A4B', material: 'LEATHER', paper: 'CREAM', fontPair: 'FRIENDLY' },
     scenario: 'pet',
   },
   {
     label: 'Barbearia',
     name: 'Navalha Real',
-    brand: { primary: '#3A2A20', accent: '#C9A227', material: 'LEATHER', paper: 'WHITE', fontPair: 'CLASSIC' },
+    brand: { primary: '#243B6B', accent: '#E3A72F', material: 'WOOD', paper: 'WHITE', fontPair: 'MODERN' },
+    scenario: 'barbearia',
+  },
+  {
+    label: 'Estúdio',
+    name: 'Estúdio Maré',
+    brand: { primary: '#7A3E8E', accent: '#F2B84B', material: 'LINEN', paper: 'WHITE', fontPair: 'CLASSIC' },
     scenario: 'barbearia',
   },
   { label: 'AgendaFlui', name: 'AgendaFlui', brand: AGENDAFLUI_BRAND, scenario: 'pet' },
@@ -40,23 +47,6 @@ const NAV: NavItem[] = [
   { href: '#relatorios', label: 'Relatórios', icon: ChartColumn },
   { href: '#fidelidade', label: 'Fidelidade', icon: Gift, disabled: true },
   { href: '#configuracoes', label: 'Configurações', icon: Settings },
-]
-
-const MATERIALS: Array<[CoverMaterial, string]> = [
-  ['LEATHER', 'Couro'],
-  ['LINEN', 'Linho'],
-  ['WOOD', 'Madeira'],
-  ['ENAMEL', 'Esmalte'],
-]
-const PAPERS: Array<[PaperTone, string]> = [
-  ['WHITE', 'Branco'],
-  ['CREAM', 'Creme'],
-  ['GRAY', 'Cinza'],
-]
-const FONTS: Array<[FontPair, string, string]> = [
-  ['CLASSIC', 'Clássico', 'Títulos com serifa de livro-caixa.'],
-  ['MODERN', 'Moderno', 'Títulos sem serifa, de traço limpo.'],
-  ['FRIENDLY', 'Amigável', 'Títulos de cantos redondos.'],
 ]
 
 /** Logo e símbolo de exemplo, desenhados na hora: a vitrine mostra o baixo-relevo e o símbolo sem depender de arquivo. */
@@ -83,7 +73,7 @@ function parseHex(raw: string): string | null {
 
 /** A página inteira de aprovação: formulário de marca ao lado de um painel de verdade. */
 export function Showcase() {
-  const first = PRESETS[2]!
+  const first = PRESETS[3]!
   const [brand, setBrand] = useState<BrandInput>(first.brand)
   const [name, setName] = useState(first.name)
   const [kind, setKind] = useState<ScenarioKind>(first.scenario)
@@ -94,8 +84,8 @@ export function Showcase() {
 
   const theme = useMemo(() => deriveTheme(brand), [brand])
   const scenario = SCENARIOS[kind]
-  const warnPrimary = theme.warnings.find((w) => w.startsWith('A cor principal'))
-  const warnAccent = theme.warnings.find((w) => w.startsWith('A cor de destaque'))
+  const warnPrimary = theme.signals.includes('text_adjusted') ? THEME_WARNING_TEXT.text_adjusted : undefined
+  const warnAccent = theme.signals.includes('accent_adjusted') ? THEME_WARNING_TEXT.accent_adjusted : undefined
 
   function apply(p: Preset) {
     setBrand(p.brand)
@@ -129,31 +119,31 @@ export function Showcase() {
             <Field label="Nome do negócio">
               <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="off" />
             </Field>
-            <ColorField label="Cor principal" value={primary} onChange={(v) => changeColor('primary', v)} {...(warnPrimary ? { warning: warnPrimary } : {})} />
-            <ColorField label="Cor de destaque" value={accent} onChange={(v) => changeColor('accent', v)} {...(warnAccent ? { warning: warnAccent } : {})} />
-            <Field label="Material da capa">
+            <ColorField label={PRIMARY_FIELD_LABEL} value={primary} onChange={(v) => changeColor('primary', v)} {...(warnPrimary ? { warning: warnPrimary } : {})} />
+            <ColorField label={ACCENT_FIELD_LABEL} value={accent} onChange={(v) => changeColor('accent', v)} {...(warnAccent ? { warning: warnAccent } : {})} />
+            <Field label={SIDEBAR_FIELD_LABEL} hint={SIDEBAR_OPTIONS.find((o) => o.value === brand.material)?.hint}>
               <Select value={brand.material} onChange={(e) => setBrand({ ...brand, material: e.target.value as CoverMaterial })}>
-                {MATERIALS.map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
+                {SIDEBAR_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Tom do papel">
+            <Field label={GROUND_FIELD_LABEL}>
               <Select value={brand.paper} onChange={(e) => setBrand({ ...brand, paper: e.target.value as PaperTone })}>
-                {PAPERS.map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
+                {GROUND_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Par de fontes" hint={FONTS.find(([v]) => v === brand.fontPair)?.[2]}>
+            <Field label={FONT_PAIR_FIELD_LABEL} hint={FONT_PAIR_OPTIONS.find((o) => o.value === brand.fontPair)?.hint}>
               <Select value={brand.fontPair} onChange={(e) => setBrand({ ...brand, fontPair: e.target.value as FontPair })}>
-                {FONTS.map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
+                {FONT_PAIR_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </Select>

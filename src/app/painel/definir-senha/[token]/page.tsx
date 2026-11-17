@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   referrer: 'no-referrer',
 }
 
-const MARCA = { name: 'AgendaFlui', logoUrl: null, symbolUrl: null }
+const MARCA = { name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }
 const TEMA = deriveTheme(AGENDAFLUI_BRAND)
 
 /** Tela do convite do dono: escolhe a senha. Ainda não há conta escolhida, então vale a marca AgendaFlui. */

@@ -1,0 +1,147 @@
+/*
+ * Tokens da marca Agenda Flui (design-tokens/agenda-flui-tokens.json). Importado antes dos demais arquivos.
+ *
+ * Valores padrão = marca Agenda Flui no tema claro, para qualquer tela funcionar fora de um ThemeScope.
+ * Uma conta troca Água e Caramelo (e o fundo e a barra lateral) pelas variáveis que `deriveTheme` põe, em linha, no
+ * elemento do ThemeScope. `[data-scheme='night']` é o tema noite da marca (painel dev).
+ * Sem @layer de propósito: estas variáveis valem sobre as do tema do Tailwind.
+ */
+:root {
+  /* Ação e estado */
+  --brand: #0B6E66; /* Água: botão principal, link, item ativo, blocos da agenda */
+  --brand-strong: #08534D; /* hover e pressionado */
+  --brand-tint: #D7EFEB; /* Bolha: horário livre, selecionado, destaque suave */
+  --on-brand: #FFFFFF; /* texto sobre brand */
+  --brand-text: #0B6E66; /* a cor da conta como TEXTO sobre ground, surface e brand-tint (4,5 de contraste) */
+  --accent: #F2A93B; /* Caramelo: o horário marcado, o que pede atenção; nunca cor de texto */
+  --accent-tint: #FCEBD0; /* Mel */
+  --on-accent: #0F2A27; /* texto sobre accent: sempre a tinta */
+  --success: #1E8A4C;
+  --success-tint: #DDF1E5;
+  --danger: #C8412F;
+  --danger-tint: #F8E2DD;
+
+  /* Superfícies e texto */
+  --ground: #F3F8F6; /* Espuma: fundo de página */
+  --surface: #FFFFFF; /* cartões, painéis, folhas */
+  --ink: #0F2A27; /* Tinta: texto */
+  --ink-muted: #4A615D;
+  --line: #D3E2DE; /* bordas e grade */
+
+  /* Barra lateral (padrão: Cheia). O motor troca estes seis conforme "Barra lateral" da conta. */
+  --side-bg: #0B6E66;
+  --side-ink: #FFFFFF;
+  --side-ink-muted: #EEF5F4;
+  --side-line: #418E88;
+  --side-active-bg: #FFFFFF;
+  --side-active-ink: #0B6E66;
+
+  /* Forma */
+  --radius-chip: 10px; /* campos e chips de horário */
+  --radius-card: 16px; /* cartões */
+  --radius-block: 28px; /* blocos de destaque */
+  --radius-pill: 999px; /* botões e selos */
+  --shadow-pop: 0 24px 48px -20px rgb(15 42 39 / 0.45); /* só o que flutua: folha, diálogo, menu, aviso */
+  --shadow-rgb: 15 42 39;
+
+  /* Espaços */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 40px;
+  --space-6: 72px;
+
+  /* Escala de texto da marca (tamanho, altura de linha, espaçamento entre letras). */
+  --text-display: clamp(2.5rem, 1.7rem + 3.2vw, 4rem); /* 64 */
+  --text-display-lh: 1;
+  --text-display-ls: -0.03em;
+  --text-h1: clamp(2rem, 1.5rem + 1.9vw, 2.75rem); /* 44 */
+  --text-h1-lh: 1.0909;
+  --text-h1-ls: -0.02em;
+  --text-h2: clamp(1.625rem, 1.3rem + 1.2vw, 2rem); /* 32 */
+  --text-h2-lh: 1.1875;
+  --text-h2-ls: -0.015em;
+  --text-h3: 1.375rem; /* 22, peso 600 */
+  --text-h3-lh: 1.2727;
+  --text-body-lg: 1.1875rem; /* 19 */
+  --text-body-lg-lh: 1.5789;
+  --text-body: 1rem; /* 16 */
+  --text-body-lh: 1.5625;
+  --text-small: 0.875rem; /* 14, peso 500 */
+  --text-small-lh: 1.4286;
+
+  /* Fontes: o motor escolhe o par da conta; este é o par da marca. */
+  --font-display: var(--font-bricolage, 'Bricolage Grotesque'), var(--font-figtree, Figtree), system-ui, sans-serif;
+  --font-sans: var(--font-figtree, Figtree), system-ui, sans-serif;
+}
+
+/* Tema noite da marca. */
+[data-scheme='night'] {
+  --brand: #3CC4B4;
+  --brand-strong: #6EDBCD;
+  --brand-tint: #12403B;
+  --on-brand: #062421;
+  --brand-text: #3CC4B4;
+  --accent: #F5B85A;
+  --accent-tint: #4A3514;
+  --success: #4CC47E;
+  --success-tint: #143A27;
+  --danger: #F07A68;
+  --danger-tint: #4A2019;
+  --ground: #0C1A18;
+  --surface: #13241F;
+  --ink: #E8F2EF;
+  --ink-muted: #9DB3AE;
+  --line: #24403A;
+  --side-bg: #3CC4B4;
+  --side-ink: #062421;
+  --side-ink-muted: #0F4A44;
+  --side-line: #2FA394;
+  --side-active-bg: #13241F;
+  --side-active-ink: #3CC4B4;
+  --shadow-pop: 0 24px 48px -20px rgb(0 0 0 / 0.6);
+  --shadow-rgb: 0 0 0;
+  color-scheme: dark;
+}
+
+/*
+ * R2 remove: apelidos temporários "variável antiga → token novo", só para as telas atuais não ficarem sem cor até a
+ * R2 trocar os componentes. Ficam no mesmo seletor do tema para valerem dentro de cada ThemeScope (um `var()` se resolve
+ * no elemento onde é declarado, então não dá para declará-los só em :root).
+ */
+:root,
+[data-theme],
+[data-scheme] {
+  --cover: var(--brand); /* R2 remove */
+  --cover-hi: var(--brand); /* R2 remove */
+  --cover-lo: var(--brand-strong); /* R2 remove */
+  --cover-deep: var(--brand-strong); /* R2 remove */
+  --on-cover: var(--on-brand); /* R2 remove */
+  --on-cover-soft: var(--on-brand); /* R2 remove */
+  --accent-hi: var(--accent); /* R2 remove */
+  --accent-lo: var(--accent); /* R2 remove */
+  --accent-ink: var(--brand-text); /* R2 remove */
+  --paper: var(--surface); /* R2 remove */
+  --paper-edge: var(--line); /* R2 remove */
+  --paper-line: var(--line); /* R2 remove */
+  --paper-sunk: var(--ground); /* R2 remove */
+  --ink-soft: var(--ink-muted); /* R2 remove */
+  --ink-faint: var(--ink-muted); /* R2 remove */
+  --ok: var(--success); /* R2 remove */
+  --warn: var(--ink); /* R2 remove */
+  --bad: var(--danger); /* R2 remove */
+  --font-ui: var(--font-sans); /* R2 remove */
+  --font-stamp: var(--font-display); /* R2 remove */
+}
+
+/* Foco de teclado: contorno de 3 px em Caramelo, afastado 2 px (igual ao site). */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--brand-tint);
+  color: var(--ink);
+}

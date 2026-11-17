@@ -8,7 +8,7 @@ import { emailFrame, limpo, type Brand } from './frame'
 import type { RenderedMail } from './render-account'
 
 /** Marca da plataforma nos e-mails que ainda não pertencem a uma conta. */
-export const PLATFORM_MAIL_BRAND: Brand = { name: 'AgendaFlui', color: '#0E4F5C' }
+export const PLATFORM_MAIL_BRAND: Brand = { name: 'AgendaFlui', color: '#0B6E66' }
 
 const saudacao = (nome: string): string => `Olá, ${limpo(nome)}.`
 

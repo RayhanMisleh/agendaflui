@@ -2,18 +2,13 @@
 import { useId } from 'react'
 import { previewTheme } from '@/shared/theme/preview'
 import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
+import { SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
+import { themeAttrs } from '../theme/ThemeScope'
 import { cx } from './cx'
 
-const MATERIAIS: ReadonlyArray<{ value: CoverMaterial; label: string; hint: string }> = [
-  { value: 'LEATHER', label: 'Couro', hint: 'Grão de poros, clássico' },
-  { value: 'LINEN', label: 'Linho', hint: 'Trama de fios, macio' },
-  { value: 'WOOD', label: 'Madeira', hint: 'Veios e tábuas' },
-  { value: 'ENAMEL', label: 'Esmalte', hint: 'Laca lisa e brilhante' },
-]
-
 /**
- * Escolha do material da capa: quatro amostras já na cor principal escolhida, para a pessoa ver o couro, o linho, a
- * madeira e o esmalte nessa cor antes de decidir. São botões de rádio nativos (funcionam sem JavaScript).
+ * Escolha da barra lateral: quatro amostras já na cor da conta (Cheia, Suave, Noite e Clara) para a pessoa ver cada
+ * uma antes de decidir. São botões de rádio nativos (funcionam sem JavaScript).
  */
 export function MaterialPicker({
   name,
@@ -36,14 +31,14 @@ export function MaterialPicker({
 }) {
   const uid = useId()
   // As amostras usam as variáveis da cor escolhida; o material de cada uma vem do próprio `data-material`.
-  const { tokens } = previewTheme({ primary, accent, material: value, paper, fontPair })
+  const { theme } = previewTheme({ primary, accent, material: value, paper, fontPair })
   return (
-    <div role="radiogroup" aria-labelledby={`${uid}-legenda`} className={cx('af-matpick', className)} style={tokens}>
+    <div role="radiogroup" aria-labelledby={`${uid}-legenda`} className={cx('af-matpick', className)} {...themeAttrs(theme)}>
       <span id={`${uid}-legenda`} className="af-field__label">
-        Material da capa
+        {SIDEBAR_FIELD_LABEL}
       </span>
       <div className="af-matpick__grid">
-        {MATERIAIS.map((m) => (
+        {SIDEBAR_OPTIONS.map((m) => (
           <div key={m.value} className="af-matpick__opt">
             <input
               id={`${uid}-${m.value}`}
