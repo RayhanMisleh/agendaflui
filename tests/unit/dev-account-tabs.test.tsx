@@ -29,9 +29,8 @@ test('o resumo só fica ativo na rota exata da conta, não nas subrotas', () => 
   expect(screen.getByRole('link', { name: 'Marca' })).toHaveAttribute('aria-current', 'page')
 })
 
-test('não existe a aba Integrações (fica para a Fase 5)', () => {
-  expect(ACCOUNT_TABS.map((t) => t.label)).not.toContain('Integrações')
-  expect(ACCOUNT_TABS.map((t) => t.label)).toEqual(['Resumo', 'Marca', 'Termos', 'Módulos', 'Regras', 'Equipe', 'Chaves', 'Auditoria'])
+test('a aba Integrações vem logo depois de Chaves', () => {
+  expect(ACCOUNT_TABS.map((t) => t.label)).toEqual(['Resumo', 'Marca', 'Termos', 'Módulos', 'Regras', 'Equipe', 'Chaves', 'Integrações', 'Auditoria'])
 })
 
 test('o segredo aparece numa caixa com aviso de "uma vez" e com botão de copiar', () => {

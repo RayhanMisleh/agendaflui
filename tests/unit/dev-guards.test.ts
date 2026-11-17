@@ -28,6 +28,7 @@ const SEM_ADMIN_ACTION: Record<string, string> = {
 const FABRICAS: Record<string, string> = {
   porAlvo: join(RAIZ, '_lib/campos.ts'),
   porConta: join(RAIZ, 'contas/[id]/actions.ts'),
+  porIntegracao: join(RAIZ, 'contas/[id]/integracoes/actions.ts'),
 }
 
 describe('painel dev: toda entrada exige admin', () => {
@@ -94,7 +95,7 @@ describe('painel dev: toda entrada exige admin', () => {
           usados.add(chave)
           continue
         }
-        const passa = /\badminAction\b|\bporAlvo\(|\bporConta\(|\bsituacao\(/.test(p)
+        const passa = /\badminAction\b|\bporAlvo\(|\bporConta\(|\bporIntegracao\(|\bsituacao\(/.test(p)
         expect(passa, `${chave} não passa por adminAction`).toBe(true)
       }
     }

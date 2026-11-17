@@ -36,6 +36,7 @@ const PAGINAS = [
   '/contas/{conta}/regras',
   '/contas/{conta}/equipe',
   '/contas/{conta}/chaves',
+  '/contas/{conta}/integracoes',
   '/contas/{conta}/auditoria',
   '/chaves',
   '/chaves?tipo=PLATFORM&situacao=ativas&search=x',

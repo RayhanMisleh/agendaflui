@@ -38,6 +38,7 @@ export const PLATFORM_MODELS: Modelos = [
   'PlatformSession',
   'SupportHandoff',
   'SchedulerRun',
+  'BusinessIntegration',
   'User',
   'Session',
   'UserToken',

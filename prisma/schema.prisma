@@ -268,6 +268,7 @@ model Business {
   branding    BusinessBranding?
   modules     BusinessModules?
   settings    BusinessSettings?
+  integrations BusinessIntegration?
   memberships Membership[]
   sessions    Session[]
   uploads     Upload[]
@@ -334,6 +335,29 @@ model BusinessModules {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@map("business_modules")
+}
+
+/// Credenciais de integração da conta (Mercado Pago e Frenet), cifradas em repouso. Modelo de PLATAFORMA: `tenantDb` o recusa;
+/// só o painel dev grava e só o domínio da loja lê (`integration-secrets.ts`). O texto puro nunca vai ao banco.
+model BusinessIntegration {
+  businessId             String    @id @map("business_id") @db.Uuid
+  mpAccessTokenEnc       String?   @map("mp_access_token_enc")
+  mpAccessTokenLast4     String?   @map("mp_access_token_last4") @db.VarChar(4)
+  mpWebhookSecretEnc     String?   @map("mp_webhook_secret_enc")
+  mpWebhookSecretLast4   String?   @map("mp_webhook_secret_last4") @db.VarChar(4)
+  mpWebhookKey           String?   @unique @map("mp_webhook_key")
+  mpUpdatedAt            DateTime? @map("mp_updated_at") @db.Timestamptz(3)
+  frenetTokenEnc         String?   @map("frenet_token_enc")
+  frenetTokenLast4       String?   @map("frenet_token_last4") @db.VarChar(4)
+  frenetUpdatedAt        DateTime? @map("frenet_updated_at") @db.Timestamptz(3)
+  /// Controle de edição: cada gravação pelo painel dev exige a versão lida e a incrementa.
+  version                Int       @default(1)
+  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("business_integrations")
 }
 
 model BusinessSettings {
