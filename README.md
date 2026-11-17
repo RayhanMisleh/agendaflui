@@ -34,6 +34,8 @@ Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Ca
 próprio link de entrada: `painel.localhost:3000/entrar/patas-e-cia`.
 A vitrine de componentes fica em `dev.localhost:3000/vitrine` (só para admin logado).
 
+Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
+
 ## Painel dev
 
 - Entre em `http://dev.localhost:3000` com `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD` do seu `.env`

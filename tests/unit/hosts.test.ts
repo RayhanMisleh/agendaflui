@@ -32,6 +32,14 @@ describe('hosts', () => {
     expect(routeRequest('painel.localhost:3000', '/arquivos/a/b.webp', cfg)).toEqual({ action: 'pass' })
     expect(routeRequest('dev.localhost:3000', '/favicon.ico', cfg)).toEqual({ action: 'pass' })
   })
+  test('/healthz passa em qualquer host: conhecido, desconhecido ou ausente', () => {
+    for (const h of ['dev.localhost:3000', 'localhost:3000', '127.0.0.1:3000', 'evil.com', '', null, undefined])
+      expect(routeRequest(h, '/healthz', cfg)).toEqual({ action: 'pass' })
+  })
+  test('só o caminho exato /healthz é liberado para host desconhecido', () => {
+    for (const p of ['/healthz/', '/healthz/x', '/healthzz', '/HEALTHZ', '/x/healthz'])
+      expect(routeRequest('evil.com', p, cfg)).toEqual({ action: 'not_found' })
+  })
   test('barra final preserva o caminho', () => {
     expect(routeRequest('dev.localhost:3000', '/contas/', cfg)).toEqual({ action: 'rewrite', to: '/dev/contas/' })
   })

@@ -56,6 +56,6 @@ async function main(): Promise<void> {
 main().catch((err: unknown) => {
   const msg = err instanceof Error ? err.message : String(err)
   const semBanco = /ECONNREFUSED|connect|Can't reach/i.test(msg) && !/Já existe/.test(msg)
-  console.error(semBanco ? 'Não foi possível falar com o banco. Rode npm run dev em outro terminal e tente de novo.' : msg.split('\n')[0])
+  console.error(semBanco ? 'Não foi possível falar com o banco. Confira DATABASE_URL (em desenvolvimento, rode npm run dev em outro terminal) e tente de novo.' : msg.split('\n')[0])
   process.exit(1)
 })

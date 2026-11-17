@@ -13,8 +13,13 @@ export function shouldStartWorker(source: Record<string, string | undefined>): b
 export async function register(): Promise<void> {
   if (process.env['NEXT_RUNTIME'] !== 'nodejs' || process.env['NEXT_PHASE'] === 'phase-production-build') return
   // Falha cedo em produção (segredo de exemplo, remetente ausente) sem imprimir valores.
-  const { parseEnv } = await import('@/server/env')
-  parseEnv(process.env)
+  const { parseEnv, productionWarnings } = await import('@/server/env')
+  const config = parseEnv(process.env)
+  if (config.NODE_ENV === 'production') {
+    const { checkStorageDir } = await import('@/server/storage/check')
+    await checkStorageDir(config.STORAGE_DIR)
+    for (const aviso of productionWarnings(config)) console.warn(`[AVISO] ${aviso}`)
+  }
   const { startScheduler } = await import('@/server/notifications/scheduler')
   startScheduler({ worker: shouldStartWorker(process.env) })
 }

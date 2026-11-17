@@ -1,6 +1,7 @@
-import { parseEnv } from '@/server/env'
+import { migrationDatabaseUrl, parseEnv, productionWarnings, runtimeDatabaseUrl } from '@/server/env'
 
 const ok = { DATABASE_URL: 'postgres://u:p@localhost:5432/d', APP_SECRET: 'x'.repeat(32) }
+const hostsDeProducao = { DEV_HOST: 'dev.exemplo.com', PAINEL_HOST: 'painel.exemplo.com', API_HOST: 'api.exemplo.com' }
 
 test('aplica os padrões de host', () => {
   const env = parseEnv(ok)
@@ -36,7 +37,7 @@ test('em produção recusa o APP_SECRET de exemplo sem imprimir o valor', () => 
   }
   expect(mensagem).toMatch(/APP_SECRET/)
   expect(mensagem).not.toContain(exemplo)
-  expect(parseEnv({ ...ok, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40) }).NODE_ENV).toBe('production')
+  expect(parseEnv({ ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40) }).NODE_ENV).toBe('production')
   expect(parseEnv({ ...ok, NODE_ENV: 'development', APP_SECRET: exemplo }).APP_SECRET).toBe(exemplo)
   expect(parseEnv({ ...ok, NODE_ENV: 'test', APP_SECRET: exemplo }).APP_SECRET).toBe(exemplo)
 })
@@ -50,7 +51,7 @@ test('em produção com o segredo de exemplo, a fase de build do Next aceita e a
 })
 
 test('em produção com SMTP_URL, MAIL_FROM precisa ser informado; a fase de build e os outros ambientes dispensam', () => {
-  const prod = { ...ok, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), SMTP_URL: 'smtp://localhost:2525' }
+  const prod = { ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), SMTP_URL: 'smtp://localhost:2525' }
   expect(() => parseEnv(prod)).toThrow(/MAIL_FROM/)
   expect(parseEnv({ ...prod, MAIL_FROM: 'Conta <contato@exemplo.com>' }).MAIL_FROM).toBe('Conta <contato@exemplo.com>')
   expect(parseEnv({ ...prod, NEXT_PHASE: 'phase-production-build' }).NODE_ENV).toBe('production')
@@ -65,4 +66,121 @@ test('WORKER_ENABLED (padrão ligado) e EXPO_ACCESS_TOKEN (opcional)', () => {
   expect(() => parseEnv({ ...ok, WORKER_ENABLED: 'talvez' })).toThrow(/WORKER_ENABLED/)
   expect(parseEnv(ok).EXPO_ACCESS_TOKEN).toBeUndefined()
   expect(parseEnv({ ...ok, EXPO_ACCESS_TOKEN: 'abc' }).EXPO_ACCESS_TOKEN).toBe('abc')
+})
+
+describe('hosts em produção', () => {
+  const prod = { ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40) }
+  const mensagem = (source: Record<string, string | undefined>): string => {
+    try {
+      parseEnv(source)
+    } catch (e) {
+      return e instanceof Error ? e.message : String(e)
+    }
+    return ''
+  }
+
+  test('aceita três hosts públicos distintos', () => {
+    expect(parseEnv(prod).PAINEL_HOST).toBe('painel.exemplo.com')
+    expect(parseEnv({ ...prod, DEV_HOST: 'dev.exemplo.com:8443' }).DEV_HOST).toBe('dev.exemplo.com:8443')
+  })
+
+  test.each(['DEV_HOST', 'PAINEL_HOST', 'API_HOST'])('%s ausente ou vazio é recusado e nomeia a variável', (nome) => {
+    expect(mensagem({ ...prod, [nome]: undefined })).toMatch(new RegExp(nome))
+    expect(mensagem({ ...prod, [nome]: '' })).toMatch(new RegExp(nome))
+  })
+
+  test.each(['localhost', 'localhost:3000', 'dev.localhost:3000', 'API.LOCALHOST', '127.0.0.1:3000', '[::1]:3000'])(
+    'host local %s é recusado',
+    (valor) => {
+      expect(mensagem({ ...prod, API_HOST: valor })).toMatch(/API_HOST/)
+    },
+  )
+
+  test('hosts repetidos são recusados, mesmo com maiúsculas, espaço ou ponto final', () => {
+    expect(mensagem({ ...prod, PAINEL_HOST: 'dev.exemplo.com' })).toMatch(/PAINEL_HOST/)
+    expect(mensagem({ ...prod, API_HOST: ' DEV.exemplo.com. ' })).toMatch(/API_HOST/)
+  })
+
+  test('host com protocolo ou barra é recusado', () => {
+    expect(mensagem({ ...prod, DEV_HOST: 'https://dev.exemplo.com' })).toMatch(/DEV_HOST/)
+    expect(mensagem({ ...prod, DEV_HOST: 'dev.exemplo.com/' })).toMatch(/DEV_HOST/)
+  })
+
+  test('a mensagem não traz o valor dos hosts', () => {
+    expect(mensagem({ ...prod, API_HOST: 'api.localhost:3000' })).not.toContain('api.localhost:3000')
+  })
+
+  test('build e ambientes que não são produção dispensam as regras', () => {
+    expect(parseEnv({ ...ok, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), NEXT_PHASE: 'phase-production-build' }).NODE_ENV).toBe('production')
+    expect(parseEnv({ ...ok, NODE_ENV: 'development' }).DEV_HOST).toBe('dev.localhost:3000')
+    expect(parseEnv({ ...ok, NODE_ENV: 'test' }).DEV_HOST).toBe('dev.localhost:3000')
+  })
+})
+
+describe('avisos de produção', () => {
+  const prod = parseEnv({ ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), TRUSTED_PROXY_HOPS: '1', SMTP_URL: 'smtp://u:senha-secreta@h:587', MAIL_FROM: 'A <a@exemplo.com>' })
+
+  test('configuração completa não gera aviso', () => {
+    expect(productionWarnings(prod)).toEqual([])
+  })
+
+  test('sem proxy confiável avisa que o IP não é conhecido', () => {
+    const avisos = productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 })
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]).toMatch(/TRUSTED_PROXY_HOPS/)
+    expect(avisos[0]).toMatch(/limites por IP desligados e auditoria sem IP/)
+  })
+
+  test('sem SMTP_URL avisa que e-mails não saem e não vaza a URL quando existe', () => {
+    const avisos = productionWarnings({ ...prod, SMTP_URL: undefined })
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]).toMatch(/SMTP_URL/)
+    expect(avisos[0]).toMatch(/convites e cadastro pelo app não chegam/)
+    expect(productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('senha-secreta')
+  })
+
+  test('fora de produção não avisa', () => {
+    expect(productionWarnings({ ...prod, NODE_ENV: 'development', TRUSTED_PROXY_HOPS: 0 })).toEqual([])
+  })
+})
+
+describe('URL do banco', () => {
+  const direta = 'postgres://u:p@direto:5432/d'
+  const pooler = 'postgres://u:p@pooler:6432/d'
+  const base = { DATABASE_URL: pooler, APP_SECRET: 'x'.repeat(32) }
+
+  test('sem DIRECT_URL, tudo usa DATABASE_URL', () => {
+    const e = parseEnv(base)
+    expect(runtimeDatabaseUrl(e)).toBe(pooler)
+    expect(migrationDatabaseUrl(e)).toBe(pooler)
+  })
+
+  test('com DIRECT_URL, as migrações usam a direta e o servidor continua na DATABASE_URL', () => {
+    const e = parseEnv({ ...base, DIRECT_URL: direta })
+    expect(runtimeDatabaseUrl(e)).toBe(pooler)
+    expect(migrationDatabaseUrl(e)).toBe(direta)
+  })
+
+  test('DATABASE_USE_DIRECT_URL=true leva o servidor para a direta também', () => {
+    const e = parseEnv({ ...base, DIRECT_URL: direta, DATABASE_USE_DIRECT_URL: 'true' })
+    expect(runtimeDatabaseUrl(e)).toBe(direta)
+    expect(migrationDatabaseUrl(e)).toBe(direta)
+    expect(parseEnv({ ...base, DIRECT_URL: direta, DATABASE_USE_DIRECT_URL: 'false' }).DATABASE_USE_DIRECT_URL).toBe(false)
+  })
+
+  test('DATABASE_USE_DIRECT_URL=true sem DIRECT_URL é recusado sem imprimir a URL', () => {
+    let msg = ''
+    try {
+      parseEnv({ ...base, DATABASE_USE_DIRECT_URL: 'true' })
+    } catch (e) {
+      msg = String(e)
+    }
+    expect(msg).toMatch(/DIRECT_URL/)
+    expect(msg).not.toContain('pooler')
+  })
+
+  test('DIRECT_URL vazia conta como ausente e valor inválido de DATABASE_USE_DIRECT_URL é recusado', () => {
+    expect(migrationDatabaseUrl(parseEnv({ ...base, DIRECT_URL: undefined }))).toBe(pooler)
+    expect(() => parseEnv({ ...base, DATABASE_USE_DIRECT_URL: 'sim' })).toThrow(/DATABASE_USE_DIRECT_URL/)
+  })
 })

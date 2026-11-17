@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { register, shouldRunInProcess, shouldStartWorker } from '@/instrumentation'
 
 const start = vi.hoisted(() => vi.fn(() => ({ stop: () => undefined })))
@@ -8,13 +10,19 @@ const base = {
   NODE_ENV: 'production',
   DATABASE_URL: 'postgres://u:p@localhost:5432/d',
   APP_SECRET: 'a'.repeat(40),
+  DEV_HOST: 'dev.exemplo.com',
+  PAINEL_HOST: 'painel.exemplo.com',
+  API_HOST: 'api.exemplo.com',
+  TRUSTED_PROXY_HOPS: '1',
+  SMTP_URL: 'smtp://u:senha-secreta@h:587',
+  MAIL_FROM: 'A <a@exemplo.com>',
+  STORAGE_DIR: tmpdir(),
 }
 
 function ambiente(extra: Record<string, string | undefined>) {
   vi.unstubAllEnvs()
   for (const [k, v] of Object.entries({ ...base, ...extra })) {
-    if (v === undefined) vi.stubEnv(k, '')
-    else vi.stubEnv(k, v)
+    vi.stubEnv(k, v)
   }
 }
 
@@ -82,5 +90,51 @@ describe('register', () => {
     expect(String(erro)).toMatch(/APP_SECRET/)
     expect(String(erro)).not.toContain('EXEMPLO-troque')
     expect(start).not.toHaveBeenCalled()
+  })
+
+  test('em produção recusa host local, sem imprimir o valor', async () => {
+    ambiente({ API_HOST: 'api.localhost:3000' })
+    const erro = await register().then(() => null, (e: unknown) => e)
+    expect(String(erro)).toMatch(/API_HOST/)
+    expect(String(erro)).not.toContain('api.localhost')
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  test('em produção recusa STORAGE_DIR que não existe', async () => {
+    ambiente({ STORAGE_DIR: join(tmpdir(), 'agendaflui-nao-existe-xyz') })
+    const erro = await register().then(() => null, (e: unknown) => e)
+    expect(String(erro)).toMatch(/STORAGE_DIR/)
+    expect(start).not.toHaveBeenCalled()
+  })
+
+  test('em produção sem proxy confiável nem SMTP_URL avisa alto e sobe mesmo assim, sem vazar valores', async () => {
+    ambiente({ TRUSTED_PROXY_HOPS: '0', SMTP_URL: undefined, MAIL_FROM: undefined })
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      await register()
+      const texto = aviso.mock.calls.flat().join('\n')
+      expect(texto).toMatch(/limites por IP desligados e auditoria sem IP/)
+      expect(texto).toMatch(/convites e cadastro pelo app não chegam/)
+      expect(start).toHaveBeenCalledTimes(1)
+    } finally {
+      aviso.mockRestore()
+    }
+  })
+
+  test('configuração completa em produção não avisa nada', async () => {
+    ambiente({})
+    const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    try {
+      await register()
+      expect(aviso).not.toHaveBeenCalled()
+    } finally {
+      aviso.mockRestore()
+    }
+  })
+
+  test('fora de produção não confere a pasta de armazenamento', async () => {
+    ambiente({ NODE_ENV: 'development', STORAGE_DIR: join(tmpdir(), 'agendaflui-nao-existe-xyz') })
+    await register()
+    expect(start).toHaveBeenCalledTimes(1)
   })
 })

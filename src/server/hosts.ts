@@ -41,6 +41,8 @@ export function routeRequest(
   pathname: string,
   cfg: HostConfig,
 ): RouteDecision {
+  // Verificação de saúde: responde em qualquer host (o Coolify chama o contêiner por localhost).
+  if (pathname === '/healthz') return { action: 'pass' }
   const area = resolveArea(host, cfg)
   if (area === null) return { action: 'not_found' }
   if (isPassthrough(pathname)) return { action: 'pass' }

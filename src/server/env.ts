@@ -2,6 +2,10 @@ import { z } from 'zod'
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
+  // Segunda URL do banco, sem pooler: as migrações usam esta quando existe.
+  DIRECT_URL: z.string().min(1).optional(),
+  // `true` leva também o servidor para a DIRECT_URL (quando o pooler não mantém o fuso UTC da sessão).
+  DATABASE_USE_DIRECT_URL: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   APP_SECRET: z.string().min(32),
   DEV_HOST: z.string().min(1).default('dev.localhost:3000'),
   PAINEL_HOST: z.string().min(1).default('painel.localhost:3000'),
@@ -30,6 +34,75 @@ export const DEFAULT_MAIL_FROM = 'AgendaFlui <nao-responda@agendaflui.localhost>
 
 export type Env = z.infer<typeof envSchema>
 
+type UrlsDoBanco = Pick<Env, 'DATABASE_URL' | 'DIRECT_URL' | 'DATABASE_USE_DIRECT_URL'>
+
+/** URL que o servidor em execução usa: o único ponto que decide entre DATABASE_URL e DIRECT_URL. */
+export function runtimeDatabaseUrl(e: UrlsDoBanco): string {
+  return e.DATABASE_USE_DIRECT_URL && e.DIRECT_URL ? e.DIRECT_URL : e.DATABASE_URL
+}
+
+/** URL das migrações: DIRECT_URL quando existe (prisma.config.ts aplica a mesma regra). */
+export function migrationDatabaseUrl(e: UrlsDoBanco): string {
+  return e.DIRECT_URL ?? e.DATABASE_URL
+}
+
+const NOMES_DOS_HOSTS = ['DEV_HOST', 'PAINEL_HOST', 'API_HOST'] as const
+
+function normalizarHost(valor: string): string {
+  return valor.trim().toLowerCase().replace(/\.$/, '')
+}
+
+/** Host sem a porta; aceita IPv6 entre colchetes. */
+function nomeDoHost(valor: string): string {
+  const colchetes = /^\[([^\]]+)\](?::\d+)?$/.exec(valor)
+  return colchetes?.[1] ?? valor.replace(/:\d+$/, '')
+}
+
+function ehHostLocal(valor: string): boolean {
+  const nome = nomeDoHost(valor)
+  return nome === 'localhost' || nome.endsWith('.localhost') || nome === '::1' || /^127\./.test(nome)
+}
+
+/** Regras só de produção para os três hosts. Os valores nunca entram nas mensagens. */
+function problemasDosHosts(source: Record<string, string | undefined>): string[] {
+  const problemas: string[] = []
+  const vistos = new Map<string, string>()
+  for (const nome of NOMES_DOS_HOSTS) {
+    const bruto = source[nome]
+    if (bruto === undefined || bruto.trim() === '') {
+      problemas.push(`${nome}: obrigatório em produção (o endereço público, ex.: ${nome === 'API_HOST' ? 'api' : nome === 'DEV_HOST' ? 'dev' : 'painel'}.seudominio.com)`)
+      continue
+    }
+    const host = normalizarHost(bruto)
+    if (/[/\s]/.test(host)) {
+      problemas.push(`${nome}: informe só o host, sem https:// nem barra`)
+    } else if (ehHostLocal(host)) {
+      problemas.push(`${nome}: em produção não pode ser localhost nem endereço local`)
+    }
+    const igual = vistos.get(host)
+    if (igual) problemas.push(`${nome}: precisa ser diferente de ${igual}`)
+    else vistos.set(host, nome)
+  }
+  return problemas
+}
+
+function falhar(problemas: string): never {
+  throw new Error(`Variáveis de ambiente inválidas (${problemas}). Confira o arquivo .env com base no .env.example.`)
+}
+
+/** Avisos altos da partida em produção: não impedem o servidor de subir. */
+export function productionWarnings(config: Env): string[] {
+  if (config.NODE_ENV !== 'production') return []
+  const avisos: string[] = []
+  if (config.TRUSTED_PROXY_HOPS === 0) {
+    avisos.push('TRUSTED_PROXY_HOPS=0: sem proxy confiável, limites por IP desligados e auditoria sem IP. Atrás do proxy do Coolify use TRUSTED_PROXY_HOPS=1.')
+  }
+  if (config.SMTP_URL === undefined) {
+    avisos.push('SMTP_URL ausente: sem envio de e-mail, convites e cadastro pelo app não chegam.')
+  }
+  return avisos
+}
+
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema
     .refine((v) => !(
@@ -40,6 +113,10 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
       path: ['APP_SECRET'],
       message: 'em produção, troque o valor de exemplo por um segredo aleatório (ex.: openssl rand -hex 32)',
     })
+    .refine((v) => !(v.DATABASE_USE_DIRECT_URL && v.DIRECT_URL === undefined), {
+      path: ['DATABASE_USE_DIRECT_URL'],
+      message: 'só vale com DIRECT_URL definida',
+    })
     .refine((v) => !(v.NODE_ENV === 'production' && v.NEXT_PHASE !== FASE_DE_BUILD && v.SMTP_URL !== undefined && v.MAIL_FROM === undefined), {
       path: ['MAIL_FROM'],
       message: 'em produção com SMTP_URL, informe o remetente (ex.: "Conta <contato@seudominio.com>")',
@@ -49,11 +126,14 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     const problemas = result.error.issues
       .map((i) => `${i.path.join('.')}: ${i.message}`)
       .join('; ')
-    throw new Error(
-      `Variáveis de ambiente inválidas (${problemas}). Confira o arquivo .env com base no .env.example.`,
-    )
+    falhar(problemas)
   }
-  return result.data
+  const { data } = result
+  if (data.NODE_ENV === 'production' && data.NEXT_PHASE !== FASE_DE_BUILD) {
+    const problemas = problemasDosHosts(source)
+    if (problemas.length > 0) falhar(problemas.join('; '))
+  }
+  return data
 }
 
 let cache: Env | undefined
