@@ -28,6 +28,8 @@ import {
   localDayRange,
   localParts,
   minuteLabel,
+  minuteToInstant,
+  minutesBetween,
   weekdayOf,
   type Weekday,
 } from '@/server/time'
@@ -60,6 +62,8 @@ export type DaySummary = {
 }
 
 const MAX_DAYS = 31
+/** Teto de linhas (agendamentos e bloqueios, cada um) numa consulta de agenda. */
+const MAX_AGENDA_ROWS = 5000
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 50
 const UPCOMING: AppointmentStatus[] = [...OPEN_STATUSES]
@@ -198,6 +202,7 @@ export async function getAgenda(
           },
           include,
           orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+          take: MAX_AGENDA_ROWS + 1,
         })
       : []
   const blocks =
@@ -209,8 +214,14 @@ export async function getAgenda(
             endsAt: { gt: start },
           },
           orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+          take: MAX_AGENDA_ROWS + 1,
         })
       : []
+  if (rows.length > MAX_AGENDA_ROWS || blocks.length > MAX_AGENDA_ROWS) {
+    throw new DomainError('validation', 'Há agendamentos demais neste período. Escolha menos dias ou um profissional.', {
+      fields: { to: 'Escolha menos dias ou filtre por profissional.' },
+    })
+  }
   const busy = new Set([...rows.map((r) => r.professionalId), ...blocks.map((x) => x.professionalId)])
   const professionals = pickColumns(visible.list, everyone, busy)
   const ids = professionals.map((p) => p.id)
@@ -407,8 +418,24 @@ export async function getDaySummary(
     if (row.status === 'COMPLETED') summary.revenueCents += row.totalCents
   }
 
-  // Mesmo conjunto da agenda: ativos mais quem tem agendamento no dia.
-  const considered = pickColumns(visible.list, visible.open, new Set(rows.map((r) => r.professionalId)))
+  // Mesmo conjunto da agenda: ativos mais quem tem agendamento (fora os cancelados, que a agenda não lista) ou bloqueio no dia.
+  const blocks =
+    visible.open || visible.list.length > 0
+      ? await ctx.db.timeBlock.findMany({
+          where: {
+            ...(visible.open ? {} : { professionalId: { in: visible.list.map((p) => p.id) } }),
+            startsAt: { lt: range.end },
+            endsAt: { gt: range.start },
+          },
+          select: { professionalId: true, startsAt: true, endsAt: true },
+          orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+        })
+      : []
+  const busy = new Set([
+    ...rows.filter((r) => r.status !== 'CANCELED').map((r) => r.professionalId),
+    ...blocks.map((b) => b.professionalId),
+  ])
+  const considered = pickColumns(visible.list, visible.open, busy)
   const closures = await listClosures(ctx, { from: parsed.date, to: parsed.date })
   if (closures.length === 0 && considered.length > 0) {
     const hours = await loadWorkingHours(
@@ -416,12 +443,38 @@ export async function getDaySummary(
       considered.map((p) => p.id),
     )
     const weekday = weekdayOf(parsed.date)
-    for (const days of hours.values()) {
-      for (const r of days.get(weekday) ?? []) summary.workingMinutes += r.endMin - r.startMin
+    for (const p of considered) {
+      const mine = blocks.filter((b) => b.professionalId === p.id)
+      for (const r of hours.get(p.id)?.get(weekday) ?? []) {
+        summary.workingMinutes += r.endMin - r.startMin - blockedMinutes(parsed.date, r, mine, ctx.timeZone)
+      }
     }
   }
   if (summary.workingMinutes > 0) {
     summary.occupancy = Math.min(1, Math.round((summary.bookedMinutes / summary.workingMinutes) * 10000) / 10000)
   }
   return summary
+}
+
+/** Minutos de um intervalo de expediente cobertos por bloqueios (a união deles, sem contar a sobreposição duas vezes). */
+function blockedMinutes(
+  date: string,
+  range: { startMin: number; endMin: number },
+  blocks: { startsAt: Date; endsAt: Date }[],
+  tz: string,
+): number {
+  const start = minuteToInstant(date, range.startMin, tz)
+  const end = minuteToInstant(date, range.endMin, tz)
+  const clipped = blocks
+    .map((b) => ({ from: b.startsAt < start ? start : b.startsAt, to: b.endsAt > end ? end : b.endsAt }))
+    .filter((c) => c.from < c.to)
+    .sort((a, b) => a.from.getTime() - b.from.getTime())
+  let total = 0
+  let cursor: Date | null = null
+  for (const c of clipped) {
+    const from: Date = cursor !== null && cursor > c.from ? cursor : c.from
+    if (from < c.to) total += minutesBetween(from, c.to)
+    if (cursor === null || c.to > cursor) cursor = c.to
+  }
+  return total
 }

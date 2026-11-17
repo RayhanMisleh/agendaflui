@@ -696,6 +696,7 @@ model Appointment {
   @@unique([businessId, id])
   @@index([businessId, startsAt])
   @@index([businessId, professionalId, startsAt])
+  @@index([businessId, endsAt])
   @@index([businessId, customerId, startsAt])
   @@index([startsAt])
   @@index([businessId, createdAt])
