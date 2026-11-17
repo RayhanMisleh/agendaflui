@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { cx } from './cx'
 
-/** Página em branco com a ponta dobrada e um convite à ação. */
+/** Estado vazio: três bolhas, o título, uma frase e a ação principal. Vazio é um convite, não um erro. */
 export function EmptyState({
   title,
   description,
@@ -15,11 +15,14 @@ export function EmptyState({
 }) {
   return (
     <div className={cx('af-empty', className)}>
-      <div className="af-empty__sheet">
-        <p className="af-empty__title">{title}</p>
-        {description ? <p className="af-empty__text">{description}</p> : null}
-        {action ? <div className="af-empty__action">{action}</div> : null}
-      </div>
+      <span className="af-empty__art" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </span>
+      <h3 className="af-empty__title">{title}</h3>
+      {description ? <p className="af-empty__text">{description}</p> : null}
+      {action ? <div className="af-empty__action">{action}</div> : null}
     </div>
   )
 }

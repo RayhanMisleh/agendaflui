@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
 import { cx } from './cx'
 
 /**
- * Folha sobre a mesa. `<dialog>` nativo com showModal(): o navegador cuida do foco preso e do fundo inerte.
+ * Diálogo (no celular sobe da base como folha). `<dialog>` nativo com showModal(): o navegador cuida do foco preso e do fundo inerte.
  * Esc, clique fora e o botão Fechar chamam onClose; quem decide fechar é o dono do estado.
  */
 export function Dialog({

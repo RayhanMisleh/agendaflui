@@ -1,36 +1,9 @@
 /*
- * Base do design system. Luz sempre de cima à esquerda: realce em cima e à esquerda,
- * sombra embaixo e à direita, em todos os componentes.
- * Tudo em `@layer components` para o Tailwind (utilities) poder ajustar layout por cima.
+ * Base dos componentes (marca Agenda Flui). Tudo vem de tokens.css: nenhuma cor fixa aqui.
+ * Fica em `@layer components` para o Tailwind (utilities) poder ajustar layout por cima.
+ * O foco de teclado é um só, global (3 px em caramelo, em tokens.css): nenhum componente define o contorno.
  */
 @layer components {
-  :root {
-    /* As cores e as fontes vêm de tokens.css (marca Agenda Flui) e do tema da conta. */
-
-    /* Escala tipográfica (razão 1,25). */
-    --text-xs: 0.8125rem;
-    --text-sm: 0.875rem;
-    --text-md: 1rem;
-    --text-lg: 1.25rem;
-    --text-xl: 1.5625rem;
-    --text-2xl: 1.953rem;
-    --text-3xl: 2.441rem;
-    --leading-tight: 1.2;
-    --leading-body: 1.5;
-
-    /* Raio por objeto: tecla, rebaixo, folha, carimbo, bilhete, divisória, lâmpada. */
-    --r-key: 10px;
-    --r-slot: 6px;
-    --r-sheet: 3px;
-    --r-stamp: 5px;
-    --r-ticket: 8px 3px 8px 3px;
-    --r-tab: 12px 12px 0 0;
-    --r-lamp: 999px;
-
-    --tap: 44px;
-    --ease-key: cubic-bezier(0.3, 1.45, 0.5, 1);
-  }
-
   /* Texto só para leitor de tela. */
   .af-sr {
     position: absolute;
@@ -44,77 +17,64 @@
     border: 0;
   }
 
-  /* Foco de teclado: anel com --accent-ink sobre papel e --on-cover sobre capa e metal. */
-  :where([class*='af-']):focus-visible {
-    outline: 3px solid var(--accent-ink);
-    outline-offset: 3px;
+  /* Títulos: Bricolage 700, espaçamento negativo e quebra equilibrada. */
+  .af-display,
+  .af-h1,
+  .af-h2,
+  .af-h3 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-wrap: balance;
   }
-  :where(.af-cover, .af-material-metal) :where([class*='af-']):focus-visible {
-    outline-color: var(--on-cover);
+  .af-display {
+    font-size: var(--text-display);
+    line-height: var(--text-display-lh);
+    letter-spacing: var(--text-display-ls);
   }
-  .af-dialog :where([class*='af-']):focus-visible,
-  .af-toasts :where([class*='af-']):focus-visible {
-    outline-color: var(--accent-ink);
+  .af-h1 {
+    font-size: var(--text-h1);
+    line-height: var(--text-h1-lh);
+    letter-spacing: var(--text-h1-ls);
   }
-
-  /* ---- Utilitários de relevo ---- */
-
-  /* Objeto em relevo: realce interno em cima/esquerda, contato curto, sombra ambiente larga. */
-  .af-raised {
-    box-shadow:
-      inset 1px 1px 0 rgb(255 255 255 / 0.7),
-      inset -1px -1px 0 rgb(var(--shadow-rgb) / 0.08),
-      1px 1px 0 rgb(var(--shadow-rgb) / 0.35),
-      2px 4px 5px -1px rgb(var(--shadow-rgb) / 0.24),
-      8px 14px 24px -8px rgb(var(--shadow-rgb) / 0.3);
+  .af-h2 {
+    font-size: var(--text-h2);
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
   }
-
-  /* Rebaixo: sombra interna em cima/esquerda, lábio claro embaixo/direita. */
-  .af-sunk {
-    background-color: var(--paper-sunk);
-    box-shadow:
-      inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.3),
-      inset 3px 4px 8px -3px rgb(var(--shadow-rgb) / 0.22),
-      1px 1px 0 rgb(255 255 255 / 0.85);
+  .af-h3 {
+    font-size: var(--text-h3);
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
   }
 
-  /* Costura: fio tracejado a 6 px da borda, com sombra de fio embaixo. */
-  .af-stitched {
-    position: relative;
-  }
-  .af-stitched::after {
-    content: '';
-    position: absolute;
-    inset: 6px;
-    border: 1.5px dashed var(--stitch, rgb(255 255 255 / 0.38));
-    border-radius: calc(var(--stitch-radius, 6px));
-    pointer-events: none;
-    filter: drop-shadow(0 1px 0 rgb(0 0 0 / 0.38));
+  /* Horários e números alinham em coluna. */
+  .af-tabular {
+    font-variant-numeric: tabular-nums;
   }
 
-  /* Texto gravado: sobre papel, tipografia prensada; sobre capa e metal, baixo-relevo. */
-  .af-engraved {
-    text-shadow: 0 1px 0 rgb(255 255 255 / 0.75);
+  @keyframes af-spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
-  :where(.af-cover, .af-material-metal) .af-engraved {
-    text-shadow:
-      0 -1px 0 rgb(0 0 0 / 0.55),
-      0 1px 0 rgb(255 255 255 / 0.16);
+  @keyframes af-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
   }
-  /* Texto pequeno sobre capa: halo na cor --fx (inverso do texto) afasta a textura das letras sem mudar a cor. */
-  .af-on-cover-text {
-    text-shadow:
-      0 0 1px var(--fx),
-      0 0 1px var(--fx),
-      0 0 2px var(--fx),
-      0 0 2px var(--fx),
-      0 0 3px var(--fx),
-      0 0 5px var(--fx);
-  }
-  .af-dialog .af-on-cover-text {
-    text-shadow: none;
-  }
-  .af-dialog .af-engraved {
-    text-shadow: 0 1px 0 rgb(255 255 255 / 0.75);
+  @keyframes af-rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

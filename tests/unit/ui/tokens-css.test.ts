@@ -59,9 +59,8 @@ describe('tokens.css', () => {
     expect(semComentarios).toMatch(/::selection\s*\{[^}]*background:\s*var\(--brand-tint\)/)
   })
 
-  test('os apelidos temporários estão todos marcados "R2 remove"', () => {
-    const linhas = css.split('\n').filter((l) => /^\s*--(cover|on-cover|paper|ink-soft|ink-faint|ok|warn|bad|accent-hi|accent-lo|accent-ink|font-ui|font-stamp)[a-z-]*:/.test(l))
-    expect(linhas.length).toBeGreaterThanOrEqual(19)
-    for (const l of linhas) expect(l).toContain('/* R2 remove */')
+  test('os apelidos temporários da R1 saíram', () => {
+    expect(semComentarios).not.toMatch(/R2 remove/)
+    expect(semComentarios).not.toMatch(/--(cover|on-cover|paper|ink-soft|ink-faint|ok|warn|bad|accent-hi|accent-lo|accent-ink|font-ui|font-stamp)[a-z-]*:/)
   })
 })

@@ -1,5 +1,5 @@
 'use client'
-import { Field, Input, Paper } from '@/ui/components'
+import { Field, Input, Card } from '@/ui/components'
 import { ContaForm } from '../contas/[id]/ContaForm'
 import { estadoInicial } from '../contas/[id]/forms'
 import type { AcaoConta } from '../contas/[id]/forms'
@@ -9,7 +9,7 @@ const ROTULOS = { senhaAtual: 'Senha atual', senhaNova: 'Senha nova', senhaRepet
 export function ProfileForms({ nome, email, salvar, trocar }: { nome: string; email: string; salvar: AcaoConta; trocar: AcaoConta }) {
   return (
     <div className="af-global">
-      <Paper raised={1} className="af-keys__new">
+      <Card className="af-keys__new">
         <h2 className="af-keys__title">Meus dados</h2>
         <ContaForm action={salvar} initial={estadoInicial({ name: nome })} submit="Salvar nome">
           {({ values: v, fields }) => (
@@ -23,8 +23,8 @@ export function ProfileForms({ nome, email, salvar, trocar }: { nome: string; em
             </>
           )}
         </ContaForm>
-      </Paper>
-      <Paper raised={1} className="af-keys__new">
+      </Card>
+      <Card className="af-keys__new">
         <h2 className="af-keys__title">Trocar a senha</h2>
         <p className="af-section__help">Ao trocar, os outros acessos da sua conta de admin são encerrados. Este continua aberto.</p>
         <ContaForm action={trocar} initial={estadoInicial({})} submit="Trocar senha" labels={ROTULOS}>
@@ -42,7 +42,7 @@ export function ProfileForms({ nome, email, salvar, trocar }: { nome: string; em
             </>
           )}
         </ContaForm>
-      </Paper>
+      </Card>
     </div>
   )
 }

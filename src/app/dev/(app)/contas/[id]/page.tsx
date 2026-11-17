@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Counter, Paper } from '@/ui/components'
+import { StatNumber, Card } from '@/ui/components'
 import { DomainError } from '@/server/domain/errors'
 import { getAccountMetrics } from '@/server/domain/platform/metrics'
 import { HorariosNota } from '../../_lib/HorariosNota'
@@ -40,19 +40,19 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
           {suporte}
         </p>
       ) : null}
-      <Paper raised={1} className="af-listpanel">
+      <Card className="af-listpanel">
         <h2 className="af-section__title">Números da conta</h2>
         {metricas ? (
           <>
             <div className="af-metrics">
-              <Counter label="Agendamentos hoje" value={metricas.appointments.today} />
-              <Counter label="Próximos 7 dias" value={metricas.appointments.next7d} />
-              <Counter label="Agendamentos no mês" value={metricas.appointments.month.current} />
-              <Counter label="Clientes" value={metricas.customers.total} />
-              <Counter label="Clientes novos no mês" value={metricas.customers.newMonth} />
-              <Counter label="Receita do mês" value={metricas.revenueCents.month.current} format="brl" />
-              <Counter label="Equipe ativa" value={metricas.team.active} />
-              <Counter label="Pessoas no app no mês" value={metricas.appUsers.activeMonth} />
+              <StatNumber label="Agendamentos hoje" value={metricas.appointments.today} />
+              <StatNumber label="Próximos 7 dias" value={metricas.appointments.next7d} />
+              <StatNumber label="Agendamentos no mês" value={metricas.appointments.month.current} />
+              <StatNumber label="Clientes" value={metricas.customers.total} />
+              <StatNumber label="Clientes novos no mês" value={metricas.customers.newMonth} />
+              <StatNumber label="Receita do mês" value={metricas.revenueCents.month.current} format="brl" />
+              <StatNumber label="Equipe ativa" value={metricas.team.active} />
+              <StatNumber label="Pessoas no app no mês" value={metricas.appUsers.activeMonth} />
             </div>
             <p className="af-listpanel__summary">
               Mês passado: {metricas.appointments.month.previous} agendamentos. Última atividade:{' '}
@@ -63,8 +63,8 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
         ) : (
           <p className="af-wizard__note">{avisoMetricas}</p>
         )}
-      </Paper>
-      <Paper raised={1} className="af-listpanel">
+      </Card>
+      <Card className="af-listpanel">
         <h2 className="af-section__title">Dados da conta</h2>
         <DadosForm
           action={salvarDados.bind(null, conta.id)}
@@ -79,7 +79,7 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
             internalNotes: conta.internalNotes ?? '',
           }}
         />
-      </Paper>
+      </Card>
     </>
   )
 }

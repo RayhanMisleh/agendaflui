@@ -17,7 +17,8 @@ export const FONT_PAIRS = ['CLASSIC', 'MODERN', 'FRIENDLY'] as const satisfies r
  * - `text_adjusted`: a cor da conta não dava texto legível (sobre ela ou sobre os fundos claros) e o motor usou um tom
  *   mais escuro dela (nos botões e/ou nos links);
  * - `accent_adjusted`: a cor de destaque foi clareada para a tinta ter 4,5 de contraste sobre ela;
- * - `sidebar_near_ground`: a barra lateral quase some contra o fundo (ver `SIDEBAR_GROUND_MIN_CONTRAST`);
+ * - `sidebar_near_ground`: a barra Suave quase some contra o fundo (ver `SIDEBAR_GROUND_MIN_CONTRAST`); a Clara é branca de
+ *   propósito e se separa do fundo pela borda, então não entra na regra;
  * - `invalid_color`: só a prévia emite (cor fora do formato `#RRGGBB`; o servidor recusaria).
  */
 export type ThemeWarning = 'invalid_color' | 'text_adjusted' | 'accent_adjusted' | 'sidebar_near_ground'
@@ -297,7 +298,7 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
 
   const palette: Palette = { brand, brandStrong: strong, tint, onBrand, brandText: brandText.color, ground, ink, inkMuted, night }
   const side = sidebar(input.material, palette, primary)
-  if (contrastRatio(side['--side-bg'], ground.ground) < SIDEBAR_GROUND_MIN_CONTRAST) signals.push('sidebar_near_ground')
+  if (input.material === 'LINEN' && contrastRatio(side['--side-bg'], ground.ground) < SIDEBAR_GROUND_MIN_CONTRAST) signals.push('sidebar_near_ground')
 
   const font = FONTS[input.fontPair]
   const vars: ThemeTokens['vars'] = {

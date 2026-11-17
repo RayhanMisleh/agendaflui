@@ -4,7 +4,7 @@ import { requirePlatformAdmin } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { listBusinesses } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
-import { EmptyState, LinkButton, Pagination, Paper, SearchBar } from '@/ui/components'
+import { EmptyState, LinkButton, Pagination, Card, SearchBar } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
 import { um } from '../_lib/params'
 import { ContasTable } from './ContasTable'
@@ -80,7 +80,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
         </LinkButton>
       }
     >
-      <Paper raised={1} className="af-listpanel">
+      <Card className="af-listpanel">
         <SearchBar
           action="/contas"
           label="Buscar contas"
@@ -97,7 +97,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
           </p>
         ) : null}
         <Pagination basePath="/contas" params={params} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
-      </Paper>
+      </Card>
     </DevFrame>
   )
 }

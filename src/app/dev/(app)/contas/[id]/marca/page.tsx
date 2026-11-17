@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Paper } from '@/ui/components'
+import { Card } from '@/ui/components'
 import { getCustomization } from '@/server/domain/platform/customization'
 import { carregarConta } from '../_data'
 import { salvarMarca } from '../actions'
@@ -36,7 +36,7 @@ export default async function MarcaPage({
   const { brand, terms } = await getCustomization(admin, conta.id)
   return (
     <>
-      <Paper raised={1} className="af-listpanel">
+      <Card className="af-listpanel">
         <h2 className="af-section__title">Cores, material e fonte</h2>
         <MarcaForm
           action={salvarMarca.bind(null, conta.id)}
@@ -53,8 +53,8 @@ export default async function MarcaPage({
           termos={terms}
           logoUrl={brand.logoUrl}
         />
-      </Paper>
-      <Paper raised={1} className="af-listpanel">
+      </Card>
+      <Card className="af-listpanel">
         <h2 className="af-section__title">Imagens</h2>
         {aviso ? (
           <p role={aviso.ok ? 'status' : 'alert'} className={aviso.ok ? 'af-acctform__ok' : 'af-wizard__note'}>
@@ -65,7 +65,7 @@ export default async function MarcaPage({
           businessId={conta.id}
           imagens={{ logo: brand.logoUrl, symbol: brand.symbolUrl, favicon: brand.faviconUrl, loginImage: brand.loginImageUrl }}
         />
-      </Paper>
+      </Card>
     </>
   )
 }

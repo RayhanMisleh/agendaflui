@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { BrandPreview, Button, ColorField, Field, Input, MaterialPicker, Select, Textarea } from '@/ui/components'
+import { BrandPreview, Button, ColorField, Field, Input, SidebarStylePicker, Select, Textarea } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL } from '@/shared/theme/labels'
@@ -43,7 +43,7 @@ export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoCo
                 <ColorField label={PRIMARY_FIELD_LABEL} name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...(fields.primary ? { error: fields.primary } : {})} {...(avisoPrincipal ? { warning: avisoPrincipal } : {})} />
                 <ColorField label={ACCENT_FIELD_LABEL} name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...(fields.accent ? { error: fields.accent } : {})} {...(avisoDestaque ? { warning: avisoDestaque } : {})} />
               </div>
-              <MaterialPicker name="material" value={v.material} onChange={(m) => set('material', m)} primary={v.primary} accent={v.accent} paper={v.paper} fontPair={v.fontPair} />
+              <SidebarStylePicker name="material" value={v.material} onChange={(m) => set('material', m)} primary={v.primary} accent={v.accent} paper={v.paper} fontPair={v.fontPair} />
               <div className="af-wizard__grid">
                 <Field label={GROUND_FIELD_LABEL} hint={GROUND_OPTIONS.find((o) => o.value === v.paper)?.hint} error={fields.paper}>
                   <Select name="paper" value={v.paper} onChange={(e) => set('paper', e.target.value as PaperTone)}>

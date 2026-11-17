@@ -1,140 +1,7 @@
 /*
- * Peças das telas do painel dev: busca, páginas, lâmpada de situação, confirmação, resumo de erros e lista de contas.
- * Tudo sobre papel (Paper) para o texto nunca ficar sobre o metal; mesmas variáveis e raios do resto do sistema.
+ * Peças das telas do painel dev: lista de contas, linhas de ação e convite de membro (R4 refaz).
  */
 @layer components {
-  /* ---- Lâmpada de situação (lista) ---- */
-  .af-statuslamp {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.625rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .af-statuslamp .af-lamp__lens {
-    width: 14px;
-    height: 14px;
-    box-shadow:
-      0 0 0 1.5px #cfd4da,
-      0 0 0 2.5px #7c8590,
-      1px 1px 0 2.5px rgb(0 0 0 / 0.4),
-      inset -1px -2px 3px rgb(0 0 0 / 0.45),
-      0 0 8px 2px var(--glow);
-  }
-  .af-statuslamp .af-lamp__lens {
-    flex: none;
-  }
-  .af-statuslamp .af-lamp__lens::after {
-    content: none;
-  }
-
-  /* ---- Busca e filtros ---- */
-  .af-searchbar {
-    display: grid;
-    gap: 0.75rem;
-    align-items: end;
-  }
-  .af-searchbar__go {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1rem;
-    padding-bottom: 3px;
-  }
-  .af-searchbar__clear {
-    color: var(--accent-ink);
-    font-weight: 600;
-    text-underline-offset: 3px;
-  }
-  .af-searchbar__clear:focus-visible {
-    outline: 3px solid var(--accent-ink);
-    outline-offset: 2px;
-    border-radius: 2px;
-  }
-  @media (min-width: 900px) {
-    .af-searchbar {
-      grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 12rem) auto;
-    }
-  }
-
-  /* ---- Páginas ---- */
-  .af-pager {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    padding-top: 1rem;
-    border-top: 1px dashed var(--paper-edge);
-  }
-  .af-pager__link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: var(--tap);
-    padding: 0 0.25rem;
-    color: var(--accent-ink);
-    font-weight: 700;
-    text-underline-offset: 3px;
-  }
-  .af-pager__link--next {
-    margin-inline-start: auto;
-  }
-  .af-pager__link:focus-visible {
-    outline: 3px solid var(--accent-ink);
-    outline-offset: 2px;
-    border-radius: 3px;
-  }
-
-  /* ---- Resumo de erros ---- */
-  .af-formerrors {
-    display: flex;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--bad);
-    border-left-width: 5px;
-    border-radius: var(--r-slot);
-    background-color: color-mix(in srgb, var(--bad) 7%, var(--paper));
-    color: var(--ink);
-    font-size: var(--text-sm);
-    line-height: 1.4;
-  }
-  .af-formerrors__icon {
-    flex: none;
-    margin-top: 1px;
-    color: var(--bad);
-  }
-  .af-formerrors__message {
-    margin: 0;
-    font-weight: 650;
-  }
-  .af-formerrors__list {
-    margin: 0.375rem 0 0;
-    padding-left: 1.125rem;
-  }
-
-  /* ---- Confirmação ---- */
-  .af-confirm {
-    display: grid;
-    gap: 1rem;
-  }
-  .af-confirm__text {
-    margin: 0;
-    color: var(--ink);
-    line-height: var(--leading-body);
-  }
-  .af-confirm__actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.75rem;
-  }
-
-  /* ---- Copiar ---- */
-  .af-copy {
-    display: inline-flex;
-  }
-
   /* ---- Lista de contas ---- */
   .af-listpanel {
     display: grid;
@@ -142,8 +9,8 @@
   }
   .af-listpanel__summary {
     margin: 0;
-    color: var(--ink-soft);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
   }
   .af-account {
     display: grid;
@@ -160,8 +27,8 @@
     text-decoration: underline;
   }
   .af-account__slug {
-    color: var(--ink-soft);
-    font-size: var(--text-sm);
+    color: var(--ink-muted);
+    font-size: var(--text-small);
   }
   .af-entrylink {
     display: grid;
@@ -171,7 +38,7 @@
   }
   .af-entrylink__url {
     color: var(--ink);
-    font-size: var(--text-sm);
+    font-size: var(--text-small);
     overflow-wrap: anywhere;
   }
   .af-rowactions {
@@ -186,8 +53,8 @@
   .af-rowerror {
     flex: 1 1 100%;
     margin: 0;
-    color: var(--bad);
-    font-size: var(--text-sm);
+    color: var(--danger);
+    font-size: var(--text-small);
     font-weight: 600;
     line-height: 1.35;
   }
@@ -201,9 +68,9 @@
   .af-pagehead__text {
     margin: 0;
     max-width: 38rem;
-    color: var(--on-cover-soft);
-    font-size: var(--text-md);
-    line-height: var(--leading-body);
+    color: var(--side-ink-muted);
+    font-size: var(--text-body);
+    line-height: 1.5;
   }
 
   /* ---- Convite de membro (aba Equipe) ---- */
@@ -215,8 +82,8 @@
     display: grid;
     gap: 0.75rem;
     padding: 1rem;
-    border-radius: var(--r-slot);
-    background-color: var(--paper-sunk);
+    border-radius: var(--radius-chip);
+    background-color: var(--ground);
   }
   .af-invite__fields {
     display: grid;

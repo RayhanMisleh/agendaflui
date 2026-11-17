@@ -25,23 +25,30 @@ test('Enter também alterna e desligar envia false', async () => {
 
 function state(container: HTMLElement) {
   const track = container.querySelector('.af-switch__track') as HTMLElement
-  const visible = Array.from(track.querySelectorAll<HTMLElement>('[data-mark]'))
-    .filter((m) => !m.hidden)
-    .map((m) => m.dataset.mark)
-  return { state: track.dataset.state, visible }
+  return track.dataset.state
 }
 
-test('desligada mostra o símbolo O e só ele', () => {
+test('desligada: trilho "off"', () => {
   const { container } = render(<Switch checked={false} onCheckedChange={() => {}} label="Lembretes" />)
-  expect(state(container)).toEqual({ state: 'off', visible: ['off'] })
+  expect(state(container)).toBe('off')
 })
 
-test('ligada mostra o símbolo I e só ele', () => {
+test('ligada: trilho "on"', () => {
   const { container } = render(<Switch checked onCheckedChange={() => {}} label="Lembretes" />)
-  expect(state(container)).toEqual({ state: 'on', visible: ['on'] })
+  expect(state(container)).toBe('on')
 })
 
-test('desabilitada continua mostrando o estado real', () => {
-  const { container } = render(<Switch checked disabled onCheckedChange={() => {}} label="Lembretes" />)
-  expect(state(container)).toEqual({ state: 'on', visible: ['on'] })
+test('o rótulo clica no interruptor', async () => {
+  const onChange = vi.fn()
+  render(<Switch checked={false} onCheckedChange={onChange} label="Lembretes" />)
+  await userEvent.click(screen.getByText('Lembretes'))
+  expect(onChange).toHaveBeenCalledWith(true)
+})
+
+test('desabilitada continua mostrando o estado real e não alterna', async () => {
+  const onChange = vi.fn()
+  const { container } = render(<Switch checked disabled onCheckedChange={onChange} label="Lembretes" />)
+  expect(state(container)).toBe('on')
+  await userEvent.click(screen.getByRole('switch'))
+  expect(onChange).not.toHaveBeenCalled()
 })

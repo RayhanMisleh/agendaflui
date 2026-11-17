@@ -29,7 +29,8 @@ async function copiar(texto: string): Promise<boolean> {
   }
 }
 
-export function CopyButton({ text, label, variant = 'secondary' }: { text: string; label: string; variant?: 'primary' | 'secondary' | 'ghost' }) {
+/** Botão pequeno que vira "Copiado" por 2 s (e avisa o leitor de tela). */
+export function CopyButton({ text, label, variant = 'ghost' }: { text: string; label: string; variant?: 'primary' | 'secondary' | 'ghost' }) {
   const [estado, setEstado] = useState<'parado' | 'copiado' | 'falhou'>('parado')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => {
@@ -39,7 +40,7 @@ export function CopyButton({ text, label, variant = 'secondary' }: { text: strin
   async function onClick() {
     setEstado((await copiar(text)) ? 'copiado' : 'falhou')
     if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => setEstado('parado'), 2500)
+    timer.current = setTimeout(() => setEstado('parado'), 2000)
   }
 
   return (

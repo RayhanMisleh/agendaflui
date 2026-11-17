@@ -4,7 +4,7 @@ import { requirePlatformAdmin } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { listAudit } from '@/server/domain/platform/audit-log'
 import { findBusinessByRef } from '@/server/domain/platform/businesses'
-import { Button, EmptyState, Field, Input, LinkButton, Pagination, Paper, Select } from '@/ui/components'
+import { Button, EmptyState, Field, Input, LinkButton, Pagination, Card, Select } from '@/ui/components'
 import { DevFrame } from '../DevFrame'
 import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
@@ -57,7 +57,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
 
   return (
     <DevFrame admin={admin} title="Auditoria">
-      <Paper raised={1} className="af-listpanel">
+      <Card className="af-listpanel">
         <form method="get" action="/auditoria" className="af-filters" role="search" aria-label="Filtros da auditoria">
           <Field label="Conta" hint={contaNome ? `Conta: ${contaNome}.` : 'Identificador da conta, como estudio-sol. Em branco, todas.'}>
             <Input name="conta" defaultValue={values.conta} maxLength={100} autoComplete="off" spellCheck={false} />
@@ -113,7 +113,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
           }
         />
         <Pagination basePath="/auditoria" params={params} cursor={query.cursor ?? null} nextCursor={pagina?.nextCursor ?? null} />
-      </Paper>
+      </Card>
     </DevFrame>
   )
 }

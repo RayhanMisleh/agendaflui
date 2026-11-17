@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Button, ConfirmDialog, EmptyState, Field, Input, Paper, SecretBox, Stamp, Textarea } from '@/ui/components'
+import { Button, ConfirmDialog, EmptyState, Field, Input, Card, SecretBox, StatusBadge, Textarea } from '@/ui/components'
 import { formatInt } from '@/ui/format'
 import { ContaForm } from '../contas/[id]/ContaForm'
 import { estadoInicial } from '../contas/[id]/forms'
@@ -42,11 +42,11 @@ function Uso({ titulo, uso }: { titulo: string; uso: UsoPeriodo }) {
 function Cartao({ k }: { k: ChaveGlobal }) {
   const [aberto, setAberto] = useState(false)
   return (
-    <Paper as="li" raised={1} className="af-keycard">
+    <Card as="li" className="af-keycard">
       <div className="af-keycard__head">
         <h3 className="af-keycard__name">{k.name}</h3>
-        <Stamp tone={k.revoked ? 'bad' : 'ok'}>{k.revoked ? 'Revogada' : 'Ativa'}</Stamp>
-        <Stamp tone="neutral">{k.kind === 'PLATFORM' ? 'Plataforma' : 'Conta'}</Stamp>
+        <StatusBadge tone={k.revoked ? 'canceled' : 'confirmed'}>{k.revoked ? 'Revogada' : 'Ativa'}</StatusBadge>
+        <StatusBadge tone="neutral">{k.kind === 'PLATFORM' ? 'Plataforma' : 'Conta'}</StatusBadge>
       </div>
       <p className="af-account__slug">
         {k.kind === 'ACCOUNT' && k.contaId ? (
@@ -91,7 +91,7 @@ function Cartao({ k }: { k: ChaveGlobal }) {
           />
         </div>
       )}
-    </Paper>
+    </Card>
   )
 }
 
@@ -99,7 +99,7 @@ function Cartao({ k }: { k: ChaveGlobal }) {
 export function ChavesPanel({ criar, chaves, filtros, vazio }: { criar: AcaoConta; chaves: ChaveGlobal[]; filtros: React.ReactNode; vazio: React.ReactNode }) {
   return (
     <div className="af-keys">
-      <Paper raised={1} className="af-keys__new">
+      <Card className="af-keys__new">
         <h2 className="af-keys__title">Nova chave de plataforma</h2>
         <p className="af-section__help">Serve para apps que falam com várias contas. A chave de uma conta só se cria na página da conta.</p>
         <ContaForm action={criar} initial={estadoInicial({ name: '', origins: '' })} submit="Criar chave">
@@ -115,8 +115,8 @@ export function ChavesPanel({ criar, chaves, filtros, vazio }: { criar: AcaoCont
             </>
           )}
         </ContaForm>
-      </Paper>
-      <Paper raised={1} className="af-listpanel">
+      </Card>
+      <Card className="af-listpanel">
         {filtros}
         {chaves.length === 0 ? (
           vazio
@@ -127,7 +127,7 @@ export function ChavesPanel({ criar, chaves, filtros, vazio }: { criar: AcaoCont
             ))}
           </ul>
         )}
-      </Paper>
+      </Card>
     </div>
   )
 }

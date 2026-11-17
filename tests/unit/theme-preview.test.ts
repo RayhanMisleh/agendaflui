@@ -81,8 +81,8 @@ describe('previewTheme: barra lateral contra o fundo', () => {
     expect(SIDEBAR_GROUND_MIN_CONTRAST).toBe(1.15)
   })
 
-  test.each(PAPERS)('barra Clara (branca) sobre o fundo %s se confunde: sidebar_near_ground', (paper) => {
-    expect(previewTheme({ ...base, paper, material: 'ENAMEL' }).warnings).toContain('sidebar_near_ground')
+  test.each(PAPERS)('barra Clara (branca de propósito, separada do fundo pela borda) sobre o fundo %s não avisa', (paper) => {
+    expect(previewTheme({ ...base, paper, material: 'ENAMEL' }).warnings).not.toContain('sidebar_near_ground')
   })
 
   test('barra Suave só avisa quando a Bolha fica perto do fundo', () => {

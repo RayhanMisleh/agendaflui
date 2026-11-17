@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { ConfirmDialog, DataList, EmptyState, Button, Field, Input, Select, Stamp } from '@/ui/components'
+import { ConfirmDialog, DataList, EmptyState, Button, Field, Input, Select, StatusBadge } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import { estadoInicial } from './forms'
 import type { AcaoConta } from './forms'
@@ -166,7 +166,7 @@ export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Mem
       nowrap: true,
       cell: (m) => (
         <span className="af-teamstate">
-          <Stamp tone={m.active ? 'ok' : 'neutral'}>{m.active ? 'Ativo' : 'Desativado'}</Stamp>
+          <StatusBadge tone={m.active ? 'confirmed' : 'neutral'}>{m.active ? 'Ativo' : 'Desativado'}</StatusBadge>
           {m.active && !m.hasPassword ? <span className="af-account__slug">Convite pendente</span> : null}
         </span>
       ),

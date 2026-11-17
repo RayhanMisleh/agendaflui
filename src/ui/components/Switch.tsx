@@ -2,7 +2,7 @@
 import { useId } from 'react'
 import { cx } from './cx'
 
-/** Chave física liga/desliga. Espaço e Enter alternam (botão nativo). */
+/** Interruptor em pílula. Espaço e Enter alternam (botão nativo); o rótulo também é clicável. */
 export function Switch({
   checked,
   onCheckedChange,
@@ -34,9 +34,6 @@ export function Switch({
         onClick={() => onCheckedChange(!checked)}
       >
         <span className="af-switch__track" aria-hidden="true" data-state={checked ? 'on' : 'off'}>
-          {/* Só o símbolo do estado atual aparece, no lado que a alavanca deixa livre. */}
-          <span className="af-switch__mark af-switch__mark--off" data-mark="off" hidden={checked} />
-          <span className="af-switch__mark af-switch__mark--on" data-mark="on" hidden={!checked} />
           <span className="af-switch__knob" />
         </span>
       </button>

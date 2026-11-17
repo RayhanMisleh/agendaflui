@@ -5,7 +5,8 @@ import { cx } from './cx'
 export type RailStep = { id: string; label: string }
 
 /**
- * Trilho de etapas de um formulário longo. Cada etapa é uma âncora para a sua seção (`#etapa-<id>`): sem JavaScript o
+ * Trilho de etapas de um formulário longo, com círculos numerados como os "três passos" do site (os vistos em `brand`, o atual
+ * em `accent`, os futuros vazios). Cada etapa é uma âncora para a sua seção (`#etapa-<id>`): sem JavaScript o
  * formulário é uma página só e o trilho rola até a seção; com JavaScript, `onSelect` troca a etapa visível. A etapa
  * atual leva `aria-current="step"`; etapa com erro e etapa já vista dizem isso em texto, não só em cor.
  */
@@ -43,11 +44,11 @@ export function StepRail({
                   onSelect(i)
                 }}
               >
-                <span className="af-steprail__rivet" aria-hidden="true">
+                <span className="af-steprail__dot" aria-hidden="true">
                   {erro ? <CircleAlert size={16} /> : feita ? <Check size={16} /> : i + 1}
                 </span>
                 <span className="af-steprail__label">{s.label}</span>
-                {erro ? <span className="af-sr"> (com erro)</span> : feita ? <span className="af-sr"> (vista)</span> : null}
+                {erro ? <span className="af-steprail__note"> (com erro)</span> : feita ? <span className="af-sr"> (vista)</span> : null}
               </a>
             </li>
           )

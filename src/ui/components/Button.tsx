@@ -1,16 +1,20 @@
 import type { ComponentProps, ReactNode } from 'react'
-import { LoaderCircle } from 'lucide-react'
 import { cx } from './cx'
 
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'accent'
+
 export type ButtonProps = Omit<ComponentProps<'button'>, 'children'> & {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
+  variant?: ButtonVariant
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
   icon?: ReactNode
   children?: ReactNode
 }
 
-/** Tecla com curso: a parede inferior some e a tecla desce 2 px ao apertar. */
+/**
+ * Botão em pílula (36, 44 e 52 px de altura). `accent` é para a ÚNICA ação festiva de uma tela, uso raro. Carregando,
+ * o texto fica no lugar (a largura não muda) e um anel gira por cima.
+ */
 export function Button({
   variant = 'secondary',
   size = 'md',
@@ -30,17 +34,16 @@ export function Button({
       aria-busy={loading || undefined}
       className={cx('af-button', `af-button--${variant}`, `af-button--${size}`, className)}
     >
-      <span className="af-button__face">
-        {loading ? (
-          <LoaderCircle className="af-button__spinner" size={18} aria-hidden="true" />
-        ) : icon ? (
+      {loading ? <span className="af-button__spinner" aria-hidden="true" /> : null}
+      <span className="af-button__label">
+        {icon ? (
           <span className="af-button__icon" aria-hidden="true">
             {icon}
           </span>
         ) : null}
         {children}
-        {loading ? <span className="af-sr">Aguarde…</span> : null}
       </span>
+      {loading ? <span className="af-sr">Aguarde…</span> : null}
     </button>
   )
 }

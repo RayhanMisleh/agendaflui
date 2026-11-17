@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { cx } from './cx'
+import type { ButtonVariant } from './Button'
 
-/** A tecla como link: mesma aparência do Button, para navegar em vez de agir. */
+/** O botão como link: mesma aparência do Button, para navegar em vez de agir. */
 export function LinkButton({
   href,
   variant = 'secondary',
@@ -12,7 +13,7 @@ export function LinkButton({
   children,
 }: {
   href: string
-  variant?: 'primary' | 'secondary' | 'ghost'
+  variant?: Exclude<ButtonVariant, 'danger'>
   size?: 'sm' | 'md' | 'lg'
   icon?: ReactNode
   className?: string
@@ -20,7 +21,7 @@ export function LinkButton({
 }) {
   return (
     <Link href={href} className={cx('af-button', `af-button--${variant}`, `af-button--${size}`, className)}>
-      <span className="af-button__face">
+      <span className="af-button__label">
         {icon ? (
           <span className="af-button__icon" aria-hidden="true">
             {icon}

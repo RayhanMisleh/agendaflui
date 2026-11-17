@@ -7,7 +7,7 @@ function initials(name: string): string {
   return (first + last).toLocaleUpperCase('pt-BR')
 }
 
-/** Foto em moldura redonda; sem foto, as iniciais gravadas. */
+/** Círculo com a foto; sem foto, as iniciais em `brand-text` sobre `brand-tint`. */
 export function Avatar({
   src,
   name,
@@ -21,7 +21,7 @@ export function Avatar({
 }) {
   return (
     <span role="img" aria-label={name} className={cx('af-avatar', `af-avatar--${size}`, className)}>
-      <span className="af-avatar__initials af-engraved" aria-hidden="true">
+      <span className="af-avatar__initials" aria-hidden="true">
         {initials(name)}
       </span>
       {src ? (

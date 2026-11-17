@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { DoorOpen } from 'lucide-react'
-import { Button, CopyButton, LinkButton, NavTabs, Paper, StatusLamp } from '@/ui/components'
+import { Button, CopyButton, LinkButton, NavTabs, Card, StatusDot, businessStatusDot } from '@/ui/components'
 import { DevFrame } from '../../DevFrame'
 import { carregarConta } from './_data'
 import { arquivarConta, reativarConta, suspenderConta } from './actions'
@@ -21,9 +21,9 @@ export default async function ContaLayout({ children, params }: { children: Reac
         </LinkButton>
       }
     >
-      <Paper raised={1} className="af-acct">
+      <Card className="af-acct">
         <div className="af-acct__row">
-          <StatusLamp status={conta.status} />
+          <StatusDot {...businessStatusDot(conta.status)} />
           <span className="af-account__slug">
             Identificador {conta.slug}. Dono: {conta.ownerName ?? 'sem dono ativo'}.
           </span>
@@ -55,7 +55,7 @@ export default async function ContaLayout({ children, params }: { children: Reac
             acoes={{ suspender: suspenderConta.bind(null, conta.id), reativar: reativarConta.bind(null, conta.id), arquivar: arquivarConta.bind(null, conta.id) }}
           />
         </div>
-      </Paper>
+      </Card>
       <NavTabs label="Abas da conta" items={accountTabs(conta.id)} />
       {children}
     </DevFrame>

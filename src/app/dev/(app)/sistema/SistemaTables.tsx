@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
-import { Button, DataList, Lamp } from '@/ui/components'
-import type { DataColumn, LampState } from '@/ui/components'
+import { Button, DataList, StatusDot } from '@/ui/components'
+import type { DataColumn, StateTone } from '@/ui/components'
 import { estadoInicial } from '../contas/[id]/forms'
 import type { AcaoConta } from '../contas/[id]/forms'
 
@@ -71,8 +71,8 @@ const COLUNAS_EXECUCOES: DataColumn<Execucao>[] = [
     key: 'situacao',
     header: 'Situação',
     cell: (e) => {
-      const state: LampState = e.ok ? 'on' : 'error'
-      return <Lamp state={state} label={e.ok ? 'Concluída' : 'Falhou'} />
+      const tone: StateTone = e.ok ? 'success' : 'danger'
+      return <StatusDot tone={tone} label={e.ok ? 'Concluída' : 'Falhou'} />
     },
   },
   { key: 'inicio', header: 'Início', nowrap: true, cell: (e) => e.inicio },

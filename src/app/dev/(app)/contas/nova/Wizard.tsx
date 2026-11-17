@@ -12,10 +12,10 @@ import {
   FormErrors,
   Input,
   LinkButton,
-  MaterialPicker,
-  Paper,
+  SidebarStylePicker,
+  Card,
   Select,
-  Stamp,
+  StatusBadge,
   StepRail,
   Textarea,
   useHydrated,
@@ -142,7 +142,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
   const rotulosErro = ROTULOS
 
   return (
-    <Paper raised={1} className="af-wizard">
+    <Card className="af-wizard">
       <StepRail
         steps={STEPS}
         current={hidratado ? step : 0}
@@ -219,7 +219,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <ColorField label={PRIMARY_FIELD_LABEL} name="primary" value={v.primary} onChange={(c) => set('primary', c)} {...opcional('error', erro('primary'))} {...opcional('warning', avisoDe(warnings, 'primary'))} />
               <ColorField label={ACCENT_FIELD_LABEL} name="accent" value={v.accent} onChange={(c) => set('accent', c)} {...opcional('error', erro('accent'))} {...opcional('warning', avisoDe(warnings, 'accent'))} />
             </div>
-            <MaterialPicker
+            <SidebarStylePicker
               name="material"
               value={v.material}
               onChange={(m) => set('material', m)}
@@ -400,7 +400,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
           </aside>
         ) : null}
       </form>
-    </Paper>
+    </Card>
   )
 }
 
@@ -443,12 +443,12 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
     titulo.current?.focus()
   }, [])
   return (
-    <Paper raised={2} className="af-done">
+    <Card className="af-done">
       <div className="af-done__head">
         <h2 ref={titulo} tabIndex={-1} className="af-done__title">
           {result.businessName} está criada
         </h2>
-        <Stamp tone={result.pendencias.length > 0 ? 'warn' : 'ok'}>{result.pendencias.length > 0 ? 'Quase pronta' : 'Pronta'}</Stamp>
+        <StatusBadge tone={result.pendencias.length > 0 ? 'pending' : 'confirmed'}>{result.pendencias.length > 0 ? 'Quase pronta' : 'Pronta'}</StatusBadge>
       </div>
 
       {result.pendencias.length > 0 ? (
@@ -497,6 +497,6 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
           Criar outra conta
         </Button>
       </div>
-    </Paper>
+    </Card>
   )
 }

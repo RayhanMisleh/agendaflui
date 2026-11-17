@@ -67,3 +67,14 @@ test('com logo, mostra a imagem com o nome como texto alternativo', () => {
   render(<BrandPreview brand={{ ...marca, logoUrl: 'data:image/png;base64,AAAA' }} terms={termos} businessName="Pata Viva" />)
   expect(screen.getByRole('img', { name: 'Pata Viva', hidden: true })).toHaveAttribute('src', 'data:image/png;base64,AAAA')
 })
+
+test('desenha o painel no desenho novo: bloco Hoje com bolhas, próximo atendimento e a agenda com vaga livre', () => {
+  const { container } = render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
+  const mock = screen.getByTestId('brand-preview-mock')
+  expect(mock.querySelector('.af-bp__today .af-bubbles')).not.toBeNull()
+  expect(mock.querySelector('.af-bp__next')).toHaveTextContent('10:30')
+  expect(mock.querySelectorAll('.af-bp__block--brand')).toHaveLength(2)
+  expect(mock.querySelectorAll('.af-bp__block--accent')).toHaveLength(1)
+  expect(mock.querySelector('.af-bp__block--free')).toHaveTextContent('Livre')
+  expect(container.querySelector('.af-bp__side')).not.toBeNull()
+})

@@ -20,6 +20,7 @@
   --success-tint: #DDF1E5;
   --danger: #C8412F;
   --danger-tint: #F8E2DD;
+  --on-danger: #FFFFFF; /* texto sobre danger */
 
   /* Superfícies e texto */
   --ground: #F3F8F6; /* Espuma: fundo de página */
@@ -89,6 +90,7 @@
   --success-tint: #143A27;
   --danger: #F07A68;
   --danger-tint: #4A2019;
+  --on-danger: #2A0C07;
   --ground: #0C1A18;
   --surface: #13241F;
   --ink: #E8F2EF;
@@ -103,36 +105,6 @@
   --shadow-pop: 0 24px 48px -20px rgb(0 0 0 / 0.6);
   --shadow-rgb: 0 0 0;
   color-scheme: dark;
-}
-
-/*
- * R2 remove: apelidos temporários "variável antiga → token novo", só para as telas atuais não ficarem sem cor até a
- * R2 trocar os componentes. Ficam no mesmo seletor do tema para valerem dentro de cada ThemeScope (um `var()` se resolve
- * no elemento onde é declarado, então não dá para declará-los só em :root).
- */
-:root,
-[data-theme],
-[data-scheme] {
-  --cover: var(--brand); /* R2 remove */
-  --cover-hi: var(--brand); /* R2 remove */
-  --cover-lo: var(--brand-strong); /* R2 remove */
-  --cover-deep: var(--brand-strong); /* R2 remove */
-  --on-cover: var(--on-brand); /* R2 remove */
-  --on-cover-soft: var(--on-brand); /* R2 remove */
-  --accent-hi: var(--accent); /* R2 remove */
-  --accent-lo: var(--accent); /* R2 remove */
-  --accent-ink: var(--brand-text); /* R2 remove */
-  --paper: var(--surface); /* R2 remove */
-  --paper-edge: var(--line); /* R2 remove */
-  --paper-line: var(--line); /* R2 remove */
-  --paper-sunk: var(--ground); /* R2 remove */
-  --ink-soft: var(--ink-muted); /* R2 remove */
-  --ink-faint: var(--ink-muted); /* R2 remove */
-  --ok: var(--success); /* R2 remove */
-  --warn: var(--ink); /* R2 remove */
-  --bad: var(--danger); /* R2 remove */
-  --font-ui: var(--font-sans); /* R2 remove */
-  --font-stamp: var(--font-display); /* R2 remove */
 }
 
 /* Foco de teclado: contorno de 3 px em Caramelo, afastado 2 px (igual ao site). */

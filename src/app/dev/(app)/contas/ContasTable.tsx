@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useActionState } from 'react'
 import { ArrowRight, DoorOpen } from 'lucide-react'
-import { Button, CopyButton, DataList, LinkButton, StatusLamp } from '@/ui/components'
+import { Button, CopyButton, DataList, LinkButton, StatusDot, businessStatusDot } from '@/ui/components'
 import type { BusinessStatusKey, DataColumn } from '@/ui/components'
 import type { FormState } from '../_lib/form-state'
 import { entrarComo } from './actions'
@@ -57,7 +57,7 @@ const COLUNAS: DataColumn<ContaLinha>[] = [
       </span>
     ),
   },
-  { key: 'situacao', header: 'Situação', nowrap: true, cell: (c) => <StatusLamp status={c.status} /> },
+  { key: 'situacao', header: 'Situação', nowrap: true, cell: (c) => <StatusDot {...businessStatusDot(c.status)} /> },
   { key: 'dono', header: 'Dono', cell: (c) => c.ownerName ?? 'Sem dono ativo' },
   {
     key: 'entrada',

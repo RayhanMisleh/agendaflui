@@ -2,7 +2,7 @@ import { cx } from './cx'
 
 const WIDTHS = [100, 92, 97, 76, 64]
 
-/** Linhas a lápis enquanto o conteúdo chega. */
+/** Blocos que pulsam devagar enquanto o conteúdo chega (parados com `prefers-reduced-motion`). */
 export function Skeleton({ lines = 3, className }: { lines?: number; className?: string }) {
   return (
     <div role="status" className={cx('af-skeleton', className)}>

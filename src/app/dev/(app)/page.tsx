@@ -3,8 +3,8 @@ import { ArrowRight, Plus } from 'lucide-react'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { getOverview } from '@/server/domain/platform/metrics'
 import { formatBrl } from '@/server/notifications/render'
-import { EmptyState, Gauge, Lamp, LinkButton, MiniBars, Paper, StatTile, describeTrend } from '@/ui/components'
-import type { LampState } from '@/ui/components'
+import { EmptyState, Meter, STATE_TEXT, StatusDot, LinkButton, MiniBars, Card, StatTile, describeTrend } from '@/ui/components'
+import type { StateTone } from '@/ui/components'
 import { formatInt } from '@/ui/format'
 import { DevFrame } from './DevFrame'
 import { HorariosNota } from './_lib/HorariosNota'
@@ -43,7 +43,7 @@ export default async function VisaoGeralPage() {
     return (
       <DevFrame admin={admin} title="Visão geral" actions={criar}>
         <div className="af-bench">
-          <Paper raised={1} className="af-listpanel">
+          <Card className="af-listpanel">
             <EmptyState
               title="Ainda não há dados para mostrar"
               description="Crie a primeira conta: você escolhe a marca, os termos e o dono, e os mostradores começam a andar assim que houver agendamentos."
@@ -53,7 +53,7 @@ export default async function VisaoGeralPage() {
                 </LinkButton>
               }
             />
-          </Paper>
+          </Card>
         </div>
       </DevFrame>
     )
@@ -62,8 +62,8 @@ export default async function VisaoGeralPage() {
   const { requests24h, errors24h } = o.api
   const taxaErro = requests24h === 0 ? 0 : errors24h / requests24h
   const sucesso = taxaDeSucesso(requests24h, errors24h)
-  const apiLamp: LampState = errors24h === 0 ? 'on' : taxaErro < 0.05 ? 'warn' : 'error'
-  const filaLamp: LampState = o.notifications.failed24h > 0 ? 'error' : 'on'
+  const apiTone: StateTone = errors24h === 0 ? 'success' : taxaErro < 0.05 ? 'warning' : 'danger'
+  const filaTone: StateTone = o.notifications.failed24h > 0 ? 'danger' : 'success'
   const quietas = o.quietAccounts.map((c) => ({ id: c.id, name: c.name, ultima: c.lastActivityAt ? quando(c.lastActivityAt) : null }))
 
   return (
@@ -82,17 +82,17 @@ export default async function VisaoGeralPage() {
             Agora
           </h3>
           <div className="af-bench__panel af-bench__panel--tiles af-glass">
-            <StatTile className="af-stat--lead" label="Contas ativas" value={o.accounts.active} digits={3}>
+            <StatTile className="af-stat--lead" label="Contas ativas" value={o.accounts.active}>
               <p className="af-bench__small">
                 {formatInt(o.accounts.newLast30d)} {o.accounts.newLast30d === 1 ? 'nova' : 'novas'} em 30 dias. {formatInt(o.accounts.suspended)}{' '}
                 {o.accounts.suspended === 1 ? 'suspensa' : 'suspensas'}, {formatInt(o.accounts.archived)} {o.accounts.archived === 1 ? 'arquivada' : 'arquivadas'}.
               </p>
             </StatTile>
-            <StatTile className="af-stat--lead" label="Agendamentos hoje" value={o.appointments.today} digits={3} />
-            <StatTile label="Usuários do app hoje" value={o.appUsers.activeToday} digits={3}>
+            <StatTile className="af-stat--lead" label="Agendamentos hoje" value={o.appointments.today} />
+            <StatTile label="Usuários do app hoje" value={o.appUsers.activeToday}>
               <p className="af-bench__small">{formatInt(o.appUsers.activeMonth)} no mês.</p>
             </StatTile>
-            <StatTile label="Clientes cadastrados" value={o.customers.total} digits={3} />
+            <StatTile label="Clientes cadastrados" value={o.customers.total} />
           </div>
         </section>
 
@@ -102,13 +102,13 @@ export default async function VisaoGeralPage() {
           </h3>
           <p className="af-bench__help">Cada número se compara ao mesmo trecho do mês passado, para não pesar um mês pela metade contra um mês inteiro.</p>
           <div className="af-bench__panel af-bench__panel--tiles af-glass">
-            <StatTile label="Agendamentos no mês" value={o.appointments.month.current} digits={3} trend={describeTrend(o.appointments.month)}>
+            <StatTile label="Agendamentos no mês" value={o.appointments.month.current} trend={describeTrend(o.appointments.month)}>
               {comparacao(o.appointments.month, (n) => formatInt(n), 'Agendamentos')}
             </StatTile>
             <StatTile label="Receita no mês" value={o.revenueCents.month.current} format="brl" trend={describeTrend(o.revenueCents.month, formatBrl)}>
               {comparacao(o.revenueCents.month, formatBrl, 'Receita')}
             </StatTile>
-            <StatTile label="Clientes novos no mês" value={o.customers.newMonth.current} digits={3} trend={describeTrend(o.customers.newMonth)}>
+            <StatTile label="Clientes novos no mês" value={o.customers.newMonth.current} trend={describeTrend(o.customers.newMonth)}>
               {comparacao(o.customers.newMonth, (n) => formatInt(n), 'Clientes novos')}
             </StatTile>
           </div>
@@ -120,13 +120,13 @@ export default async function VisaoGeralPage() {
           </h3>
           <div className="af-bench__panel af-bench__panel--lamps af-glass">
             <div>
-              <Lamp label="API do aplicativo" state={apiLamp} />
+              <StatusDot label="API do aplicativo" tone={apiTone} detail={STATE_TEXT[apiTone]} />
               <p className="af-bench__small">
                 {formatInt(requests24h)} {requests24h === 1 ? 'requisição' : 'requisições'}, {formatInt(errors24h)} {errors24h === 1 ? 'erro' : 'erros'}.
               </p>
             </div>
             <div>
-              <Lamp label="Fila de avisos" state={filaLamp} />
+              <StatusDot label="Fila de avisos" tone={filaTone} detail={STATE_TEXT[filaTone]} />
               <p className="af-bench__small">
                 {formatInt(o.notifications.pending)} na fila, {formatInt(o.notifications.failed24h)} {o.notifications.failed24h === 1 ? 'falha' : 'falhas'} em 24 h.
               </p>
@@ -135,7 +135,7 @@ export default async function VisaoGeralPage() {
               </LinkButton>
             </div>
             {requests24h > 0 ? (
-              <Gauge label="Requisições sem erro" display={PCT.format(sucesso)} value={sucesso} />
+              <Meter label="Requisições sem erro" display={PCT.format(sucesso)} value={sucesso} />
             ) : (
               <p className="af-bench__small">Nenhuma requisição à API nas últimas 24 horas.</p>
             )}
@@ -146,7 +146,7 @@ export default async function VisaoGeralPage() {
           <h3 id="vg-quietas" className="af-bench__title">
             Contas sem atividade recente
           </h3>
-          <Paper raised={1} className="af-listpanel">
+          <Card className="af-listpanel">
             {quietas.length === 0 ? (
               <EmptyState title="Todas as contas ativas tiveram atividade" description="Quando uma conta ficar 14 dias sem agendamento, ela aparece aqui, com o nome levando à página dela." />
             ) : (
@@ -155,7 +155,7 @@ export default async function VisaoGeralPage() {
                 <QuietTable contas={quietas} />
               </>
             )}
-          </Paper>
+          </Card>
         </section>
 
         <p className="af-home__row">

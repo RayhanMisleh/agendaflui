@@ -6,7 +6,7 @@ import { BrandMark } from './BrandMark'
 
 /**
  * Tela de entrada: a capa da agenda do negócio aberta sobre a mesa. O nome fica em baixo-relevo na capa
- * e o formulário é uma ficha de papel colada nela. Com imagem de entrada, ela vai ao lado como uma foto presa.
+ * e o formulário é um cartão sobre ela. Com imagem de entrada, ela vai ao lado como uma foto presa.
  */
 export function EntryScreen(p: {
   theme: ThemeTokens
@@ -38,7 +38,7 @@ export function EntryScreen(p: {
             ) : null}
             <BrandMark name={p.brand.name} logoUrl={p.brand.logoUrl} size="lg" platform={p.brand.platform} variant="negative" />
           </header>
-          <section className="af-paper af-paper--r2 af-entry__card" aria-labelledby="entrada-titulo">
+          <section className="af-card af-entry__card" aria-labelledby="entrada-titulo">
             <h1 id="entrada-titulo" className="af-entry__title af-engraved">
               {p.title}
             </h1>

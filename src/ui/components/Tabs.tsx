@@ -5,7 +5,7 @@ import { cx } from './cx'
 
 export type TabItem = { id: string; label: string; href?: string }
 
-/** Divisórias de fichário. Setas, Home e End navegam; a divisória ativa encosta no papel. */
+/** Fileira de pílulas. Setas, Home e End navegam; a pílula ativa fica em `brand-tint`. */
 export function Tabs({
   items,
   value,

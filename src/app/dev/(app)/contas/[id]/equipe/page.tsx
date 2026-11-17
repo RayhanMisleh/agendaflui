@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Paper } from '@/ui/components'
+import { Card } from '@/ui/components'
 import { listTeam } from '@/server/domain/platform/team'
 import { HorariosNota } from '../../../_lib/HorariosNota'
 import { quando } from '../../../_lib/format'
@@ -23,7 +23,7 @@ export default async function EquipePage({ params }: { params: Promise<{ id: str
     lastLogin: m.lastLoginAt ? quando(m.lastLoginAt) : null,
   }))
   return (
-    <Paper raised={1} className="af-listpanel">
+    <Card className="af-listpanel">
       <h2 className="af-section__title">Equipe</h2>
       <HorariosNota />
       <TeamPanel
@@ -35,6 +35,6 @@ export default async function EquipePage({ params }: { params: Promise<{ id: str
           convidarMembro: convidarMembro.bind(null, conta.id),
         }}
       />
-    </Paper>
+    </Card>
   )
 }

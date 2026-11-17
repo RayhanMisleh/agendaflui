@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { EmptyState, LinkButton, Pagination, Paper } from '@/ui/components'
+import { EmptyState, LinkButton, Pagination, Card } from '@/ui/components'
 import { DomainError } from '@/server/domain/errors'
 import { listAudit } from '@/server/domain/platform/audit-log'
 import { HorariosNota } from '../../../_lib/HorariosNota'
@@ -37,11 +37,11 @@ export default async function AuditoriaPage({ params, searchParams }: { params: 
     <EmptyState title="Nada registrado nos últimos 30 dias" description="Toda mudança feita nesta conta, por você, pela equipe ou pelo sistema, aparece aqui." />
   )
   return (
-    <Paper raised={1} className="af-listpanel">
+    <Card className="af-listpanel">
       <h2 className="af-section__title">Auditoria dos últimos 30 dias</h2>
       <HorariosNota />
       <AuditTable linhas={linhas} vazio={vazio} />
       <Pagination basePath={`/contas/${conta.id}/auditoria`} params={{}} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
-    </Paper>
+    </Card>
   )
 }

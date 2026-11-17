@@ -1,250 +1,305 @@
-/* Superfícies: folha de papel, folha-diálogo, moldura de avatar, página em branco. */
+/*
+ * Superfícies: cartão, bolhas, diálogo, estado vazio, avatar, caixa do segredo e a miniatura da marca.
+ * Cartão = superfície com borda fina `line` e sem sombra. Só o que flutua (o diálogo) usa --shadow-pop.
+ */
 @layer components {
-  /* ---- Papel ---- */
-  .af-paper {
+  /* ---- Cartão ---- */
+  .af-card {
     position: relative;
-    isolation: isolate;
     padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
     color: var(--ink);
-    font-family: var(--font-ui, system-ui, sans-serif);
-    background-color: var(--paper);
-    background-image: var(--tex-fiber);
-    background-size: 200px 200px;
-    border: 1px solid var(--paper-edge);
-    border-radius: var(--r-sheet);
   }
-  .af-paper--r0 {
-    box-shadow: inset 1px 1px 0 rgb(255 255 255 / 0.8);
+  .af-card--tint {
+    border-color: transparent;
+    background-color: var(--brand-tint);
   }
-  .af-paper--r1 {
-    box-shadow:
-      inset 1px 1px 0 rgb(255 255 255 / 0.85),
-      inset -1px -1px 0 rgb(var(--shadow-rgb) / 0.05),
-      1px 1px 0 rgb(var(--shadow-rgb) / 0.3),
-      2px 3px 5px -1px rgb(var(--shadow-rgb) / 0.22),
-      7px 12px 22px -8px rgb(var(--shadow-rgb) / 0.3);
+  .af-card--warm {
+    border-color: transparent;
+    background-color: var(--accent-tint);
   }
-  /* Ficha: folhas empilhadas por baixo, cada uma deslocada para a direita e para baixo. */
-  .af-paper--r2 {
-    border-radius: var(--r-sheet) var(--r-sheet) var(--r-sheet) var(--r-sheet);
-    box-shadow:
-      inset 1px 1px 0 #fff,
-      inset -1px -1px 0 rgb(var(--shadow-rgb) / 0.06),
-      1px 1px 0 rgb(var(--shadow-rgb) / 0.3),
-      3px 3px 0 -1px var(--paper),
-      3px 3px 0 0 var(--paper-edge),
-      6px 6px 0 -1px var(--paper-sunk),
-      6px 6px 0 0 color-mix(in srgb, var(--paper-edge) 85%, #000),
-      4px 8px 8px -2px rgb(var(--shadow-rgb) / 0.3),
-      14px 22px 34px -10px rgb(var(--shadow-rgb) / 0.42);
-  }
-  /* Pauta de livro-caixa: linhas a cada 2rem e margem vermelha. */
-  .af-paper--lined {
-    padding: 0.25rem 1.25rem 1rem 3.75rem;
-    line-height: 2rem;
-    background-image:
-      linear-gradient(90deg, transparent 2.9rem, color-mix(in srgb, var(--bad) 38%, transparent) 2.9rem calc(2.9rem + 1px), transparent calc(2.9rem + 1px)),
-      repeating-linear-gradient(180deg, transparent 0 calc(2rem - 1px), var(--paper-line) calc(2rem - 1px) 2rem),
-      var(--tex-fiber);
-    background-size: auto, auto, 200px 200px;
-    background-position: 0 0, 0 0.25rem, 0 0;
+  /* Bloco de destaque: a cor da conta, cantos de 28 px, aceita as bolhas. */
+  .af-card--block {
+    isolation: isolate;
+    padding: 1.75rem;
+    border-color: transparent;
+    border-radius: var(--radius-block);
+    background-color: var(--brand);
+    color: var(--on-brand);
   }
 
-  /* ---- Diálogo / folha ---- */
+  /* ---- Bolhas: a espuma do banho. Poucas, nas bordas, recortadas pelo raio do bloco. ---- */
+  .af-bubbles {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  .af-bubble {
+    position: absolute;
+    border-radius: 50%;
+  }
+  .af-bubble--1 {
+    top: -2.25rem;
+    right: -1.5rem;
+    width: 7.5rem;
+    height: 7.5rem;
+  }
+  .af-bubble--2 {
+    bottom: -2.5rem;
+    left: 22%;
+    width: 5rem;
+    height: 5rem;
+  }
+  .af-bubble--3 {
+    top: 42%;
+    right: 12%;
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+  .af-bubble--4 {
+    bottom: 0.75rem;
+    right: 1.5rem;
+    width: 1rem;
+    height: 1rem;
+  }
+  .af-bubbles--on-brand .af-bubble--1 {
+    background-color: color-mix(in srgb, var(--on-brand) 14%, transparent);
+  }
+  .af-bubbles--on-brand .af-bubble--2 {
+    background-color: var(--accent);
+  }
+  .af-bubbles--on-brand .af-bubble--3 {
+    background-color: var(--brand-tint);
+  }
+  .af-bubbles--on-brand .af-bubble--4 {
+    background-color: color-mix(in srgb, var(--on-brand) 28%, transparent);
+  }
+  .af-bubbles--on-surface .af-bubble--1 {
+    background-color: var(--brand-tint);
+  }
+  .af-bubbles--on-surface .af-bubble--2 {
+    background-color: var(--accent-tint);
+  }
+  .af-bubbles--on-surface .af-bubble--3 {
+    background-color: var(--accent);
+  }
+  .af-bubbles--on-surface .af-bubble--4 {
+    background-color: var(--brand-tint);
+  }
+
+  /* ---- Diálogo: no celular sobe da base como folha ---- */
   .af-dialog {
+    width: min(34rem, calc(100vw - 2rem));
+    max-width: none;
+    max-height: none;
+    margin: auto;
     padding: 0;
+    overflow: visible;
     border: 0;
     background: transparent;
     color: var(--ink);
-    font-family: var(--font-ui, system-ui, sans-serif);
-    overflow: visible;
-    max-width: none;
-    max-height: none;
-  }
-  .af-dialog:not([open]) {
-    display: none;
-  }
-  .af-dialog:focus {
-    outline: none;
   }
   .af-dialog::backdrop {
-    background: rgb(26 20 14 / 0.58);
-    backdrop-filter: blur(2px);
+    background-color: color-mix(in srgb, var(--ink) 40%, transparent);
   }
   .af-dialog__sheet {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    max-height: min(88dvh, 52rem);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    max-height: calc(100dvh - 2rem);
     overflow: hidden;
-    background-color: var(--paper);
-    background-image: var(--tex-fiber);
-    background-size: 200px 200px;
-    border: 1px solid var(--paper-edge);
-    box-shadow:
-      inset 1px 1px 0 #fff,
-      1px 1px 0 rgb(var(--shadow-rgb) / 0.35),
-      4px 8px 10px -2px rgb(var(--shadow-rgb) / 0.35),
-      18px 30px 56px -12px rgb(var(--shadow-rgb) / 0.55);
+    border-radius: var(--radius-block);
+    background-color: var(--surface);
+    box-shadow: var(--shadow-pop);
   }
   .af-dialog__grip {
     display: none;
   }
   .af-dialog__head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
-    gap: 0.75rem;
-    flex: none;
-    padding: 1rem 0.75rem 0.75rem 1.5rem;
-    border-bottom: 3px double var(--paper-edge);
+    gap: 1rem;
+    padding: 1.5rem 1.5rem 0.75rem;
   }
   .af-dialog__title {
     margin: 0;
-    font: 600 var(--text-xl) / var(--leading-tight) var(--font-display);
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
     text-wrap: balance;
   }
   .af-dialog__close {
-    display: inline-grid;
-    place-items: center;
+    display: inline-flex;
     flex: none;
-    width: var(--tap);
-    height: var(--tap);
-    padding: 0;
-    border: 1px solid transparent;
-    border-radius: var(--r-key);
-    background: none;
-    color: var(--ink-soft);
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: -0.5rem -0.5rem 0 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-muted);
     cursor: pointer;
   }
   @media (hover: hover) {
     .af-dialog__close:hover {
+      background-color: var(--ground);
       color: var(--ink);
-      background: var(--paper-sunk);
-      box-shadow: inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.25);
     }
   }
   .af-dialog__body {
-    flex: 1 1 auto;
     min-height: 0;
-    padding: 1.25rem 1.5rem;
+    padding: 0.25rem 1.5rem 1.5rem;
     overflow-y: auto;
-    overscroll-behavior: contain;
-    line-height: var(--leading-body);
   }
   .af-dialog__foot {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.75rem;
-    flex: none;
-    padding: 1rem 1.5rem calc(1rem + env(safe-area-inset-bottom));
-    background-color: var(--paper-sunk);
-    box-shadow:
-      inset 0 1px 0 rgb(255 255 255 / 0.9),
-      inset 0 3px 6px -3px rgb(var(--shadow-rgb) / 0.2);
-    border-top: 1px solid var(--paper-edge);
+    padding: 1rem 1.5rem 1.5rem;
+    border-top: 1px solid var(--line);
   }
-
-  /* Celular: folha que sobe da base. */
-  @media (max-width: 639.98px) {
+  @media (max-width: 40rem) {
     .af-dialog {
-      position: fixed;
-      inset: auto 0 0 0;
       width: 100%;
-      margin: 0;
+      margin: auto 0 0;
     }
     .af-dialog__sheet {
       max-height: 92dvh;
-      border-radius: 16px 16px 0 0;
-      border-bottom: 0;
+      border-radius: var(--radius-block) var(--radius-block) 0 0;
     }
     .af-dialog__grip {
       display: block;
-      position: absolute;
-      top: 7px;
-      left: 50%;
       width: 40px;
-      height: 5px;
-      translate: -50% 0;
-      border-radius: 3px;
-      background: var(--paper-sunk);
-      box-shadow:
-        inset 0 1px 2px rgb(var(--shadow-rgb) / 0.45),
-        0 1px 0 rgb(255 255 255 / 0.9);
+      height: 4px;
+      margin: 0.625rem auto 0;
+      border-radius: var(--radius-pill);
+      background-color: var(--line);
     }
     .af-dialog__head {
-      padding-top: 1.5rem;
-    }
-    .af-dialog__foot > * {
-      flex: 1 1 auto;
-    }
-  }
-  @media (min-width: 640px) {
-    .af-dialog {
-      margin: auto;
-      width: min(34rem, calc(100vw - 2rem));
-    }
-    .af-dialog__sheet {
-      border-radius: var(--r-sheet);
+      padding-top: 0.75rem;
     }
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-dialog[open] .af-dialog__sheet {
-      animation: af-sheet-rise 280ms var(--ease-key) both;
-    }
-    .af-dialog[open]::backdrop {
-      animation: af-fade 200ms ease-out both;
-    }
-  }
-  @keyframes af-sheet-rise {
-    from {
-      transform: translateY(2.5rem) rotate(-0.4deg);
-      opacity: 0;
-    }
-  }
-  @keyframes af-fade {
-    from {
-      opacity: 0;
+      animation: af-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
     }
   }
 
-  /* ---- Avatar: foto em moldura redonda, com passe-partout de papel ---- */
-  .af-avatar {
-    --size: 44px;
+  /* Confirmação (formulário dentro do diálogo ou numa página) */
+  .af-confirm {
+    display: grid;
+    gap: 1rem;
+  }
+  .af-confirm__text {
+    margin: 0;
+    color: var(--ink);
+    line-height: 1.5;
+  }
+  .af-confirm__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+  }
+
+  /* ---- Estado vazio ---- */
+  .af-empty {
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+  }
+  .af-empty__art {
     position: relative;
-    display: inline-grid;
-    place-items: center;
+    display: block;
+    width: 6rem;
+    height: 4rem;
+    margin-bottom: 0.5rem;
+  }
+  .af-empty__art span {
+    position: absolute;
+    border-radius: 50%;
+  }
+  .af-empty__art span:nth-child(1) {
+    bottom: 0;
+    left: 0;
+    width: 3rem;
+    height: 3rem;
+    background-color: var(--brand-tint);
+  }
+  .af-empty__art span:nth-child(2) {
+    top: 0;
+    left: 2.25rem;
+    width: 3.75rem;
+    height: 3.75rem;
+    background-color: var(--accent-tint);
+  }
+  .af-empty__art span:nth-child(3) {
+    bottom: 0.25rem;
+    right: 0;
+    width: 1.25rem;
+    height: 1.25rem;
+    background-color: var(--accent);
+  }
+  .af-empty__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+  .af-empty__text {
+    max-width: 28rem;
+    margin: 0;
+    color: var(--ink-muted);
+    line-height: 1.5;
+    text-wrap: pretty;
+  }
+  .af-empty__action {
+    margin-top: 0.75rem;
+  }
+
+  /* ---- Avatar ---- */
+  .af-avatar {
+    position: relative;
+    display: inline-flex;
     flex: none;
-    width: var(--size);
-    height: var(--size);
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
     overflow: hidden;
     border-radius: 50%;
-    background-color: var(--paper-sunk);
-    border: 3px solid var(--paper);
-    box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--paper-edge) 70%, #000),
-      inset 1px 2px 3px rgb(var(--shadow-rgb) / 0.35),
-      1px 2px 3px rgb(var(--shadow-rgb) / 0.35),
-      3px 6px 10px -3px rgb(var(--shadow-rgb) / 0.35);
-    color: var(--ink-soft);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
     font-family: var(--font-display);
-  }
-  .af-avatar--sm {
-    --size: 32px;
-    border-width: 2px;
-    font-size: 0.75rem;
-  }
-  .af-avatar--md {
-    font-size: var(--text-sm);
-  }
-  .af-avatar--lg {
-    --size: 64px;
-    font-size: var(--text-lg);
-  }
-  .af-avatar__initials {
+    font-size: 0.9375rem;
     font-weight: 700;
     line-height: 1;
+    letter-spacing: -0.01em;
+  }
+  .af-avatar--sm {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.8125rem;
+  }
+  .af-avatar--lg {
+    width: 3.5rem;
+    height: 3.5rem;
+    font-size: 1.25rem;
   }
   .af-avatar__photo {
     position: absolute;
@@ -252,50 +307,207 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    box-shadow: inset 1px 2px 3px rgb(0 0 0 / 0.3);
   }
 
-  /* ---- Página em branco com a ponta dobrada ---- */
-  .af-empty {
-    filter: drop-shadow(1px 2px 1px rgb(var(--shadow-rgb) / 0.28)) drop-shadow(6px 10px 12px rgb(var(--shadow-rgb) / 0.16));
+  /* ---- Segredo de uma chave: mostrado uma vez ---- */
+  .af-secret {
+    display: grid;
+    gap: 0.625rem;
+    padding: 1rem;
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+  }
+  .af-secret__name {
     color: var(--ink);
-    font-family: var(--font-ui, system-ui, sans-serif);
+    font-size: var(--text-small);
+    font-weight: 600;
   }
-  .af-empty__sheet {
-    position: relative;
+  .af-secret__row {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: center;
-    padding: 2.5rem 1.5rem 2.25rem;
-    text-align: center;
-    background-color: var(--paper);
-    background-image: var(--tex-fiber);
-    background-size: 200px 200px;
-    clip-path: polygon(0 0, calc(100% - 32px) 0, 100% 32px, 100% 100%, 0 100%);
+    gap: 0.5rem;
   }
-  .af-empty__sheet::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    right: 0;
-    width: 32px;
-    height: 32px;
-    background: linear-gradient(to bottom left, transparent 50%, var(--paper-sunk) 50%, var(--paper-edge) 100%);
+  .af-secret__code {
+    flex: 1 1 14rem;
+    min-width: 0;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: var(--text-small);
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    user-select: all;
   }
-  .af-empty__title {
+  .af-secret__warn {
     margin: 0;
-    max-width: 22ch;
-    font: 600 var(--text-lg) / var(--leading-tight) var(--font-display);
-    text-wrap: balance;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: var(--text-small-lh);
   }
-  .af-empty__text {
-    margin: 0.5rem 0 0;
-    max-width: 38ch;
-    color: var(--ink-soft);
-    line-height: var(--leading-body);
-    text-wrap: pretty;
+
+  /* ---- Miniatura do painel do negócio (BrandPreview) ---- */
+  .af-bp {
+    display: grid;
+    gap: 0.75rem;
   }
-  .af-empty__action {
-    margin-top: 1.25rem;
+  .af-bp__scope {
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+  }
+  .af-bp__window {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    min-height: 15rem;
+    font-size: 0.6875rem;
+    line-height: 1.3;
+  }
+  .af-bp__side {
+    display: grid;
+    gap: 0.75rem;
+    align-content: start;
+    padding: 0.75rem 0.5rem;
+    border-right: 1px solid var(--side-line);
+    background-color: var(--side-bg);
+    color: var(--side-ink);
+  }
+  .af-bp__brand {
+    min-width: 0;
+  }
+  .af-bp__name {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+  }
+  .af-bp__logo {
+    display: block;
+    max-width: 100%;
+    max-height: 1.25rem;
+    object-fit: contain;
+    object-position: left center;
+  }
+  .af-bp__nav {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-bp__navitem {
+    padding: 0.3125rem 0.5rem;
+    border-radius: var(--radius-pill);
+    color: var(--side-ink-muted);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .af-bp__navitem--active {
+    background-color: var(--side-active-bg);
+    color: var(--side-active-ink);
+    font-weight: 700;
+  }
+  .af-bp__page {
+    display: grid;
+    gap: 0.625rem;
+    align-content: start;
+    min-width: 0;
+    padding: 0.75rem;
+  }
+  .af-bp__today {
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 18px;
+    background-color: var(--brand);
+    color: var(--on-brand);
+  }
+  .af-bp__todaytitle {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .af-bp__next {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem 0.5rem;
+    padding: 0.5rem;
+    border-radius: 12px;
+    background-color: var(--surface);
+    color: var(--ink);
+  }
+  .af-bp__hour {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-bp__what {
+    display: grid;
+    flex: 1 1 5rem;
+    min-width: 0;
+  }
+  .af-bp__agenda {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.375rem;
+  }
+  .af-bp__block {
+    padding: 0.375rem 0.5rem;
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-bp__block--brand {
+    background-color: var(--brand);
+    color: var(--on-brand);
+  }
+  .af-bp__block--accent {
+    background-color: var(--accent);
+    color: var(--on-accent);
+  }
+  .af-bp__block--free {
+    border-color: var(--line);
+    border-style: dashed;
+    color: var(--ink-muted);
+    font-weight: 600;
+  }
+  .af-bp__warnings {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-bp__warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+  .af-bp__warning svg {
+    flex: none;
+    margin-top: 2px;
   }
 }

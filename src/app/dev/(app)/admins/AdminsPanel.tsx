@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { Button, ConfirmDialog, DataList, Field, Input, Paper, Stamp } from '@/ui/components'
+import { Button, ConfirmDialog, DataList, Field, Input, Card, StatusBadge } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import { ContaForm } from '../contas/[id]/ContaForm'
 import { estadoInicial } from '../contas/[id]/forms'
@@ -61,7 +61,7 @@ const COLUNAS: DataColumn<LinhaAdmin>[] = [
     ),
   },
   { key: 'email', header: 'E-mail', cell: (a) => a.email },
-  { key: 'situacao', header: 'Situação', cell: (a) => <Stamp tone={a.active ? 'ok' : 'neutral'}>{a.active ? 'Ativo' : 'Desativado'}</Stamp> },
+  { key: 'situacao', header: 'Situação', cell: (a) => <StatusBadge tone={a.active ? 'confirmed' : 'neutral'}>{a.active ? 'Ativo' : 'Desativado'}</StatusBadge> },
   { key: 'acesso', header: 'Último acesso', nowrap: true, cell: (a) => a.ultimoAcesso ?? 'Nunca entrou' },
   { key: 'acao', header: 'Ação', cell: (a) => (a.alternar ? <Alternar a={a} alternar={a.alternar} /> : <span className="af-account__slug">Você não pode desativar o próprio acesso.</span>) },
 ]
@@ -69,11 +69,11 @@ const COLUNAS: DataColumn<LinhaAdmin>[] = [
 export function AdminsPanel({ criar, admins }: { criar: AcaoConta; admins: LinhaAdmin[] }) {
   return (
     <div className="af-global">
-      <Paper raised={1} className="af-listpanel">
+      <Card className="af-listpanel">
         <h2 className="af-section__title">Admins da plataforma</h2>
         <DataList label="Admins da plataforma" columns={COLUNAS} rows={admins} rowKey={(a) => a.id} empty={null} />
-      </Paper>
-      <Paper raised={1} className="af-keys__new">
+      </Card>
+      <Card className="af-keys__new">
         <h2 className="af-keys__title">Novo admin</h2>
         <p className="af-section__help">A pessoa entra com este e-mail e esta senha. Combine uma senha temporária e peça para ela trocar no perfil.</p>
         <ContaForm action={criar} initial={estadoInicial({ name: '', email: '' })} submit="Criar admin" labels={{ senha: 'Senha', email: 'E-mail' }}>
@@ -91,7 +91,7 @@ export function AdminsPanel({ criar, admins }: { criar: AcaoConta; admins: Linha
             </>
           )}
         </ContaForm>
-      </Paper>
+      </Card>
     </div>
   )
 }

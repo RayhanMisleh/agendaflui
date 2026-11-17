@@ -4,14 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { CopyButton } from '@/ui/components/CopyButton'
 import { FormErrors } from '@/ui/components/FormErrors'
 import { SearchBar } from '@/ui/components/SearchBar'
-import { StatusLamp } from '@/ui/components/StatusLamp'
+import { StatusDot, businessStatusDot } from '@/ui/components/StatusDot'
 
-test('StatusLamp diz a situação em texto, não só em cor', () => {
-  const { rerender } = render(<StatusLamp status="ACTIVE" />)
+test('StatusDot diz a situação em texto, não só em cor', () => {
+  const { rerender } = render(<StatusDot {...businessStatusDot('ACTIVE')} />)
   expect(screen.getByText('Ativa')).toBeInTheDocument()
-  rerender(<StatusLamp status="SUSPENDED" />)
+  rerender(<StatusDot {...businessStatusDot('SUSPENDED')} />)
   expect(screen.getByText('Suspensa')).toBeInTheDocument()
-  rerender(<StatusLamp status="ARCHIVED" />)
+  rerender(<StatusDot {...businessStatusDot('ARCHIVED')} />)
   expect(screen.getByText('Arquivada')).toBeInTheDocument()
 })
 
@@ -49,6 +49,12 @@ test('FormErrors anuncia a mensagem e lista os campos com erro', () => {
   expect(alerta).toHaveTextContent('Identificador: Use de 3 a 40 letras.')
 })
 
+test('FormErrors leva ao campo por âncora quando se sabe o id dele', () => {
+  render(<FormErrors message={null} fields={{ slug: 'Use de 3 a 40 letras.', nome: 'Informe o nome.' }} labels={{ slug: 'Identificador' }} anchors={{ slug: 'campo-slug' }} />)
+  expect(screen.getByRole('link', { name: 'Identificador' })).toHaveAttribute('href', '#campo-slug')
+  expect(screen.queryByRole('link', { name: 'nome' })).toBeNull()
+})
+
 test('FormErrors não desenha nada sem erro', () => {
   const { container } = render(<FormErrors message={null} fields={{}} />)
   expect(container).toBeEmptyDOMElement()
@@ -61,4 +67,5 @@ test('CopyButton copia o texto e avisa em texto', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'Copiar link de entrada' }))
   expect(escrever).toHaveBeenCalledWith('http://painel.test/entrar/pata')
   expect(await screen.findByText('Copiado')).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('Copiado para a área de transferência.')
 })

@@ -1,34 +1,34 @@
 'use client'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { CircleAlert, CircleCheck, Info, TriangleAlert, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { cx } from './cx'
-import type { Tone } from './Stamp'
+import type { StateTone } from './StatusDot'
 
-export type ToastInput = { tone?: Tone; message: string }
-type Item = { id: number; tone: Tone; message: string }
+export type ToastInput = { tone?: StateTone; message: string }
+type Item = { id: number; tone: StateTone; message: string }
 
-const ICONS = { ok: CircleCheck, warn: TriangleAlert, bad: CircleAlert, neutral: Info } as const
+/** O tom dito em palavras, só para o leitor de tela: o ponto colorido não é a única pista. */
+const TONE_TEXT: Record<StateTone, string> = { success: 'Sucesso:', warning: 'Atenção:', danger: 'Erro:', neutral: 'Aviso:' }
 
-/** Um bilhete. Normalmente você usa `useToast()`; este é o objeto em si. */
+/** Aviso flutuante: cartão com sombra e o ponto do tom à esquerda. Normalmente você usa `useToast()`; este é o cartão em si. */
 export function Toast({
   tone = 'neutral',
   message,
   onClose,
   className,
 }: {
-  tone?: Tone
+  tone?: StateTone
   message: string
   onClose?: () => void
   className?: string
 }) {
-  const Icon = ICONS[tone]
   return (
     <div className={cx('af-toast', `af-toast--${tone}`, className)}>
-      <span className="af-toast__stub" aria-hidden="true">
-        <Icon size={20} />
-      </span>
-      <p className="af-toast__message">{message}</p>
+      <span className="af-toast__dot" aria-hidden="true" />
+      <p className="af-toast__message">
+        <span className="af-sr">{TONE_TEXT[tone]}</span> {message}
+      </p>
       {onClose ? (
         <button type="button" className="af-toast__close" aria-label="Dispensar aviso" onClick={onClose}>
           <X size={16} aria-hidden="true" />
@@ -40,7 +40,7 @@ export function Toast({
 
 function TimedToast({ item, onDone }: { item: Item; onDone: (id: number) => void }) {
   useEffect(() => {
-    const t = setTimeout(() => onDone(item.id), item.tone === 'bad' ? 9000 : 5000)
+    const t = setTimeout(() => onDone(item.id), item.tone === 'danger' ? 9000 : 5000)
     return () => clearTimeout(t)
   }, [item.id, item.tone, onDone])
   return <Toast tone={item.tone} message={item.message} onClose={() => onDone(item.id)} />
@@ -48,13 +48,13 @@ function TimedToast({ item, onDone }: { item: Item; onDone: (id: number) => void
 
 const ToastContext = createContext<((t: ToastInput) => void) | null>(null)
 
-/** Coloque uma vez perto da raiz. Os bilhetes entram no canto da tela. */
+/** Coloque uma vez perto da raiz. Os avisos entram no canto da tela, numa região viva só. */
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([])
   const seq = useRef(0)
   const region = useRef<HTMLDivElement>(null)
-  // Na camada superior (popover) o bilhete aparece também acima de um <dialog> aberto.
-  // Reabrir a cada bilhete novo o leva para o topo da pilha.
+  // Na camada superior (popover) o aviso aparece também acima de um <dialog> aberto.
+  // Reabrir a cada aviso novo o leva para o topo da pilha.
   const count = items.length
   useEffect(() => {
     const el = region.current

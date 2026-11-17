@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { ConfirmDialog, Button, EmptyState, Field, Paper, SecretBox, Stamp, Textarea, Input } from '@/ui/components'
+import { ConfirmDialog, Button, EmptyState, Field, Card, SecretBox, StatusBadge, Textarea, Input } from '@/ui/components'
 import { formatInt } from '@/ui/format'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
@@ -75,10 +75,10 @@ function Origens({ acoes, k }: { acoes: AcoesChaves; k: Chave }) {
 function Cartao({ acoes, k }: { acoes: AcoesChaves; k: Chave }) {
   const [aberto, setAberto] = useState(false)
   return (
-    <Paper as="li" raised={1} className="af-keycard">
+    <Card as="li" className="af-keycard">
       <div className="af-keycard__head">
         <h3 className="af-keycard__name">{k.name}</h3>
-        <Stamp tone={k.revoked ? 'bad' : 'ok'}>{k.revoked ? 'Revogada' : 'Ativa'}</Stamp>
+        <StatusBadge tone={k.revoked ? 'canceled' : 'confirmed'}>{k.revoked ? 'Revogada' : 'Ativa'}</StatusBadge>
       </div>
       <p className="af-account__slug">
         Prefixo <code>{k.prefix}</code>. Criada em {k.createdAt}. {k.lastUsed ? `Último uso em ${k.lastUsed}.` : 'Ainda não foi usada.'}
@@ -107,7 +107,7 @@ function Cartao({ acoes, k }: { acoes: AcoesChaves; k: Chave }) {
           </div>
         </>
       )}
-    </Paper>
+    </Card>
   )
 }
 
@@ -115,7 +115,7 @@ function Cartao({ acoes, k }: { acoes: AcoesChaves; k: Chave }) {
 export function KeysPanel({ acoes, chaves }: { acoes: AcoesChaves; chaves: Chave[] }) {
   return (
     <div className="af-keys">
-      <Paper raised={1} className="af-keys__new">
+      <Card className="af-keys__new">
         <h2 className="af-keys__title">Nova chave</h2>
         <ContaForm action={acoes.criarChave} initial={estadoInicial({ name: '', origins: '' })} submit="Criar chave">
           {({ values: v, fields, ok }) => (
@@ -130,7 +130,7 @@ export function KeysPanel({ acoes, chaves }: { acoes: AcoesChaves; chaves: Chave
             </>
           )}
         </ContaForm>
-      </Paper>
+      </Card>
       {chaves.length === 0 ? (
         <EmptyState title="Esta conta ainda não tem chave" description="Crie a chave que o aplicativo da conta usa para falar com a API." />
       ) : (

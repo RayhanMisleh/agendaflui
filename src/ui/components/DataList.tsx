@@ -32,7 +32,7 @@ function hitProps(onActivate: () => void) {
 }
 
 /**
- * Tabela em papel pautado quando o CONTÊINER da lista tem ao menos 36rem (576 px); abaixo disso, lista de cartões
+ * Tabela dentro de um Card quando o CONTÊINER da lista tem ao menos 36rem (576 px); abaixo disso, lista de cartões
  * com a coluna `primary` como título. Quem decide é a largura da folha, não a da tela.
  * As duas versões ficam no HTML e o CSS alterna entre elas.
  */
@@ -94,13 +94,13 @@ export function DataList<T>({
         {rows.map((row) => (
           <li key={rowKey(row)}>
             <div
-              className={cx('af-card', onRowClick && 'af-card--clickable')}
+              className={cx('af-datalist__item', onRowClick && 'af-datalist__item--clickable')}
               {...(onRowClick ? hitProps(() => onRowClick(row)) : {})}
             >
-              {primary ? <div className="af-card__title">{primary.cell(row)}</div> : null}
-              <dl className="af-card__fields">
+              {primary ? <div className="af-datalist__title">{primary.cell(row)}</div> : null}
+              <dl className="af-datalist__fields">
                 {others.map((c) => (
-                  <div key={c.key} className="af-card__field">
+                  <div key={c.key} className="af-datalist__field">
                     <dt>{c.header}</dt>
                     <dd>{c.cell(row)}</dd>
                   </div>

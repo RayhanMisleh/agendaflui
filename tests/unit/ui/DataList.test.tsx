@@ -60,3 +60,15 @@ test('a troca tabela e cartões depende do contêiner, não da tela', () => {
   expect(css).toMatch(/@container af-datalist \(min-width: 36rem\)/)
   expect(css).not.toMatch(/@media \(min-width: 768px\)/)
 })
+
+test('no celular cada célula aparece uma vez só nos cartões, com o cabeçalho como rótulo', () => {
+  const cols = [
+    { key: 'n', header: 'Nome', cell: (r: { n: string; t: string }) => r.n, primary: true },
+    { key: 't', header: 'Telefone', cell: (r: { n: string; t: string }) => r.t },
+  ]
+  const { container } = render(<DataList columns={cols} rows={[{ n: 'Ana', t: '(11) 98421-7733' }]} rowKey={(r) => r.n} empty={null} />)
+  const cartao = container.querySelector('.af-datalist__item') as HTMLElement
+  expect(cartao.textContent?.split('Ana').length).toBe(2)
+  expect(cartao.textContent?.split('(11) 98421-7733').length).toBe(2)
+  expect(cartao.querySelector('dt')).toHaveTextContent('Telefone')
+})

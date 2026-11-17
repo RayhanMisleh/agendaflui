@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { getSystemStatus } from '@/server/domain/platform/system'
-import { EmptyState, Lamp, Paper } from '@/ui/components'
-import type { LampState } from '@/ui/components'
+import { EmptyState, STATE_TEXT, StatusDot, Card } from '@/ui/components'
+import type { StateTone } from '@/ui/components'
 import { formatInt } from '@/ui/format'
 import { DevFrame } from '../DevFrame'
 import { HorariosNota } from '../_lib/HorariosNota'
@@ -19,7 +19,7 @@ export default async function SistemaPage() {
   const agora = new Date()
   const s = await getSystemStatus(admin, agora)
   const { queue } = s
-  const filaLamp: LampState = queue.failed24h > 0 ? 'error' : queue.pending > 0 ? 'warn' : 'on'
+  const filaTone: StateTone = queue.failed24h > 0 ? 'danger' : queue.pending > 0 ? 'warning' : 'success'
 
   const falhas = s.recentFailures.map((f) => ({
     // Chave estável: o id do aviso (uma falha por aviso); falha de tarefa não tem id e vale pelo tipo, código e instante.
@@ -43,9 +43,9 @@ export default async function SistemaPage() {
     <DevFrame admin={admin} title="Sistema">
       <HorariosNota />
       <div className="af-global">
-        <Paper raised={1} className="af-listpanel">
+        <Card className="af-listpanel">
           <h2 className="af-section__title">Fila de avisos</h2>
-          <Lamp label="Fila de avisos" state={filaLamp} />
+          <StatusDot label="Fila de avisos" tone={filaTone} detail={STATE_TEXT[filaTone]} />
           <dl className="af-global__facts">
             <div>
               <dt>Pendentes</dt>
@@ -64,19 +64,19 @@ export default async function SistemaPage() {
               <dd>{formatInt(queue.skipped24h)}</dd>
             </div>
           </dl>
-        </Paper>
+        </Card>
 
-        <Paper raised={1} className="af-listpanel">
+        <Card className="af-listpanel">
           <h2 className="af-section__title">Falhas recentes</h2>
           <p className="af-section__help">Últimas 24 horas. Reenviar devolve o aviso à fila; se ele já não estiver em falha, a tela avisa.</p>
           <FalhasTable
             falhas={falhas}
             vazio={<EmptyState title="Nenhuma falha nas últimas 24 horas" description="Quando um aviso ou uma tarefa falhar, ele aparece aqui com o código curto do erro." />}
           />
-        </Paper>
+        </Card>
 
         <div className="af-global__grid">
-          <Paper raised={1} className="af-listpanel">
+          <Card className="af-listpanel">
             <h2 className="af-section__title">Banco de dados</h2>
             <dl className="af-global__facts">
               <div>
@@ -85,14 +85,14 @@ export default async function SistemaPage() {
               </div>
             </dl>
             <TabelasTable tabelas={s.database.largestTables.map((t) => ({ nome: t.name, tamanho: tamanho(t.bytes) }))} />
-          </Paper>
-          <Paper raised={1} className="af-listpanel">
+          </Card>
+          <Card className="af-listpanel">
             <h2 className="af-section__title">Agendador</h2>
             <ExecucoesTable
               execucoes={execucoes}
               vazio={<EmptyState title="Nenhuma execução registrada" description="O agendador grava cada rodada. Se nada aparece, confira se o worker está ligado neste ambiente." />}
             />
-          </Paper>
+          </Card>
         </div>
       </div>
     </DevFrame>

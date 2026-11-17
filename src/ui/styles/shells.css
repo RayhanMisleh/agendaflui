@@ -6,12 +6,23 @@
  * Texto nunca usa opacity; sobre a capa, o texto secundário leva o halo (.af-on-cover-text).
  */
 @layer components {
+  /* Provisório até a R3 refazer as molduras: a "capa" é a barra lateral da conta (ou a do painel dev). */
+  .af-cover,
+  .af-material-metal {
+    position: relative;
+    background-color: var(--side-bg);
+    color: var(--side-ink);
+  }
+  .af-stitched {
+    position: relative;
+  }
+
   .af-shell {
     --cover-w: 15.5rem;
     --tab-out: 14px;
-    --tab-active-bg: var(--paper);
+    --tab-active-bg: var(--surface);
     --tab-active-ink: var(--ink);
-    --tab-active-bar: var(--accent-ink);
+    --tab-active-bar: var(--brand-text);
     /* Altura da faixa de suporte: 0 sem faixa. A coluna fixa desce esse tanto para a faixa não a cobrir. */
     --support-h: 0px;
     position: relative;
@@ -19,14 +30,8 @@
     flex-direction: column;
     min-height: 100dvh;
     color: var(--ink);
-    font-family: var(--font-ui, system-ui, sans-serif);
-    background-color: var(--paper-sunk);
-    --fx: transparent;
-  }
-  @supports (color: rgb(from red r g b)) {
-    .af-shell {
-      --fx: rgb(from var(--on-cover) calc(255 - r) calc(255 - g) calc(255 - b));
-    }
+    font-family: var(--font-sans, system-ui, sans-serif);
+    background-color: var(--ground);
   }
   .af-shell--support {
     --support-h: 2.5rem;
@@ -38,32 +43,23 @@
     /* Folhas empilhadas por baixo, como a borda de um livro. */
     box-shadow:
       1px 1px 0 rgb(var(--shadow-rgb) / 0.4),
-      3px 3px 0 -1px var(--paper),
-      3px 3px 0 0 var(--paper-edge),
-      6px 6px 0 -1px var(--paper-sunk),
-      6px 6px 0 0 color-mix(in srgb, var(--paper-edge) 85%, #000),
+      3px 3px 0 -1px var(--surface),
+      3px 3px 0 0 var(--line),
+      6px 6px 0 -1px var(--ground),
+      6px 6px 0 0 color-mix(in srgb, var(--line) 85%, #000),
       10px 16px 22px -6px rgb(var(--shadow-rgb) / 0.4),
       26px 40px 64px -18px rgb(var(--shadow-rgb) / 0.42);
   }
 
   /* Mesa de controle: metal anodizado grafite-azulado; o painel de conteúdo é uma chapa um pouco mais clara. */
   .af-shell--dev {
-    --cover: #343c48;
-    --cover-hi: #4b5565;
-    --cover-lo: #272e38;
-    --cover-deep: #181d25;
-    --on-cover: #eef2f6;
-    --on-cover-soft: #b4beca;
-    --fx: #111;
+    --side-bg: #343c48;
+    --side-ink: #eef2f6;
+    --side-ink-muted: #b4beca;
     --tab-active-bg: #424c5b;
     --tab-active-ink: #eef2f6;
     --tab-active-bar: #ffc247;
     background-color: #1f242c;
-  }
-  @supports (color: rgb(from red r g b)) {
-    .af-shell--dev {
-      --fx: rgb(from var(--on-cover) calc(255 - r) calc(255 - g) calc(255 - b));
-    }
   }
 
   /* ---- Pular para o conteúdo ---- */
@@ -73,8 +69,8 @@
     left: 0.5rem;
     z-index: 60;
     padding: 0.75rem 1rem;
-    border-radius: var(--r-key);
-    background: var(--paper);
+    border-radius: var(--radius-chip);
+    background: var(--surface);
     color: var(--ink);
     font-weight: 700;
     text-decoration: none;
@@ -86,7 +82,7 @@
   }
   .af-skip:focus-visible {
     transform: none;
-    outline: 3px solid var(--accent-ink);
+    outline: 3px solid var(--brand-text);
     outline-offset: 2px;
   }
 
@@ -100,9 +96,9 @@
     gap: 0.625rem;
     min-height: 2.5rem;
     padding: 0.5rem 1rem;
-    background-color: var(--warn);
-    color: #fff;
-    font-size: var(--text-sm);
+    background-color: var(--ink);
+    color: var(--surface);
+    font-size: var(--text-small);
     font-weight: 600;
     line-height: 1.3;
     flex-wrap: wrap;
@@ -177,8 +173,8 @@
   }
   .af-shell__bartitle {
     margin: 0;
-    color: var(--on-cover);
-    font: 600 var(--text-xl) / var(--leading-tight) var(--font-display);
+    color: var(--side-ink);
+    font: 600 var(--text-h3) / 1.2 var(--font-display);
     overflow-wrap: anywhere;
   }
   .af-shell__user {
@@ -188,11 +184,11 @@
   .af-brand {
     display: block;
     min-width: 0;
-    color: var(--on-cover);
+    color: var(--side-ink);
   }
   .af-brand__name {
     display: block;
-    color: var(--on-cover);
+    color: var(--side-ink);
     font-family: var(--font-display);
     font-weight: 700;
     line-height: 1.08;
@@ -205,21 +201,21 @@
     overflow: hidden;
   }
   .af-brand--sm .af-brand__name {
-    font-size: var(--text-md);
+    font-size: var(--text-body);
   }
   .af-brand--md .af-brand__name {
-    font-size: var(--text-lg);
+    font-size: var(--text-body-lg);
   }
   .af-brand--lg .af-brand__name {
-    font-size: var(--text-sm);
+    font-size: var(--text-small);
     font-weight: 600;
-    color: var(--on-cover-soft);
+    color: var(--side-ink-muted);
     text-shadow:
-      0 0 1px var(--fx),
-      0 0 1px var(--fx),
-      0 0 2px var(--fx),
-      0 0 3px var(--fx),
-      0 0 5px var(--fx);
+      0 0 1px var(--side-bg),
+      0 0 1px var(--side-bg),
+      0 0 2px var(--side-bg),
+      0 0 3px var(--side-bg),
+      0 0 5px var(--side-bg);
   }
   /* Com símbolo, a logo larga sai da barra do celular e o nome fica como texto ao lado dele. */
   .af-shell__brand--symbol .af-brand__logo {
@@ -243,9 +239,7 @@
     z-index: 0;
     flex: 1 1 auto;
     min-width: 0;
-    background-color: var(--paper);
-    background-image: var(--tex-fiber);
-    background-size: 200px 200px;
+    background-color: var(--surface);
     outline: none;
   }
   .af-shell__head {
@@ -265,7 +259,7 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-    font: 600 var(--text-2xl) / var(--leading-tight) var(--font-display);
+    font: 600 var(--text-h2) / 1.2 var(--font-display);
   }
   .af-shell__actions {
     display: flex;
@@ -288,9 +282,7 @@
     z-index: 30;
     padding: 10px 6px 0;
     padding-bottom: env(safe-area-inset-bottom);
-    background-color: var(--cover);
-    background-image: var(--tex-grain);
-    background-size: 180px 180px;
+    background-color: var(--side-bg);
     box-shadow:
       0 -1px 0 rgb(0 0 0 / 0.45),
       inset 0 1px 0 rgb(255 255 255 / 0.2),
@@ -328,28 +320,28 @@
     padding: 0.375rem 0.125rem;
     border: 0;
     border-radius: 10px 10px 0 0;
-    color: var(--on-cover);
-    font: 600 var(--text-xs) / 1.15 var(--font-ui, system-ui, sans-serif);
+    color: var(--side-ink);
+    font: 600 var(--text-small) / 1.15 var(--font-sans, system-ui, sans-serif);
     text-align: center;
     text-decoration: none;
     cursor: pointer;
-    background-color: var(--cover);
+    background-color: var(--side-bg);
     /* Só as pontas recebem realce e sombra: o texto fica sobre a cor lisa. */
     background-image: linear-gradient(
       180deg,
       rgb(255 255 255 / 0.16) 0,
       rgb(255 255 255 / 0) 12%,
       rgb(0 0 0 / 0) 88%,
-      color-mix(in srgb, var(--fx) 22%, transparent) 100%
+      color-mix(in srgb, var(--side-bg) 22%, transparent) 100%
     );
     box-shadow:
       inset 1px 1px 0 rgb(255 255 255 / 0.2),
       inset -1px 0 0 rgb(0 0 0 / 0.25),
       0 -1px 2px rgb(0 0 0 / 0.3);
   }
-  /* A divisória de trás é mais escura que a capa: só empurra a cor para longe do texto (--fx). */
+  /* A divisória de trás é mais escura que a capa: só empurra a cor para longe do texto (a cor da barra). */
   .af-divider:not(.af-divider--active):not(.af-divider--disabled) {
-    background-color: color-mix(in srgb, var(--cover) 82%, var(--fx));
+    background-color: color-mix(in srgb, var(--side-bg) 82%, var(--side-bg));
   }
   /* Na barra da base o rótulo pode ir a duas linhas; no computador fica numa só. */
   .af-divider__label {
@@ -374,8 +366,6 @@
     color: var(--tab-active-ink);
     font-weight: 700;
     background-color: var(--tab-active-bg);
-    background-image: var(--tex-fiber);
-    background-size: 200px 200px;
     box-shadow:
       inset 1px 1px 0 rgb(255 255 255 / 0.55),
       -1px -1px 0 rgb(0 0 0 / 0.3),
@@ -395,41 +385,39 @@
     background: var(--tab-active-bar);
   }
   .af-shell--dev .af-divider--active {
-    background-image: var(--tex-metal);
-    background-size: 400px 240px;
   }
   .af-divider--disabled {
     cursor: not-allowed;
-    color: var(--on-cover-soft);
+    color: var(--side-ink-muted);
     font-weight: 500;
-    background-color: var(--cover);
+    background-color: var(--side-bg);
     background-image: none;
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-cover-soft) 38%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--side-ink-muted) 38%, transparent);
   }
 
   /* Foco visível sobre a capa (divisória de trás) e sobre o papel (divisória ativa). */
   .af-divider:focus-visible {
     z-index: 2;
-    outline: 3px solid var(--on-cover);
+    outline: 3px solid var(--side-ink);
     outline-offset: 2px;
   }
   .af-divider--active:focus-visible {
-    outline-color: var(--accent-ink);
+    outline-color: var(--brand-text);
   }
   .af-shell--dev .af-divider--active:focus-visible {
-    outline-color: var(--on-cover);
+    outline-color: var(--side-ink);
   }
   .af-skip:focus-visible {
-    outline-color: var(--accent-ink);
+    outline-color: var(--brand-text);
   }
   .af-shell__sheet :where([class*='af-']):focus-visible {
-    outline-color: var(--accent-ink);
+    outline-color: var(--brand-text);
   }
   .af-shell--dev .af-shell__sheet :where([class*='af-']):focus-visible {
-    outline-color: var(--on-cover);
+    outline-color: var(--side-ink);
   }
-  .af-shell--dev .af-shell__sheet .af-paper :where([class*='af-']):focus-visible {
-    outline-color: var(--accent-ink);
+  .af-shell--dev .af-shell__sheet .af-card :where([class*='af-']):focus-visible {
+    outline-color: var(--brand-text);
   }
 
   /* ---- Placa do usuário ---- */
@@ -449,12 +437,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--on-cover);
+    color: var(--side-ink);
     font-weight: 700;
   }
   .af-userplate__role {
-    color: var(--on-cover-soft);
-    font-size: var(--text-xs);
+    color: var(--side-ink-muted);
+    font-size: var(--text-small);
   }
 
   /* ---- Folha "Mais" (celular) ---- */
@@ -462,9 +450,9 @@
     display: flex;
     margin: -0.25rem 0 1rem;
     padding: 0.75rem;
-    border-radius: var(--r-slot);
-    background-color: var(--cover);
-    color: var(--on-cover);
+    border-radius: var(--radius-chip);
+    background-color: var(--side-bg);
+    color: var(--side-ink);
   }
   .af-more__list {
     display: grid;
@@ -480,8 +468,8 @@
     min-height: 3.25rem;
     margin: 0;
     padding: 0 1rem;
-    border-radius: var(--r-key);
-    font-size: var(--text-md);
+    border-radius: var(--radius-chip);
+    font-size: var(--text-body);
     text-align: left;
   }
   .af-more__list .af-divider__lock {
@@ -508,7 +496,7 @@
       transition: transform 120ms ease-out;
     }
     .af-divider {
-      transition: transform 120ms var(--ease-key);
+      transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
     }
     .af-divider:not(.af-divider--active):active {
       transform: translateY(1px);
@@ -588,7 +576,7 @@
     .af-brand--lg .af-brand__name {
       font-size: 1.75rem;
       font-weight: 700;
-      color: var(--on-cover);
+      color: var(--side-ink);
       text-shadow:
         0 -1px 0 rgb(0 0 0 / 0.55),
         0 1px 0 rgb(255 255 255 / 0.16);
@@ -635,14 +623,14 @@
       margin: 0 8px 0 0;
       padding: 0 1rem 0 0.875rem;
       border-radius: 5px 14px 14px 5px;
-      font-size: var(--text-md);
+      font-size: var(--text-body);
       text-align: left;
       background-image: linear-gradient(
         180deg,
         rgb(255 255 255 / 0.16) 0,
         rgb(255 255 255 / 0) 12%,
         rgb(0 0 0 / 0) 88%,
-        color-mix(in srgb, var(--fx) 22%, transparent) 100%
+        color-mix(in srgb, var(--side-bg) 22%, transparent) 100%
       );
       box-shadow:
         inset 1px 1px 0 rgb(255 255 255 / 0.2),
@@ -665,7 +653,6 @@
       min-height: 2.875rem;
       margin: 0;
       border-radius: 8px 0 0 8px;
-      background-image: var(--tex-fiber);
       box-shadow:
         inset 1px 1px 0 rgb(255 255 255 / 0.6),
         0 -1px 0 rgb(0 0 0 / 0.3),
@@ -683,7 +670,7 @@
     .af-divider--disabled {
       border-radius: 8px 10px 10px 8px;
       margin-right: 14px;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-cover-soft) 38%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--side-ink-muted) 38%, transparent);
     }
     /* O menu rola e corta o que passa da borda: no computador o anel de foco fica por dentro da divisória. */
     .af-divider:focus-visible {
@@ -696,7 +683,7 @@
     }
     @media (hover: hover) and (prefers-reduced-motion: no-preference) {
       .af-divider {
-        transition: margin 140ms var(--ease-key);
+        transition: margin 140ms cubic-bezier(0.22, 1, 0.36, 1);
       }
     }
 
@@ -714,7 +701,7 @@
       justify-content: space-between;
       flex-wrap: nowrap;
       padding: 1.5rem 2rem 1rem 2.5rem;
-      border-bottom: 3px double var(--paper-edge);
+      border-bottom: 3px double var(--line);
     }
     .af-shell__actions {
       flex: 0 0 auto;
@@ -753,16 +740,16 @@
 
   /* ---- Mesa de controle: o painel de conteúdo é metal; a folha é só o que se cola nele ---- */
   .af-shell--dev .af-shell__sheet {
-    --cover: #3d4755;
-    background-color: var(--cover);
-    color: var(--on-cover);
+    --side-bg: #3d4755;
+    background-color: var(--side-bg);
+    color: var(--side-ink);
   }
   .af-shell--dev .af-shell__head {
     border-bottom-color: rgb(0 0 0 / 0.4);
     box-shadow: 0 1px 0 rgb(255 255 255 / 0.12);
   }
   .af-shell--dev .af-shell__title {
-    color: var(--on-cover);
+    color: var(--side-ink);
   }
   /* Quatro parafusos nos cantos do painel. */
   .af-shell--dev .af-shell__sheet::after {
