@@ -21,8 +21,9 @@ O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS 
 - `DIRECT_URL` (opcional) é a conexão direta, sem pooler: as migrações a usam quando existe. O servidor usa
   `DATABASE_URL`; com `DATABASE_USE_DIRECT_URL=true` usa a direta também (necessário se o pooler, em modo transação,
   não mantiver o fuso UTC; a partida confere isso e recusa com a orientação).
-- O `sslmode` vem na própria URL fornecida pela plataforma. O certificado nunca é ignorado no código: se a conexão
-  falhar por certificado, corrija a URL ou a plataforma.
+- O `sslmode` vem na própria URL fornecida pela plataforma e segue a semântica padrão do libpq: `sslmode=require`
+  cifra sem validar a cadeia. Para validar, a URL deve trazer `sslmode=verify-full` e o certificado da autoridade
+  precisa estar disponível ao Node (`NODE_EXTRA_CA_CERTS`). As migrações (motor do Prisma) usam a URL como vem.
 
 ## Como o contêiner parte
 
@@ -56,4 +57,4 @@ Novo deploy: a partida aplica as migrações novas antes de servir.
 ## Coolify
 
 Build por Dockerfile; porta 3000; os três domínios no mesmo recurso (`dev.`, `painel.`, `api.`); armazenamento
-persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz`.
+persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz` (a imagem traz `curl` e o `HEALTHCHECK` o usa).

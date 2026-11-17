@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import type { ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
 import pg from 'pg'
+import { pgConfig } from '../src/server/db/connection'
 import { runSelfCheck } from '../src/server/db/self-check'
 import { migrationDatabaseUrl, parseEnv, runtimeDatabaseUrl } from '../src/server/env'
 import { checkStorageDir } from '../src/server/storage/check'
@@ -42,7 +43,7 @@ function rodar(args: string[], env: NodeJS.ProcessEnv): Promise<number> {
 }
 
 async function bancoResponde(url: string): Promise<void> {
-  const cliente = new pg.Client({ connectionString: url, connectionTimeoutMillis: LIMITE_DE_CONEXAO_MS })
+  const cliente = new pg.Client({ ...pgConfig(url), connectionTimeoutMillis: LIMITE_DE_CONEXAO_MS })
   // Sem este ouvinte um erro assíncrono do cliente derrubaria o processo com a mensagem do driver (que pode ter a URL).
   cliente.on('error', () => undefined)
   try {
