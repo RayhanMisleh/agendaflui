@@ -1,4 +1,4 @@
-import { addMinutes, minuteToInstant } from '@/server/time'
+import { addMinutes, minuteToInstant, minuteToInstants } from '@/server/time'
 
 /** Intervalo de instantes; o fim é exclusivo. */
 export type Interval = { start: Date; end: Date }
@@ -89,15 +89,19 @@ export function computeSlots(i: {
     const rangeStart = minuteToInstant(i.date, range.startMin, i.timeZone).getTime()
     const rangeEnd = minuteToInstant(i.date, range.endMin, i.timeZone).getTime()
     const first = Math.ceil(range.startMin / i.stepMin) * i.stepMin
-    for (let m = first; m + i.durationMin <= range.endMin; m += i.stepMin) {
-      const start = minuteToInstant(i.date, m, i.timeZone)
-      const candidate = { start, end: addMinutes(start, i.durationMin) }
-      const startMs = start.getTime()
-      if (startMs < rangeStart || candidate.end.getTime() > rangeEnd) continue
-      if (startMs < notBeforeMs || startMs >= notAfterMs) continue
-      if (blocked.some((b) => overlaps(candidate, b))) continue
-      if (busy.some((b) => overlaps(candidate, b))) continue
-      found.set(startMs, start)
+    // A grade é a do relógio local. Cada minuto da grade vira todos os instantes em que o relógio o marca: dois na hora
+    // repetida (dia de 25 horas), nenhum na hora que não existe (dia de 23 horas). Quem decide se o serviço cabe é o tempo
+    // real, comparado ao início e ao fim reais do expediente.
+    for (let m = first; m < range.endMin; m += i.stepMin) {
+      for (const start of minuteToInstants(i.date, m, i.timeZone)) {
+        const candidate = { start, end: addMinutes(start, i.durationMin) }
+        const startMs = start.getTime()
+        if (startMs < rangeStart || candidate.end.getTime() > rangeEnd) continue
+        if (startMs < notBeforeMs || startMs >= notAfterMs) continue
+        if (blocked.some((b) => overlaps(candidate, b))) continue
+        if (busy.some((b) => overlaps(candidate, b))) continue
+        found.set(startMs, start)
+      }
     }
   }
   return [...found.values()].sort((a, b) => a.getTime() - b.getTime())

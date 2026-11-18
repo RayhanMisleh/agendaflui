@@ -14,6 +14,7 @@ import {
   minuteLabel,
   minuteOfDay,
   minuteToInstant,
+  minuteToInstants,
   parseMinuteLabel,
   startOfUtcHour,
 } from '@/server/time'
@@ -155,5 +156,29 @@ describe('effectiveLocalTime (horário que de fato será gravado)', () => {
   })
   test('hora repetida no outono vale a primeira ocorrência e continua 01:30', () => {
     expect(effectiveLocalTime('2026-11-01', '01:30', 'America/New_York')).toBe('01:30')
+  })
+})
+
+describe('minuteToInstants (todas as ocorrências de um minuto local)', () => {
+  const iso2 = (ds: Date[]) => ds.map((d) => d.toISOString())
+
+  test('dia comum: uma ocorrência, igual a minuteToInstant', () => {
+    expect(iso2(minuteToInstants('2026-11-16', 540, 'America/Sao_Paulo'))).toEqual(['2026-11-16T12:00:00.000Z'])
+    expect(iso2(minuteToInstants('2026-11-16', 1440, 'America/Sao_Paulo'))).toEqual(['2026-11-17T03:00:00.000Z'])
+  })
+
+  test('hora repetida (dia de 25 horas): duas ocorrências em ordem, Lisboa e Nova York', () => {
+    expect(iso2(minuteToInstants('2026-10-25', 90, 'Europe/Lisbon'))).toEqual(['2026-10-25T00:30:00.000Z', '2026-10-25T01:30:00.000Z'])
+    expect(iso2(minuteToInstants('2026-11-01', 60, 'America/New_York'))).toEqual(['2026-11-01T05:00:00.000Z', '2026-11-01T06:00:00.000Z'])
+  })
+
+  test('hora inexistente (dia de 23 horas): nenhuma ocorrência, Lisboa e Nova York', () => {
+    expect(minuteToInstants('2026-03-29', 90, 'Europe/Lisbon')).toEqual([])
+    expect(minuteToInstants('2026-03-08', 150, 'America/New_York')).toEqual([])
+  })
+
+  test('minuto vizinho da emenda existe uma vez', () => {
+    expect(iso2(minuteToInstants('2026-03-29', 120, 'Europe/Lisbon'))).toEqual(['2026-03-29T01:00:00.000Z'])
+    expect(iso2(minuteToInstants('2026-10-25', 120, 'Europe/Lisbon'))).toEqual(['2026-10-25T02:00:00.000Z'])
   })
 })

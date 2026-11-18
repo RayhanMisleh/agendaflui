@@ -87,9 +87,10 @@ describe('computeSlots', () => {
     expect(iso(s)).toEqual(['2026-03-08T06:00:00.000Z', '2026-03-08T06:30:00.000Z', '2026-03-08T07:00:00.000Z', '2026-03-08T07:30:00.000Z'])
   })
 
-  test('fim do horário de verão em Nova York: a hora repetida aparece uma vez', () => {
+  test('fim do horário de verão em Nova York: a hora repetida aparece nas duas ocorrências', () => {
     const s = computeSlots({ ...base, date: '2026-11-01', timeZone: 'America/New_York', workingRanges: [{ startMin: 0, endMin: 180 }], stepMin: 60 })
-    expect(iso(s)).toEqual(['2026-11-01T04:00:00.000Z', '2026-11-01T05:00:00.000Z', '2026-11-01T07:00:00.000Z'])
+    // 01:00 acontece duas vezes (05:00Z e 06:00Z): as duas são inícios bons.
+    expect(iso(s)).toEqual(['2026-11-01T04:00:00.000Z', '2026-11-01T05:00:00.000Z', '2026-11-01T06:00:00.000Z', '2026-11-01T07:00:00.000Z'])
   })
 
   test('resultado ordenado e sem repetidos com expediente fora de ordem e sobreposto', () => {
@@ -185,5 +186,77 @@ describe('fitsWorkingHours', () => {
   test('cabe dentro de um intervalo; invadir o almoço não', () => {
     expect(fitsWorkingHours({ ...w, start: z('2026-11-16T14:00:00Z'), end: z('2026-11-16T15:00:00Z') })).toBe(true)
     expect(fitsWorkingHours({ ...w, start: z('2026-11-16T14:30:00Z'), end: z('2026-11-16T15:30:00Z') })).toBe(false)
+  })
+})
+
+describe('computeSlots na troca do horário de verão', () => {
+  const dst = { ...base, busy: [], blocked: [], notBefore: z('2020-01-01T00:00:00Z'), notAfter: z('2030-01-01T00:00:00Z') }
+
+  describe('dia de 25 horas (fim do horário de verão)', () => {
+    test('Lisboa: 01:00 a 02:00 acontece duas vezes e as duas ocorrências são oferecidas', () => {
+      const s = computeSlots({ ...dst, date: '2026-10-25', timeZone: 'Europe/Lisbon', workingRanges: [{ startMin: 0, endMin: 180 }], durationMin: 60, stepMin: 60 })
+      // 00:00 WEST, 01:00 WEST, 01:00 WET, 02:00 WET (03:00 WET encerra o expediente)
+      expect(iso(s)).toEqual(['2026-10-24T23:00:00.000Z', '2026-10-25T00:00:00.000Z', '2026-10-25T01:00:00.000Z', '2026-10-25T02:00:00.000Z'])
+    })
+
+    test('Lisboa: o último início do expediente é pelo tempo real, não pelos minutos do relógio', () => {
+      // Expediente 00:00–02:00 tem 3 horas reais; serviço de 60 min cabe a partir de 23:00Z, 00:00Z e 01:00Z.
+      const s = computeSlots({ ...dst, date: '2026-10-25', timeZone: 'Europe/Lisbon', workingRanges: [{ startMin: 0, endMin: 120 }], durationMin: 60, stepMin: 30 })
+      expect(iso(s)).toEqual([
+        '2026-10-24T23:00:00.000Z',
+        '2026-10-24T23:30:00.000Z',
+        '2026-10-25T00:00:00.000Z',
+        '2026-10-25T00:30:00.000Z',
+        '2026-10-25T01:00:00.000Z',
+      ])
+    })
+
+    test('Nova York: a segunda ocorrência de 01:30 também é oferecida', () => {
+      const s = computeSlots({ ...dst, date: '2026-11-01', timeZone: 'America/New_York', workingRanges: [{ startMin: 60, endMin: 120 }], durationMin: 30, stepMin: 30 })
+      expect(iso(s)).toEqual(['2026-11-01T05:00:00.000Z', '2026-11-01T05:30:00.000Z', '2026-11-01T06:00:00.000Z', '2026-11-01T06:30:00.000Z'])
+    })
+
+    test('ocupação da primeira ocorrência não esconde a segunda', () => {
+      const s = computeSlots({
+        ...dst,
+        date: '2026-11-01',
+        timeZone: 'America/New_York',
+        workingRanges: [{ startMin: 60, endMin: 120 }],
+        durationMin: 30,
+        stepMin: 30,
+        busy: [{ start: z('2026-11-01T05:00:00Z'), end: z('2026-11-01T06:00:00Z') }],
+      })
+      expect(iso(s)).toEqual(['2026-11-01T06:00:00.000Z', '2026-11-01T06:30:00.000Z'])
+    })
+  })
+
+  describe('dia de 23 horas (início do horário de verão)', () => {
+    test('Lisboa: nenhum início cai na hora que não existe, mesmo com passo que não divide 60', () => {
+      // Grade de 40 em 40 minutos: 00:00, 00:40, 01:20 (não existe), 02:00, 02:40, 03:20...
+      const s = computeSlots({ ...dst, date: '2026-03-29', timeZone: 'Europe/Lisbon', workingRanges: [{ startMin: 0, endMin: 240 }], durationMin: 20, stepMin: 40 })
+      expect(iso(s)).toEqual([
+        '2026-03-29T00:00:00.000Z',
+        '2026-03-29T00:40:00.000Z',
+        '2026-03-29T01:00:00.000Z', // 02:00 WEST
+        '2026-03-29T01:40:00.000Z', // 02:40 WEST
+        '2026-03-29T02:20:00.000Z', // 03:20 WEST
+      ])
+      for (const inicio of s) {
+        const minutoLocal = (inicio.getTime() - z('2026-03-29T00:00:00Z').getTime()) / 60000 + (inicio.getTime() >= z('2026-03-29T01:00:00Z').getTime() ? 60 : 0)
+        expect(minutoLocal % 40).toBe(0)
+      }
+    })
+
+    test('Nova York: o início da grade que cai na hora inexistente é pulado, sem deslocar para fora da grade', () => {
+      // Grade de 45 em 45: 01:30 (06:30Z), 02:15 (não existe), 03:00 (07:00Z), 03:45 (07:45Z).
+      const s = computeSlots({ ...dst, date: '2026-03-08', timeZone: 'America/New_York', workingRanges: [{ startMin: 60, endMin: 240 }], durationMin: 15, stepMin: 45 })
+      expect(iso(s)).toEqual(['2026-03-08T06:30:00.000Z', '2026-03-08T07:00:00.000Z', '2026-03-08T07:45:00.000Z'])
+    })
+
+    test('serviço não atravessa o fim do expediente que perdeu uma hora', () => {
+      // Expediente 00:00–03:00 em Lisboa tem 2 horas reais.
+      const s = computeSlots({ ...dst, date: '2026-03-29', timeZone: 'Europe/Lisbon', workingRanges: [{ startMin: 0, endMin: 180 }], durationMin: 60, stepMin: 60 })
+      expect(iso(s)).toEqual(['2026-03-29T00:00:00.000Z', '2026-03-29T01:00:00.000Z'])
+    })
   })
 })

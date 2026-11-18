@@ -300,6 +300,24 @@ export function minuteToInstant(date: string, minute: number, tz: string): Date 
   return fromZoned(local.toZonedDateTime(tz, { disambiguation: 'compatible' }))
 }
 
+/**
+ * Todos os instantes cujo relógio local marca esse minuto do dia: um no dia comum, dois na hora repetida do fim do horário
+ * de verão (em ordem) e nenhum na hora que não existe no início. Ao contrário de `minuteToInstant`, nunca desloca o minuto.
+ */
+export function minuteToInstants(date: string, minute: number, tz: string): Date[] {
+  assertTimeZone(tz)
+  assertMinute(minute)
+  const local = parseDate(date).toPlainDateTime(new Temporal.PlainTime(0, 0)).add({ minutes: minute })
+  const found: Date[] = []
+  for (const disambiguation of ['earlier', 'later'] as const) {
+    const z = local.toZonedDateTime(tz, { disambiguation })
+    if (!z.toPlainDateTime().equals(local)) continue
+    const instant = fromZoned(z)
+    if (!found.some((f) => f.getTime() === instant.getTime())) found.push(instant)
+  }
+  return found
+}
+
 /** Minuto desde a meia-noite local (0..1439) do instante no fuso da conta. */
 export function minuteOfDay(instant: Date, tz: string): number {
   const z = toZoned(instant, tz)
