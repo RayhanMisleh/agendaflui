@@ -69,3 +69,15 @@ describe('módulos da conta', () => {
     })
   })
 })
+
+describe('requirePainelModule (páginas do painel)', () => {
+  test('módulo desligado: 404 (notFound); ligado: segue', async () => {
+    const { requirePainelModule } = await import('@/app/painel/(app)/_lib/modulo')
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    await expect(requirePainelModule(ctx, 'banners')).rejects.toMatchObject({ digest: expect.stringContaining('404') })
+    await ligar(b.id, { banners: true })
+    await expect(requirePainelModule(ctx, 'banners')).resolves.toBeUndefined()
+    await expect(requirePainelModule(ctx, 'store')).rejects.toMatchObject({ digest: expect.stringContaining('404') })
+  })
+})

@@ -1005,6 +1005,8 @@ model PrizeRedemption {
   /// Cópias do momento do resgate.
   prizeName              String           @map("prize_name")
   costPoints             Int              @map("cost_points")
+  /// O prêmio tinha estoque limitado quando foi resgatado: só então o cancelamento devolve a unidade.
+  stockTracked           Boolean          @default(true) @map("stock_tracked")
   status                 RedemptionStatus @default(PENDING)
   requestedByType        PartyType        @map("requested_by_type")
   requestedById          String?          @map("requested_by_id") @db.Uuid

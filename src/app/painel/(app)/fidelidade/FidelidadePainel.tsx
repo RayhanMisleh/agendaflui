@@ -66,6 +66,7 @@ export function PremioForm({ premio, termos }: { premio: PremioDados | null; ter
         return (
           <>
             {premio ? <input type="hidden" name="id" value={premio.id} /> : null}
+            {premio ? <input type="hidden" name="expectedStock" value={premio.stock === null ? 'sem' : String(premio.stock)} /> : null}
             <Field label="Nome do prêmio" error={state.fields.name}>
               <Input id="premio-nome" name="name" defaultValue={v.name ?? ''} maxLength={80} autoComplete="off" required />
             </Field>

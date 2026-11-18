@@ -6,7 +6,6 @@ import type { Terms } from '@/server/domain/settings/terms'
 import type { Modules } from '@/shared/modules'
 import { getModules } from '../modules'
 
-export type { Modules }
 
 export type PainelContext = {
   terms: Terms

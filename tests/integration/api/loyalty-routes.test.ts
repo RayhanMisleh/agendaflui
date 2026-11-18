@@ -195,3 +195,36 @@ describe('GET /v1/loyalty/ranking', () => {
     expect(corpo.entries).toEqual([{ position: 1, firstName: 'Cliente', avatarUrl: null, points: 40 }])
   })
 })
+
+describe('revisão: custo esperado, extrato e OpenAPI', () => {
+  test('POST com expectedCostPoints diferente do custo atual: 409 changed, sem débito', async () => {
+    await lancar(c.business.id, c.cliente.id, 1000)
+    const dono = await makeCtx(c.business)
+    await prisma.prize.update({ where: { id: premio.id }, data: { costPoints: 500 } })
+    const r = await post(resgatar, '/v1/loyalty/redemptions', { prizeId: premio.id, expectedCostPoints: 100 }, { token: c.tokenCliente })
+    expect(r.status).toBe(409)
+    expect(apiError(r.json).reason).toBe('changed')
+    expect(await prisma.prizeRedemption.count()).toBe(0)
+    const ok = await post(resgatar, '/v1/loyalty/redemptions', { prizeId: premio.id, expectedCostPoints: 500 }, { token: c.tokenCliente })
+    expect(ok.status).toBe(201)
+    void dono
+  })
+
+  test('extrato do cliente mostra "Ajuste" no lugar do motivo interno', async () => {
+    const dono = await makeCtx(c.business)
+    const { adjustPoints } = await import('@/server/domain/loyalty/ledger')
+    await adjustPoints(dono, { customerId: c.cliente.id, points: 20, reason: 'Motivo interno da equipe' })
+    const r = await get(obterExtrato, '/v1/loyalty/me/statement', c.tokenCliente)
+    expect(r.status).toBe(200)
+    expect(r.text).not.toContain('Motivo interno')
+    expect((jsonObject(r.json).items as Record<string, unknown>[])[0]?.reason).toBe('Ajuste')
+  })
+
+  test('o cabeçalho Idempotency-Key da rota de resgate fala em resgate, não em agendamento', async () => {
+    const { buildOpenApi } = await import('@/server/api/openapi')
+    const doc = JSON.parse(JSON.stringify(buildOpenApi())) as { paths: Record<string, { post: { parameters: { name: string; description: string }[] } }> }
+    const cabecalho = doc.paths['/v1/loyalty/redemptions']?.post.parameters.find((p) => p.name === 'Idempotency-Key')?.description ?? ''
+    expect(cabecalho).toContain('o mesmo registro')
+    expect(cabecalho).not.toContain('agendamento')
+  })
+})

@@ -11,11 +11,16 @@ export type PremioOpcao = { id: string; name: string; costPoints: number }
 /** Os dois botões da ficha para quem tem `manage_loyalty`: ajustar os pontos e resgatar um prêmio no balcão. */
 export function PontosAcoes({ customerId, nome, premios, pontos, ponto }: { customerId: string; nome: string; premios: PremioOpcao[]; pontos: string; ponto: string }) {
   const [folha, setFolha] = useState<'ajuste' | 'balcao' | null>(null)
+  // Um identificador por abertura da folha: reenviar o mesmo formulário (duplo clique, reenvio do POST) não ajusta duas vezes.
+  const [pedido, setPedido] = useState('')
   const fechar = () => setFolha(null)
   return (
     <>
       <div className="af-rowactions">
-        <Button variant="secondary" icon={<SlidersHorizontal size={18} />} onClick={() => setFolha('ajuste')}>
+        <Button variant="secondary" icon={<SlidersHorizontal size={18} />} onClick={() => {
+            setPedido(crypto.randomUUID())
+            setFolha('ajuste')
+          }}>
           Ajustar {pontos.toLowerCase()}
         </Button>
         <Button variant="secondary" icon={<Gift size={18} />} onClick={() => setFolha('balcao')}>
@@ -28,6 +33,7 @@ export function PontosAcoes({ customerId, nome, premios, pontos, ponto }: { cust
             {(state) => (
               <>
                 <input type="hidden" name="customerId" value={customerId} />
+                <input type="hidden" name="requestId" value={pedido} />
                 <Field label="Valor" hint={`Use sinal: 50 soma 50 ${pontos.toLowerCase()} e -20 tira 20.`} error={state.fields.points}>
                   <Input id="ajuste-valor" name="points" inputMode="numeric" defaultValue={state.values.points ?? ''} autoComplete="off" required />
                 </Field>

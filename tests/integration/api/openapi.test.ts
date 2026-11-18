@@ -85,6 +85,22 @@ describe('manifesto de rotas', () => {
 describe('rotas de módulo', () => {
   const PREFIXOS = ['/v1/loyalty', '/v1/banners', '/v1/store', '/v1/vouchers', '/v1/me/addresses', '/v1/me/voucher-codes']
 
+  test('cada rota declara o módulo do seu prefixo', () => {
+    const DO_PREFIXO: Record<string, string> = {
+      '/v1/loyalty': 'loyalty',
+      '/v1/banners': 'banners',
+      '/v1/store': 'store',
+      '/v1/vouchers': 'vouchers',
+      '/v1/me/addresses': 'store',
+      '/v1/me/voucher-codes': 'vouchers',
+    }
+    for (const def of routeDefinitions()) {
+      for (const [prefixo, modulo] of Object.entries(DO_PREFIXO)) {
+        if (def.path === prefixo || def.path.startsWith(`${prefixo}/`)) expect(def.module, `${def.method} ${def.path}`).toBe(modulo)
+      }
+    }
+  })
+
   test('toda rota de módulo declara `module` (e só elas, com um módulo conhecido)', () => {
     for (const def of routeDefinitions()) {
       const doModulo = PREFIXOS.some((p) => def.path === p || def.path.startsWith(`${p}/`))

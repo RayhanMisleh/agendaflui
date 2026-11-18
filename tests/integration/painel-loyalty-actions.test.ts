@@ -220,3 +220,26 @@ describe('páginas', () => {
     await expect(PremioPage({ params: Promise.resolve({ id: p.id }), searchParams: q })).rejects.toMatchObject(nao)
   })
 })
+
+describe('revisão: estoque lido e ajuste repetido', () => {
+  test('estoque que mudou no meio (resgate) vira conflito e não é desfeito', async () => {
+    const p = await createPrize(s.dono, { name: 'Corte', description: null, costPoints: 10, stock: 5, active: true })
+    await lancar(s.b.id, s.cliente.id, 100)
+    await redeemPrize(s.dono, { prizeId: p.id, customerId: s.cliente.id })
+    const r = await salvarPremio(ini, form({ id: p.id, name: 'Corte', description: '', costPoints: '10', stock: '5', expectedStock: '5', active: 'on' }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBe('O estoque mudou agora. Recarregue para ver.')
+    expect((await prisma.prize.findUniqueOrThrow({ where: { id: p.id } })).stock).toBe(4)
+    expect((await salvarPremio(ini, form({ id: p.id, name: 'Corte', description: '', costPoints: '10', stock: '4', expectedStock: '4', active: 'on' }))).ok).toBe(true)
+    const sem = await createPrize(s.dono, { name: 'Sem limite', description: null, costPoints: 10, stock: null, active: true })
+    expect((await salvarPremio(ini, form({ id: sem.id, name: 'Sem limite', description: '', costPoints: '10', stock: '', expectedStock: 'sem', active: 'on' }))).ok).toBe(true)
+  })
+
+  test('o mesmo requestId enviado duas vezes ajusta uma vez só e a segunda também responde sucesso', async () => {
+    const REQ = '5b1d0a52-6a0e-4a8e-8f2b-9a7f3f0c1e11'
+    const campos = { customerId: s.cliente.id, points: '30', reason: 'Brinde de teste', requestId: REQ }
+    expect((await ajustarPontos(ini, form(campos))).ok).toBe(true)
+    expect((await ajustarPontos(ini, form(campos))).ok).toBe(true)
+    expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(30)
+  })
+})

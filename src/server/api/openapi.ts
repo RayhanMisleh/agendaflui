@@ -72,7 +72,7 @@ const IDEMPOTENCY_HEADER: Json = {
   in: 'header',
   required: false,
   description:
-    'Chave de 1 a 80 caracteres (letras, números, "-" e "_"). Repetir o mesmo pedido com a mesma chave em até 24 horas devolve o mesmo agendamento (status 200), sem marcar de novo.',
+    'Chave de 1 a 80 caracteres (letras, números, "-" e "_"). Repetir o mesmo pedido com a mesma chave em até 24 horas devolve o mesmo registro (status 200), sem repetir a operação.',
   schema: { type: 'string', pattern: '^[A-Za-z0-9_-]{1,80}$' },
 }
 

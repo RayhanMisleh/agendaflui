@@ -6,7 +6,7 @@ import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import { DomainError, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
 import { replaceBrandImage, type BrandImageSlot } from '@/server/domain/platform/brand-image'
-import type { Modules } from '@/server/domain/platform/businesses'
+import type { Modules } from '@/shared/modules'
 import {
   applyNotificationSettings,
   getNotificationSettings,

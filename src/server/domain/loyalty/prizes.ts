@@ -46,7 +46,7 @@ const fields = {
 }
 
 const createSchema = z.object(fields)
-const updateSchema = z.object(fields).partial()
+const updateSchema = z.object({ ...fields, expectedStock: z.number().int().min(0).nullable() }).partial()
 
 function toView(ctx: TenantContext, row: PrizeRow): PrizeView {
   return {
@@ -124,12 +124,21 @@ export async function createPrize(ctx: TenantContext, i: PrizeInput): Promise<Pr
   return toView(ctx, row)
 }
 
-export async function updatePrize(ctx: TenantContext, id: string, i: Partial<PrizeInput>): Promise<PrizeView> {
+/**
+ * Com `expectedStock` (o estoque que o formulário leu), a gravação só vale se o estoque ainda é esse: um resgate no meio
+ * muda o estoque, e gravar o valor lido o desfaria. Mudou → `conflict` e nada é gravado.
+ */
+export async function updatePrize(ctx: TenantContext, id: string, i: Partial<PrizeInput> & { expectedStock?: number | null }): Promise<PrizeView> {
   await guard(ctx)
-  const changes = definedOnly(parse(updateSchema, i))
+  const { expectedStock, ...changes } = definedOnly(parse(updateSchema, i))
   await loadRow(ctx, id)
   const row = await ctx.db.$transaction(async (tx) => {
-    const updated = await tx.prize.update({ where: { id }, data: changes, include: withImage })
+    const { count } = await tx.prize.updateMany({ where: { id, ...(expectedStock !== undefined ? { stock: expectedStock } : {}) }, data: changes })
+    if (count === 0) {
+      if (expectedStock !== undefined) throw new DomainError('conflict', 'O estoque mudou agora. Recarregue para ver.', { reason: 'changed', fields: { stock: 'O estoque mudou agora. Recarregue para ver.' } })
+      throw notFound()
+    }
+    const updated = orNotFound(await tx.prize.findUnique({ where: { id }, include: withImage }), 'Prêmio')
     await audit(ctx, { action: 'prize.updated', targetType: 'Prize', targetId: id, metadata: { fields: Object.keys(changes).join(',') } }, tx)
     return updated
   })

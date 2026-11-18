@@ -42,6 +42,7 @@ const adjustSchema = z.object({
     .trim()
     .min(3, 'Explique o motivo com pelo menos 3 caracteres.')
     .max(200, 'Use até 200 caracteres no motivo.'),
+  requestId: z.uuid('Identificador do pedido inválido. Recarregue a página.').optional(),
 })
 
 const listSchema = z.object({
@@ -72,7 +73,8 @@ export function entryView(ctx: TenantContext, row: LoyaltyTransaction): LoyaltyE
     id: row.id,
     kind: row.kind,
     points: row.points,
-    reason: row.reason,
+    // O motivo do ajuste é da equipe: o cliente vê só o rótulo genérico.
+    reason: ctx.actor.kind === 'customer' && row.kind === 'ADJUST' ? 'Ajuste' : row.reason,
     appointmentId: row.appointmentId,
     redemptionId: row.redemptionId,
     createdAt: row.createdAt,
@@ -154,7 +156,7 @@ export async function listLoyaltyEntries(
  */
 export async function adjustPoints(
   ctx: TenantContext,
-  i: { customerId: string; points: number; reason: string },
+  i: { customerId: string; points: number; reason: string; requestId?: string },
 ): Promise<{ entry: LoyaltyEntryView; balance: number }> {
   await requireModule(ctx, 'loyalty')
   authorize(ctx, 'manage_loyalty')
@@ -162,6 +164,17 @@ export async function adjustPoints(
   const by = party(ctx)
   return ctx.db.$transaction(async (tx) => {
     await lockActiveCustomer(tx, input.customerId, 'Restaure o cadastro antes de ajustar pontos.')
+    const dedupeKey = `adjust:${input.requestId ?? crypto.randomUUID()}`
+    if (input.requestId !== undefined) {
+      // Reenvio do mesmo formulário: devolve o ajuste que já foi gravado, sem creditar de novo.
+      const previous = await tx.loyaltyTransaction.findFirst({ where: { dedupeKey } })
+      if (previous) {
+        if (previous.customerId !== input.customerId || previous.points !== input.points || previous.kind !== 'ADJUST') {
+          throw new DomainError('conflict', 'Este pedido de ajuste já foi usado com outros dados. Recarregue a página e refaça o ajuste.', { reason: 'idempotency_key_reused' })
+        }
+        return { entry: entryView(ctx, previous), balance: await getBalance(tx, input.customerId) }
+      }
+    }
     const before = await getBalance(tx, input.customerId)
     if (input.points < 0 && before + input.points < 0) {
       throw new DomainError(
@@ -177,7 +190,7 @@ export async function adjustPoints(
         kind: 'ADJUST',
         points: input.points,
         reason: input.reason,
-        dedupeKey: `adjust:${crypto.randomUUID()}`,
+        dedupeKey,
         createdByType: by.type,
         createdById: by.id,
       },

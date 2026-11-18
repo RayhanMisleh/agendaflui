@@ -16,7 +16,7 @@ import { comConflito } from '../configuracoes/versao'
  * passam por `tenantAction('manage_loyalty')`; o domínio confere de novo a capacidade e o módulo ligado.
  */
 
-const PREMIO = ['id', 'name', 'description', 'costPoints', 'stock'] as const
+const PREMIO = ['id', 'name', 'description', 'costPoints', 'stock', 'expectedStock'] as const
 
 function entradaDoPremio(v: Campos): PrizeInput {
   const estoque = (v.stock ?? '').trim()
@@ -44,7 +44,10 @@ export const salvarPremio = tenantAction(
   'manage_loyalty',
   (fd) => ler(fd, PREMIO, ['active']),
   async (ctx, v) => {
-    await updatePrize(ctx, v.id ?? '', entradaDoPremio(v))
+    // `expectedStock` é o estoque que o formulário leu ("sem" = sem limite): se mudou no meio, o domínio devolve conflito.
+    const lido = (v.expectedStock ?? '').trim()
+    const esperado = lido === '' ? {} : lido === 'sem' ? { expectedStock: null } : /^\d+$/.test(lido) ? { expectedStock: Number(lido) } : {}
+    await updatePrize(ctx, v.id ?? '', { ...entradaDoPremio(v), ...esperado })
     atualizarPainel()
     return `${v.name?.trim() ?? 'Prêmio'} salvo.`
   },
@@ -113,11 +116,11 @@ export const salvarRanking = tenantAction(
 /** Ajuste manual na ficha do cliente: valor inteiro com sinal (`+25`, `-5`) e motivo. */
 export const ajustarPontos = tenantAction(
   'manage_loyalty',
-  (fd) => ler(fd, ['customerId', 'points', 'reason']),
+  (fd) => ler(fd, ['customerId', 'points', 'reason', 'requestId']),
   async (ctx, v) => {
     const texto = (v.points ?? '').trim()
     if (!/^[+-]?\d+$/.test(texto)) throw erroDeCampo('points', 'Digite um número inteiro, como 50 ou -20.')
-    await adjustPoints(ctx, { customerId: v.customerId ?? '', points: Number(texto), reason: v.reason ?? '' })
+    await adjustPoints(ctx, { customerId: v.customerId ?? '', points: Number(texto), reason: v.reason ?? '', ...((v.requestId ?? '') === '' ? {} : { requestId: v.requestId ?? '' }) })
     atualizarPainel()
     return 'Ajuste registrado.'
   },

@@ -37,6 +37,7 @@ const redeemSchema = z.object({
   prizeId: z.string('Escolha um prêmio.'),
   customerId: z.uuid('Escolha um cliente válido.').optional(),
   deliverNow: z.boolean().optional(),
+  expectedCostPoints: z.number('Informe o custo como número.').int().positive().optional(),
   idempotencyKey: z
     .string('Informe a chave de idempotência como texto.')
     .regex(/^[A-Za-z0-9_-]{1,80}$/, 'Use de 1 a 80 caracteres: letras, números, "-" e "_".')
@@ -133,7 +134,7 @@ function isIdempotencyViolation(err: unknown): boolean {
  */
 export async function redeemPrize(
   ctx: TenantContext,
-  i: { prizeId: string; customerId?: string; deliverNow?: boolean; idempotencyKey?: string },
+  i: { prizeId: string; customerId?: string; deliverNow?: boolean; expectedCostPoints?: number; idempotencyKey?: string },
 ): Promise<{ redemption: RedemptionView; balance: number; replayed: boolean }> {
   await requireModule(ctx, 'loyalty')
   const input = parse(redeemSchema, i)
@@ -170,6 +171,13 @@ export async function redeemPrize(
       if (!prize || !prize.active || prize.archivedAt !== null) {
         throw new DomainError('not_found', 'Este prêmio não está disponível.')
       }
+      // O custo que o cliente viu na vitrine precisa ser o de agora: se o dono mudou no meio, recusa em vez de debitar outro valor.
+      if (input.expectedCostPoints !== undefined && input.expectedCostPoints !== prize.costPoints) {
+        throw new DomainError('conflict', 'O custo deste prêmio mudou. Confira o novo custo e tente de novo.', {
+          reason: 'changed',
+          details: { costPoints: prize.costPoints },
+        })
+      }
       const balance = await getBalance(tx, customerId)
       if (balance < prize.costPoints) {
         throw new DomainError('conflict', `Faltam ${await pointsLabel(tx, ctx.businessId, prize.costPoints - balance)} para este prêmio.`, {
@@ -189,6 +197,7 @@ export async function redeemPrize(
           prizeId: prize.id,
           prizeName: prize.name,
           costPoints: prize.costPoints,
+          stockTracked: prize.stock !== null,
           status: deliverNow ? 'DELIVERED' : 'PENDING',
           requestedByType: by.type as PartyType,
           requestedById: by.id,
@@ -298,8 +307,8 @@ export async function cancelRedemption(ctx: TenantContext, id: string, i: { reas
         createdById: by.id,
       },
     })
-    // Só o prêmio com estoque controlado recebe a unidade de volta (arquivado também).
-    await tx.prize.updateMany({ where: { id: row.prizeId, stock: { not: null } }, data: { stock: { increment: 1 } } })
+    // Só devolve a unidade se o prêmio tinha estoque limitado quando foi resgatado (e ainda tem): senão ela nunca saiu.
+    if (row.stockTracked) await tx.prize.updateMany({ where: { id: row.prizeId, stock: { not: null } }, data: { stock: { increment: 1 } } })
     await audit(ctx, { action: 'prize.redemption_canceled', targetType: 'PrizeRedemption', targetId: id, metadata: { customerId: row.customerId, costPoints: row.costPoints } }, tx)
     return toView(ctx, await loadRow(tx, id))
   }, TX_OPTIONS)

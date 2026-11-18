@@ -11,13 +11,13 @@ import { DomainError, isUniqueViolation, orNotFound, parse, z, zodFields } from 
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
+import type { Modules } from '@/shared/modules'
 import { canonicalTimeZone, fromIsoInstant, toIsoInstant } from '@/server/time'
 
 export type { BusinessStatus }
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
-export type Modules = { loyalty: boolean; banners: boolean; store: boolean; vouchers: boolean }
 
 export type BusinessRow = {
   id: string

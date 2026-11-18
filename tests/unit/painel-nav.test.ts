@@ -1,7 +1,7 @@
 import { CAPABILITIES, can } from '@/server/auth/capabilities'
 import type { Actor } from '@/server/auth/actor'
 import type { Terms } from '@/server/domain/settings/terms'
-import type { Modules } from '@/server/domain/settings/painel-context'
+import type { Modules } from '@/shared/modules'
 import { painelNav } from '@/ui/shells/painel-nav'
 
 const TERMOS: Terms = {
