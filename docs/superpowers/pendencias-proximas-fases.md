@@ -1,73 +1,50 @@
-# Pendências para as próximas fases
+# Pendências
 
-> Documento de trabalho, apagado no fechamento do projeto junto com a spec e os planos.
-> Cada item veio de uma revisão da Fase 1 e foi triado pela revisão final.
+O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em navegador: só há testes automáticos e a fumaça por HTTP (`npm run smoke`).
 
-## Fase 3 (painel dev)
+## Para o dono conferir no navegador
 
-- Teste sem JavaScript na entrada do painel do negócio (é de navegador).
+- Todas as telas dos dois painéis a 375 px (celular) e o foco nos diálogos.
+- Painel dev: lista de contas, aba Módulos, aba Integrações, "tentar de novo" em /sistema, ações destrutivas (a confirmação exige JavaScript).
+- Criar conta, convite, definir senha e entrar; "entrar como", faixa de suporte (contraste) e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
+- Agenda: arrastar a ficha (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, envio da foto da equipe e do logo, exportação do CSV de relatórios.
+- Módulos: telas de Fidelidade, Banners, Loja e Vouchers, envio de imagens (também sem JavaScript), pedido com "Simular pagamento aprovado", baixa de código de voucher.
+- Entrada do painel do negócio sem JavaScript.
+- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar.
 
-## Fase 4 (painel do negócio): o que ficou para depois
+## Antes de abrir a loja (Mercado Pago real)
 
-- `listClosures` precisa de visão por ator antes de virar rota.
-- Agenda: o conjunto de profissionais do resumo difere do da agenda em dois casos limite (inativo só com cancelado, inativo só com bloqueio); `occupancy` é limitado a 1 (razão de exibição).
-- Agenda no celular: com uma coluna visível, a seta para o lado em teclado físico move a prévia para uma coluna oculta; `labelOfMinute` (UI) repete `minuteLabel` (servidor) por regra (só o dia e o minuto trafegam), mas vale comentar na duplicação.
-- Telefone estrangeiro digitado sem `+` e com 10 ou 11 dígitos é tratado como brasileiro: dica na tela.
-- `isUniqueViolation` de profissionais sem conferir o alvo.
-- `updateRulesAsAdmin` grava regras fora de `updateSchedulingRules`: unificar se o caminho do dono ganhar efeito colateral.
-- Relatórios: `byDay` faz uma agregação por dia local (até 366, em lotes de 8); se pesar, trocar por uma consulta única com `AT TIME ZONE` num ajudante do cliente por conta.
-- `Sheet`: o teste do painel lateral é regex sobre CSS; falta teste da rolagem do fundo travada e de `aria-modal`.
-- `Tabs` com `href` deveriam ser navegação com `aria-current`; abas a 375 px sem pista de rolagem; aba inativa descola 1 px no hover.
-- `Dialog` intercepta Esc de filhos; anel de foco depende do contêiner (papel dentro de capa, `Checkbox` sobre capa); halo de texto duplicado em `base.css` e `feedback.css` e pesado em texto primário.
-- Molduras: a barra da base do celular deixa de grudar se um ancestral tiver `overflow`; falta teste da barra grudada no meio da rolagem.
-- Para o dono conferir no navegador (nenhum agente abriu o painel do negócio): todas as telas a 375 px, foco nos diálogos, arrastar a ficha na agenda (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, faixa de suporte em todas as telas, envio de foto da equipe e do logo, exportação do CSV de relatórios.
+- Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).
+- Sem avisos de e-mail ou push para pedido, pagamento, resgate e código de voucher; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
+- Rotação da chave de cifra dos segredos de integração (hoje derivada do `APP_SECRET`).
 
-## Fase 6 (fechamento e produção)
+## Quando o app chegar
 
-- As telas do painel dev nunca foram vistas em navegador pelos agentes (só fumaça por HTTP): conferência visual e a 375 px pendente com o dono.
-- Ações destrutivas do painel dev exigem JavaScript para a confirmação.
-- Várias instâncias exigem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa.
-- A conferência `Origin == Host` das rotas POST do painel dev depende de o proxy preservar o `Host`: documentar junto com `TRUSTED_PROXY_HOPS`.
-- Módulos (vindos da Fase 5): volume financeiro da loja (pedidos pagos, receita) nas métricas do painel dev; rotas `staff/*` de módulos para o app da equipe (pedidos, resgates, baixa de voucher); rotação da chave de cifra dos segredos de integração.
-- Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas): testar com credenciais de teste do Mercado Pago, em especial a expiração do Pix (mínimo de 30 minutos), o webhook e a assinatura `x-signature`.
-- Sem avisos de e-mail ou push para pedido, pagamento, resgate e código de voucher; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout; SMTP próprio por conta fora do escopo.
-- App: `POST /v1/store/orders` deve sempre mandar `Idempotency-Key` (sem ela, dois toques criam dois pedidos); nova cotação entre os toques muda o hash e dá 409 `idempotency_key_reused`.
-- Para o dono conferir no navegador (nenhum agente abriu): telas de Fidelidade, Banners, Loja e Vouchers a 375 px, envio de imagens, pedido com "Simular pagamento aprovado", baixa de código de voucher e a aba Módulos do painel dev.
-- Para o dono conferir no navegador: criar conta, convite, definir senha e entrar; entrar como, faixa e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
-- Para o dono conferir no navegador: todas as telas a 375 px, foco nos diálogos, contraste da faixa de suporte; envio de imagens sem JavaScript e prévia com cores extremas; "tentar de novo" em /sistema.
-- Produção exige `TRUSTED_PROXY_HOPS` ≥ 1 (sem ele os limites viram globais por chave e a auditoria fica sem IP): avisar na partida.
-- Sem `SMTP_URL` em produção o cadastro pelo app é impossível: falhar ou avisar alto na partida.
-- Recibos do Expo não são consultados.
-- Retenção: sem limpeza de `notifications` antigas, `api_usage_hourly` e `audit_logs`.
-- Entrega de aviso é "pelo menos uma vez": processo morto no meio do envio reenvia em 2 min.
-- Medir o limite geral de 120/min por chave e IP com tráfego real; gravação de métricas em lote grande × tamanho do pool.
-- Testes de navegador (Playwright) não foram rodados desde a tarefa 12 da Fase 2B, a pedido do dono: `entrada.spec.ts` e `vitrine.spec.ts` foram atualizados ao desenho novo (vitrine atrás do login de admin, sem `data-material`) sem rodar; rodar, corrigir o que faltar e ampliar quando ele for testar.
-- Telefones de demonstração: são fictícios, mas não há faixa reservada no Brasil.
-- Horário de verão: no dia de 25 horas o cálculo de horários livres esconde alguns horários bons, e no de 23 horas pode oferecer início fora da grade; cobrir com teste (Lisboa e Nova York) e decidir se corrige.
-- Espera da trava por profissional segura uma conexão do pool por até 15 s: observar em carga e dimensionar o pool.
-- `tsx --conditions=react-server` vale para o processo inteiro do seed e do `dev`: se o domínio passar a importar `react-dom/server`, separar `createTenantContext` de `server-only`.
-- Migrações: índices parciais e FKs compostas não existem no schema Prisma; gerar sempre o diff de schema para schema. Afirmar o nome do CHECK nos testes negativos do schema.
-
-- Postgres atrás de PgBouncer em modo transaction pode ignorar `options -c timezone=UTC`: conferir a sessão em UTC contra a URL de produção.
-- Banco embutido escutando só em 127.0.0.1; parar o banco quando um passo posterior ao start falha; handlers de sinal do `scripts/dev.ts` desde o início.
-- Padrões de host em quatro lugares (proxy, env, `dev.ts`, Playwright): extrair `hostConfigFromEnv`.
-- CSP completa com nonce, HSTS, cookies com prefixo `__Host-`.
-- Falha de disco na rota de arquivos vira 404 sem registro; "GET / 404" no log quando uma action redireciona atrás do proxy; teste automatizado dos cabeçalhos de `/arquivos` com o servidor rodando.
-
-## App (quando o repositório do aplicativo chegar)
-
-- O logout não apaga o aparelho: o app chama `DELETE /v1/me/devices/{token}` antes de sair, ou o logout passa a aceitar `pushToken`.
-- Esquemas de WebView (`capacitor://`, `ionic://`) nas origens.
+- Rotas `staff/*` dos módulos (pedidos, resgates, baixa de voucher).
+- `POST /v1/store/orders` deve sempre mandar `Idempotency-Key` (sem ela, dois toques criam dois pedidos); nova cotação entre os toques dá 409 `idempotency_key_reused`.
+- Logout não apaga o aparelho: o app chama `DELETE /v1/me/devices/{token}` antes de sair, ou o logout passa a aceitar `pushToken`.
+- Esquemas de WebView (`capacitor://`, `ionic://`) nas origens do CORS.
 - Tolerância à repetição da renovação por falha de rede; teto de vida da família de tokens.
 - Troca de e-mail pelo app com verificação.
 - Um app compartilhado × um app por negócio (a API atende os dois).
 - `details.nearest` do erro de horário ocupado não traz `professionalIds`.
-- Motivo do cancelamento: o `cancelReason` escrito pela equipe chega ao cliente; separar motivo público de motivo interno.
+- `cancelReason` escrito pela equipe chega ao cliente: separar motivo público de interno.
+- Recibos do Expo não são consultados.
 
-## Para o dono decidir (visual)
+## Depois
 
-- Esmalte ficou mais liso que os outros materiais.
-- Couro em cor clara parece salpicado.
-- Contorno do nome em baixo-relevo pesado com a fonte arredondada (tela de escolher conta).
-- Carimbo ou lâmpada para a situação na lista de contas do painel dev.
-- Elástico na tela de entrada e parafusos no painel dev (acrescentados por iniciativa do implementador).
+- Segurança: CSP completa com nonce e cookies com prefixo `__Host-` (precisam de navegador para conferir).
+- Várias instâncias exigem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa (a partida avisa).
+- Medir com tráfego real: limite geral de 120/min por chave e IP; gravação de métricas em lote grande × tamanho do pool; espera da trava por profissional (segura uma conexão do pool por até 15 s).
+- PgBouncer em modo transação pode ignorar `-c timezone=UTC`: conferir contra a URL de produção (a partida confere e recusa).
+- Telefone estrangeiro digitado sem `+` e com 10 ou 11 dígitos é tratado como brasileiro: dica na tela.
+- Agenda: o conjunto de profissionais do resumo difere do da agenda em dois casos limite; `listClosures` precisa de visão por ator antes de virar rota; `updateRulesAsAdmin` grava fora de `updateSchedulingRules` (unificar se o caminho do dono ganhar efeito colateral).
+- Relatórios: `byDay` faz uma agregação por dia local (até 366); se pesar, uma consulta única com `AT TIME ZONE`. `orders` não tem índice em `paid_at` (usado nas métricas da loja).
+- Entrega de aviso é "pelo menos uma vez": processo morto no meio do envio reenvia em 2 min.
+- Interface: `Sheet` sem teste de rolagem travada e `aria-modal`; `Tabs` com `href` como navegação com `aria-current`; `Dialog` intercepta Esc de filhos; barra da base do celular deixa de grudar com ancestral `overflow`.
+- Falha de disco na rota de arquivos vira 404 sem registro; teste dos cabeçalhos de `/arquivos` com o servidor rodando.
+- `tsx --conditions=react-server` vale para o processo todo do seed e do `dev`: se o domínio importar `react-dom/server`, separar `createTenantContext` de `server-only`.
+- Migrações: gerar sempre o diff de schema para schema (índices parciais e FKs compostas); afirmar o nome do CHECK nos testes negativos.
+- Banco embutido: escutar só em 127.0.0.1 e parar quando um passo posterior ao start falha.
+- Telefones de demonstração são fictícios, mas não há faixa reservada no Brasil.
+- Apagar a pasta local `_legacy/` (fora do git) quando o dono confirmar.

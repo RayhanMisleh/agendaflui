@@ -1,0 +1,124 @@
+# Arquitetura
+
+Um projeto Next.js 16 (TypeScript estrito, Prisma 7, PostgreSQL) que serve três endereços. A spec com as decisões de
+produto está em `docs/superpowers/specs/2026-11-13-agendaflui-design.md`; as regras de tempo, em `docs/TEMPO.md`.
+
+## Três hosts
+
+`DEV_HOST`, `PAINEL_HOST` e `API_HOST` vêm do ambiente (nunca fixos no código). `hostConfigFromEnv` e `DEFAULT_HOSTS`
+(`src/server/hosts.ts`) são a única leitura deles: `env.ts`, o proxy, `scripts/dev.ts` e o Playwright a usam.
+
+| Host | Quem usa | Pasta em `src/app/` |
+|---|---|---|
+| Painel dev | admins da plataforma | `dev/` |
+| Painel do negócio | donos, gerentes e profissionais | `painel/` |
+| API | o aplicativo | `api/v1/` |
+
+`src/proxy.ts` lê o cabeçalho `Host` (nunca `X-Forwarded-Host`) e chama `routeRequest`: reescreve `/x` para `/<área>/x`,
+deixa passar `/_next`, `/brand`, `/arquivos` e `/healthz` (este em qualquer host) e responde 404 a host desconhecido ou a
+caminho que já comece com o nome de uma área. O proxy do servidor precisa preservar o `Host`; as rotas POST do painel dev
+conferem `Origin == Host`.
+
+## Camadas
+
+- `src/app/` rotas e telas (Server Components e Server Actions). Fina: autentica, valida a entrada e chama o domínio.
+  `_lib/` guarda o apoio das telas; `healthz/` e `arquivos/` (imagens enviadas) atendem em todos os hosts.
+- `src/server/domain/` toda a regra de negócio, por assunto: `scheduling`, `catalog`, `customers`, `team`, `settings`,
+  `reports`, `notifications` (fila), `loyalty`, `banners`, `store`, `vouchers`, `platform` (painel dev) e `account`.
+  Cada função recebe `ctx` (conta, ator, `ctx.db`, `ctx.clock()`); nunca usa o cliente Prisma cru nem `new Date()`.
+  Erros são `DomainError` (`domain/errors.ts`), que também exporta o `z` usado nos esquemas.
+- `src/server/auth/` sessões, senhas, papéis e capacidades (`capabilities.ts`), tokens do app, limites de taxa, suporte.
+- `src/server/db/` cliente Prisma, `tenantDb` (`tenant.ts`), classificação dos modelos (`models.ts`), retenção, saúde.
+- `src/server/api/` camada HTTP da API: `defineRoute`, validação, erros, CORS, uso, contrato e o OpenAPI gerado.
+- `src/server/{time,integrations,notifications,storage}/` tempo, provedores externos, fila de avisos e arquivos.
+- `src/ui/` design system (componentes, molduras, temas, estilos); `src/shared/` código sem servidor (módulos, tema).
+  A marca vem do repositório `branding/`; os tokens ficam em `src/ui/theme` e `src/shared/theme`.
+
+O ESLint impõe as fronteiras: cliente Prisma cru só em `src/server/db`, `auth`, `domain/platform`, `prisma`, `scripts` e
+`tests`; rotas não importam `tenantDb`; `new Date(texto)` e os métodos locais de data são proibidos fora de `src/server/time/`.
+
+## Isolamento entre contas
+
+Cada negócio é uma conta (`businesses`). Os modelos são classificados em `src/server/db/models.ts` (de conta,
+de conta opcional, de plataforma ou o próprio registro da conta).
+
+- `tenantDb(businessId)` (`src/server/db/tenant.ts`) é o único caminho para dados de conta: filtra por `businessId` em toda
+  leitura, alteração e exclusão, grava a conta no `create`, recusa escrita aninhada, SQL cru e modelos de plataforma
+  (inclusive por relação, em `include`, `where` e `orderBy`).
+- No banco, toda tabela de conta tem `business_id` e as relações entre elas usam FK composta com `business_id`: uma linha
+  nunca aponta para outra conta. `tests/integration/schema.test.ts` confere a estrutura e falha para tabela nova sem
+  classificação ou sem FK composta.
+- Tabela nova: classifique em `models.ts`; migrações com índices parciais e FKs compostas são geradas pelo diff de
+  schema para schema (o schema Prisma não os expressa).
+
+## Acesso e papéis
+
+- **Painel dev**: administradores da plataforma (`platform-auth.ts`, sessão de 12 h). Criam contas, ligam módulos,
+  configuram integrações, emitem chaves de app e veem métricas, uso, auditoria e o estado do sistema (`/sistema`).
+- **Painel do negócio**: membros da conta (`member-auth.ts`, sessão de 30 dias, um usuário pode ter várias contas). Papéis
+  `OWNER`, `MANAGER` e `PROFESSIONAL` mapeiam para capacidades (`can()` em `capabilities.ts`); o domínio chama `authorize`.
+  A conta sempre mantém ao menos um dono ativo. Cada conta tem o próprio link de entrada (`/entrar/{slug}`).
+- **Suporte** ("entrar como", `support-session.ts`): o admin troca um token de passagem (60 s, uso único) por uma sessão de
+  60 minutos fixos no painel do negócio, com poderes de dono, exceto gerir acessos da equipe. Admin ou conta inativos derrubam a
+  sessão na requisição seguinte. As ações ficam na auditoria.
+- **API do app** (`/v1`, `define-route.ts`): toda rota declara o tipo de autenticação (`none`, `key`, `key_or_customer`,
+  `customer`, `staff`). A chave de app (`X-App-Key`, `domain/platform/api-keys.ts`; uma por conta ou de plataforma, com origens
+  permitidas) identifica a conta; `customer` e `staff` exigem também o token de acesso (JWT de 15 min) e o de renovação
+  (60 dias, rotacionado, só o hash no banco) de `auth/api-tokens.ts`. Limites de taxa por chave e IP ficam no banco
+  (`rate-limit-db.ts`). Cada rota alimenta o uso por hora (`api/usage.ts`). O contrato é o OpenAPI de `/v1/openapi.json`,
+  gerado das mesmas definições de rota (`api/openapi.ts`). Criações aceitam `Idempotency-Key`.
+
+## Módulos
+
+Quatro módulos opcionais por conta (`src/shared/modules.ts`): `loyalty` (fidelidade), `banners`, `store` (loja) e `vouchers`
+(exige a loja). O admin os liga na aba Módulos do painel dev (`business_modules`). Cada função de domínio do módulo chama
+`requireModule` (`domain/modules.ts`), que lança `module_disabled`; na API vira 404 e a interface esconde o menu. Desligar
+guarda os dados. A capacidade `manage_*` correspondente controla quem edita.
+
+## Integrações e segredos
+
+Mercado Pago (pagamento), Frenet (frete) e ViaCEP (CEP) ficam em `src/server/integrations/`, escolhidos por
+`INTEGRATIONS_MODE` (`real` ou `fake`; produção só `real`). Os tokens por conta ficam cifrados (`auth/secret-box.ts`: AES-256-GCM,
+chave derivada do `APP_SECRET`, conta e campo autenticados junto). Só o admin os grava. A leitura em texto puro passa pelo
+leitor restrito `domain/platform/integration-secrets.ts`, que só `domain/store/**` e `domain/platform/**` podem importar
+(ESLint e `tests/unit/integration-secrets-imports.test.ts`). O texto puro nunca vai para tela, API, log ou auditoria; as telas
+mostram só os 4 últimos caracteres. O webhook do Mercado Pago é `POST /v1/webhooks/mercadopago/{chave da conta}`: a chave
+secreta da URL identifica a conta e o estado do pagamento vem sempre da consulta à API do provedor.
+
+## Travas
+
+Concorrência no mesmo registro é serializada por travas de transação do Postgres, sempre pela **função única**
+`$lockKey(escopo, id)` do `tenantDb` (`pg_advisory_xact_lock` sobre `conta:escopo:id`; só dentro de `$transaction`). O domínio de
+plataforma, que usa o cliente cru, tem `lockKeyRaw` (`db/tenant.ts`) com a mesma chave. Escopos permitidos: `professional`,
+`customer`, `membership`, `business_owners`, `catalog`, `loyalty`, `banners`, `store`, `order`. Não existe outra forma de
+travar. Para nunca esperar em círculo (deadlock 40P01), a ordem é:
+
+- Acesso (convite, papel, desativação, redefinição de senha, login do app): `business_owners` da conta, depois os vínculos em
+  ordem crescente de id, depois a linha do usuário, depois tokens e sessões (`lockUserAccess` em `auth/password-reset.ts`).
+- Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
+- Pedidos: o pedido (`order`) reserva e devolve estoque em ordem de id, produtos antes de vouchers.
+
+## Fila de avisos e agendador interno
+
+Avisos (e-mail e push) entram em `notifications` na mesma transação do fato que os gerou
+(`domain/notifications/outbox.ts`). O envio (`src/server/notifications/`) reserva linhas com `FOR UPDATE SKIP LOCKED` por 2
+minutos (`claim.ts`), decide, renderiza e entrega por canal (`channels/`: SMTP e Expo; arquivos em `.local/` em
+desenvolvimento), com até 5 tentativas e espera crescente. A garantia é "pelo menos uma vez".
+
+`scheduler.ts` sobe com o servidor (`src/instrumentation.ts`; desliga com `WORKER_ENABLED=false`) e roda em qualquer número de
+instâncias. Cada execução é gravada em `scheduler_runs` e aparece em `/sistema`. Tarefas: `notifications` (a cada minuto),
+`store` (varredura de pedidos vencidos e conferência no Mercado Pago), `usage_flush` (métricas de uso, a cada 30 s),
+`cleanup` (sessões, códigos e limites vencidos, a cada hora) e `retention` (diária: avisos terminados com mais de 90 dias,
+uso da API com mais de 400, auditoria com mais de 2 anos; `src/server/db/retention.ts`, em lotes). `npm run worker:once` roda
+uma rodada de avisos e termina.
+
+## Arquivos
+
+Imagens enviadas (logo, fotos da equipe, banners, produtos, vouchers) passam por `storage/images.ts` (valida e recodifica) e
+vão para a interface `Storage` (`storage/storage.ts`), hoje em disco (`local-disk.ts`) em `STORAGE_DIR`; produção usa um
+volume persistente. São servidas por `GET /arquivos/{chave}` em qualquer host, com cabeçalhos de segurança.
+
+## Saúde e partida
+
+`GET /healthz` consulta o banco (503 se não responder em 2 s). `scripts/start-production.ts` valida o ambiente, espera o banco,
+confere fuso e travas, aplica as migrações e inicia o Next; detalhes em `docs/PUBLICACAO.md`.

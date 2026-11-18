@@ -55,8 +55,6 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 - O que cada papel vê depende da capacidade: o profissional só abre a própria agenda, os próprios números e
   o próprio perfil.
 - `npm run smoke` também pede cada tela do painel do negócio, com uma sessão temporária de dono.
-- A conferência visual (inclusive a 375 px) e os testes de navegador (`npm run test:e2e`) ficam para o dono:
-  nenhum agente abriu o painel do negócio em navegador, e os e2e foram atualizados sem rodar.
 
 ## Módulos e integrações
 
@@ -93,7 +91,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 | `npm run smoke` | Fumaça por HTTP das telas dos dois painéis (só em banco local) |
 | `npm run typecheck` / `npm run lint` | Tipos e estilo |
 | `npm test` / `npm run test:tz` | Testes unitários e de integração; datas em vários fusos |
-| `npm run test:e2e` | Testes no navegador (sobem o `npm run dev` se preciso) |
+| `npm run test:e2e` | Testes no navegador (sobem o `npm run dev` se preciso; ainda não foram rodados, veja as pendências) |
 | `npm run worker:once` | Uma rodada de envio de avisos |
 | `npm run build` | Build de produção |
 
@@ -105,4 +103,14 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 - `prisma/` esquema, migrações e seed
 - `scripts/` banco local, `npm run dev` e criação de administrador
 - `tests/` unit, integration e e2e
-- `docs/` spec e decisões
+- `docs/` documentação (abaixo)
+
+## Documentação
+
+- `docs/ARQUITETURA.md` camadas, endereços, isolamento entre contas, acesso, travas, fila de avisos
+- `docs/TEMPO.md` regras de tempo e fuso, horário de verão
+- `docs/PUBLICACAO.md` publicação em produção (Docker, Coolify, variáveis, backup)
+- `docs/superpowers/specs/` spec do produto e direção de design
+- `docs/superpowers/pendencias-proximas-fases.md` o que continua pendente
+- `AGENTS.md` regras curtas para quem edita (pessoa ou IA)
+- API: OpenAPI gerado em `/v1/openapi.json`
