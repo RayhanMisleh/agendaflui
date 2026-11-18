@@ -169,6 +169,42 @@ describe('ficha do cliente: ajuste e resgate no balcão', () => {
     expect((await prisma.prizeRedemption.findMany({ where: { status: 'PENDING' } })).length).toBe(1)
   })
 
+  test('resgatar no balcão: reenviar com a mesma chave não debita de novo; chave nova é outro resgate', async () => {
+    const p = await novoPremio('Corte', 60)
+    await lancar(s.b.id, s.cliente.id, 200)
+    const campos = { customerId: s.cliente.id, prizeId: p.id, requestId: 'folha-1', expectedCostPoints: '60' }
+    expect((await resgatarNoBalcao(ini, form(campos))).ok).toBe(true)
+    expect((await resgatarNoBalcao(ini, form(campos))).ok).toBe(true)
+    expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(140)
+    expect(await prisma.prizeRedemption.count({ where: { customerId: s.cliente.id } })).toBe(1)
+    expect((await resgatarNoBalcao(ini, form({ ...campos, requestId: 'folha-2' }))).ok).toBe(true)
+    expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(80)
+    // A mesma chave com outro prêmio é recusada, sem debitar.
+    const outro = await novoPremio('Barba', 30)
+    const r = await resgatarNoBalcao(ini, form({ ...campos, prizeId: outro.id, expectedCostPoints: '30' }))
+    expect(r.ok).toBe(false)
+    expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(80)
+  })
+
+  test('resgatar no balcão: o custo mostrado mudou, então é conflito e nada é debitado', async () => {
+    const p = await novoPremio('Corte', 60)
+    await lancar(s.b.id, s.cliente.id, 200)
+    await prisma.prize.update({ where: { id: p.id }, data: { costPoints: 90 } })
+    const r = await resgatarNoBalcao(ini, form({ customerId: s.cliente.id, prizeId: p.id, requestId: 'folha-9', expectedCostPoints: '60' }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toMatch(/custo deste prêmio mudou/)
+    expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(200)
+    expect(await prisma.prizeRedemption.count()).toBe(0)
+  })
+
+  test('resgatar no balcão: custo que não é número é recusado', async () => {
+    const p = await novoPremio('Corte', 60)
+    await lancar(s.b.id, s.cliente.id, 200)
+    const r = await resgatarNoBalcao(ini, form({ customerId: s.cliente.id, prizeId: p.id, expectedCostPoints: 'abc' }))
+    expect(r.ok).toBe(false)
+    expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(200)
+  })
+
   test('resgatar no balcão sem saldo é recusado com a mensagem do domínio', async () => {
     const p = await novoPremio('Corte', 60)
     const r = await resgatarNoBalcao(ini, form({ customerId: s.cliente.id, prizeId: p.id }))

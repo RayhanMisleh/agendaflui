@@ -28,8 +28,9 @@ const VOID_REASON_TEXT: Record<VoidReason, string> = { canceled: 'Pedido cancela
 /**
  * Devolve ao estoque o que o pedido reservou, UMA vez só: o pedido que ainda não devolveu (`stock_released_at` nulo) grava a
  * devolução e só então soma as unidades; já gravado, não faz nada. Pedido que foi pago e cuja entrega já saiu de `PENDING`
- * (separado, enviado ou entregue) não devolve: o produto não está mais na prateleira (pedido sem entrega, só de vouchers,
- * não tem prateleira: devolve). Os códigos de voucher ATIVOS são anulados (o usado fica; se houver algum e o motivo for
+ * (separado, enviado ou entregue) não devolve os produtos: não estão mais na prateleira (pedido sem entrega, só de vouchers,
+ * não tem prateleira: devolve). As unidades de voucher não usadas voltam
+ * em qualquer etapa da entrega. Os códigos de voucher ATIVOS são anulados (o usado fica; se houver algum e o motivo for
  * estorno, o pedido pede atenção `payment_reversed`), e do estoque do voucher só voltam as unidades não usadas. Chame sob
  * `$lockKey('order', id)`. Os itens sobem em ordem de id (produtos, depois vouchers), a ordem das reservas, para dois pedidos
  * nunca esperarem um ao outro.
@@ -42,13 +43,15 @@ export async function orderVoided(tx: TenantTx, ctx: TenantContext, orderId: str
   const used = await redeemedByItem(tx, orderId)
   if (how === 'refunded' && used.size > 0) await tx.order.updateMany({ where: { id: orderId }, data: { attention: 'payment_reversed' } })
   if (order.stockReleasedAt !== null) return
-  if (order.paidAt !== null && order.fulfillmentStatus !== 'PENDING' && order.deliveryMethod !== 'NONE') return
+  // Entrega já adiantada: o produto não está mais na prateleira, mas as unidades de voucher não usadas voltam sempre.
+  const shelfGone = order.paidAt !== null && order.fulfillmentStatus !== 'PENDING' && order.deliveryMethod !== 'NONE'
+  const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  const products = shelfGone ? [] : order.items.flatMap((i) => (i.productId === null ? [] : [{ id: i.productId, quantity: i.quantity }])).sort(byId)
+  const vouchers = order.items.flatMap((i) => (i.voucherId === null ? [] : [{ id: i.voucherId, quantity: i.quantity - (used.get(i.id) ?? 0) }])).filter((v) => v.quantity > 0).sort(byId)
+  if (shelfGone && vouchers.length === 0) return
   const { count } = await tx.order.updateMany({ where: { id: orderId, stockReleasedAt: null }, data: { stockReleasedAt: ctx.clock() } })
   if (count !== 1) return
-  const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  const products = order.items.flatMap((i) => (i.productId === null ? [] : [{ id: i.productId, quantity: i.quantity }])).sort(byId)
   for (const i of products) await tx.product.updateMany({ where: { id: i.id }, data: { stock: { increment: i.quantity } } })
-  const vouchers = order.items.flatMap((i) => (i.voucherId === null ? [] : [{ id: i.voucherId, quantity: i.quantity - (used.get(i.id) ?? 0) }])).filter((v) => v.quantity > 0).sort(byId)
   for (const v of vouchers) await tx.voucher.updateMany({ where: { id: v.id }, data: { stock: { increment: v.quantity } } })
   await audit(ctx, { action: 'order.stock_released', targetType: 'Order', targetId: orderId, metadata: { how, items: products.length + vouchers.length } }, tx)
 }

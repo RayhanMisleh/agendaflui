@@ -9,6 +9,7 @@ import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/
 import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { requirePainelModule } from '../_lib/modulo'
+import { BuscaPorCodigo } from './BuscaPorCodigo'
 import { DarBaixa } from './DarBaixa'
 import { CodigosLista, ParceirosLista, VouchersLista } from './VouchersPainel'
 import { SITUACAO_DO_CODIGO } from './situacao'
@@ -119,17 +120,18 @@ export default async function VouchersPage({ searchParams }: { searchParams: Pro
     const vazio = aviso ? (
       <EmptyState title="Esta página da lista não existe mais" description={aviso} action={<LinkButton href="/vouchers?aba=codigos">Voltar ao início da lista</LinkButton>} />
     ) : filtrado ? (
-      <EmptyState title="Nenhum código encontrado" description="Nada combina com a busca ou com o filtro. Busque pelo código, pelo nome do cliente ou pelo número do pedido." action={<LinkButton href="/vouchers?aba=codigos">Limpar busca</LinkButton>} />
+      <EmptyState title="Nenhum código encontrado" description="Nada combina com a busca ou com o filtro. Busque pelo nome do cliente ou pelo número do pedido; para o código, use o campo acima." action={<LinkButton href="/vouchers?aba=codigos">Limpar busca</LinkButton>} />
     ) : (
       <EmptyState title="Nenhum código ainda" description="Os códigos nascem quando o pagamento de um pedido de voucher é aprovado." />
     )
     corpo = (
       <>
+        <BuscaPorCodigo />
         <SearchBar
           action="/vouchers"
           hidden={{ aba: 'codigos' }}
-          label="Buscar códigos"
-          placeholder="Buscar pelo código, pelo cliente ou pelo número do pedido"
+          label="Buscar por cliente ou pedido"
+          placeholder="Buscar pelo cliente ou pelo número do pedido"
           query={search}
           filters={[{ name: 'situacao', label: 'Situação', value: situacao.id, options: SITUACOES_DE_CODIGO.map((s) => ({ value: s.id, label: s.label })) }]}
           clearHref="/vouchers?aba=codigos"

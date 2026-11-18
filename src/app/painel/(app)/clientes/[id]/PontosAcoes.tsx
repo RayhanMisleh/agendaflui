@@ -13,6 +13,8 @@ export function PontosAcoes({ customerId, nome, premios, pontos, ponto }: { cust
   const [folha, setFolha] = useState<'ajuste' | 'balcao' | null>(null)
   // Um identificador por abertura da folha: reenviar o mesmo formulário (duplo clique, reenvio do POST) não ajusta duas vezes.
   const [pedido, setPedido] = useState('')
+  const [premioId, setPremioId] = useState('')
+  const custoMostrado = premios.find((p) => p.id === premioId)?.costPoints
   const fechar = () => setFolha(null)
   return (
     <>
@@ -23,7 +25,11 @@ export function PontosAcoes({ customerId, nome, premios, pontos, ponto }: { cust
           }}>
           Ajustar {pontos.toLowerCase()}
         </Button>
-        <Button variant="secondary" icon={<Gift size={18} />} onClick={() => setFolha('balcao')}>
+        <Button variant="secondary" icon={<Gift size={18} />} onClick={() => {
+            setPedido(crypto.randomUUID())
+            setPremioId('')
+            setFolha('balcao')
+          }}>
           Resgatar no balcão
         </Button>
       </div>
@@ -51,8 +57,10 @@ export function PontosAcoes({ customerId, nome, premios, pontos, ponto }: { cust
             {(state) => (
               <>
                 <input type="hidden" name="customerId" value={customerId} />
+                <input type="hidden" name="requestId" value={pedido} />
+                <input type="hidden" name="expectedCostPoints" value={custoMostrado === undefined ? '' : String(custoMostrado)} />
                 <Field label="Prêmio" error={state.fields.prizeId}>
-                  <Select id="balcao-premio" name="prizeId" defaultValue={state.values.prizeId ?? ''}>
+                  <Select id="balcao-premio" name="prizeId" value={premioId} onChange={(e) => setPremioId(e.target.value)}>
                     <option value="">Escolha um prêmio</option>
                     {premios.map((p) => (
                       <option key={p.id} value={p.id}>

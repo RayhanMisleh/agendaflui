@@ -18,7 +18,8 @@ vi.mock('next/navigation', async (original) => {
   return { ...real, redirect: vi.fn((destino: string) => { throw Object.assign(new Error(`NEXT_REDIRECT ${destino}`), { digest: `NEXT_REDIRECT;replace;${destino};307;` }) }) }
 })
 
-import { arquivarParceiro, arquivarVoucher, consultarCodigo, criarParceiro, criarVoucher, darBaixa, salvarParceiro, salvarVoucher } from '@/app/painel/(app)/vouchers/actions'
+import { arquivarParceiro, arquivarVoucher, buscarPorCodigo, consultarCodigo, criarParceiro, criarVoucher, darBaixa, salvarParceiro, salvarVoucher } from '@/app/painel/(app)/vouchers/actions'
+import { BuscaPorCodigo } from '@/app/painel/(app)/vouchers/BuscaPorCodigo'
 import VouchersPage from '@/app/painel/(app)/vouchers/page'
 import VoucherPage from '@/app/painel/(app)/vouchers/[id]/page'
 import NovoVoucherPage from '@/app/painel/(app)/vouchers/novo/page'
@@ -56,6 +57,15 @@ function textos(no: unknown, saida: string[] = [], visto = new Set<object>()): s
 }
 const tela = (no: unknown) => textos(no).join(' | ')
 
+/** Se a árvore de elementos tem algum elemento do componente dado. */
+function contem(no: unknown, tipo: unknown, visto = new Set<object>()): boolean {
+  if (typeof no !== 'object' || no === null || visto.has(no)) return false
+  visto.add(no)
+  if (Array.isArray(no)) return no.some((n) => contem(n, tipo, visto))
+  if (!isValidElement(no)) return false
+  return no.type === tipo || Object.values(no.props as Record<string, unknown>).some((v) => contem(v, tipo, visto))
+}
+
 let c: CenaVouchers
 const comoMembro = (ctx: TenantContext) =>
   guards.requireTenant.mockImplementation(async (cap?: Parameters<typeof can>[1]) => {
@@ -89,6 +99,7 @@ describe('permissão, isolamento e módulo desligado', () => {
     await expect(NovoParceiroPage()).rejects.toMatchObject(nao)
     expect((await darBaixa(ini, form({ code: codigos[0]?.code ?? '' }))).message).toBe(NEGADO)
     expect((await consultarCodigo(ini, form({ code: codigos[0]?.code ?? '' }))).message).toBe(NEGADO)
+    expect((await buscarPorCodigo(ini, form({ code: codigos[0]?.code ?? '' }))).message).toBe(NEGADO)
     expect((await criarParceiro(ini, form({ name: 'X' }))).message).toBe(NEGADO)
     expect((await arquivarVoucher(ini, form({ id: c.voucher.id }))).message).toBe(NEGADO)
     expect((await codigosDe(codigos[0]?.orderId ?? ''))[0]?.status).toBe('ACTIVE')
@@ -105,6 +116,7 @@ describe('permissão, isolamento e módulo desligado', () => {
     await expect(ParceiroPage({ params: Promise.resolve({ id: c.parceiro.id }), searchParams: Promise.resolve({}) })).rejects.toMatchObject(nao)
     expect((await darBaixa(ini, form({ code: codigos[0]?.code ?? '' }))).ok).toBe(false)
     expect((await consultarCodigo(ini, form({ code: codigos[0]?.code ?? '' }))).ok).toBe(false)
+    expect((await buscarPorCodigo(ini, form({ code: codigos[0]?.code ?? '' }))).ok).toBe(false)
     expect((await criarVoucher(ini, form({ partnerId: c.parceiro.id, name: 'X', price: '10,00', stock: '1', validDays: '' }))).ok).toBe(false)
     expect((await arquivarParceiro(ini, form({ id: c.parceiro.id }))).ok).toBe(false)
     expect((await codigosDe(codigos[0]?.orderId ?? ''))[0]?.status).toBe('ACTIVE')
@@ -120,6 +132,48 @@ describe('permissão, isolamento e módulo desligado', () => {
     expect((await arquivarVoucher(ini, form({ id: outra.voucher.id }))).ok).toBe(false)
     expect((await arquivarParceiro(ini, form({ id: outra.parceiro.id }))).ok).toBe(false)
     expect((await prisma.voucher.findUniqueOrThrow({ where: { id: outra.voucher.id } })).archivedAt).toBeNull()
+  })
+})
+
+describe('busca pelo código (POST, nunca na URL)', () => {
+  test('a ação acha o código, mesmo em minúsculas, sem hífen ou só o começo, e mostra o resultado na própria tela', async () => {
+    const { codigos } = await comprar(2)
+    const code = codigos[0]?.code ?? ''
+    for (const digitado of [code, code.toLowerCase().replace('-', ''), code.slice(0, 4)]) {
+      const r = await buscarPorCodigo(ini, form({ code: digitado }))
+      expect(r.ok).toBe(true)
+      expect(r.values.lista).toContain(code)
+      expect(r.values.lista).toContain('Jantar para dois')
+      expect(r.values.lista).toContain('Maria da Silva')
+    }
+    const exato = await buscarPorCodigo(ini, form({ code }))
+    expect(exato.values.lista?.split('\n')).toHaveLength(1)
+  })
+
+  test('sem resultado, texto curto e código de outra conta', async () => {
+    const outra = await cenaVouchers()
+    const o = (await pedidoDeVoucher(outra.ctxCliente, [{ voucherId: outra.voucher.id, quantity: 1 }])).order
+    await pagar(outra, o)
+    const alheio = (await codigosDe(o.id))[0]?.code ?? ''
+    const r = await buscarPorCodigo(ini, form({ code: alheio }))
+    expect(r.ok).toBe(true)
+    expect(r.values.lista ?? '').toBe('')
+    expect(r.message).toBe('Nenhum código encontrado.')
+    const curto = await buscarPorCodigo(ini, form({ code: 'ab' }))
+    expect(curto.ok).toBe(false)
+    expect(curto.fields.code).toEqual(expect.any(String))
+  })
+
+  test('a aba Códigos tem o formulário de busca pelo código; a busca por GET não casa com código e a paginação não leva código', async () => {
+    const { codigos } = await comprar(1)
+    const code = codigos[0]?.code ?? ''
+    const t = tela(await busca({ aba: 'codigos' }))
+    expect(contem(await busca({ aba: 'codigos' }), BuscaPorCodigo)).toBe(true)
+    expect(t).toContain('Buscar pelo cliente ou pelo número do pedido')
+    expect(t).toContain(code)
+    const porGet = tela(await busca({ aba: 'codigos', search: code.toLowerCase().replace('-', '') }))
+    expect(porGet).toContain('Nenhum código encontrado')
+    expect(porGet).not.toContain(`${code} |`)
   })
 })
 

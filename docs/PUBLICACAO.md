@@ -14,6 +14,9 @@ Lista completa, uma linha cada, no bloco "Produção" do `.env.example`. Obrigat
 `APP_SECRET`, `DEV_HOST`, `PAINEL_HOST`, `API_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`.
 Atrás do proxy use `TRUSTED_PROXY_HOPS=1`: com 0 o IP do cliente é desconhecido (limites por IP desligados,
 auditoria sem IP). Sem `SMTP_URL` o servidor sobe, mas convites e cadastro pelo app não chegam.
+`INTEGRATIONS_MODE` (opcional) escolhe as integrações externas (Mercado Pago, Frenet e ViaCEP): `real` ou `fake`. Em
+produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
+produção ele impede a partida.
 O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS no proxy o login não funciona.
 
 ## Banco
@@ -74,3 +77,13 @@ uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante 
 - Prazo mínimo para pagar: 30 minutos (o Pix exige). A preferência vence em `max(prazo do pedido, agora + 30 min)`; um
   pagamento que chegar depois do prazo do pedido segue a regra "pago depois de vencer".
 - A varredura do agendador confere os pedidos vencidos com o Mercado Pago por até 60 s por rodada.
+
+### Teste no sandbox antes de abrir a loja
+
+Antes de ligar a Loja para uma conta real, com as credenciais de teste do Mercado Pago e o webhook apontado para o host da API:
+
+1. Faça um pedido e pague com Pix no sandbox.
+2. Faça outro pedido e pague com cartão de teste.
+3. Em cada um, confira no log que o aviso deu 200 (não 401) e que o pedido ficou pago na hora, sem esperar a varredura.
+
+Se o aviso der 401, a assinatura que o Mercado Pago manda não bate com a conferida pelo código: não abra a loja até resolver.

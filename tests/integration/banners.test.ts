@@ -48,7 +48,6 @@ const png = async (w = 800, h = 450) => ({ bytes: new Uint8Array(await sharp({ c
 describe('link do banner', () => {
   test('aceita https, rota interna e vazio', () => {
     expect(bannerLinkSchema.parse('https://loja.exemplo/x')).toBe('https://loja.exemplo/x')
-    expect(bannerLinkSchema.parse('http://loja.exemplo')).toBe('http://loja.exemplo')
     expect(bannerLinkSchema.parse('/servicos')).toBe('/servicos')
     expect(bannerLinkSchema.parse('/loja/produtos_novos')).toBe('/loja/produtos_novos')
     expect(bannerLinkSchema.parse('')).toBeNull()
@@ -56,7 +55,7 @@ describe('link do banner', () => {
     expect(bannerLinkSchema.parse(null)).toBeNull()
   })
 
-  test.each(['javascript:alert(1)', 'data:text/html,x', '//evil.example', '/a/../b', 'ftp://x', 'mailto:a@b.c', 'https://', 'servicos', '/a//b', '/'])(
+  test.each(['javascript:alert(1)', 'data:text/html,x', '//evil.example', '/a/../b', 'ftp://x', 'mailto:a@b.c', 'http://loja.exemplo', 'HTTP://loja.exemplo/x', 'https://', 'servicos', '/a//b', '/'])(
     'recusa %s com a orientação',
     (link) => {
       const r = bannerLinkSchema.safeParse(link)
@@ -241,6 +240,34 @@ describe('ordem e exclusão', () => {
     const s = await cena()
     await Promise.all(['A', 'B', 'C'].map((t) => createBanner(s.dono, novo(t))))
     expect((await prisma.banner.findMany({ where: { businessId: s.b.id } })).map((x) => x.displayOrder).sort()).toEqual([1, 2, 3])
+  })
+
+  test('ativar enquanto outra aba tira a imagem: nunca erro 500; ou ativa e a remoção desativa, ou é erro de campo', async () => {
+    const s = await cena()
+    for (let i = 0; i < 6; i++) {
+      const b = await createBanner(s.dono, novo(`Corrida ${i}`))
+      await setBannerImage(s.dono, b.id, await png())
+      const [ativar, tirar] = await Promise.allSettled([updateBanner(s.dono, b.id, { active: true }), setBannerImage(s.dono, b.id, null)])
+      expect(tirar.status).toBe('fulfilled')
+      if (ativar.status === 'rejected') {
+        expect(ativar.reason).toMatchObject({ code: 'validation', fields: { active: expect.any(String) } })
+      }
+      const linha = await prisma.banner.findUniqueOrThrow({ where: { id: b.id } })
+      expect(linha.imageUploadId).toBeNull()
+      expect(linha.active).toBe(false)
+    }
+  })
+
+  test('excluir enquanto a imagem é trocada: sem arquivo nem registro de imagem órfão', async () => {
+    const s = await cena()
+    for (let i = 0; i < 6; i++) {
+      const b = await createBanner(s.dono, novo(`Exclusão ${i}`))
+      await setBannerImage(s.dono, b.id, await png())
+      const [troca] = await Promise.allSettled([setBannerImage(s.dono, b.id, await png(900, 500)), deleteBanner(s.dono, b.id)])
+      if (troca.status === 'rejected') expect(troca.reason).toMatchObject({ code: 'not_found' })
+      expect(await prisma.banner.count({ where: { id: b.id } })).toBe(0)
+      expect(await prisma.upload.count({ where: { businessId: s.b.id } })).toBe(0)
+    }
   })
 
   test('excluir apaga a linha, o registro e o arquivo da imagem', async () => {

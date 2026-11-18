@@ -33,16 +33,16 @@ const INTERNAL_ROUTE = /^\/[a-z0-9][a-z0-9/_-]*$/
 
 function linkIsValid(link: string): boolean {
   if (link.startsWith('/')) return INTERNAL_ROUTE.test(link) && !link.includes('//')
-  if (!/^https?:\/\/[^\s]+$/i.test(link)) return false
+  if (!/^https:\/\/[^\s]+$/i.test(link)) return false
   try {
     const url = new URL(link)
-    return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== ''
+    return url.protocol === 'https:' && url.hostname !== ''
   } catch {
     return false
   }
 }
 
-/** Link do banner: vazio, `http(s)://` com endereço, ou rota interna do app. Qualquer outro esquema é recusado. */
+/** Link do banner: vazio, `https://` com endereço, ou rota interna do app. Qualquer outro esquema é recusado. */
 export const bannerLinkSchema: z.ZodType<string | null> = z
   .string(LINK_MESSAGE)
   .trim()
@@ -190,7 +190,6 @@ export async function updateBanner(ctx: TenantContext, id: string, i: Partial<Ba
     changes.startsOn !== undefined ? changes.startsOn : current.startsOn === null ? null : dbDateToLocal(current.startsOn),
     changes.endsOn !== undefined ? changes.endsOn : current.endsOn === null ? null : dbDateToLocal(current.endsOn),
   )
-  if (changes.active === true && current.imageUploadId === null) throw fieldError('active', NEEDS_IMAGE)
   const { startsOn, endsOn, ...rest } = changes
   const data: Prisma.BannerUncheckedUpdateInput = {
     ...rest,
@@ -198,10 +197,16 @@ export async function updateBanner(ctx: TenantContext, id: string, i: Partial<Ba
     ...(endsOn !== undefined ? { endsOn: endsOn === null ? null : localToDbDate(endsOn) } : {}),
   }
   const row = await ctx.db.$transaction(async (tx) => {
+    // Sob a mesma trava da troca de imagem: a conferência "precisa de imagem" lê o banner de agora, não o de antes.
+    await tx.$lockKey('banners', ctx.businessId)
+    if (changes.active === true) {
+      const agora = orNotFound(await tx.banner.findUnique({ where: { id }, select: { imageUploadId: true } }), 'Banner')
+      if (agora.imageUploadId === null) throw fieldError('active', NEEDS_IMAGE)
+    }
     const updated = await tx.banner.update({ where: { id }, data, include: withImage })
     await audit(ctx, { action: 'banner.updated', targetType: 'Banner', targetId: id, metadata: { fields: Object.keys(changes).join(',') } }, tx)
     return updated
-  })
+  }, TX_OPTIONS)
   return toView(ctx, row)
 }
 
@@ -288,11 +293,13 @@ export async function setBannerImage(ctx: TenantContext, id: string, file: { byt
 /** Banner não tem histórico: excluir apaga a linha, o registro da imagem e o arquivo. */
 export async function deleteBanner(ctx: TenantContext, id: string): Promise<void> {
   await guard(ctx)
-  const current = await loadRow(ctx, id)
+  await loadRow(ctx, id)
   const path = await ctx.db.$transaction(async (tx) => {
     await tx.$lockKey('banners', ctx.businessId)
-    const { count } = await tx.banner.deleteMany({ where: { id } })
-    if (count === 0) return null
+    // Relê sob a trava: uma troca de imagem concorrente muda `imageUploadId` e não pode deixar arquivo órfão.
+    const current = await tx.banner.findUnique({ where: { id }, select: { imageUploadId: true, title: true } })
+    if (current === null) return null
+    await tx.banner.delete({ where: { id } })
     const filePath = current.imageUploadId === null ? null : await deleteUploadRecord(tx, current.imageUploadId)
     await audit(ctx, { action: 'banner.deleted', targetType: 'Banner', targetId: id, metadata: { title: current.title } }, tx)
     return filePath

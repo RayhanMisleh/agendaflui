@@ -98,6 +98,16 @@ describe('manifesto de rotas', () => {
   })
 })
 
+describe('lista de códigos de voucher do cliente', () => {
+  test('o documento descreve cursor, limit e nextCursor', () => {
+    const doc = buildOpenApi() as unknown as Doc
+    const op = objeto(objeto(doc.paths['/v1/me/voucher-codes'])['get'])
+    const nomes = (op.parameters as { name: string }[]).map((p) => p.name)
+    expect(nomes).toEqual(expect.arrayContaining(['cursor', 'limit']))
+    expect(JSON.stringify(op.responses)).toContain('nextCursor')
+  })
+})
+
 describe('rotas de módulo', () => {
   const PREFIXOS = ['/v1/loyalty', '/v1/banners', '/v1/store', '/v1/vouchers', '/v1/me/addresses', '/v1/me/voucher-codes']
 

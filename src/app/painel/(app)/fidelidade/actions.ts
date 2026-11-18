@@ -129,10 +129,20 @@ export const ajustarPontos = tenantAction(
 
 export const resgatarNoBalcao = tenantAction(
   'manage_loyalty',
-  (fd) => ler(fd, ['customerId', 'prizeId'], ['deliverNow']),
+  (fd) => ler(fd, ['customerId', 'prizeId', 'requestId', 'expectedCostPoints'], ['deliverNow']),
   async (ctx, v) => {
     if ((v.prizeId ?? '') === '') throw erroDeCampo('prizeId', 'Escolha um prêmio.')
-    await redeemPrize(ctx, { prizeId: v.prizeId ?? '', customerId: v.customerId ?? '', deliverNow: v.deliverNow === 'on' })
+    const custo = (v.expectedCostPoints ?? '').trim()
+    if (custo !== '' && !/^\d{1,9}$/.test(custo)) throw erroDeCampo('prizeId', 'Não foi possível conferir o custo do prêmio. Feche e abra de novo.')
+    // A chave nasce quando a folha abre: reenviar o mesmo formulário devolve o mesmo resgate, sem debitar de novo.
+    // O custo é o que a opção escolhida mostrava: se mudou no meio, o domínio recusa em vez de debitar outro valor.
+    await redeemPrize(ctx, {
+      prizeId: v.prizeId ?? '',
+      customerId: v.customerId ?? '',
+      deliverNow: v.deliverNow === 'on',
+      ...((v.requestId ?? '') === '' ? {} : { idempotencyKey: v.requestId ?? '' }),
+      ...(custo === '' ? {} : { expectedCostPoints: Number(custo) }),
+    })
     atualizarPainel()
     return v.deliverNow === 'on' ? 'Resgate registrado e entregue.' : 'Resgate registrado. Falta entregar.'
   },

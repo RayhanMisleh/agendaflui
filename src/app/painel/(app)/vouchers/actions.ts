@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation'
 import { feito, ler, erroDeCampo, renomear } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
-import { findVoucherCode, redeemVoucherCode } from '@/server/domain/vouchers/codes'
+import { findVoucherCode, listVoucherCodes, redeemVoucherCode } from '@/server/domain/vouchers/codes'
 import type { VoucherCodeView } from '@/server/domain/vouchers/codes'
 import { archivePartner, createPartner, updatePartner } from '@/server/domain/vouchers/partners'
 import type { PartnerInput } from '@/server/domain/vouchers/partners'
@@ -10,6 +10,7 @@ import { archiveVoucher, createVoucher, updateVoucher } from '@/server/domain/vo
 import type { VoucherInput } from '@/server/domain/vouchers/vouchers'
 import { parseMoney } from '@/ui/money'
 import { tenantAction } from '../_lib/action'
+import { SITUACAO_DO_CODIGO } from './situacao'
 import { atualizarPainel } from '../_lib/revalidar'
 
 /*
@@ -34,6 +35,20 @@ export const consultarCodigo = tenantAction(
   (fd) => ler(fd, ['code']),
   (ctx, v) => findVoucherCode(ctx, v.code ?? ''),
   (view) => feito(fraseDoCodigo(view), { code: view.code, status: view.status }),
+)
+
+/**
+ * Busca códigos por um pedaço do código (formulário POST: o código nunca vai para a URL, o histórico nem o log do proxy).
+ * O resultado volta na própria tela, uma linha por código em `values.lista`.
+ */
+export const buscarPorCodigo = tenantAction(
+  'manage_vouchers',
+  (fd) => ler(fd, ['code']),
+  (ctx, v) => listVoucherCodes(ctx, { code: v.code ?? '', limit: 10 }),
+  ({ items }, v) =>
+    feito(items.length === 0 ? 'Nenhum código encontrado.' : `${items.length === 1 ? '1 código encontrado' : `${items.length} códigos encontrados`}.`, v, {
+      lista: items.map((c) => `${c.code} | ${c.voucher.name} de ${c.partnerName} | ${c.customer.name} | Pedido #${c.orderNumber} | ${SITUACAO_DO_CODIGO[c.status].text}${c.expiresLabel ? ` | Validade ${c.expiresLabel}` : ''}`).join('\n'),
+    }),
 )
 
 /** Dá baixa no código (uma vez só). Recusa vira texto: já usado, anulado, vencido ou não encontrado. */

@@ -70,7 +70,8 @@ function statusOf(row: Pick<VoucherCode, 'status' | 'expiresAt'>, now: Date): Vo
 function redeemedText(ctx: TenantContext, row: Pick<VoucherCode, 'redeemedAt' | 'redeemedByName'>): string | null {
   if (row.redeemedAt === null) return null
   const when = formatDateTime(row.redeemedAt, ctx.timeZone)
-  return row.redeemedByName ? `${when} por ${row.redeemedByName}` : when
+  // O cliente vê só a data: o nome de quem deu baixa é dado da equipe.
+  return row.redeemedByName && ctx.actor.kind !== 'customer' ? `${when} por ${row.redeemedByName}` : when
 }
 
 function toView(ctx: TenantContext, row: Row): VoucherCodeView {
@@ -220,6 +221,7 @@ const listSchema = z.object({
   status: z.enum(['ACTIVE', 'REDEEMED', 'VOID', 'EXPIRED'], 'Escolha uma situação válida.').optional(),
   voucherId: z.uuid('Escolha um voucher válido.').optional(),
   search: z.string().max(100, 'Use até 100 caracteres na busca.').optional(),
+  code: z.string().max(40, 'Use até 40 caracteres.').optional(),
   cursor: z.string().max(1024).optional(),
   limit: z.number().int('Informe o limite como número inteiro.').min(1, 'O limite mínimo é 1.').max(MAX_LIMIT, `O limite máximo é ${MAX_LIMIT}.`).optional(),
 })
@@ -240,22 +242,28 @@ function decodeCursor(cursor: string): { createdAt: Date; id: string } {
   throw new DomainError('validation', 'O cursor de paginação é inválido. Recarregue a lista.', { fields: { cursor: 'Cursor inválido.' } })
 }
 
+/** Filtro por pedaço do código (3 a 8 símbolos do alfabeto, com ou sem hífen e em qualquer caixa). Só entra por POST: o código nunca vai para a URL. */
+function codeFilter(raw: string | undefined): Prisma.VoucherCodeWhereInput {
+  if (raw === undefined || raw.trim() === '') return {}
+  const letters = raw.toUpperCase().replace(/[\s-]/g, '')
+  if (letters.length < 3 || letters.length > CODE_LENGTH || ![...letters].every((ch) => VOUCHER_CODE_ALPHABET.includes(ch))) {
+    throw new DomainError('validation', 'Digite de 3 a 8 letras e números do código.', { fields: { code: 'Digite de 3 a 8 letras e números do código.' } })
+  }
+  return { code: { contains: letters.length > 4 ? `${letters.slice(0, 4)}-${letters.slice(4)}` : letters } }
+}
+
 function searchFilter(raw: string): Prisma.VoucherCodeWhereInput {
   const text = raw.replace(/[\u0000-\u001f\u007f]/g, '').trim()
   if (text === '') return {}
   const or: Prisma.VoucherCodeWhereInput[] = [{ customer: { searchName: { contains: searchKey(text) } } }]
   if (/^\d{1,9}$/.test(text)) or.push({ order: { number: Number(text) } })
-  const letters = text.toUpperCase().replace(/[\s-]/g, '')
-  if (letters.length >= 3 && letters.length <= CODE_LENGTH && [...letters].every((ch) => VOUCHER_CODE_ALPHABET.includes(ch))) {
-    or.push({ code: { contains: letters.length > 4 ? `${letters.slice(0, 4)}-${letters.slice(4)}` : letters } })
-  }
   return { OR: or }
 }
 
-/** Códigos da conta, do mais novo ao mais antigo, por cursor; filtra por situação (EXPIRED é calculada), voucher e busca (código, cliente ou número do pedido). */
+/** Códigos da conta, do mais novo ao mais antigo, por cursor; filtra por situação (EXPIRED é calculada), voucher, busca (cliente ou número do pedido) e pedaço do código (`code`, só pela ação POST do painel). */
 export async function listVoucherCodes(
   ctx: TenantContext,
-  q: { status?: VoucherCodeStatus; voucherId?: string; search?: string; cursor?: string; limit?: number } = {},
+  q: { status?: VoucherCodeStatus; voucherId?: string; search?: string; code?: string; cursor?: string; limit?: number } = {},
 ): Promise<{ items: VoucherCodeView[]; nextCursor: string | null }> {
   await guard(ctx)
   const f = parse(listSchema, q)
@@ -268,6 +276,7 @@ export async function listVoucherCodes(
       f.status === 'ACTIVE' ? { status: 'ACTIVE', ...live } : f.status === 'EXPIRED' ? { status: 'ACTIVE', expiresAt: { lte: now } } : f.status !== undefined ? { status: f.status } : {},
       f.voucherId !== undefined ? { voucherId: f.voucherId } : {},
       searchFilter(f.search ?? ''),
+      codeFilter(f.code),
       after !== null ? { OR: [{ createdAt: { lt: after.createdAt } }, { createdAt: after.createdAt, id: { lt: after.id } }] } : {},
     ],
   }
@@ -286,10 +295,19 @@ export async function listCodesOfOrder(ctx: TenantContext, orderId: string): Pro
   return rows.map((r) => toView(ctx, r))
 }
 
-/** Os códigos do próprio cliente do app (nunca os de outro). */
-export async function listMyVoucherCodes(ctx: TenantContext): Promise<VoucherCodeView[]> {
+/** Os códigos do próprio cliente do app (nunca os de outro), do mais novo ao mais antigo, por cursor. */
+export async function listMyVoucherCodes(ctx: TenantContext, q: { cursor?: string; limit?: number } = {}): Promise<{ items: VoucherCodeView[]; nextCursor: string | null }> {
   await requireModule(ctx, 'vouchers')
   if (ctx.actor.kind !== 'customer') throw new DomainError('forbidden', 'Entre na sua conta para ver os seus vouchers.')
-  const rows = await ctx.db.voucherCode.findMany({ where: { customerId: ctx.actor.customerId }, orderBy: [{ createdAt: 'desc' }, { seq: 'asc' }, { id: 'asc' }], include: withRelations, take: 200 })
-  return rows.map((r) => toView(ctx, r))
+  const f = parse(listSchema.pick({ cursor: true, limit: true }), q)
+  const limit = f.limit ?? DEFAULT_LIMIT
+  const after = f.cursor === undefined ? null : decodeCursor(f.cursor)
+  const where: Prisma.VoucherCodeWhereInput = {
+    customerId: ctx.actor.customerId,
+    ...(after !== null ? { OR: [{ createdAt: { lt: after.createdAt } }, { createdAt: after.createdAt, id: { lt: after.id } }] } : {}),
+  }
+  const rows = await ctx.db.voucherCode.findMany({ where, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], include: withRelations, take: limit + 1 })
+  const page = rows.slice(0, limit)
+  const last = page[page.length - 1]
+  return { items: page.map((r) => toView(ctx, r)), nextCursor: rows.length > limit && last ? encodeCursor(last) : null }
 }

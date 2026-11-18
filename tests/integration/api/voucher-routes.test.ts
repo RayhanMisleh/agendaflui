@@ -130,6 +130,28 @@ describe('GET /v1/me/voucher-codes', () => {
     expect(itens.map((i) => i.status)).toEqual(['REDEEMED'])
   })
 
+  test('o código usado mostra só a data, sem o nome de quem deu baixa', async () => {
+    const o = await comprar(c.cliente, 1)
+    await redeemVoucherCode(dono, (await codigosDe(o.id))[0]?.code ?? '')
+    const r = await get(meusCodigos, '/v1/me/voucher-codes', { token: c.tokenCliente })
+    const [item] = jsonObject(r.json).items as { redeemedLabel: string }[]
+    expect(item?.redeemedLabel).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/)
+    const nome = dono.actor.kind === 'member' ? dono.actor.name : ''
+    expect(nome).not.toBe('')
+    expect(r.text).not.toContain(nome)
+  })
+
+  test('pagina por cursor: limit e cursor na consulta, nextCursor na resposta', async () => {
+    await comprar(c.cliente, 3)
+    const p1 = jsonObject((await get(meusCodigos, '/v1/me/voucher-codes?limit=2', { token: c.tokenCliente })).json)
+    expect((p1.items as unknown[]).length).toBe(2)
+    expect(typeof p1.nextCursor).toBe('string')
+    const p2 = jsonObject((await get(meusCodigos, `/v1/me/voucher-codes?limit=2&cursor=${encodeURIComponent(p1.nextCursor as string)}`, { token: c.tokenCliente })).json)
+    expect((p2.items as unknown[]).length).toBe(1)
+    expect(p2.nextCursor).toBeNull()
+    expect((await get(meusCodigos, '/v1/me/voucher-codes?limit=0', { token: c.tokenCliente })).status).toBe(422)
+  })
+
   test('exige login de cliente (sem token, 401)', async () => {
     expect((await get(meusCodigos, '/v1/me/voucher-codes')).status).toBe(401)
   })

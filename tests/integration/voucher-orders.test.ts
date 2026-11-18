@@ -3,7 +3,7 @@ import { createSystemContext } from '@/server/auth/context'
 import { prisma } from '@/server/db/client'
 import { priceCart } from '@/server/domain/store/cart'
 import { expireOverdueOrders } from '@/server/domain/store/expiry'
-import { cancelOrder, createOrder, getOrder } from '@/server/domain/store/orders'
+import { advanceFulfillment, cancelOrder, createOrder, getOrder } from '@/server/domain/store/orders'
 import { applyPayment } from '@/server/domain/store/payments'
 import { quoteShipping } from '@/server/domain/store/shipping'
 import { findVoucherCode, issueCodesForOrder, listMyVoucherCodes, listVoucherCodes, listCodesOfOrder, redeemVoucherCode } from '@/server/domain/vouchers/codes'
@@ -389,6 +389,41 @@ describe('estorno, cancelamento e pagamento depois de vencer', () => {
     expect(await estoqueDoVoucher(c.voucher.id)).toBe(10)
     expect((await codigosDe(order.id)).map((x) => x.status)).toEqual(['VOID'])
   })
+
+  test('pedido misto com a entrega do produto adiantada: estorno devolve só os vouchers não usados, uma vez só', async () => {
+    const p = await produto(c.dono, { stock: 5, priceCents: 2500 })
+    const { order } = await createOrder(c.ctxCliente, { lines: [{ productId: p.id, quantity: 1 }, ...linhaVoucher(2)], delivery: { method: 'PICKUP' }, note: null })
+    await pagar(c, order, { id: '5001' })
+    await advanceFulfillment(c.dono, order.id, { to: 'READY_FOR_PICKUP' })
+    expect(await estoque(p.id)).toBe(4)
+    expect(await estoqueDoVoucher(c.voucher.id)).toBe(8)
+    await estornar(order)
+    expect(await estoque(p.id)).toBe(4)
+    expect(await estoqueDoVoucher(c.voucher.id)).toBe(10)
+    expect((await codigosDe(order.id)).map((x) => x.status)).toEqual(['VOID', 'VOID'])
+    await estornar(order)
+    expect(await estoqueDoVoucher(c.voucher.id)).toBe(10)
+    expect(await prisma.auditLog.count({ where: { action: 'order.stock_released' } })).toBe(1)
+  })
+
+  test('pedido misto com a entrega adiantada cancelado pela equipe: o voucher volta ao estoque, o produto não', async () => {
+    const p = await produto(c.dono, { stock: 5, priceCents: 2500 })
+    const { order } = await createOrder(c.ctxCliente, { lines: [{ productId: p.id, quantity: 1 }, ...linhaVoucher(2)], delivery: { method: 'PICKUP' }, note: null })
+    await pagar(c, order, { id: '5001' })
+    await advanceFulfillment(c.dono, order.id, { to: 'READY_FOR_PICKUP' })
+    await cancelOrder(c.dono, order.id, { reason: 'Parceiro fechou' })
+    expect(await estoque(p.id)).toBe(4)
+    expect(await estoqueDoVoucher(c.voucher.id)).toBe(10)
+    expect((await codigosDe(order.id)).map((x) => x.status)).toEqual(['VOID', 'VOID'])
+  })
+
+  test('pedido só de vouchers entregue não volta para pendente', async () => {
+    const { order } = await pedidoDeVoucher(c.ctxCliente, linhaVoucher(1))
+    await pagar(c, order)
+    expect((await ordem(order.id)).fulfillmentStatus).toBe('DELIVERED')
+    await expect(advanceFulfillment(c.dono, order.id, { to: 'PENDING' })).rejects.toMatchObject({ code: 'conflict', reason: 'invalid_transition' })
+    expect((await ordem(order.id)).fulfillmentStatus).toBe('DELIVERED')
+  })
 })
 
 describe('baixa no balcão', () => {
@@ -457,7 +492,7 @@ describe('baixa no balcão', () => {
     await expect(redeemVoucherCode(c.dono, code)).rejects.toMatchObject({ code: 'not_found' })
     await expect(findVoucherCode(c.dono, code)).rejects.toMatchObject({ code: 'not_found' })
     expect((await codigosDe(o.id))[0]?.status).toBe('ACTIVE')
-    expect((await listVoucherCodes(c.dono, { search: code })).items).toEqual([])
+    expect((await listVoucherCodes(c.dono, { code })).items).toEqual([])
   })
 
   test('profissional e cliente: sem permissão e o código continua ativo', async () => {
@@ -500,7 +535,9 @@ describe('listas de códigos', () => {
     expect((await listVoucherCodes(c.dono, { status: 'ACTIVE' })).items).toHaveLength(4)
     expect((await listVoucherCodes(c.dono, { voucherId: outroV.id })).items).toHaveLength(2)
     expect((await listVoucherCodes(c.dono, { search: 'joão' })).items).toHaveLength(2)
-    expect((await listVoucherCodes(c.dono, { search: (usado?.code ?? '').toLowerCase().replace('-', '') })).items.map((x) => x.id)).toEqual([usado?.id])
+    expect((await listVoucherCodes(c.dono, { code: (usado?.code ?? '').toLowerCase().replace('-', '') })).items.map((x) => x.id)).toEqual([usado?.id])
+    expect((await listVoucherCodes(c.dono, { search: usado?.code ?? '' })).items).toEqual([])
+    await expect(listVoucherCodes(c.dono, { code: 'a!' })).rejects.toMatchObject({ code: 'validation', fields: { code: expect.any(String) } })
     expect((await listVoucherCodes(c.dono, { search: String(a.number) })).items).toHaveLength(3)
     const p1 = await listVoucherCodes(c.dono, { limit: 2 })
     const p2 = await listVoucherCodes(c.dono, { limit: 2, ...(p1.nextCursor ? { cursor: p1.nextCursor } : {}) })
@@ -519,11 +556,45 @@ describe('listas de códigos', () => {
     const b = (await pedidoDeVoucher(c.ctxOutro, linhaVoucher(1))).order
     await pagar(c, a)
     await pagar(c, b)
-    const meus = await listMyVoucherCodes(c.ctxCliente)
+    const meus = (await listMyVoucherCodes(c.ctxCliente)).items
     expect(meus.map((x) => x.id).sort()).toEqual((await codigosDe(a.id)).map((x) => x.id).sort())
     expect(meus.every((x) => x.customer.id === c.cliente.id)).toBe(true)
-    expect((await listMyVoucherCodes(c.ctxOutro)).map((x) => x.id)).toEqual((await codigosDe(b.id)).map((x) => x.id))
+    expect((await listMyVoucherCodes(c.ctxOutro)).items.map((x) => x.id)).toEqual((await codigosDe(b.id)).map((x) => x.id))
     await expect(listMyVoucherCodes(c.dono)).rejects.toMatchObject({ code: 'forbidden' })
+  })
+
+  test('os códigos do cliente são paginados por cursor, sem corte fixo e sem repetir', async () => {
+    const a = (await pedidoDeVoucher(c.ctxCliente, linhaVoucher(5))).order
+    await pagar(c, a)
+    const todos = await codigosDe(a.id)
+    const vistos: string[] = []
+    let cursor: string | undefined
+    let paginas = 0
+    do {
+      const pagina = await listMyVoucherCodes(c.ctxCliente, { limit: 2, ...(cursor === undefined ? {} : { cursor }) })
+      expect(pagina.items.length).toBeLessThanOrEqual(2)
+      vistos.push(...pagina.items.map((x) => x.id))
+      cursor = pagina.nextCursor ?? undefined
+      paginas++
+    } while (cursor !== undefined)
+    expect(paginas).toBe(3)
+    expect([...vistos].sort()).toEqual(todos.map((x) => x.id).sort())
+    expect(new Set(vistos).size).toBe(5)
+    await expect(listMyVoucherCodes(c.ctxCliente, { cursor: 'lixo' })).rejects.toMatchObject({ code: 'validation' })
+  })
+
+  test('o código usado mostra ao cliente só a data, sem o nome de quem deu baixa; a equipe vê o nome', async () => {
+    const a = (await pedidoDeVoucher(c.ctxCliente, linhaVoucher(1))).order
+    await pagar(c, a)
+    const [cod] = await codigosDe(a.id)
+    await redeemVoucherCode(c.gerente, cod?.code ?? '')
+    const nome = c.gerente.actor.kind === 'member' ? c.gerente.actor.name : ''
+    const [meu] = (await listMyVoucherCodes(c.ctxCliente)).items
+    expect(meu?.redeemedLabel).toContain('17/11/2026')
+    expect(meu?.redeemedLabel).not.toContain(nome)
+    expect(meu?.redeemedLabel).not.toContain('por ')
+    const [equipe] = (await listVoucherCodes(c.dono)).items
+    expect(equipe?.redeemedLabel).toContain(nome)
   })
 
   test('os códigos de um pedido aparecem no detalhe para a equipe', async () => {
