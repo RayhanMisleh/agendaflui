@@ -283,6 +283,10 @@ export async function createProduct(ctx: TenantContext, i: ProductInput): Promis
 export async function updateProduct(ctx: TenantContext, id: string, i: Partial<ProductInput> & { expectedStock?: number }): Promise<ProductView> {
   await guard(ctx)
   const { expectedStock, ...changes } = definedOnly(parse(updateSchema, i))
+  // Estoque só muda sabendo qual era (uma venda no meio não pode ser desfeita) ou por `adjustStock`: nada de gravar às cegas.
+  if (changes.stock !== undefined && expectedStock === undefined) {
+    throw fieldError('stock', 'Para mudar o estoque use "Ajustar estoque": ele não desfaz uma venda feita no meio.')
+  }
   const current = await loadRow(ctx, id)
   const price = changes.priceCents ?? current.priceCents
   const promo = changes.promoPriceCents !== undefined ? changes.promoPriceCents : current.promoPriceCents

@@ -37,6 +37,7 @@ export const DOMAIN_REASONS = [
   'stale_version',
   'too_early',
   'too_late',
+  'too_many_open_orders',
   'wrong_password',
 ] as const
 export type DomainReason = (typeof DOMAIN_REASONS)[number]

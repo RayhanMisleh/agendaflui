@@ -33,8 +33,10 @@ beforeEach(async () => {
 
 const get = (h: Parameters<typeof callRoute>[0], path: string, o: { token?: string; params?: Record<string, string> } = {}) =>
   callRoute(h, apiRequest('GET', path, { key: c.key, ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
-const post = (h: Parameters<typeof callRoute>[0], path: string, body: unknown, o: { token?: string; headers?: Record<string, string>; params?: Record<string, string> } = {}) =>
-  callRoute(h, apiRequest('POST', path, { key: c.key, ...(o.token ? { token: o.token } : {}), ...(body === undefined ? {} : { body }), ...(o.headers ? { headers: o.headers } : {}) }), o.params ?? {})
+let chaves = 0
+// O pedido exige `Idempotency-Key`: o `post` manda uma chave nova a cada chamada, salvo `semChave` ou `headers` próprios.
+const post = (h: Parameters<typeof callRoute>[0], path: string, body: unknown, o: { token?: string; headers?: Record<string, string>; params?: Record<string, string>; semChave?: boolean } = {}) =>
+  callRoute(h, apiRequest('POST', path, { key: c.key, ...(o.token ? { token: o.token } : {}), ...(body === undefined ? {} : { body }), headers: { ...(o.semChave ? {} : { 'idempotency-key': `chave-${++chaves}` }), ...(o.headers ?? {}) } }), o.params ?? {})
 
 const CONFIG = { pickupEnabled: true, pickupInstructions: 'Na recepção', shippingEnabled: true, originPostalCode: '01310100', defaultPackage: { weightGrams: 1000, lengthCm: 20, heightCm: 10, widthCm: 30 }, paymentWindowMin: 60 }
 
@@ -194,8 +196,32 @@ describe('POST /v1/store/orders', () => {
     const { p, lines } = await cenaEntrega()
     await prisma.product.update({ where: { id: p.id }, data: { stock: 100 } })
     expect((await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } })).status).toBe(401)
-    for (let i = 0; i < 10; i++) expect((await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente })).status).toBe(201)
+    // Até 3 pedidos aguardando pagamento por cliente: do 4º em diante é 409, mas cada tentativa conta no limite da rota.
+    const respostas: number[] = []
+    for (let i = 0; i < 10; i++) respostas.push((await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente })).status)
+    expect(respostas).toEqual([201, 201, 201, 409, 409, 409, 409, 409, 409, 409])
     expect((await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente })).status).toBe(429)
+  })
+
+  test('o 4º pedido aguardando pagamento é 409 too_many_open_orders com a mensagem em português', async () => {
+    const { lines } = await cenaEntrega()
+    for (let i = 0; i < 3; i++) expect((await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente })).status).toBe(201)
+    const r = await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente })
+    expect(r.status).toBe(409)
+    expect(apiError(r.json)).toMatchObject({ code: 'conflict', reason: 'too_many_open_orders', message: 'Você já tem pedidos esperando pagamento. Pague ou cancele um deles.' })
+  })
+
+  test('sem Idempotency-Key o pedido é 422 e nada é reservado; com a chave passa', async () => {
+    const { p, lines } = await cenaEntrega()
+    const r = await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente, semChave: true })
+    expect(r.status).toBe(422)
+    expect(apiError(r.json).code).toBe('validation')
+    expect(Object.keys(apiError(r.json).fields ?? {})).toEqual(['Idempotency-Key'])
+    expect((await prisma.product.findUniqueOrThrow({ where: { id: p.id } })).stock).toBe(10)
+    expect(await prisma.order.count()).toBe(0)
+    const vazia = await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente, semChave: true, headers: { 'idempotency-key': '' } })
+    expect(vazia.status).toBe(422)
+    expect((await post(criar, '/v1/store/orders', { lines, delivery: { method: 'PICKUP' } }, { token: c.tokenCliente })).status).toBe(201)
   })
 })
 

@@ -133,7 +133,7 @@ export function operation(def: AnyRouteDef): Json {
 
   const params = [
     ...(def.auth === 'none' ? [] : [BUSINESS_HEADER]),
-    ...(def.idempotent ? [IDEMPOTENCY_HEADER] : []),
+    ...(def.idempotent === 'required' ? [{ ...IDEMPOTENCY_HEADER, required: true }] : def.idempotent ? [IDEMPOTENCY_HEADER] : []),
     ...parameters(def.params, 'path'),
     ...parameters(def.query, 'query'),
   ]

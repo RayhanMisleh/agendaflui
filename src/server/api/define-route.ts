@@ -91,8 +91,8 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
    * sem pessoa autenticada (visitante), cai no IP. O limite é conferido depois de validar o token.
    */
   limitBy?: 'subject'
-  /** Só documentação (OpenAPI): a rota aceita o cabeçalho `Idempotency-Key`, que o handler repassa ao domínio. */
-  idempotent?: true
+  /** Só documentação (OpenAPI): a rota aceita o cabeçalho `Idempotency-Key`, que o handler repassa ao domínio. `'required'`: o cabeçalho é obrigatório (o handler responde 422 sem ele). */
+  idempotent?: true | 'required'
   /**
    * Módulo opcional que a rota exige. Conferido depois de montar o contexto (chave, limites e token) e ANTES de validar
    * `params`, `query` e `body`: módulo desligado devolve 404 `module_disabled`, nunca 422. Exige `auth` diferente de `none`.

@@ -234,10 +234,12 @@ describe('lista de pedidos', () => {
   const lista = (search: Record<string, string>) => LojaPage({ searchParams: Promise.resolve({ aba: 'pedidos', ...search }) })
 
   test('filtro situacao=a-entregar só traz pagos ainda não entregues', async () => {
+    // Até 3 pedidos abertos por cliente: os quatro pedidos saem de dois clientes.
+    const outro = await ctxDoCliente(b, await makeCustomer(businessId, { name: 'Outro Cliente' }))
     const aguardando = await pedido(1)
     const pago = await pedido(1)
-    const entregue = await pedido(1)
-    const cancelado = await pedido(1)
+    const entregue = await pedido(1, outro)
+    const cancelado = await pedido(1, outro)
     await marcarPago(pago.id)
     await marcarPago(entregue.id, { fulfillment: 'DELIVERED' })
     await prisma.order.update({ where: { id: cancelado.id }, data: { status: 'CANCELED', canceledAt: new Date() } })

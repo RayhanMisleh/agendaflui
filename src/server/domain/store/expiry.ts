@@ -14,26 +14,34 @@ const MAX_BATCHES = 50
  */
 export async function expireOverdueOrders(ctx: TenantContext, o: { except?: ReadonlySet<string> } = {}): Promise<number> {
   const except = [...(o.except ?? [])]
+  const failed = new Set<string>()
   let expired = 0
   for (let round = 0; round < MAX_BATCHES; round++) {
     const now = ctx.clock()
     const due = await ctx.db.order.findMany({
-      where: { status: 'AWAITING_PAYMENT', expiresAt: { lte: now }, ...(except.length > 0 ? { id: { notIn: except } } : {}) },
+      where: { status: 'AWAITING_PAYMENT', expiresAt: { lte: now }, ...(except.length + failed.size > 0 ? { id: { notIn: [...except, ...failed] } } : {}) },
       orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
       select: { id: true },
       take: BATCH,
     })
     if (due.length === 0) break
     for (const { id } of due) {
-      const done = await ctx.db.$transaction(async (tx) => {
-        await tx.$lockKey('order', id)
-        // Relê sob a trava: o pedido pode ter sido pago ou cancelado entre a lista e a trava.
-        const { count } = await tx.order.updateMany({ where: { id, status: 'AWAITING_PAYMENT', expiresAt: { lte: ctx.clock() } }, data: { status: 'EXPIRED' } })
-        if (count !== 1) return false
-        await orderVoided(tx, ctx, id, 'expired')
-        await audit(ctx, { action: 'order.expired', targetType: 'Order', targetId: id }, tx)
-        return true
-      }, TX_OPTIONS)
+      let done = false
+      try {
+        done = await ctx.db.$transaction(async (tx) => {
+          await tx.$lockKey('order', id)
+          // Relê sob a trava: o pedido pode ter sido pago ou cancelado entre a lista e a trava.
+          const { count } = await tx.order.updateMany({ where: { id, status: 'AWAITING_PAYMENT', expiresAt: { lte: ctx.clock() } }, data: { status: 'EXPIRED' } })
+          if (count !== 1) return false
+          await orderVoided(tx, ctx, id, 'expired')
+          await audit(ctx, { action: 'order.expired', targetType: 'Order', targetId: id }, tx)
+          return true
+        }, TX_OPTIONS)
+      } catch (err) {
+        // Um pedido que falha (tempo da trava, banco) não segura os outros: só o nome do erro vai ao log e a próxima rodada tenta de novo.
+        failed.add(id)
+        console.error(JSON.stringify({ level: 'error', event: 'order_expiry_failed', error: err instanceof Error ? err.name : 'unknown' }))
+      }
       if (done) expired++
     }
     if (due.length < BATCH) break

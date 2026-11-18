@@ -142,7 +142,17 @@ export async function updateAddress(ctx: TenantContext, id: string, i: Partial<A
 export async function deleteAddress(ctx: TenantContext, id: string): Promise<void> {
   const customerId = await ownCustomerId(ctx)
   await loadOwn(ctx, customerId, id)
-  await ctx.db.address.deleteMany({ where: { id, customerId } })
+  await ctx.db.$transaction(async (tx) => {
+    await tx.$lockKey('customer', customerId)
+    const gone = await tx.address.findFirst({ where: { id, customerId }, select: { isDefault: true } })
+    if (gone === null) return
+    await tx.address.deleteMany({ where: { id, customerId } })
+    // Apagou o padrão: o endereço mais recente que sobrou passa a ser o padrão.
+    if (gone.isDefault) {
+      const next = await tx.address.findFirst({ where: { customerId }, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], select: { id: true } })
+      if (next !== null) await tx.address.update({ where: { id: next.id }, data: { isDefault: true } })
+    }
+  }, TX_OPTIONS)
 }
 
 /**

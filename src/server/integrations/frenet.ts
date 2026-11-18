@@ -7,6 +7,9 @@ const TIMEOUT_MS = 8_000
 const SERVICO = 'O cálculo de frete'
 /** Teto de um frete: R$ 1.000.000,00 (acima disso o texto não é preço de frete). */
 const MAX_CENTS = 100_000_000
+/** Teto de um frete oferecido: R$ 10.000,00, e prazo até 1.000 dias: os mesmos limites da cotação assinada (`quote-token.ts`). */
+const MAX_SHIPPING_CENTS = 1_000_000
+const MAX_SHIPPING_DAYS = 1000
 
 /**
  * Preço em reais, escrito com ponto decimal ("21.5", "21.50", 21.5), em centavos inteiros e SEM ponto flutuante: o texto é
@@ -40,6 +43,8 @@ function toService(raw: unknown): FrenetService | null {
   const priceCents = priceToCents(s.ShippingPrice)
   const days = daysOf(s.DeliveryTime)
   if (serviceCode === null || name === null || priceCents === null || days === null) return null
+  // Opção que o token assinado não aceitaria não é oferecida: o cliente a escolheria e o pedido falharia sem culpa dele.
+  if (priceCents > MAX_SHIPPING_CENTS || days > MAX_SHIPPING_DAYS) return null
   return { serviceCode, name, carrier: asText(s.Carrier, 120) ?? name, priceCents, days }
 }
 

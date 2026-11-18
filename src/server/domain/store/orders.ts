@@ -57,6 +57,8 @@ type Db = TenantClient | TenantTx
 const DEFAULT_LIMIT = 30
 const MAX_LIMIT = 100
 const FIRST_NUMBER = 1001
+/** Pedidos aguardando pagamento (no prazo) que um cliente pode ter ao mesmo tempo: sem teto, um cliente seguraria o estoque da loja inteira. */
+const MAX_OPEN_ORDERS = 3
 /** Nome do índice único parcial `(business_id, customer_id, idempotency_key)`, criado na migração. */
 const IDEMPOTENCY_INDEX = 'orders_idempotency_key_key'
 const withRelations = { items: { orderBy: { position: 'asc' } }, customer: { select: { id: true, name: true } } } as const satisfies Prisma.OrderInclude
@@ -376,6 +378,9 @@ export async function createOrder(
         const replay = await replayOfKey(ctx, tx, keyed, tx)
         if (replay) return { order: replay, replayed: true }
       }
+      // Contado sob a trava da loja: dois pedidos ao mesmo tempo não passam juntos do teto. O vencido ainda não varrido não conta.
+      const open = await tx.order.count({ where: { customerId, status: 'AWAITING_PAYMENT', expiresAt: { gt: ctx.clock() } } })
+      if (open >= MAX_OPEN_ORDERS) throw new DomainError('conflict', 'Você já tem pedidos esperando pagamento. Pague ou cancele um deles.', { reason: 'too_many_open_orders' })
       const settings = await loadStoreSettings(ctx, tx)
       const cart = await priceCart(ctx, lines, tx)
       const resolved = await resolveDelivery(ctx, tx, customerId, delivery, settings, cart)

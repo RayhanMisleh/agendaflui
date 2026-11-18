@@ -427,6 +427,10 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
       const current = await tx.customer.findUnique({ where: { id } })
       if (!current) throw notFound()
       if (current.anonymizedAt !== null) return
+      // Pedido pago que ainda não foi entregue ou retirado precisa do endereço de entrega: a pessoa conclui ou cancela antes.
+      if ((await tx.order.count({ where: { customerId: id, status: 'PAID', fulfillmentStatus: { not: 'DELIVERED' } } })) > 0) {
+        throw new DomainError('conflict', 'Conclua ou cancele os pedidos em andamento antes.')
+      }
       await tx.customer.update({
         where: { id },
         data: {

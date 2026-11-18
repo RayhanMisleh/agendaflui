@@ -6,6 +6,7 @@ import { orderVoided } from '@/server/domain/store/order-events'
 import { cancelOrder, getOrder } from '@/server/domain/store/orders'
 import { setIntegrationsForTests } from '@/server/integrations'
 import { resetDb } from '../setup/db'
+import { makeCustomer } from '../setup/factories'
 import { domainError } from '../setup/expect'
 import { cenaLoja, ctxDoCliente, produto, type CenaLoja } from '../setup/store'
 import { estoque, marcarPago, pedidoComRetirada } from '../setup/store-orders'
@@ -95,7 +96,9 @@ describe('expireOverdueOrders', () => {
 
   test('muitos pedidos vencidos de uma vez: todos vencem e cada estoque volta uma vez', async () => {
     const p = await produto(c.dono, { stock: 120 })
-    for (let i = 0; i < 12; i++) await pedidoComRetirada(c.ctxCliente, [{ productId: p.id, quantity: 5 }])
+    // Até 3 pedidos abertos por cliente: 12 pedidos de 4 clientes.
+    const clientes = [c.ctxCliente, c.ctxOutro, await ctxDoCliente(c.b, await makeCustomer(c.b.id)), await ctxDoCliente(c.b, await makeCustomer(c.b.id))]
+    for (let i = 0; i < 12; i++) await pedidoComRetirada(clientes[i % 4]!, [{ productId: p.id, quantity: 5 }])
     expect(await estoque(p.id)).toBe(60)
     expect(await expireOverdueOrders(await createSystemContext(c.b.id, () => depois(61)))).toBe(12)
     expect(await estoque(p.id)).toBe(120)

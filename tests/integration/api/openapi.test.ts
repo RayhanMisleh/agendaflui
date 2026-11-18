@@ -82,6 +82,12 @@ describe('manifesto de rotas', () => {
     expect(Object.keys(ROUTE_MODULES).some((k) => k.startsWith('webhooks/'))).toBe(false)
   })
 
+  test('a criação de pedido exige o cabeçalho Idempotency-Key e as outras rotas idempotentes o aceitam', () => {
+    const cabecalho = (def: { method: string; path: string }) => ((routeDefinitions().find((d) => d.method === def.method && d.path === def.path)) as { idempotent?: unknown } | undefined)?.idempotent
+    expect(cabecalho({ method: 'POST', path: '/v1/store/orders' })).toBe('required')
+    expect(cabecalho({ method: 'POST', path: '/v1/appointments' })).toBe(true)
+  })
+
   test('os arquivos novos de rota não escapam: cada route.ts tem import no manifesto', () => {
     const texto = readFileSync(join(RAIZ, 'src/server/api/routes-manifest.ts'), 'utf8')
     for (const arquivo of arquivosDeRota()) {
@@ -359,6 +365,9 @@ describe('documento OpenAPI', () => {
     expect(params('post', '/v1/staff/appointments')).toContain('header:Idempotency-Key')
     expect(params('post', '/v1/appointments/{id}/cancel')).not.toContain('header:Idempotency-Key')
     expect(params('get', '/v1/health')).toEqual([])
+    const chave = (m: string, c: string) => (op(m, c).parameters as Json[]).find((p) => p.name === 'Idempotency-Key')
+    expect(chave('post', '/v1/store/orders')).toMatchObject({ in: 'header', required: true })
+    expect(chave('post', '/v1/appointments')).toMatchObject({ in: 'header', required: false })
     const id = (op('get', '/v1/staff/customers/{id}').parameters as Json[]).find((p) => p.name === 'id')
     expect(id).toMatchObject({ in: 'path', required: true, schema: { type: 'string', format: 'uuid' } })
     const limit = (op('get', '/v1/appointments').parameters as Json[]).find((p) => p.name === 'limit')
