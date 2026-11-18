@@ -22,6 +22,7 @@ produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` 
 produção ele impede a partida.
 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (base64 de 32 bytes, ex.: `openssl rand -base64 32`) fixa a chave das Server Actions. Com
 uma só instância é opcional; com várias é obrigatória, a mesma em todas e também no build (o Coolify a injeta nos dois).
+Em produção o servidor manda `Strict-Transport-Security` (1 ano, com subdomínios): não ligue o HSTS de novo no proxy com valor diferente.
 O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS no proxy o login não funciona.
 
 ## Banco
@@ -38,6 +39,11 @@ O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS 
 `scripts/start-production.ts`: valida o ambiente (sem imprimir valores) e a pasta de armazenamento, espera o banco
 (até cerca de 60 s), confere fuso/travas/`btree_gist`, roda `prisma migrate deploy` (duas instâncias juntas são seguras: o
 Prisma usa trava consultiva do Postgres) e inicia o Next, repassando `SIGTERM`. `MIGRATE_ON_START=false` pula a migração.
+
+## Retenção
+
+O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias, uso da API com mais de 400 dias
+e auditoria com mais de 2 anos (prazos em `src/server/db/retention.ts`). A execução aparece em /sistema como "Retenção de dados".
 
 ## Saúde
 

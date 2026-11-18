@@ -1,7 +1,7 @@
 import { prisma } from '@/server/db/client'
 import { fromEpochMs } from '@/server/time'
 
-export const SCHEDULER_KINDS = ['notifications', 'cleanup', 'usage_flush', 'store'] as const
+export const SCHEDULER_KINDS = ['notifications', 'cleanup', 'usage_flush', 'store', 'retention'] as const
 export type SchedulerKind = (typeof SCHEDULER_KINDS)[number]
 
 export type RunRecord = { kind: SchedulerKind; startedAt: Date; finishedAt: Date; ok: boolean; summary: string }
@@ -24,6 +24,9 @@ const LABELS: Readonly<Record<string, string>> = {
   execucoes: 'execuções',
   passagens: 'passagens',
   sessoes: 'sessões',
+  avisos: 'avisos',
+  uso: 'uso',
+  auditoria: 'auditoria',
 }
 
 function isCount(v: unknown): v is number {

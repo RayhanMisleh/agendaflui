@@ -290,7 +290,7 @@ model SupportHandoff {
 /// Uma execução do agendador (avisos, limpeza, métricas de uso). Tabela da plataforma: sem dado de conta nem pessoal no resumo.
 model SchedulerRun {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  /// `notifications`, `cleanup`, `usage_flush` ou `store` (lista fechada por CHECK no banco).
+  /// `notifications`, `cleanup`, `usage_flush`, `store` ou `retention` (lista fechada por CHECK no banco).
   kind       String
   startedAt  DateTime  @map("started_at") @db.Timestamptz(3)
   finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)

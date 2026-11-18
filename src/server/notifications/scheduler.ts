@@ -1,5 +1,6 @@
 import { flushUsageOrThrow } from '@/server/api/usage'
 import { purgeRefreshTokens } from '@/server/auth/api-tokens'
+import { runRetention } from '@/server/db/retention'
 import { purgeRateLimits } from '@/server/auth/rate-limit-db'
 import { purgeExpiredSessions, purgeSupportHandoffs } from '@/server/auth/support-session'
 import { purgeVerificationCodes } from '@/server/auth/verification-code'
@@ -11,6 +12,7 @@ const GUARD = '__agendafluiScheduler'
 const ROUND_MS = 60_000
 const CLEANUP_MS = 60 * 60_000
 const FIRST_ROUND_MS = 2_000
+const RETENTION_MS = 24 * 60 * 60_000
 const USAGE_FLUSH_MS = 30_000
 const SHUTDOWN_FLUSH_MS = 3_000
 
@@ -21,6 +23,8 @@ type Deps = {
   /** Varredura da loja a cada rodada (padrão: `sweepStore`; quem troca `run` e não passa `sweep` fica sem varredura). */
   sweep?: () => Promise<unknown>
   cleanup?: () => Promise<unknown>
+  /** Limpeza diária de dados antigos (padrão: `runRetention`; quem troca `run` e não passa `retention` fica sem ela). */
+  retention?: () => Promise<unknown>
   /** Grava as métricas de uso da API (padrão: `flushUsageOrThrow`, que devolve quantas linhas gravou). */
   flush?: () => Promise<unknown>
   /** Grava cada execução em `scheduler_runs` (padrão: `recordSchedulerRun`). */
@@ -57,13 +61,16 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
   if (existing) return existing
   const run = deps.run ?? (() => processDueNotifications())
   const sweep = deps.sweep ?? (deps.run === undefined ? () => sweepStore(new Date()) : null)
+  const retention = deps.retention ?? (deps.run === undefined ? () => runRetention(new Date()) : null)
   const cleanup = deps.cleanup ?? (() => cleanupRound())
   const flush = deps.flush ?? flushUsageOrThrow
   const record = deps.record ?? recordSchedulerRun
   let flushing = false
   let busy = false
   let cleaning = false
+  let retaining = false
   let lastCleanup = Number.NEGATIVE_INFINITY
+  let lastRetention = Number.NEGATIVE_INFINITY
 
   /**
    * Roda uma tarefa e grava a execução (início, fim, `ok` e resumo sem dado pessoal). Erro da tarefa é registrado só pelo nome;
@@ -109,13 +116,24 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
       busy = false
     }
     const t = Date.now()
-    if (cleaning || t - lastCleanup < CLEANUP_MS) return
-    cleaning = true
-    lastCleanup = t
-    try {
-      await timed('cleanup', 'limpeza', cleanup)
-    } finally {
-      cleaning = false
+    if (!cleaning && t - lastCleanup >= CLEANUP_MS) {
+      cleaning = true
+      lastCleanup = t
+      try {
+        await timed('cleanup', 'limpeza', cleanup)
+      } finally {
+        cleaning = false
+      }
+    }
+    // Uma vez por dia (e na primeira rodada depois de subir): dados antigos saem em lotes pequenos.
+    if (retention !== null && !retaining && t - lastRetention >= RETENTION_MS) {
+      retaining = true
+      lastRetention = t
+      try {
+        await timed('retention', 'retenção de dados', retention)
+      } finally {
+        retaining = false
+      }
     }
   }
 

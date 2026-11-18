@@ -34,3 +34,9 @@ describe('failureSummary', () => {
     expect(failureSummary(ruim)).toBe('erro: desconhecido')
   })
 })
+
+describe('summarize da retenção', () => {
+  test('rotula avisos, uso e auditoria', () => {
+    expect(summarize({ avisos: 3, uso: 2, auditoria: 1 })).toBe('avisos 3, uso 2, auditoria 1')
+  })
+})

@@ -257,3 +257,44 @@ describe('startScheduler: registro que não responde', () => {
     s.stop()
   })
 })
+
+describe('startScheduler: retenção diária', () => {
+  type Gravada = { kind: string; ok: boolean; summary: string }
+  test('roda na primeira rodada e depois uma vez a cada 24 horas, gravando a execução como retention', async () => {
+    vi.useFakeTimers()
+    const gravadas: Gravada[] = []
+    const retention = vi.fn(async () => ({ avisos: 5, uso: 0, auditoria: 1 }))
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, retention, flush: async () => 0, record: async (r) => void gravadas.push(r) })
+    await vi.advanceTimersByTimeAsync(2_500)
+    expect(retention).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(60 * 60_000 * 23)
+    expect(retention).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(60 * 60_000 * 2)
+    expect(retention).toHaveBeenCalledTimes(2)
+    s.stop()
+    expect(gravadas.filter((g) => g.kind === 'retention').map((g) => [g.ok, g.summary])).toEqual([
+      [true, 'avisos 5, uso 0, auditoria 1'],
+      [true, 'avisos 5, uso 0, auditoria 1'],
+    ])
+  })
+
+  test('falha da retenção é gravada só pelo nome e não impede a limpeza horária', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const gravadas: Gravada[] = []
+    const cleanup = vi.fn(async () => undefined)
+    const s = startScheduler({
+      run: async () => undefined,
+      cleanup,
+      retention: async () => {
+        throw new RangeError('segredo@x.y')
+      },
+      flush: async () => 0,
+      record: async (r) => void gravadas.push(r),
+    })
+    await vi.advanceTimersByTimeAsync(2_500)
+    s.stop()
+    expect(cleanup).toHaveBeenCalledTimes(1)
+    expect(gravadas.find((g) => g.kind === 'retention')).toMatchObject({ ok: false, summary: 'erro: RangeError' })
+  })
+})
