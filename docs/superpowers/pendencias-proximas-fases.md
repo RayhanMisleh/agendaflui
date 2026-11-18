@@ -47,7 +47,6 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
 - Migrações: gerar sempre o diff de schema para schema (índices parciais e FKs compostas); afirmar o nome do CHECK nos testes negativos.
 - Banco embutido: escutar só em 127.0.0.1 e parar quando um passo posterior ao start falha.
 - Telefones de demonstração são fictícios, mas não há faixa reservada no Brasil.
-- Apagar a pasta local `_legacy/` (fora do git) quando o dono confirmar.
 - Devolvidas da revisão do fechamento (conferidas no código):
   - `isUniqueViolation` olha só o código `P2002`; `team/professionals.ts` não confere o alvo (qual índice único).
   - `labelOfMinute` (`ui/components/planner/drag-math.ts`) repete `minuteLabel` do servidor sem comentário que explique a duplicação.
