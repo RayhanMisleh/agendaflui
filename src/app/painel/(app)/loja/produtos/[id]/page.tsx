@@ -44,7 +44,7 @@ export default async function ProdutoPage({
       ctx={ctx}
       title={produto.name}
       actions={
-        <LinkButton href="/loja" variant="ghost">
+        <LinkButton href="/loja?aba=produtos" variant="ghost">
           Voltar para a loja
         </LinkButton>
       }

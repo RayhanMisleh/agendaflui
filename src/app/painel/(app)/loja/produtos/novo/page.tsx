@@ -17,7 +17,7 @@ export default async function NovoProdutoPage() {
       ctx={ctx}
       title="Novo produto"
       actions={
-        <LinkButton href="/loja" variant="ghost">
+        <LinkButton href="/loja?aba=produtos" variant="ghost">
           Voltar para a loja
         </LinkButton>
       }

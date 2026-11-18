@@ -111,6 +111,9 @@ const PAGINAS_MODULOS: string[] = [
   '/fidelidade?aba=ajustes',
   '/fidelidade/premios/novo',
   '/loja',
+  '/loja?aba=pedidos',
+  '/loja?aba=pedidos&situacao=a-entregar&search=1',
+  '/loja/pedidos/{pedido}',
   '/loja?aba=produtos&search=a',
   '/loja?aba=produtos&situacao=arquivados&categoria=nao-existe&cursor=nao-existe',
   '/loja?aba=categorias',
@@ -287,6 +290,29 @@ async function main(): Promise<number> {
     limpezas.push(async () => {
       await prisma.product.deleteMany({ where: { id: produto.id } })
     })
+    // Um pedido de demonstração (aguardando pagamento) para a ficha; sai ao fim, junto com as sessões.
+    const pedido = cliente
+      ? await (async () => {
+          const ultimo = await prisma.order.aggregate({ where: { businessId: conta.id }, _max: { number: true } })
+          const criado = await prisma.order.create({
+            data: {
+              businessId: conta.id,
+              number: (ultimo._max.number ?? 1000) + 1,
+              customerId: cliente.id,
+              deliveryMethod: 'PICKUP',
+              itemsCents: 1990,
+              totalCents: 1990,
+              expiresAt: addMinutes(new Date(), 60),
+              items: { create: { businessId: conta.id, productId: produto.id, name: 'Produto da fumaça', unitPriceCents: 1990, quantity: 1, totalCents: 1990, position: 1 } },
+            },
+            select: { id: true },
+          })
+          limpezas.push(async () => {
+            await prisma.order.deleteMany({ where: { id: criado.id } })
+          })
+          return criado
+        })()
+      : null
     let falhas = 0
     let pulados = 0
     const hostPainel = `painel.localhost:${porta}`
@@ -297,9 +323,9 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id)
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '')
         const faltaRegistro =
-          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
+          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
           pulados++
           console.log(`PULOU      ${lote.rotulo} ${modelo}  (o seed não tem esse registro)`)

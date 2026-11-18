@@ -3,22 +3,36 @@ import { Plus } from 'lucide-react'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { listCategories } from '@/server/domain/store/categories'
+import { listOrders } from '@/server/domain/store/orders'
 import { listProducts } from '@/server/domain/store/products'
 import { getStoreIntegrations, getStoreSettings } from '@/server/domain/store/settings'
-import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/ui/components'
+import { ATTENTION_LABELS, Card, EmptyState, LinkButton, NavTabs, orderStatusText, orderStatusTone, Pagination, SearchBar } from '@/ui/components'
+import { formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { requirePainelModule } from '../_lib/modulo'
 import { CategoriasLista, ConfiguracoesForm, ProdutosLista } from './LojaPainel'
+import { PedidosLista } from './PedidosLista'
 
 export const metadata: Metadata = { title: 'Loja | AgendaFlui' }
 
 const ABAS = [
+  { id: 'pedidos', label: 'Pedidos' },
   { id: 'produtos', label: 'Produtos' },
   { id: 'categorias', label: 'Categorias' },
   { id: 'configuracoes', label: 'Configurações' },
 ] as const
 type Aba = (typeof ABAS)[number]['id']
+
+const SITUACOES_DE_PEDIDO = [
+  { id: '', label: 'Todos os pedidos', status: undefined },
+  { id: 'aguardando', label: 'Aguardando pagamento', status: 'AWAITING_PAYMENT' },
+  { id: 'a-entregar', label: 'Pagos, a entregar', status: 'to_fulfill' },
+  { id: 'entregues', label: 'Entregues', status: 'delivered' },
+  { id: 'cancelados', label: 'Cancelados e vencidos', status: 'closed' },
+] as const
+
+const ENTREGA_EM_TEXTO = { PICKUP: 'Retirada', SHIPPING: 'Entrega', NONE: 'Sem entrega' } as const
 
 const SITUACOES = [
   { id: '', label: 'Todos os produtos', situation: undefined },
@@ -36,12 +50,57 @@ export default async function LojaPage({ searchParams }: { searchParams: Promise
   const ctx = await requireTenant('manage_store')
   await requirePainelModule(ctx, 'store')
   const q = await searchParams
-  const aba: Aba = ABAS.find((a) => a.id === um(q.aba))?.id ?? 'produtos'
-  const abas = ABAS.map((a) => ({ id: a.id, label: a.label, href: a.id === 'produtos' ? '/loja' : `/loja?aba=${a.id}`, active: aba === a.id }))
+  const aba: Aba = ABAS.find((a) => a.id === um(q.aba))?.id ?? 'pedidos'
+  const abas = ABAS.map((a) => ({ id: a.id, label: a.label, href: a.id === 'pedidos' ? '/loja' : `/loja?aba=${a.id}`, active: aba === a.id }))
 
   let corpo
   let acoes = null
-  if (aba === 'produtos') {
+  if (aba === 'pedidos') {
+    const situacao = SITUACOES_DE_PEDIDO.find((s) => s.id === um(q.situacao)) ?? SITUACOES_DE_PEDIDO[0]
+    const search = limpar(um(q.search))
+    const cursor = um(q.cursor) || null
+    let pagina: Awaited<ReturnType<typeof listOrders>> | null = null
+    let aviso: string | null = null
+    try {
+      pagina = await listOrders(ctx, { ...(situacao.status ? { status: situacao.status } : {}), ...(search ? { search } : {}), ...(cursor ? { cursor } : {}), limit: 30 })
+    } catch (err) {
+      if (!(err instanceof DomainError) || err.code !== 'validation') throw err
+      aviso = err.message
+    }
+    const pedidos = (pagina?.items ?? []).map((o) => ({
+      id: o.id,
+      numero: `#${o.number}`,
+      cliente: o.customer.name,
+      total: formatMoney(o.totalCents),
+      criado: o.createdLabel,
+      entrega: ENTREGA_EM_TEXTO[o.deliveryMethod],
+      situacao: orderStatusText(o.status, o.fulfillmentStatus, o.deliveryMethod),
+      tom: orderStatusTone(o.status, o.fulfillmentStatus),
+      atencao: o.attention === null ? null : ATTENTION_LABELS[o.attention],
+    }))
+    const filtrado = search !== '' || situacao.id !== ''
+    const vazio = aviso ? (
+      <EmptyState title="Esta página da lista não existe mais" description={aviso} action={<LinkButton href="/loja">Voltar ao início da lista</LinkButton>} />
+    ) : filtrado ? (
+      <EmptyState title="Nenhum pedido encontrado" description="Nada combina com a busca ou com o filtro. Busque pelo número do pedido ou pelo nome do cliente." action={<LinkButton href="/loja">Limpar busca</LinkButton>} />
+    ) : (
+      <EmptyState title="Nenhum pedido ainda" description="Os pedidos feitos pelo app aparecem aqui, com o pagamento e a entrega." />
+    )
+    corpo = (
+      <>
+        <SearchBar
+          action="/loja"
+          label="Buscar pedidos"
+          placeholder="Buscar pelo número ou pelo nome do cliente"
+          query={search}
+          filters={[{ name: 'situacao', label: 'Situação', value: situacao.id, options: SITUACOES_DE_PEDIDO.map((s) => ({ value: s.id, label: s.label })) }]}
+          clearHref="/loja"
+        />
+        <PedidosLista pedidos={pedidos} vazio={vazio} />
+        <Pagination basePath="/loja" params={{ search: search || undefined, situacao: situacao.id || undefined }} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
+      </>
+    )
+  } else if (aba === 'produtos') {
     const categorias = await listCategories(ctx)
     const situacao = SITUACOES.find((s) => s.id === um(q.situacao)) ?? SITUACOES[0]
     const categoria = categorias.find((c) => c.id === um(q.categoria))?.id ?? ''
@@ -82,17 +141,18 @@ export default async function LojaPage({ searchParams }: { searchParams: Promise
     )
     acoes = novo
     const vazio = aviso ? (
-      <EmptyState title="Esta página da lista não existe mais" description={aviso} action={<LinkButton href="/loja">Voltar ao início da lista</LinkButton>} />
+      <EmptyState title="Esta página da lista não existe mais" description={aviso} action={<LinkButton href="/loja?aba=produtos">Voltar ao início da lista</LinkButton>} />
     ) : filtrado ? (
-      <EmptyState title="Nenhum produto encontrado" description="Nada combina com a busca ou com os filtros. Confira a grafia ou limpe a busca." action={<LinkButton href="/loja">Limpar busca</LinkButton>} />
+      <EmptyState title="Nenhum produto encontrado" description="Nada combina com a busca ou com os filtros. Confira a grafia ou limpe a busca." action={<LinkButton href="/loja?aba=produtos">Limpar busca</LinkButton>} />
     ) : (
       <EmptyState title="Cadastre o primeiro produto" description="Os produtos aparecem na loja do app, com foto, preço e estoque." action={novo} />
     )
-    const params = { search: search || undefined, categoria: categoria || undefined, situacao: situacao.id || undefined }
+    const params = { aba: 'produtos', search: search || undefined, categoria: categoria || undefined, situacao: situacao.id || undefined }
     corpo = (
       <>
         <SearchBar
           action="/loja"
+          hidden={{ aba: 'produtos' }}
           label="Buscar produtos"
           placeholder="Buscar pelo nome do produto"
           query={search}
@@ -100,7 +160,7 @@ export default async function LojaPage({ searchParams }: { searchParams: Promise
             { name: 'categoria', label: 'Categoria', value: categoria, options: [{ value: '', label: 'Todas as categorias' }, ...categorias.map((c) => ({ value: c.id, label: c.name }))] },
             { name: 'situacao', label: 'Situação', value: situacao.id, options: SITUACOES.map((s) => ({ value: s.id, label: s.label })) },
           ]}
-          clearHref="/loja"
+          clearHref="/loja?aba=produtos"
         />
         <ProdutosLista produtos={produtos} vazio={vazio} />
         <Pagination basePath="/loja" params={params} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />

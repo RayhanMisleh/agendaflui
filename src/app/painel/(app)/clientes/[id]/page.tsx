@@ -9,12 +9,14 @@ import { getCustomer, isCustomerAnonymized } from '@/server/domain/customers/cus
 import type { CustomerView } from '@/server/domain/customers/customers'
 import { getCustomerLoyalty, listLoyaltyEntries } from '@/server/domain/loyalty/ledger'
 import { listPrizes } from '@/server/domain/loyalty/prizes'
+import { listOrders } from '@/server/domain/store/orders'
 import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
-import { AppointmentStatusBadge, Avatar, Card, EmptyHint, LinkButton, Pagination, PhoneLink, StatNumber, StatusDot } from '@/ui/components'
+import { AppointmentStatusBadge, Avatar, Card, EmptyHint, LinkButton, OrderStatusBadge, Pagination, PhoneLink, StatNumber, StatusDot } from '@/ui/components'
 import { formatDuration, formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
+import Link from 'next/link'
 import { PainelFrame } from '../../PainelFrame'
 import { ClienteForm } from '../ClienteForm'
 import { Cuidados } from '../Cuidados'
@@ -90,6 +92,8 @@ export default async function ClientePage({
   const todos = can(ctx.actor, 'view_all_agendas')
   const zap = cliente.phone ? `https://wa.me/${cliente.phone.replace(/\D/g, '')}` : null
   const clube = painel.modules.loyalty ? terms.club : null
+  // Os 5 últimos pedidos, só com a Loja ligada e para quem gerencia a loja.
+  const pedidos = painel.modules.store && can(ctx.actor, 'manage_store') ? (await listOrders(ctx, { customerId: id, limit: 5 })).items : null
   const pontos = painel.modules.loyalty ? await carregarPontos(ctx, id, cursorExtrato, can(ctx.actor, 'manage_loyalty')) : null
 
   return (
@@ -206,6 +210,34 @@ export default async function ClientePage({
                   nextCursor={pontos.extrato.nextCursor}
                   paramName="extrato"
                 />
+              </Card>
+            ) : null}
+
+            {pedidos ? (
+              <Card as="section" aria-labelledby="cliente-pedidos" className="af-profile">
+                <h2 id="cliente-pedidos" className="af-section__title">
+                  Pedidos da loja
+                </h2>
+                {pedidos.length > 0 ? (
+                  <ul className="af-home__list">
+                    {pedidos.map((o) => (
+                      <li key={o.id} className="af-visit">
+                        <div className="af-visit__when">
+                          <Link href={`/loja/pedidos/${o.id}`} className="af-visit__time af-tabular">
+                            #{o.number}
+                          </Link>
+                        </div>
+                        <div className="af-visit__main">
+                          <span className="af-visit__what">{formatMoney(o.totalCents)}</span>
+                          <span className="af-visit__detail">{o.createdLabel}</span>
+                          <OrderStatusBadge status={o.status} fulfillmentStatus={o.fulfillmentStatus} deliveryMethod={o.deliveryMethod} attention={o.attention} />
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <EmptyHint>Ainda não há pedidos da loja.</EmptyHint>
+                )}
               </Card>
             ) : null}
 

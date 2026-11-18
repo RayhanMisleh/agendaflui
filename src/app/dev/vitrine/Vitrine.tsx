@@ -34,6 +34,7 @@ import {
   Sparkline,
   StatNumber,
   StatTile,
+  OrderStatusBadge,
   StatusBadge,
   StatusDot,
   StepRail,
@@ -344,6 +345,20 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
               <StatusDot tone="warning" label="Fila de avisos" detail="Atenção" />
               <StatusDot tone="danger" label="Envio de e-mail" detail="Com falha" />
               <StatusDot tone="neutral" label="Conta" detail="Arquivada" />
+            </div>
+          </Spec>
+          <Spec title="Selo de pedido" note="A situação do pedido em texto e, quando precisa de atenção, o selo de atenção ao lado.">
+            <div className="vt-row">
+              <OrderStatusBadge status="AWAITING_PAYMENT" fulfillmentStatus="PENDING" deliveryMethod="PICKUP" />
+              <OrderStatusBadge status="PAID" fulfillmentStatus="PENDING" deliveryMethod="SHIPPING" />
+              <OrderStatusBadge status="PAID" fulfillmentStatus="READY_FOR_PICKUP" deliveryMethod="PICKUP" />
+              <OrderStatusBadge status="PAID" fulfillmentStatus="DELIVERED" deliveryMethod="SHIPPING" />
+              <OrderStatusBadge status="EXPIRED" fulfillmentStatus="PENDING" deliveryMethod="PICKUP" />
+            </div>
+            <div className="vt-row">
+              <OrderStatusBadge status="AWAITING_PAYMENT" fulfillmentStatus="PENDING" deliveryMethod="PICKUP" attention="amount_mismatch" />
+              <OrderStatusBadge status="PAID" fulfillmentStatus="PENDING" deliveryMethod="PICKUP" attention="stock_shortfall" />
+              <OrderStatusBadge status="CANCELED" fulfillmentStatus="PENDING" deliveryMethod="PICKUP" attention="payment_reversed" />
             </div>
           </Spec>
           <Spec title="Números">

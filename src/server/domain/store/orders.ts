@@ -115,7 +115,7 @@ const advanceSchema = z.object({
 })
 
 const listSchema = z.object({
-  status: z.enum(['AWAITING_PAYMENT', 'PAID', 'CANCELED', 'EXPIRED', 'to_fulfill'], 'Escolha uma situação válida.').optional(),
+  status: z.enum(['AWAITING_PAYMENT', 'PAID', 'CANCELED', 'EXPIRED', 'to_fulfill', 'delivered', 'closed'], 'Escolha uma situação válida.').optional(),
   search: z.string().max(100, 'Use até 100 caracteres na busca.').optional(),
   customerId: z.uuid('Escolha um cliente válido.').optional(),
   cursor: z.string().max(1024).optional(),
@@ -218,11 +218,11 @@ function decodeCursor(cursor: string): number {
 
 /**
  * Pedidos do mais novo ao mais antigo, por cursor. O cliente vê só os dele; a equipe com `manage_store` vê todos e filtra por
- * situação (`to_fulfill` = pagos que ainda não foram entregues), busca (número ou nome do cliente) e cliente.
+ * situação (`to_fulfill` = pagos que ainda não foram entregues; `delivered` = pagos e entregues; `closed` = cancelados e vencidos), busca (número ou nome do cliente) e cliente.
  */
 export async function listOrders(
   ctx: TenantContext,
-  q: { status?: OrderStatus | 'to_fulfill'; search?: string; customerId?: string; cursor?: string; limit?: number } = {},
+  q: { status?: OrderStatus | 'to_fulfill' | 'delivered' | 'closed'; search?: string; customerId?: string; cursor?: string; limit?: number } = {},
 ): Promise<{ items: OrderView[]; nextCursor: string | null }> {
   const own = await readerScope(ctx)
   const f = parse(listSchema, q)
@@ -233,7 +233,15 @@ export async function listOrders(
   const where: Prisma.OrderWhereInput = {
     AND: [
       own !== null ? { customerId: own } : f.customerId !== undefined ? { customerId: f.customerId } : {},
-      f.status === 'to_fulfill' ? { status: 'PAID', fulfillmentStatus: { not: 'DELIVERED' } } : f.status !== undefined ? { status: f.status } : {},
+      f.status === 'to_fulfill'
+        ? { status: 'PAID', fulfillmentStatus: { not: 'DELIVERED' } }
+        : f.status === 'delivered'
+          ? { status: 'PAID', fulfillmentStatus: 'DELIVERED' }
+          : f.status === 'closed'
+            ? { status: { in: ['CANCELED', 'EXPIRED'] } }
+            : f.status !== undefined
+              ? { status: f.status }
+              : {},
       search === '' || own !== null ? {} : /^\d{1,9}$/.test(search) ? { number: Number(search) } : { customer: { searchName: { contains: searchKey(search) } } },
       after !== null ? { number: { lt: after } } : {},
     ],
