@@ -7,6 +7,16 @@ import { audit } from '@/server/domain/audit'
  * Tarefa 7) estorno chamam estas funções dentro da transação que já trava o pedido; nenhum deles mexe no estoque por conta própria.
  */
 
+/**
+ * Efeitos de um pedido que acabou de ser PAGO: chame dentro da transação que o marcou como pago, sob `$lockKey('order', id)`.
+ * Hoje registra a auditoria; a Tarefa 9 gera aqui os códigos de voucher (uma vez, pela chave única).
+ */
+export async function orderPaid(tx: TenantTx, ctx: TenantContext, orderId: string): Promise<void> {
+  const order = await tx.order.findUnique({ where: { id: orderId }, select: { number: true, totalCents: true, attention: true } })
+  if (order === null) return
+  await audit(ctx, { action: 'order.paid', targetType: 'Order', targetId: orderId, metadata: { number: order.number, totalCents: order.totalCents, attention: order.attention } }, tx)
+}
+
 export type VoidReason = 'canceled' | 'expired' | 'refunded'
 
 /**

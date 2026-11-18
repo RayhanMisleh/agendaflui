@@ -12,7 +12,7 @@ import { tentarDeNovo } from './actions'
 
 export const metadata: Metadata = { title: 'Sistema | AgendaFlui' }
 
-const NOMES_TAREFA: Record<string, string> = { notifications: 'Envio de avisos', cleanup: 'Limpeza', usage_flush: 'Gravação do uso da API' }
+const NOMES_TAREFA: Record<string, string> = { notifications: 'Envio de avisos', cleanup: 'Limpeza', usage_flush: 'Gravação do uso da API', store: 'Varredura da loja' }
 
 export default async function SistemaPage() {
   const admin = await requirePlatformAdmin()

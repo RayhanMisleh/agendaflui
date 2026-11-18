@@ -258,6 +258,22 @@ export function fromIsoInstant(text: string): Date {
   return instant
 }
 
+const ISO_OFFSET_INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?)([+-])(\d{2}):(\d{2})$/
+
+/**
+ * Instante a partir de um texto ISO 8601 com deslocamento (`2026-11-14T03:30:00.000-04:00`) ou em UTC (`...Z`), como o
+ * Mercado Pago escreve as datas. Recusa qualquer outro formato.
+ */
+export function fromIsoOffsetInstant(text: string): Date {
+  const m = ISO_OFFSET_INSTANT.exec(text)
+  if (m === null) return fromIsoInstant(text)
+  const [, local = '', sign = '+', hh = '0', mm = '0'] = m
+  const offsetMin = Number(hh) * 60 + Number(mm)
+  if (Number(hh) > 23 || Number(mm) > 59) throw new RangeError('Use um instante em ISO 8601 com deslocamento válido, por exemplo 2026-11-14T03:30:00.000-04:00.')
+  const asUtc = fromIsoInstant(`${local}Z`)
+  return fromEpochMs(asUtc.getTime() - (sign === '-' ? -1 : 1) * offsetMin * 60_000)
+}
+
 /** Texto ISO 8601 em UTC (`2026-11-14T03:30:00.000Z`), para gravar ou trafegar um instante. */
 export function toIsoInstant(instant: Date): string {
   if (!Number.isFinite(instant.getTime())) throw new RangeError('Instante inválido.')

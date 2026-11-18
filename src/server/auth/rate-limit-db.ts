@@ -30,6 +30,8 @@ export const LIMITS = {
   shippingQuote: { limit: 20, windowSec: 60 },
   /** Pedidos da loja por pessoa. */
   order: { limit: 10, windowSec: 60 },
+  /** Webhook do Mercado Pago, por IP (a rota é pública). */
+  webhookIp: { limit: 120, windowSec: 60 },
   /** Consultas públicas de disponibilidade (cada uma lê a agenda inteira de um ou mais dias). */
   availability: { limit: 60, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>

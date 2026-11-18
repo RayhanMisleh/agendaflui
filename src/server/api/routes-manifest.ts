@@ -68,6 +68,7 @@ import * as r65 from '@/app/api/v1/store/postal-codes/[cep]/route'
 import * as r66 from '@/app/api/v1/store/products/[id]/route'
 import * as r67 from '@/app/api/v1/store/products/route'
 import * as r68 from '@/app/api/v1/store/shipping-quotes/route'
+import * as r69 from '@/app/api/v1/store/orders/[id]/checkout/route'
 
 export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'appointments/[id]/cancel/route.ts': r00,
@@ -133,6 +134,7 @@ export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unkn
   'store/categories/route.ts': r60,
   'store/options/route.ts': r61,
   'store/orders/[id]/cancel/route.ts': r62,
+  'store/orders/[id]/checkout/route.ts': r69,
   'store/orders/[id]/route.ts': r63,
   'store/orders/route.ts': r64,
   'store/postal-codes/[cep]/route.ts': r65,

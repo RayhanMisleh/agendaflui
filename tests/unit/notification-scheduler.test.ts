@@ -180,6 +180,23 @@ describe('startScheduler: registro das execuções', () => {
     expect(JSON.stringify(gravadas)).not.toMatch(/maria|@/)
   })
 
+  test('a varredura da loja roda a cada rodada e grava execução do tipo store só quando fez algo ou falhou', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const gravadas: Gravada[] = []
+    const sweep = vi.fn()
+    sweep.mockResolvedValueOnce({ synced: 0, expired: 0 }).mockResolvedValueOnce({ synced: 2, expired: 1 }).mockRejectedValueOnce(new TypeError('maria@exemplo.test')).mockResolvedValue({ synced: 0, expired: 0 })
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, sweep, flush: async () => 0, record: async (r) => void gravadas.push(r) })
+    await vi.advanceTimersByTimeAsync(2_500 + 60_000 * 3)
+    s.stop()
+    expect(sweep).toHaveBeenCalledTimes(4)
+    expect(gravadas.filter((g) => g.kind === 'store').map((g) => [g.ok, g.summary])).toEqual([
+      [true, 'pagamentos conferidos 2, pedidos vencidos 1'],
+      [false, 'erro: TypeError'],
+    ])
+    expect(JSON.stringify(gravadas)).not.toContain('maria')
+  })
+
   test('limpeza que lança grava ok: false', async () => {
     vi.useFakeTimers()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)

@@ -4,6 +4,7 @@ import { purgeRateLimits } from '@/server/auth/rate-limit-db'
 import { purgeExpiredSessions, purgeSupportHandoffs } from '@/server/auth/support-session'
 import { purgeVerificationCodes } from '@/server/auth/verification-code'
 import { failureSummary, purgeSchedulerRuns, recordSchedulerRun, summarize, type RunRecorder, type SchedulerKind } from './scheduler-runs'
+import { sweepStore } from '@/server/domain/platform/store-sweep'
 import { processDueNotifications } from './worker'
 
 const GUARD = '__agendafluiScheduler'
@@ -17,6 +18,8 @@ type Deps = {
   /** Liga o envio de avisos e a limpeza (padrão: sim). Com `false` só as métricas de uso rodam. */
   worker?: boolean
   run?: () => Promise<unknown>
+  /** Varredura da loja a cada rodada (padrão: `sweepStore`; quem troca `run` e não passa `sweep` fica sem varredura). */
+  sweep?: () => Promise<unknown>
   cleanup?: () => Promise<unknown>
   /** Grava as métricas de uso da API (padrão: `flushUsageOrThrow`, que devolve quantas linhas gravou). */
   flush?: () => Promise<unknown>
@@ -53,6 +56,7 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
   const existing = Reflect.get(globalThis, GUARD) as { stop: () => void; shutdown: () => Promise<void> } | undefined
   if (existing) return existing
   const run = deps.run ?? (() => processDueNotifications())
+  const sweep = deps.sweep ?? (deps.run === undefined ? () => sweepStore(new Date()) : null)
   const cleanup = deps.cleanup ?? (() => cleanupRound())
   const flush = deps.flush ?? flushUsageOrThrow
   const record = deps.record ?? recordSchedulerRun
@@ -94,6 +98,13 @@ export function startScheduler(deps: Deps = {}): { stop: () => void; shutdown: (
     busy = true
     try {
       await timed('notifications', 'rodada de envio', run)
+      // Só grava execução quando a varredura conferiu ou venceu algo, ou falhou (1.440 linhas por dia seriam ruído).
+      if (sweep !== null) {
+        await timed('store', 'varredura da loja', sweep, (r) => {
+          const n = r as { synced?: unknown; expired?: unknown }
+          return (typeof n.synced === 'number' && n.synced > 0) || (typeof n.expired === 'number' && n.expired > 0)
+        })
+      }
     } finally {
       busy = false
     }

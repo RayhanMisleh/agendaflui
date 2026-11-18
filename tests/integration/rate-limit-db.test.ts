@@ -131,6 +131,7 @@ test('os limites combinados', () => {
     postalCode: { limit: 30, windowSec: 60 },
     shippingQuote: { limit: 20, windowSec: 60 },
     order: { limit: 10, windowSec: 60 },
+    webhookIp: { limit: 120, windowSec: 60 },
     availability: { limit: 60, windowSec: 60 },
   })
 })

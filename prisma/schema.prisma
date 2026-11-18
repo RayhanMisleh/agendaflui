@@ -119,6 +119,24 @@ enum RedemptionStatus {
   @@map("redemption_status")
 }
 
+enum PaymentProvider {
+  MERCADO_PAGO
+
+  @@map("payment_provider")
+}
+
+enum PaymentStatus {
+  PENDING
+  IN_PROCESS
+  APPROVED
+  REJECTED
+  CANCELED
+  REFUNDED
+  CHARGED_BACK
+
+  @@map("payment_status")
+}
+
 enum OrderStatus {
   AWAITING_PAYMENT
   PAID
@@ -272,7 +290,7 @@ model SupportHandoff {
 /// Uma execução do agendador (avisos, limpeza, métricas de uso). Tabela da plataforma: sem dado de conta nem pessoal no resumo.
 model SchedulerRun {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  /// `notifications`, `cleanup` ou `usage_flush` (lista fechada por CHECK no banco).
+  /// `notifications`, `cleanup`, `usage_flush` ou `store` (lista fechada por CHECK no banco).
   kind       String
   startedAt  DateTime  @map("started_at") @db.Timestamptz(3)
   finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
@@ -337,6 +355,7 @@ model Business {
   productImages        ProductImage[]
   addresses            Address[]
   orders               Order[]
+  payments             Payment[]
   orderItems           OrderItem[]
   notifications        Notification[]
   apiKeys              ApiKey[]
@@ -1258,13 +1277,39 @@ model Order {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: NoAction)
 
-  items OrderItem[]
+  items    OrderItem[]
+  payments Payment[]
 
   @@unique([businessId, id])
   @@unique([businessId, number])
   @@index([businessId, status, expiresAt])
   @@index([businessId, customerId, createdAt])
   @@map("orders")
+}
+
+/// Pagamento do Mercado Pago de um pedido. A situação vem SEMPRE da consulta à API do Mercado Pago, nunca do corpo do aviso.
+model Payment {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId        String          @map("business_id") @db.Uuid
+  orderId           String          @map("order_id") @db.Uuid
+  provider          PaymentProvider @default(MERCADO_PAGO)
+  providerPaymentId String          @map("provider_payment_id")
+  status            PaymentStatus
+  statusDetail      String?         @map("status_detail")
+  amountCents       Int             @map("amount_cents")
+  currency          String
+  approvedAt        DateTime?       @map("approved_at") @db.Timestamptz(3)
+  lastSyncedAt      DateTime        @map("last_synced_at") @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@unique([businessId, provider, providerPaymentId])
+  @@index([orderId])
+  @@map("payments")
 }
 
 model OrderItem {

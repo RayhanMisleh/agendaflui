@@ -53,6 +53,12 @@ export async function findMercadoPagoByWebhookKey(
   return segredos === null ? null : { businessId: row.businessId, ...segredos }
 }
 
+/** A chave opaca do endereço do webhook da conta (não é segredo de assinatura, mas faz parte do endereço); `null` sem configuração. */
+export async function readMercadoPagoWebhookKey(businessId: string): Promise<string | null> {
+  const row = await prisma.businessIntegration.findUnique({ where: { businessId }, select: { mpWebhookKey: true } })
+  return row?.mpWebhookKey ?? null
+}
+
 export async function readFrenetToken(businessId: string): Promise<string | null> {
   const row = await prisma.businessIntegration.findUnique({ where: { businessId }, select: { frenetTokenEnc: true } })
   if (row === null || row.frenetTokenEnc === null) return null

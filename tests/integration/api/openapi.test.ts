@@ -34,10 +34,13 @@ const objeto = (v: unknown): Json => {
   return v as Json
 }
 
-/** Arquivos `route.ts` sob `src/app/api/v1`, relativos a ela. */
+/** Rotas simples, que não são do app e ficam fora do manifesto e do documento OpenAPI (webhook do Mercado Pago). */
+const ROTAS_FORA_DO_OPENAPI = ['webhooks/mercadopago/[webhookKey]/route.ts']
+
+/** Arquivos `route.ts` sob `src/app/api/v1`, relativos a ela, sem as exceções declaradas. */
 function arquivosDeRota(): string[] {
   return (readdirSync(PASTA_V1, { recursive: true, encoding: 'utf8' }) as string[])
-    .filter((f) => /(^|\/)route\.(ts|tsx|js)$/.test(f))
+    .filter((f) => /(^|\/)route\.(ts|tsx|js)$/.test(f) && !ROTAS_FORA_DO_OPENAPI.includes(f))
     .sort()
 }
 
@@ -71,6 +74,12 @@ describe('manifesto de rotas', () => {
     expect(new Set(chaves).size).toBe(chaves.length)
     const exportados = Object.values(ROUTE_MODULES).reduce((n, m) => n + METODOS.filter((x) => m[x] !== undefined).length, 0)
     expect(definicoes).toHaveLength(exportados)
+  })
+
+  test('a única exceção declarada é o webhook do Mercado Pago, e ele não aparece no documento', async () => {
+    expect(ROTAS_FORA_DO_OPENAPI).toEqual(['webhooks/mercadopago/[webhookKey]/route.ts'])
+    expect(readFileSync(join(PASTA_V1, ROTAS_FORA_DO_OPENAPI[0]!), 'utf8')).not.toContain('defineRoute')
+    expect(Object.keys(ROUTE_MODULES).some((k) => k.startsWith('webhooks/'))).toBe(false)
   })
 
   test('os arquivos novos de rota não escapam: cada route.ts tem import no manifesto', () => {

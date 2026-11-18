@@ -1,6 +1,7 @@
 import { env } from '@/server/env'
-import { fakeFrenet, fakePostalCodes } from './fakes'
+import { fakeFrenet, fakeMercadoPago, fakePostalCodes } from './fakes'
 import { createFrenetGateway } from './frenet'
+import { createMercadoPagoGateway } from './mercadopago'
 import { createViaCepGateway } from './viacep'
 
 export { IntegrationError } from './errors'
@@ -32,7 +33,39 @@ export interface FrenetGateway {
   quote(token: string, q: FrenetQuote): Promise<FrenetService[]>
 }
 
-export type Integrations = { postalCodes: PostalCodeGateway; frenet: FrenetGateway }
+export type MpPaymentStatus = 'pending' | 'approved' | 'authorized' | 'in_process' | 'in_mediation' | 'rejected' | 'cancelled' | 'refunded' | 'charged_back'
+
+/** Um pagamento como a consulta ao Mercado Pago o devolve (valor em centavos, já convertido por texto). */
+export type MpPayment = {
+  id: string
+  status: MpPaymentStatus
+  statusDetail: string | null
+  amountCents: number
+  currency: string
+  externalReference: string | null
+  approvedAt: Date | null
+}
+
+export interface MercadoPagoGateway {
+  /** Cria a preferência do Checkout Pro. O token é o da conta; nunca vai para log nem para erro. Falha é `IntegrationError`. */
+  createPreference(
+    accessToken: string,
+    p: {
+      orderId: string
+      items: { id: string; title: string; quantity: number; unitPriceCents: number }[]
+      payerEmail: string | null
+      notificationUrl: string
+      backUrl: string | null
+      expiresAt: Date
+    },
+  ): Promise<{ preferenceId: string; checkoutUrl: string }>
+  /** O pagamento como o Mercado Pago o tem agora: a única fonte da situação de um pagamento. */
+  getPayment(accessToken: string, paymentId: string): Promise<MpPayment>
+  /** Os pagamentos cuja `external_reference` é o pedido. */
+  searchPaymentsByReference(accessToken: string, orderId: string): Promise<MpPayment[]>
+}
+
+export type Integrations = { postalCodes: PostalCodeGateway; frenet: FrenetGateway; mercadoPago: MercadoPagoGateway }
 
 let override: Partial<Integrations> | null = null
 let real: Integrations | null = null
@@ -42,8 +75,8 @@ let fake: Integrations | null = null
 export function integrations(): Integrations {
   const base =
     env.INTEGRATIONS_MODE === 'real'
-      ? (real ??= { postalCodes: createViaCepGateway(), frenet: createFrenetGateway() })
-      : (fake ??= { postalCodes: fakePostalCodes(), frenet: fakeFrenet() })
+      ? (real ??= { postalCodes: createViaCepGateway(), frenet: createFrenetGateway(), mercadoPago: createMercadoPagoGateway() })
+      : (fake ??= { postalCodes: fakePostalCodes(), frenet: fakeFrenet(), mercadoPago: fakeMercadoPago() })
   return override === null ? base : { ...base, ...override }
 }
 

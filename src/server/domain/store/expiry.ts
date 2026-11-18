@@ -10,14 +10,15 @@ const MAX_BATCHES = 50
  * Vence os pedidos aguardando pagamento cujo prazo acabou (`expires_at` menor ou igual a agora): cada um sob a trava do próprio
  * pedido, relendo o estado dentro dela, e o estoque que ele reservava volta uma vez só (`orderVoided`). Repetir é inofensivo:
  * pedido já vencido não é tocado nem devolve de novo. Roda com a Loja desligada (o estoque e o dinheiro já pago não esperam o
- * módulo) e com a conta suspensa, por isso não confere módulo nem permissão: quem chama é o sistema. Devolve quantos venceram.
+ * módulo) e com a conta suspensa, por isso não confere módulo nem permissão: quem chama é o sistema. `except` deixa de fora pedidos que a varredura ainda não conseguiu conferir com o Mercado Pago. Devolve quantos venceram.
  */
-export async function expireOverdueOrders(ctx: TenantContext): Promise<number> {
+export async function expireOverdueOrders(ctx: TenantContext, o: { except?: ReadonlySet<string> } = {}): Promise<number> {
+  const except = [...(o.except ?? [])]
   let expired = 0
   for (let round = 0; round < MAX_BATCHES; round++) {
     const now = ctx.clock()
     const due = await ctx.db.order.findMany({
-      where: { status: 'AWAITING_PAYMENT', expiresAt: { lte: now } },
+      where: { status: 'AWAITING_PAYMENT', expiresAt: { lte: now }, ...(except.length > 0 ? { id: { notIn: except } } : {}) },
       orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
       select: { id: true },
       take: BATCH,

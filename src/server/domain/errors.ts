@@ -28,6 +28,7 @@ export const DOMAIN_REASONS = [
   'not_failed',
   'not_today',
   'out_of_stock',
+  'payment_unavailable',
   'pickup_unavailable',
   'quote_expired',
   'shipping_unavailable',
