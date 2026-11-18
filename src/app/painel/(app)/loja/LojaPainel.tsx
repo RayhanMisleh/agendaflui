@@ -315,7 +315,7 @@ export function ConfiguracoesForm({ dados, mercadoPago, frenet }: { dados: Confi
               </Field>
             </div>
             <h2 className="af-section__title">Pagamento</h2>
-            <Field label="Prazo para pagar (minutos)" hint="Passado o prazo, o pedido vence e o estoque volta. De 15 a 1.440 minutos." error={state.fields.paymentWindowMin}>
+            <Field label="Prazo para pagar (minutos)" hint="Passado o prazo, o pedido vence e o estoque volta. De 30 a 1.440 minutos (o Pix exige pelo menos 30)." error={state.fields.paymentWindowMin}>
               <Input id="loja-prazo" name="paymentWindowMin" inputMode="numeric" defaultValue={v.paymentWindowMin ?? ''} required />
             </Field>
             <h2 className="af-section__title">Integrações</h2>

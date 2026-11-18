@@ -61,3 +61,16 @@ persistente em `/data/storage`; variáveis acima; verificação de saúde em `/h
 contêiner; a imagem já o traz). O Coolify injeta as variáveis da aplicação também no build: o Dockerfile já conta
 com isso. Ao acrescentar um domínio depois de criada a aplicação, confira em General > Container > Labels se há
 uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante (sem isso o proxy responde 503).
+
+## Integrações (Mercado Pago)
+
+- As credenciais de cada conta (token e assinatura secreta do webhook) ficam cifradas no banco e só o admin da plataforma
+  as grava (painel dev, aba Integrações da conta). O endereço do webhook é por conta, com uma chave secreta de 256 bits
+  na URL: `POST /v1/webhooks/mercadopago/{webhookKey}`.
+- Autenticação do aviso: se o cabeçalho `x-signature` vier, ele é verificado com a assinatura secreta da conta e uma
+  assinatura inválida dá 401. Se NÃO vier, o aviso é aceito, porque não temos certeza de que o Mercado Pago assina os
+  avisos da `notification_url` da preferência: quem autentica é a chave secreta da URL, e o estado do pagamento SEMPRE
+  vem da consulta à API do Mercado Pago com o token da conta (o corpo do aviso nunca é lido).
+- Prazo mínimo para pagar: 30 minutos (o Pix exige). A preferência vence em `max(prazo do pedido, agora + 30 min)`; um
+  pagamento que chegar depois do prazo do pedido segue a regra "pago depois de vencer".
+- A varredura do agendador confere os pedidos vencidos com o Mercado Pago por até 60 s por rodada.

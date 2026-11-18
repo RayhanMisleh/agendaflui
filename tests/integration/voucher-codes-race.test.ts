@@ -27,7 +27,7 @@ describe('geração de códigos sob repetição e concorrência', () => {
     const o = await pedido(2)
     c.fake.registerPayment(pagamentoMp(o, { id: '7001' }))
     const key = await webhookKeyDe(c.b.id)
-    const r = await Promise.all([notificar({ webhookKey: key }, '7001'), notificar({ webhookKey: key }, '7001'), notificar({ webhookKey: key }, '7001')])
+    const r = await Promise.all([notificar({ webhookKey: key, b: c.b }, '7001'), notificar({ webhookKey: key, b: c.b }, '7001'), notificar({ webhookKey: key, b: c.b }, '7001')])
     expect(r.map((x) => x.status)).toEqual([200, 200, 200])
     expect(await codigosDe(o.id)).toHaveLength(2)
     expect(await prisma.payment.count()).toBe(1)

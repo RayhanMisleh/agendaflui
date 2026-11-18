@@ -6,7 +6,7 @@ import { ATTENTION_LABELS, OrderStatusBadge, orderStatusText } from '@/ui/compon
 const STATUS = ['AWAITING_PAYMENT', 'PAID', 'CANCELED', 'EXPIRED'] as const
 const ENTREGA = ['PENDING', 'READY_FOR_PICKUP', 'SHIPPED', 'DELIVERED'] as const
 const METODO = ['PICKUP', 'SHIPPING', 'NONE'] as const
-const ATENCAO = [null, 'amount_mismatch', 'stock_shortfall', 'payment_reversed'] as const
+const ATENCAO = [null, 'amount_mismatch', 'stock_shortfall', 'payment_reversed', 'double_payment'] as const
 
 describe('OrderStatusBadge', () => {
   test('dá texto para toda combinação de situação, entrega e atenção (nunca só cor)', () => {
@@ -33,7 +33,7 @@ describe('OrderStatusBadge', () => {
     expect(orderStatusText('PAID', 'DELIVERED', 'SHIPPING')).toBe('Entregue')
     expect(orderStatusText('CANCELED', 'PENDING', 'PICKUP')).toBe('Cancelado')
     expect(orderStatusText('EXPIRED', 'PENDING', 'PICKUP')).toBe('Venceu sem pagamento')
-    expect(ATTENTION_LABELS).toEqual({ amount_mismatch: 'Valor divergente', stock_shortfall: 'Pago sem estoque', payment_reversed: 'Pagamento devolvido' })
+    expect(ATTENTION_LABELS).toEqual({ amount_mismatch: 'Valor divergente', stock_shortfall: 'Pago sem estoque', payment_reversed: 'Pagamento devolvido', double_payment: 'Pagamento em dobro' })
   })
 
   test('mostra a atenção como selo com o texto', () => {

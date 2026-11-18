@@ -5,8 +5,9 @@ import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
 import { readMercadoPagoSecrets, readMercadoPagoWebhookKey } from '@/server/domain/platform/integration-secrets'
 import { ownCustomerId } from '@/server/domain/store/addresses'
 import { TX_OPTIONS } from '@/server/domain/scheduling/placement'
+import { MIN_PAYMENT_WINDOW_MIN } from '@/server/domain/store/settings'
 import { integrations, IntegrationError } from '@/server/integrations'
-import { formatDateTime } from '@/server/time'
+import { addMinutes, formatDateTime, fromEpochMs } from '@/server/time'
 
 const MSG_INDISPONIVEL = 'O pagamento pela loja não está disponível agora. Fale com o estabelecimento.'
 const idSchema = z.uuid()
@@ -73,7 +74,8 @@ export async function startCheckout(
       payerEmail: order.customer.email,
       notificationUrl: areaLink('api', `/v1/webhooks/mercadopago/${webhookKey}`),
       backUrl,
-      expiresAt: order.expiresAt,
+      // O Pix exige pelo menos 30 minutos: o pagamento que chega depois do prazo do pedido segue a regra "pago depois de vencer".
+      expiresAt: fromEpochMs(Math.max(order.expiresAt.getTime(), addMinutes(now, MIN_PAYMENT_WINDOW_MIN).getTime())),
     })
   } catch (err) {
     // Só o nome do erro: nada do que o Mercado Pago respondeu nem o token.

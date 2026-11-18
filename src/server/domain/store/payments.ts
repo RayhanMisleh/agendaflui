@@ -54,11 +54,15 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
     const order = orNotFound(await tx.order.findUnique({ where: { id: orderId }, include: { items: true } }), 'Pedido')
     const unchanged = { orderStatus: order.status, changed: false }
     const now = ctx.clock()
+    // Defesa extra: o pagamento só vale para o pedido que ele mesmo diz ser (quem chama já confere, mas aqui não custa nada).
+    if (payment.externalReference === null || payment.externalReference.toLowerCase() !== orderId.toLowerCase()) return unchanged
 
     // O pagamento é gravado pela chave (conta, provedor, id do Mercado Pago). ON CONFLICT DO NOTHING cobre o mesmo id chegando
     // para dois pedidos ao mesmo tempo: o primeiro fica com ele.
     const data = { status, statusDetail: payment.statusDetail, amountCents: payment.amountCents, currency: payment.currency, approvedAt: payment.approvedAt, lastSyncedAt: now }
     let existing = await tx.payment.findFirst({ where: { provider: PROVIDER, providerPaymentId: payment.id } })
+    // Este pagamento acabou de ser aprovado (linha nova ou subiu de situação): é o que separa um pagamento a mais de um aviso repetido.
+    const previous = existing === null ? null : existing.status
     if (existing === null) {
       await tx.payment.createMany({ data: [{ businessId: ctx.businessId, orderId, provider: PROVIDER, providerPaymentId: payment.id, ...data }], skipDuplicates: true })
       existing = await tx.payment.findFirst({ where: { provider: PROVIDER, providerPaymentId: payment.id } })
@@ -69,6 +73,14 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
     // Consulta mais velha que a já gravada: não decide nada.
     if (RANK[status] < RANK[existing.status]) return unchanged
     const total = order.totalCents
+    const newlyApproved = status === 'APPROVED' && (previous === null || RANK[previous] < RANK.APPROVED)
+    // Pagamento a mais: pedido que já foi pago (e segue pago ou foi cancelado depois) recebe outro pagamento aprovado.
+    const flagDouble = async () => {
+      if (order.attention !== null) return unchanged
+      await tx.order.update({ where: { id: orderId }, data: { attention: 'double_payment' } })
+      await audit(ctx, { action: 'order.double_payment', targetType: 'Order', targetId: orderId, metadata: { totalCents: total, paidCents: payment.amountCents } }, tx)
+      return { orderStatus: order.status, changed: true }
+    }
 
     if (status === 'APPROVED') {
       if (payment.amountCents !== total || payment.currency !== 'BRL') {
@@ -78,15 +90,18 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
         await audit(ctx, { action: 'order.payment_mismatch', targetType: 'Order', targetId: orderId, metadata: { expectedCents: total, paidCents: payment.amountCents, currency: payment.currency } }, tx)
         return { orderStatus: order.status, changed: true }
       }
-      if (order.status === 'PAID') return unchanged
+      if (order.status === 'PAID') return newlyApproved ? flagDouble() : unchanged
       if (order.status === 'AWAITING_PAYMENT') {
         const { count } = await tx.order.updateMany({ where: { id: orderId, status: 'AWAITING_PAYMENT' }, data: { status: 'PAID', paidAt: now } })
         if (count !== 1) return unchanged
         await orderPaid(tx, ctx, orderId)
         return { orderStatus: 'PAID', changed: true }
       }
-      // Vencido ou cancelado e pago mesmo assim: o dinheiro entrou, então o pedido vale. Só reabre se o estoque já voltou
-      // (pedido cancelado depois de separado não devolveu nada e já foi pago antes: não há o que reabrir).
+      // Pedido que já foi pago uma vez e depois cancelado (pelo dono ou por estorno) NUNCA reabre: o cancelamento é decisão do
+      // dono, e um aviso repetido do mesmo pagamento não pode desfazê-lo. Um pagamento NOVO aprovado nele é pagamento a mais.
+      if (order.paidAt !== null) return newlyApproved ? flagDouble() : unchanged
+      // Vencido ou cancelado antes de pagar e pago mesmo assim: o dinheiro entrou, então o pedido vale. Só reabre se o estoque
+      // já voltou.
       if (order.stockReleasedAt === null) return unchanged
       const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
       const lines = order.items.flatMap((it) => (it.productId === null ? [] : [{ kind: 'product' as const, id: it.productId, quantity: it.quantity }])).sort(byId)
@@ -178,8 +193,8 @@ const DATA_ID = /^\d{1,20}$/
 const WEBHOOK_KEY = /^[A-Za-z0-9_-]{1,200}$/
 
 /**
- * Aviso do Mercado Pago (`POST /v1/webhooks/mercadopago/{webhookKey}`). A conta vem SÓ da chave do endereço. A assinatura é
- * conferida ANTES de qualquer consulta; a situação do pagamento vem da consulta à API do Mercado Pago com as credenciais DA
+ * Aviso do Mercado Pago (`POST /v1/webhooks/mercadopago/{webhookKey}`). A conta vem SÓ da chave do endereço. A assinatura, quando vem, é
+ * conferida ANTES de qualquer consulta (sem ela vale a chave da URL); a situação do pagamento vem da consulta à API do Mercado Pago com as credenciais DA
  * CONTA, nunca do corpo do aviso (que nem é lido). Respostas: 404 chave desconhecida; 401 assinatura inválida; 503 consulta
  * falhou (o Mercado Pago tenta de novo); 200 nos demais casos, inclusive o que não é pagamento ou não é desta conta.
  */
@@ -195,7 +210,11 @@ export async function handleMercadoPagoNotification(i: {
   if (account === null) return { status: 404 }
   if (i.type !== 'payment') return { status: 200 }
   if (i.dataId === null || i.dataId === '') return { status: 200 }
-  if (!verifyMercadoPagoSignature({ secret: account.webhookSecret, xSignature: i.xSignature, xRequestId: i.xRequestId, dataId: i.dataId })) return { status: 401 }
+  // Autenticação: a chave secreta de 256 bits na URL já identifica a conta, e a situação do pagamento SEMPRE vem da consulta à
+  // API do Mercado Pago com o token da conta (o corpo e o aviso não decidem nada). Não temos certeza de que os avisos da
+  // `notification_url` da preferência venham assinados; por isso, se o `x-signature` vier, ele é verificado (inválido = 401) e,
+  // se não vier, o aviso é aceito.
+  if (i.xSignature !== null && !verifyMercadoPagoSignature({ secret: account.webhookSecret, xSignature: i.xSignature, xRequestId: i.xRequestId, dataId: i.dataId })) return { status: 401 }
   // O id vai para a URL da consulta: só dígitos, mesmo assinado.
   if (!DATA_ID.test(i.dataId)) return { status: 200 }
 

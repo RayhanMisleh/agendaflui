@@ -6,9 +6,9 @@ import { applyPayment, listOrderPayments, syncOrderPayments } from '@/server/dom
 import { advanceFulfillment, cancelOrder } from '@/server/domain/store/orders'
 import { setIntegrationsForTests } from '@/server/integrations'
 import { resetDb } from '../setup/db'
-import { cenaLoja, configurarIntegracoes, produto } from '../setup/store'
+import { cenaLoja, configurarIntegracoes, mpSegredoDe, mpTokenDe, produto } from '../setup/store'
 import { estoque, pedidoComRetirada } from '../setup/store-orders'
-import { cenaPagamento, MP_SEGREDO, MP_TOKEN, notificar, pagamentoMp, type CenaPagamento } from '../setup/store-payments'
+import { cenaPagamento, notificar, pagamentoMp, type CenaPagamento } from '../setup/store-payments'
 import { fakeMercadoPago } from '@/server/integrations/fakes'
 
 beforeEach(resetDb)
@@ -248,7 +248,7 @@ describe('syncOrderPayments', () => {
     expect(await syncOrderPayments(await sistema(), c.pedido.id)).toBe(true)
     expect((await linha()).status).toBe('PAID')
     expect(c.fake.calls.map((x) => x.method)).toEqual(['searchPaymentsByReference'])
-    expect(c.fake.calls[0]!.accessToken).toBe(MP_TOKEN)
+    expect(c.fake.calls[0]!.accessToken).toBe(mpTokenDe(c.b.id))
   })
 
   test('sem pagamento algum: consulta ok (true) e o pedido não muda', async () => {
@@ -280,10 +280,10 @@ describe('handleMercadoPagoNotification', () => {
     c = await cenaPagamento()
   })
 
-  test('sem assinatura: 401 e nenhuma consulta ao Mercado Pago', async () => {
-    c.fake.registerPayment(pagamentoMp(c.pedido, { id: '555' }))
-    expect(await notificar(c, '555', { assinatura: false })).toEqual({ status: 401 })
-    expect(c.fake.calls).toHaveLength(0)
+  test('sem assinatura: aceito (a chave da URL autentica); a situação ainda vem da consulta', async () => {
+    c.fake.registerPayment(pagamentoMp(c.pedido, { id: '555', status: 'rejected', approvedAt: null }))
+    expect(await notificar(c, '555', { assinatura: false })).toEqual({ status: 200 })
+    expect(c.fake.calls.map((x) => x.method)).toEqual(['getPayment'])
     expect((await linha()).status).toBe('AWAITING_PAYMENT')
   })
 
@@ -295,13 +295,17 @@ describe('handleMercadoPagoNotification', () => {
     expect(c.fake.calls).toHaveLength(0)
   })
 
-  test('webhookKey de outra conta (segredo igual): 200 e o pedido desta conta não muda', async () => {
+  test('webhookKey de outra conta: a assinatura de A não abre a chave de B (401); a de B abre, consulta com o token DE B e o pedido de A não muda', async () => {
     const outra = await cenaLoja()
     await configurarIntegracoes(outra.b.id, { mercadoPago: true })
     const chaveDeB = (await prisma.businessIntegration.findUniqueOrThrow({ where: { businessId: outra.b.id } })).mpWebhookKey!
-    // mesmo segredo no teste (configurarIntegracoes usa valores fixos): a conta B abre com o segredo dela e consulta com o token DELA
     c.fake.registerPayment(pagamentoMp(c.pedido, { id: '556' }))
-    expect(await notificar(c, '556', { key: chaveDeB })).toEqual({ status: 200 })
+    expect(await notificar(c, '556', { key: chaveDeB })).toEqual({ status: 401 })
+    expect(c.fake.calls).toHaveLength(0)
+    expect(await notificar({ webhookKey: chaveDeB, b: outra.b }, '556')).toEqual({ status: 200 })
+    expect(c.fake.calls.map((x) => x.accessToken)).toEqual([mpTokenDe(outra.b.id)])
+    expect(mpTokenDe(outra.b.id)).not.toBe(mpTokenDe(c.b.id))
+    expect(mpSegredoDe(outra.b.id)).not.toBe(mpSegredoDe(c.b.id))
     expect((await linha()).status).toBe('AWAITING_PAYMENT')
   })
 
@@ -316,7 +320,7 @@ describe('handleMercadoPagoNotification', () => {
     expect(await notificar(c, '777')).toEqual({ status: 200 })
     expect((await linha()).status).toBe('PAID')
     expect(await prisma.payment.count()).toBe(1)
-    expect(c.fake.calls.map((x) => [x.method, x.accessToken])).toEqual([['getPayment', MP_TOKEN]])
+    expect(c.fake.calls.map((x) => [x.method, x.accessToken])).toEqual([['getPayment', mpTokenDe(c.b.id)]])
   })
 
   test('a mesma notificação 3 vezes em sequência: um pagamento, pedido pago, estoque igual', async () => {
@@ -397,7 +401,7 @@ describe('handleMercadoPagoNotification', () => {
     await notificar(c, '791', { assinatura: false })
     await notificar(c, '792', { key: 'nenhuma-chave-assim-0123456789' })
     const tudo = JSON.stringify([log.mock.calls, info.mock.calls, aviso.mock.calls, r])
-    for (const s of [MP_TOKEN, MP_SEGREDO, c.webhookKey]) expect(tudo).not.toContain(s)
+    for (const s of [mpTokenDe(c.b.id), mpSegredoDe(c.b.id), c.webhookKey]) expect(tudo).not.toContain(s)
     vi.restoreAllMocks()
   })
 })
@@ -406,7 +410,7 @@ describe('sem integração do Mercado Pago na conta', () => {
   test('webhookKey de conta sem segredos legíveis: 404', async () => {
     const c2 = await cenaLoja()
     setIntegrationsForTests({ mercadoPago: fakeMercadoPago() })
-    expect(await notificar({ webhookKey: 'x' }, '1')).toEqual({ status: 404 })
+    expect(await notificar({ webhookKey: 'x', b: c2.b }, '1')).toEqual({ status: 404 })
     expect(c2.b.id).toBeDefined()
   })
 })

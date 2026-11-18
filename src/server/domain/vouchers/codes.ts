@@ -101,13 +101,11 @@ function endOfLocalDay(from: Date, days: number, tz: string): Date {
  * Gera os códigos de um pedido PAGO: `quantity` por linha de voucher, `seq` 1..quantidade. Repetir é inofensivo e vale até
  * sem a trava do pedido: `(order_item_id, seq)` é único e a gravação ignora duplicados (`skipDuplicates`), então só o que falta
  * é criado. Código repetido na conta (único `(business_id, code)`) também é ignorado e a unidade que ficou sem código ganha
- * outro sorteio, até 5 tentativas; depois disso falha (e a transação do pagamento volta atrás). Códigos anulados por um
- * estorno voltam a valer quando outro pagamento reabre o pedido. Devolve quantos códigos criou. Chame dentro da transação.
+ * outro sorteio, até 5 tentativas; depois disso falha (e a transação do pagamento volta atrás). Devolve quantos códigos criou. Chame dentro da transação.
  */
 export async function issueCodesForOrder(tx: TenantTx, ctx: TenantContext, orderId: string, generate: () => string = generateVoucherCode): Promise<number> {
   const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: { where: { voucherId: { not: null } }, orderBy: { position: 'asc' } } } })
   if (order === null || order.items.length === 0) return 0
-  await tx.voucherCode.updateMany({ where: { orderId, status: 'VOID' }, data: { status: 'ACTIVE', voidedAt: null, voidReason: null } })
   const vouchers = await tx.voucher.findMany({ where: { id: { in: order.items.flatMap((i) => (i.voucherId === null ? [] : [i.voucherId])) } }, select: { id: true, validDays: true } })
   const validDays = new Map(vouchers.map((v) => [v.id, v.validDays]))
   const paidAt = order.paidAt ?? ctx.clock()

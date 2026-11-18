@@ -90,7 +90,7 @@ describe('configurações da loja', () => {
 
   test('limites do pacote padrão e do prazo para pagar', async () => {
     for (const [campo, mudanca] of [
-      ['paymentWindowMin', { paymentWindowMin: 14 }],
+      ['paymentWindowMin', { paymentWindowMin: 29 }],
       ['paymentWindowMin', { paymentWindowMin: 1441 }],
       ['defaultPackage.weightGrams', { defaultPackage: { ...CONFIG.defaultPackage, weightGrams: 0 } }],
       ['defaultPackage.lengthCm', { defaultPackage: { ...CONFIG.defaultPackage, lengthCm: 201 } }],

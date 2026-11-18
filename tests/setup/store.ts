@@ -47,12 +47,16 @@ export const png = async (w = 800, h = 600) => ({
   bytes: new Uint8Array(await sharp({ create: { width: w, height: h, channels: 3, background: '#0e4f5c' } }).png().toBuffer()),
 })
 
-/** Configura Mercado Pago e/ou Frenet da conta, como o admin da plataforma (valores inventados). */
+/** O token e o segredo do webhook de cada conta de teste: DIFERENTES entre contas, para um teste falhar se o código usar os de outra. */
+export const mpTokenDe = (businessId: string): string => `TEST-${businessId.replaceAll('-', '')}-Qz7K`
+export const mpSegredoDe = (businessId: string): string => `whsec${businessId.replaceAll('-', '')}`
+
+/** Configura Mercado Pago e/ou Frenet da conta, como o admin da plataforma (valores inventados, próprios de cada conta). */
 export async function configurarIntegracoes(businessId: string, o: { mercadoPago?: boolean; frenet?: boolean | 'remover' } = {}) {
   const a = await makePlatformAdmin()
   const admin: Extract<Actor, { kind: 'platform_admin' }> = { kind: 'platform_admin', adminId: a.id, name: a.name }
   const versao = async () => (await getIntegrations(admin, businessId)).version
-  if (o.mercadoPago) await setMercadoPago(admin, businessId, await versao(), { accessToken: 'TEST-a1b2c3d4e5f6g7h8i9j0-Qz7K', webhookSecret: 'whsecabcdef0123456789Hy5N' })
+  if (o.mercadoPago) await setMercadoPago(admin, businessId, await versao(), { accessToken: mpTokenDe(businessId), webhookSecret: mpSegredoDe(businessId) })
   if (o.frenet === true) await setFrenet(admin, businessId, await versao(), { token: 'FRENET-TOKEN-0123456789-Vb6D' })
   if (o.frenet === 'remover') await clearFrenet(admin, businessId, await versao())
 }

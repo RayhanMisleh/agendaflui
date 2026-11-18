@@ -25,7 +25,7 @@ function chamar(o: { key?: string; dataId?: string | null; type?: string | null;
   if (o.type !== null) url.searchParams.set('type', o.type ?? 'payment')
   const headers = new Headers({ 'content-type': 'application/json', 'x-request-id': 'req-1', 'x-forwarded-for': o.ip ?? '203.0.113.9' })
   const dataId = o.dataId ?? '3001'
-  const assinatura = o.assinatura === undefined ? assinar({ dataId }) : o.assinatura
+  const assinatura = o.assinatura === undefined ? assinar({ dataId, businessId: c.b.id }) : o.assinatura
   if (assinatura !== null) headers.set('x-signature', assinatura)
   return rota.POST(new Request(url, { method: 'POST', headers, body: o.body ?? JSON.stringify({ type: 'payment', data: { id: dataId } }) }), { params: Promise.resolve({ key: undefined, webhookKey: o.key ?? c.webhookKey }) as Promise<{ webhookKey: string }> })
 }
@@ -57,9 +57,17 @@ describe('POST /v1/webhooks/mercadopago/{webhookKey}', () => {
     expect((await linha()).status).toBe('AWAITING_PAYMENT')
   })
 
-  test('sem assinatura ou com assinatura errada: 401 sem corpo e sem consulta', async () => {
+  test('assinatura ausente é aceita (a chave secreta da URL autentica e a situação vem da consulta)', async () => {
     c.fake.registerPayment(pagamentoMp(c.pedido, { id: '3001' }))
-    for (const a of [null, 'ts=1,v1=00', assinar({ dataId: '3001', secret: 'segredo-de-outra-conta-0123456789' })]) {
+    const r = await chamar({ assinatura: null })
+    expect(r.status).toBe(200)
+    expect(c.fake.calls.map((x) => x.method)).toEqual(['getPayment'])
+    expect((await linha()).status).toBe('PAID')
+  })
+
+  test('assinatura errada: 401 sem corpo e sem consulta', async () => {
+    c.fake.registerPayment(pagamentoMp(c.pedido, { id: '3001' }))
+    for (const a of ['', 'ts=1,v1=00', assinar({ dataId: '3001', secret: 'segredo-de-outra-conta-0123456789' })]) {
       const r = await chamar({ assinatura: a })
       expect(r.status).toBe(401)
       expect(await r.text()).toBe('')
@@ -97,6 +105,15 @@ describe('POST /v1/webhooks/mercadopago/{webhookKey}', () => {
     expect(await r.text()).toBe('')
     expect(JSON.stringify(log.mock.calls)).not.toContain('whsecabcdef')
     log.mockRestore()
+  })
+
+  test('limite por IP e chave: outra chave do mesmo IP segue livre; o teto geral do IP vale para chaves inventadas', async () => {
+    const b = await cenaPagamento()
+    for (let i = 0; i < 120; i++) expect((await chamar({ ip: '198.51.100.20', type: 'merchant_order' })).status).toBe(200)
+    expect((await chamar({ ip: '198.51.100.20', type: 'merchant_order' })).status).toBe(429)
+    expect((await chamar({ ip: '198.51.100.20', key: b.webhookKey, type: 'merchant_order' })).status).toBe(200)
+    for (let i = 0; i < 600; i++) expect((await chamar({ ip: '198.51.100.21', key: `chave-inventada-${String(i).padStart(4, '0')}-0123456789` })).status).toBe(404)
+    expect((await chamar({ ip: '198.51.100.21', key: 'chave-inventada-9999-0123456789' })).status).toBe(429)
   })
 
   test('limite por IP: depois de 120 chamadas por minuto responde 429; outro IP segue livre', async () => {

@@ -7,6 +7,9 @@ import { requireModule } from '@/server/domain/modules'
 import { integrationStatus } from '@/server/domain/platform/integration-secrets'
 import { staleSettings } from '@/server/domain/settings/versioned'
 
+/** Prazo mínimo para pagar: o Pix do Mercado Pago só aceita expiração de pelo menos 30 minutos. */
+export const MIN_PAYMENT_WINDOW_MIN = 30
+
 export type StoreSettings = {
   pickupEnabled: boolean
   pickupInstructions: string | null
@@ -80,7 +83,7 @@ const schema = z.strictObject({
   paymentWindowMin: z
     .number('Informe o prazo para pagar em minutos.')
     .int('Informe o prazo em minutos inteiros.')
-    .min(15, 'O prazo mínimo é de 15 minutos.')
+    .min(MIN_PAYMENT_WINDOW_MIN, 'O prazo mínimo é de 30 minutos (o Pix exige pelo menos isso).')
     .max(1440, 'O prazo máximo é de 1.440 minutos (24 horas).'),
 })
 

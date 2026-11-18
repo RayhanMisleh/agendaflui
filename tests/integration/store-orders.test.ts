@@ -63,12 +63,12 @@ describe('pedido com retirada', () => {
   })
 
   test('os pedidos seguintes ganham 1002, 1003... e o prazo para pagar vem das configurações', async () => {
-    await updateStoreSettings(c.dono, 0, { ...CONFIG, paymentWindowMin: 15 })
+    await updateStoreSettings(c.dono, 0, { ...CONFIG, paymentWindowMin: 30 })
     const p = await produto(c.dono, { stock: 10 })
     const a = await pedidoComRetirada(c.ctxCliente, [{ productId: p.id, quantity: 1 }])
     const b = await pedidoComRetirada(c.ctxOutro, [{ productId: p.id, quantity: 1 }])
     expect([a.order.number, b.order.number]).toEqual([1001, 1002])
-    expect(a.order.expiresAt).toEqual(new Date(c.now.getTime() + 15 * MIN))
+    expect(a.order.expiresAt).toEqual(new Date(c.now.getTime() + 30 * MIN))
   })
 
   test('o número é sequencial por conta (a conta B também começa em 1001)', async () => {
@@ -596,6 +596,9 @@ describe('leitura e isolamento', () => {
     const addressId = await enderecoDe(c.ctxCliente)
     const lines = [{ productId: p.id, quantity: 2 }]
     const { order } = await createOrder(c.ctxCliente, { lines, delivery: { method: 'SHIPPING', addressId, quoteToken: await cotar(c.ctxCliente, addressId, lines) }, note: 'Ligar antes: 11 99999-0000' })
+    // Enquanto o pedido de entrega aguarda pagamento, anonimizar é recusado (se o pagamento chegar, a loja precisa do endereço).
+    await expect(anonymizeCustomer(c.dono, c.cliente.id)).rejects.toMatchObject({ message: 'Conclua ou cancele os pedidos em andamento antes.' })
+    await cancelOrder(c.ctxCliente, order.id)
     await anonymizeCustomer(c.dono, c.cliente.id)
     const linha = await prisma.order.findUniqueOrThrow({ where: { id: order.id } })
     expect(linha).toMatchObject({ shipRecipient: null, shipPostalCode: null, shipStreet: null, shipNumber: null, shipComplement: null, shipDistrict: null, shipCity: null, shipState: null, customerNote: null })

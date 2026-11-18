@@ -132,6 +132,7 @@ test('os limites combinados', () => {
     shippingQuote: { limit: 20, windowSec: 60 },
     order: { limit: 10, windowSec: 60 },
     webhookIp: { limit: 120, windowSec: 60 },
+    webhookIpTotal: { limit: 600, windowSec: 60 },
     availability: { limit: 60, windowSec: 60 },
   })
 })

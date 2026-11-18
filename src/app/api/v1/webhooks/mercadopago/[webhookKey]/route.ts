@@ -15,11 +15,15 @@ export async function POST(request: Request, seg: { params: Promise<{ webhookKey
   try {
     const ip = clientIp(request.headers, env.TRUSTED_PROXY_HOPS)
     // Sem IP confiável não há como separar quem chama: não conta (um balde só deixaria um atacante calar o Mercado Pago).
+    const { webhookKey } = await seg.params
     if (ip !== null) {
-      const r = await hitRateLimit(limitKey('webhook-mp', ipLimitKeyPart(ip)), LIMITS.webhookIp, new Date())
+      // Dois baldes: o do IP inteiro (contra chaves inventadas) e o do IP com esta chave, para os avisos de uma loja não
+      // atrasarem os das outras (todos saem dos mesmos IPs do Mercado Pago).
+      const todos = await hitRateLimit(limitKey('webhook-mp-ip', ipLimitKeyPart(ip)), LIMITS.webhookIpTotal, new Date())
+      if (!todos.allowed) return vazia(429, { 'retry-after': String(todos.retryAfterSec) })
+      const r = await hitRateLimit(limitKey('webhook-mp', `${ipLimitKeyPart(ip)}:${webhookKey}`), LIMITS.webhookIp, new Date())
       if (!r.allowed) return vazia(429, { 'retry-after': String(r.retryAfterSec) })
     }
-    const { webhookKey } = await seg.params
     const url = new URL(request.url)
     const result = await handleMercadoPagoNotification({
       webhookKey,

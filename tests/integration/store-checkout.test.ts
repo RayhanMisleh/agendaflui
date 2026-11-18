@@ -6,9 +6,9 @@ import { setIntegrationsForTests } from '@/server/integrations'
 import { fakeMercadoPago } from '@/server/integrations/fakes'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { cenaLoja, configurarIntegracoes, produto } from '../setup/store'
+import { cenaLoja, configurarIntegracoes, mpTokenDe, produto } from '../setup/store'
 import { cotar, enderecoDe, pedidoComRetirada, prepararEntrega } from '../setup/store-orders'
-import { cenaPagamento, MP_TOKEN, type CenaPagamento } from '../setup/store-payments'
+import { cenaPagamento, type CenaPagamento } from '../setup/store-payments'
 
 beforeEach(resetDb)
 beforeEach(() => setIntegrationsForTests(null))
@@ -49,7 +49,7 @@ describe('startCheckout', () => {
       expect(pref.notificationUrl).toMatch(new RegExp(`^http://api\\.localhost:3000/v1/webhooks/mercadopago/${c.webhookKey}$`))
       expect(pref.expiresAt).toEqual(order.expiresAt)
       expect(pref.backUrl).toBeNull()
-      expect(c.fake.calls.at(0)?.accessToken).toBe(MP_TOKEN)
+      expect(c.fake.calls.at(0)?.accessToken).toBe(mpTokenDe(c.b.id))
       const gravado = await prisma.order.findUniqueOrThrow({ where: { id: order.id } })
       expect(gravado.checkoutUrl).toBe(r.checkoutUrl)
       expect(gravado.mpPreferenceId).not.toBeNull()
@@ -115,7 +115,7 @@ describe('startCheckout', () => {
       c.fake.failWith('unavailable')
       const e = await domainError(startCheckout(c.ctxCliente, c.pedido.id))
       expect(e.reason).toBe('payment_unavailable')
-      expect(e.message).not.toContain(MP_TOKEN)
+      expect(e.message).not.toContain(mpTokenDe(c.b.id))
       const linha = await prisma.order.findUniqueOrThrow({ where: { id: c.pedido.id } })
       expect(linha.mpPreferenceId).toBeNull()
       expect(linha.checkoutUrl).toBeNull()

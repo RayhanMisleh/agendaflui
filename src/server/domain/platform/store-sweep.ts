@@ -4,6 +4,9 @@ import { expireOverdueOrders } from '@/server/domain/store/expiry'
 import { syncOrderPayments } from '@/server/domain/store/payments'
 import { addMinutes } from '@/server/time'
 
+/** Teto de tempo da rodada na conferência com o Mercado Pago: o que não deu tempo fica para a próxima rodada. */
+const ROUND_BUDGET_MS = 60_000
+
 /** Depois de quanto tempo do vencimento o pedido vence mesmo sem conseguirmos conferir o pagamento com o Mercado Pago. */
 const GRACE_MIN = 24 * 60
 /** Quantos pedidos de uma conta a rodada confere no Mercado Pago; os demais ficam para a rodada seguinte. */
@@ -15,9 +18,12 @@ const CANDIDATES_MAX = 1000
  * pedidos que abriram o pagamento (têm preferência) são conferidos no Mercado Pago pela referência, e o aviso perdido vira
  * pedido pago; os demais vencem, devolvendo o estoque. Se o Mercado Pago não responde, o pedido espera a próxima rodada, até
  * 24 h depois do vencimento, e então vence. Funciona com a Loja desligada e a conta suspensa (age como sistema). Um erro numa
- * conta é registrado (só o nome) e as outras seguem. Devolve quantos pedidos foram conferidos e quantos venceram.
+ * conta é registrado (só o nome) e as outras seguem. A conferência tem teto de 60 s por rodada. Devolve quantos pedidos foram conferidos e quantos venceram.
  */
-export async function sweepStore(now: Date): Promise<{ synced: number; expired: number }> {
+export async function sweepStore(now: Date, o: { budgetMs?: number; elapsedMs?: () => number } = {}): Promise<{ synced: number; expired: number }> {
+  const budgetMs = o.budgetMs ?? ROUND_BUDGET_MS
+  const startedAt = performance.now()
+  const elapsedMs = o.elapsedMs ?? (() => performance.now() - startedAt)
   const businesses = await prisma.order.findMany({ where: { status: 'AWAITING_PAYMENT', expiresAt: { lte: now } }, distinct: ['businessId'], select: { businessId: true } })
   let synced = 0
   let expired = 0
@@ -35,6 +41,8 @@ export async function sweepStore(now: Date): Promise<{ synced: number; expired: 
       // O que não foi conferido nesta rodada não vence nela.
       const hold = new Set(ids)
       for (const id of ids.slice(0, SYNC_PER_ROUND)) {
+        // Sem tempo: o que falta não é conferido nem vence nesta rodada.
+        if (elapsedMs() >= budgetMs) break
         if (!(await syncOrderPayments(ctx, id))) break
         hold.delete(id)
         synced++

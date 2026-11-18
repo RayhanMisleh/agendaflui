@@ -328,14 +328,14 @@ describe('estorno, cancelamento e pagamento depois de vencer', () => {
     expect((await ordem(order.id)).status).toBe('CANCELED')
   })
 
-  test('outro pagamento aprovado depois do estorno reabre o pedido e reativa os códigos', async () => {
+  test('outro pagamento aprovado depois do estorno NÃO reabre o pedido (já foi pago uma vez): fica marcado em dobro e os códigos seguem anulados', async () => {
     const { order } = await pedidoDeVoucher(c.ctxCliente, linhaVoucher(2))
     await pagar(c, order, { id: '5001' })
     await estornar(order)
     await pagar(c, order, { id: '5002' })
-    expect(await ordem(order.id)).toMatchObject({ status: 'PAID' })
-    expect((await codigosDe(order.id)).map((x) => x.status)).toEqual(['ACTIVE', 'ACTIVE'])
-    expect(await estoqueDoVoucher(c.voucher.id)).toBe(8)
+    expect(await ordem(order.id)).toMatchObject({ status: 'CANCELED', attention: 'double_payment' })
+    expect((await codigosDe(order.id)).map((x) => x.status)).toEqual(['VOID', 'VOID'])
+    expect(await estoqueDoVoucher(c.voucher.id)).toBe(10)
   })
 
   test('a equipe cancelando o pedido pago anula os códigos e devolve o estoque', async () => {

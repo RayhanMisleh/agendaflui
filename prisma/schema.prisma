@@ -1270,7 +1270,7 @@ model Order {
   canceledById           String?           @map("canceled_by_id") @db.Uuid
   cancelReason           String?           @map("cancel_reason")
   stockReleasedAt        DateTime?         @map("stock_released_at") @db.Timestamptz(3)
-  /// `amount_mismatch`, `stock_shortfall` ou `payment_reversed`: o que o dono precisa resolver (CHECK na migração).
+  /// `amount_mismatch`, `stock_shortfall`, `payment_reversed` ou `double_payment`: o que o dono precisa resolver (CHECK na migração).
   attention              String?
   mpPreferenceId         String?           @map("mp_preference_id")
   checkoutUrl            String?           @map("checkout_url")

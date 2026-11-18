@@ -24,7 +24,7 @@ import { addMinutes, formatDateTime, minutesBetween } from '@/server/time'
 
 export type { DeliveryMethod, FulfillmentStatus, OrderStatus }
 
-export type OrderAttention = 'amount_mismatch' | 'stock_shortfall' | 'payment_reversed'
+export type OrderAttention = 'amount_mismatch' | 'stock_shortfall' | 'payment_reversed' | 'double_payment'
 export type Delivery = { method: 'PICKUP' } | { method: 'SHIPPING'; addressId: string; quoteToken: string } | { method: 'NONE' }
 
 export type OrderView = {
@@ -179,7 +179,7 @@ function toView(ctx: TenantContext, row: Row, settings: StoreSettings): OrderVie
     paidLabel: label(row.paidAt),
     canceledLabel: label(row.canceledAt),
     cancelReason: row.cancelReason,
-    attention: row.attention === 'amount_mismatch' || row.attention === 'stock_shortfall' || row.attention === 'payment_reversed' ? row.attention : null,
+    attention: row.attention === 'amount_mismatch' || row.attention === 'stock_shortfall' || row.attention === 'payment_reversed' || row.attention === 'double_payment' ? row.attention : null,
     // O cliente cancela enquanto aguarda o pagamento; a equipe também o pedido já pago (o estorno é feito no Mercado Pago).
     canCancel: isCustomer ? open : can(ctx.actor, 'manage_store') && (open || row.status === 'PAID'),
     canPay: isCustomer && open && ctx.clock().getTime() < row.expiresAt.getTime(),

@@ -28,6 +28,8 @@ const ATENCAO: Record<OrderAttention, string> = {
     'O Mercado Pago aprovou um pagamento com valor ou moeda diferentes do pedido, por isso o pedido não foi marcado como pago. Confira o valor pago abaixo. Se o pagamento estiver certo, combine com o cliente; senão, estorne no painel do Mercado Pago.',
   stock_shortfall:
     'O cliente pagou depois do prazo e já não havia estoque de todos os itens. Fale com o cliente para combinar a entrega, ou cancele o pedido e estorne o pagamento no painel do Mercado Pago.',
+  double_payment:
+    'Pagamento em dobro: estorne no Mercado Pago. O pedido já estava pago (ou foi cancelado depois de pago) e chegou outro pagamento aprovado. Confira os pagamentos abaixo e devolva o que passou do valor do pedido no painel do Mercado Pago.',
   payment_reversed:
     'O pagamento foi devolvido ou contestado depois de a entrega começar ou de um voucher ser usado no balcão, então esses itens não voltaram ao estoque. Confira com o cliente o que ele recebeu e recupere o que for devido.',
 }

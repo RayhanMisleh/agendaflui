@@ -5,13 +5,14 @@ import { cx } from './cx'
 export type OrderStatusKey = 'AWAITING_PAYMENT' | 'PAID' | 'CANCELED' | 'EXPIRED'
 export type FulfillmentKey = 'PENDING' | 'READY_FOR_PICKUP' | 'SHIPPED' | 'DELIVERED'
 export type DeliveryMethodKey = 'PICKUP' | 'SHIPPING' | 'NONE'
-export type OrderAttentionKey = 'amount_mismatch' | 'stock_shortfall' | 'payment_reversed'
+export type OrderAttentionKey = 'amount_mismatch' | 'stock_shortfall' | 'payment_reversed' | 'double_payment'
 
 /** O que a equipe precisa ver quando um pedido pede atenção. Sempre texto, nunca só cor. */
 export const ATTENTION_LABELS: Record<OrderAttentionKey, string> = {
   amount_mismatch: 'Valor divergente',
   stock_shortfall: 'Pago sem estoque',
   payment_reversed: 'Pagamento devolvido',
+  double_payment: 'Pagamento em dobro',
 }
 
 /** A situação do pedido em uma frase curta: pagamento primeiro e, com o pedido pago, a etapa da entrega. */

@@ -31,7 +31,10 @@ export const LIMITS = {
   /** Pedidos da loja por pessoa. */
   order: { limit: 10, windowSec: 60 },
   /** Webhook do Mercado Pago, por IP (a rota é pública). */
+  /** Por IP e chave de webhook (cada conta tem a sua): o balde de uma loja não segura as outras. */
   webhookIp: { limit: 120, windowSec: 60 },
+  /** Teto do IP inteiro, contra quem inventa chaves. */
+  webhookIpTotal: { limit: 600, windowSec: 60 },
   /** Consultas públicas de disponibilidade (cada uma lê a agenda inteira de um ou mais dias). */
   availability: { limit: 60, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>

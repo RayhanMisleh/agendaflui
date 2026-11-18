@@ -4,12 +4,8 @@ import { handleMercadoPagoNotification } from '@/server/domain/store/payments'
 import { setIntegrationsForTests } from '@/server/integrations'
 import { fakeMercadoPago, type FakeMercadoPago } from '@/server/integrations/fakes'
 import type { MpPayment } from '@/server/integrations/mercadopago'
-import { cenaLoja, configurarIntegracoes, produto, type CenaLoja } from './store'
+import { cenaLoja, configurarIntegracoes, mpSegredoDe, produto, type CenaLoja } from './store'
 import { pedidoComRetirada } from './store-orders'
-
-/** Os segredos que `configurarIntegracoes` grava (valores inventados). */
-export const MP_TOKEN = 'TEST-a1b2c3d4e5f6g7h8i9j0-Qz7K'
-export const MP_SEGREDO = 'whsecabcdef0123456789Hy5N'
 
 export type CenaPagamento = CenaLoja & { fake: FakeMercadoPago; webhookKey: string; produto: { id: string }; pedido: { id: string; totalCents: number } }
 
@@ -38,19 +34,19 @@ export function pagamentoMp(pedido: { id: string; totalCents: number }, o: Parti
 }
 
 /** Cabeçalho `x-signature` no formato do Mercado Pago. */
-export function assinar(i: { secret?: string; dataId: string; requestId?: string | null; ts?: string }): string {
+export function assinar(i: { secret?: string; businessId?: string; dataId: string; requestId?: string | null; ts?: string }): string {
   const ts = i.ts ?? '1763392200'
   const manifesto = `id:${i.dataId.toLowerCase()};${i.requestId === null ? '' : `request-id:${i.requestId ?? 'req-1'};`}ts:${ts};`
-  return `ts=${ts},v1=${createHmac('sha256', i.secret ?? MP_SEGREDO).update(manifesto).digest('hex')}`
+  return `ts=${ts},v1=${createHmac('sha256', i.secret ?? mpSegredoDe(i.businessId ?? '')).update(manifesto).digest('hex')}`
 }
 
 /** Notificação assinada de verdade (segredo da conta por padrão). */
-export function notificar(c: { webhookKey: string }, dataId: string | null, o: { secret?: string; type?: string | null; assinatura?: boolean; key?: string } = {}) {
+export function notificar(c: { webhookKey: string; b: { id: string } }, dataId: string | null, o: { secret?: string; type?: string | null; assinatura?: boolean; key?: string } = {}) {
   return handleMercadoPagoNotification({
     webhookKey: o.key ?? c.webhookKey,
     dataId,
     type: o.type === undefined ? 'payment' : o.type,
-    xSignature: o.assinatura === false || dataId === null ? null : assinar({ dataId, ...(o.secret ? { secret: o.secret } : {}) }),
+    xSignature: o.assinatura === false || dataId === null ? null : assinar({ dataId, businessId: c.b.id, ...(o.secret ? { secret: o.secret } : {}) }),
     xRequestId: 'req-1',
   })
 }
