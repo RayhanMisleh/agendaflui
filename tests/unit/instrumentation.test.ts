@@ -16,6 +16,7 @@ const base = {
   TRUSTED_PROXY_HOPS: '1',
   SMTP_URL: 'smtp://u:senha-secreta@h:587',
   MAIL_FROM: 'A <a@exemplo.com>',
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: 'chave-de-teste',
   STORAGE_DIR: tmpdir(),
 }
 

@@ -5,6 +5,22 @@ export type RouteDecision =
   | { action: 'pass' }
   | { action: 'not_found' }
 
+/** Padrões dos três hosts em desenvolvimento: a única definição (env, proxy, dev.ts e Playwright usam esta). */
+export const DEFAULT_HOSTS: HostConfig = {
+  dev: 'dev.localhost:3000',
+  painel: 'painel.localhost:3000',
+  api: 'api.localhost:3000',
+}
+
+/** Lê DEV_HOST, PAINEL_HOST e API_HOST (vazio ou ausente vale o padrão). Não valida nada além disso. */
+export function hostConfigFromEnv(source: Record<string, string | undefined>): HostConfig {
+  return {
+    dev: source['DEV_HOST'] || DEFAULT_HOSTS.dev,
+    painel: source['PAINEL_HOST'] || DEFAULT_HOSTS.painel,
+    api: source['API_HOST'] || DEFAULT_HOSTS.api,
+  }
+}
+
 const AREAS: readonly Area[] = ['dev', 'painel', 'api']
 
 function normalizeHost(host: string): string {

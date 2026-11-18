@@ -13,10 +13,15 @@ Um contêiner Docker (`Dockerfile` na raiz), porta 3000, atrás de um proxy com 
 Lista completa, uma linha cada, no bloco "Produção" do `.env.example`. Obrigatórias: `DATABASE_URL`,
 `APP_SECRET`, `DEV_HOST`, `PAINEL_HOST`, `API_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`.
 Atrás do proxy use `TRUSTED_PROXY_HOPS=1`: com 0 o IP do cliente é desconhecido (limites por IP desligados,
-auditoria sem IP). Sem `SMTP_URL` o servidor sobe, mas convites e cadastro pelo app não chegam.
+auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quando falta `SMTP_URL` e quando falta
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. O proxy precisa preservar o `Host` original: as rotas POST do painel dev conferem
+`Origin == Host`, e o roteamento por host também usa o `Host` (nunca `X-Forwarded-Host`); se o proxy reescrever o
+`Host`, essas rotas recusam o envio. Sem `SMTP_URL` o servidor sobe, mas convites e cadastro pelo app não chegam.
 `INTEGRATIONS_MODE` (opcional) escolhe as integrações externas (Mercado Pago, Frenet e ViaCEP): `real` ou `fake`. Em
 produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
 produção ele impede a partida.
+`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (base64 de 32 bytes, ex.: `openssl rand -base64 32`) fixa a chave das Server Actions. Com
+uma só instância é opcional; com várias é obrigatória, a mesma em todas e também no build (o Coolify a injeta nos dois).
 O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS no proxy o login não funciona.
 
 ## Banco

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { areaUrl, resolveArea, routeRequest } from '@/server/hosts'
+import { DEFAULT_HOSTS, areaUrl, hostConfigFromEnv, resolveArea, routeRequest } from '@/server/hosts'
 
 const cfg = { dev: 'dev.localhost:3000', painel: 'painel.localhost:3000', api: 'api.localhost:3000' }
 
@@ -62,5 +62,23 @@ describe('hosts', () => {
     expect(() => areaUrl('painel', '', cfg, 'http')).toThrow(/barra/)
     expect(() => areaUrl('painel', '.evil.com/x', cfg, 'http')).toThrow(/barra/)
     expect(areaUrl('painel', '/', cfg, 'http')).toBe('http://painel.localhost:3000/')
+  })
+})
+
+describe('hostConfigFromEnv', () => {
+  test('sem variáveis usa os padrões locais', () => {
+    expect(hostConfigFromEnv({})).toEqual({ dev: 'dev.localhost:3000', painel: 'painel.localhost:3000', api: 'api.localhost:3000' })
+  })
+
+  test('variável vazia também cai no padrão', () => {
+    expect(hostConfigFromEnv({ DEV_HOST: '' }).dev).toBe(DEFAULT_HOSTS.dev)
+  })
+
+  test('usa os valores informados', () => {
+    expect(hostConfigFromEnv({ DEV_HOST: 'dev.exemplo.com', PAINEL_HOST: 'p.exemplo.com', API_HOST: 'a.exemplo.com' })).toEqual({
+      dev: 'dev.exemplo.com',
+      painel: 'p.exemplo.com',
+      api: 'a.exemplo.com',
+    })
   })
 })

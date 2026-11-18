@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { DEFAULT_HOSTS } from './hosts'
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -7,9 +8,9 @@ const envSchema = z.object({
   // `true` leva também o servidor para a DIRECT_URL (quando o pooler não mantém o fuso UTC da sessão).
   DATABASE_USE_DIRECT_URL: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   APP_SECRET: z.string().min(32),
-  DEV_HOST: z.string().min(1).default('dev.localhost:3000'),
-  PAINEL_HOST: z.string().min(1).default('painel.localhost:3000'),
-  API_HOST: z.string().min(1).default('api.localhost:3000'),
+  DEV_HOST: z.string().min(1).default(DEFAULT_HOSTS.dev),
+  PAINEL_HOST: z.string().min(1).default(DEFAULT_HOSTS.painel),
+  API_HOST: z.string().min(1).default(DEFAULT_HOSTS.api),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
   // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
   SMTP_URL: z.string().min(1).optional(),
@@ -19,6 +20,8 @@ const envSchema = z.object({
   // Agendador de avisos dentro do servidor; `false` desliga (por exemplo, numa instância só de leitura).
   WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  // Chave das Server Actions do Next (base64 de 32 bytes): o Next a lê direto do ambiente; aqui só para o aviso da partida.
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: z.string().min(1).optional(),
   // Definida pelo Next; só interessa para distinguir o `next build` da execução em produção.
   NEXT_PHASE: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -102,6 +105,9 @@ export function productionWarnings(config: Env): string[] {
   }
   if (config.SMTP_URL === undefined) {
     avisos.push('SMTP_URL ausente: sem envio de e-mail, convites e cadastro pelo app não chegam.')
+  }
+  if (config.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY === undefined) {
+    avisos.push('NEXT_SERVER_ACTIONS_ENCRYPTION_KEY ausente: com várias instâncias, as ações do painel falham entre elas; defina a mesma chave fixa (base64 de 32 bytes, também no build).')
   }
   return avisos
 }

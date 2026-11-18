@@ -118,7 +118,7 @@ describe('hosts em produção', () => {
 })
 
 describe('avisos de produção', () => {
-  const prod = parseEnv({ ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), TRUSTED_PROXY_HOPS: '1', SMTP_URL: 'smtp://u:senha-secreta@h:587', MAIL_FROM: 'A <a@exemplo.com>' })
+  const prod = parseEnv({ ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), TRUSTED_PROXY_HOPS: '1', SMTP_URL: 'smtp://u:senha-secreta@h:587', MAIL_FROM: 'A <a@exemplo.com>', NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: 'chave-de-teste' })
 
   test('configuração completa não gera aviso', () => {
     expect(productionWarnings(prod)).toEqual([])
@@ -137,6 +137,17 @@ describe('avisos de produção', () => {
     expect(avisos[0]).toMatch(/SMTP_URL/)
     expect(avisos[0]).toMatch(/convites e cadastro pelo app não chegam/)
     expect(productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('senha-secreta')
+  })
+
+  test('sem NEXT_SERVER_ACTIONS_ENCRYPTION_KEY avisa que várias instâncias exigem a chave fixa', () => {
+    const avisos = productionWarnings({ ...prod, NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: undefined })
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]).toMatch(/NEXT_SERVER_ACTIONS_ENCRYPTION_KEY/)
+    expect(avisos[0]).toMatch(/várias instâncias/)
+  })
+
+  test('não vaza o valor da chave', () => {
+    expect(productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('chave-de-teste')
   })
 
   test('fora de produção não avisa', () => {

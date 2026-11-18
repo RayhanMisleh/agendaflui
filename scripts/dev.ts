@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
 import { DEV_DB, startDb, type RunningDb } from './db'
+import { hostConfigFromEnv } from '../src/server/hosts'
 import { planSeed } from './seed-policy'
 
 try {
@@ -76,11 +77,7 @@ async function main(): Promise<void> {
     return
   }
 
-  const hosts = {
-    dev: process.env.DEV_HOST || 'dev.localhost:3000',
-    painel: process.env.PAINEL_HOST || 'painel.localhost:3000',
-    api: process.env.API_HOST || 'api.localhost:3000',
-  }
+  const hosts = hostConfigFromEnv(process.env)
   console.log(`\nPainel dev:  http://${hosts.dev}\nPainel:      http://${hosts.painel}\nAPI:         http://${hosts.api}\n`)
 
   const next: ChildProcess = spawn(process.execPath, [resolve('node_modules/next/dist/bin/next'), 'dev', '-p', String(PORTA)], {
