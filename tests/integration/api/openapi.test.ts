@@ -10,6 +10,7 @@ import { buildOpenApi } from '@/server/api/openapi'
 import { ROUTE_MODULES, routeDefinitions } from '@/server/api/routes-manifest'
 import { preflight } from '@/server/api/define-route'
 import { API_ERROR_CODES } from '@/server/api/errors'
+import { CAPABILITIES } from '@/server/auth/capabilities'
 import { env } from '@/server/env'
 import { API_REASONS, DOMAIN_REASONS } from '@/server/domain/errors'
 import { apiRequest, callRoute, jsonObject, staffToken } from '../../setup/api'
@@ -313,6 +314,13 @@ beforeEach(() => {
 describe('documento OpenAPI', () => {
   test('é um OpenAPI 3.1 estruturalmente válido, com todos os $ref resolvidos', () => {
     expect(problemasDoDocumento(doc)).toEqual([])
+  })
+
+  test('o contrato de staff/me declara as capacidades como enum fechado, com as dos módulos', () => {
+    const esquema = esquemaDaResposta(doc, 'get', '/v1/staff/me', 200)
+    const itens = objeto(objeto(objeto(esquema.properties).capabilities).items)
+    expect(itens.enum).toEqual([...CAPABILITIES])
+    expect(itens.enum).toEqual(expect.arrayContaining(['manage_loyalty', 'manage_banners', 'manage_store', 'manage_vouchers']))
   })
 
   test('uma operação para cada método de cada rota, com operationId estável derivado de método e caminho', () => {

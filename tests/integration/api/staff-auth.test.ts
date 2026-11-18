@@ -115,6 +115,20 @@ describe('entrada da equipe', () => {
     expect(me.capabilities).toEqual(CAPABILITIES.filter((x) => x !== 'manage_account'))
   })
 
+  test('staff/me lista as capacidades dos módulos por nome: dono e gerente têm as quatro, o profissional nenhuma', async () => {
+    const c = await novaConta()
+    const dosModulos = ['manage_loyalty', 'manage_banners', 'manage_store', 'manage_vouchers']
+    for (const [role, email] of [['OWNER', 'dono@exemplo.test'], ['MANAGER', 'gerente@exemplo.test'], ['PROFESSIONAL', 'prof@exemplo.test']] as const) {
+      await membro(c, role, email)
+      const r = await entrar(c, email, SENHA)
+      const capabilities = jsonObject((await eu(c, tokensDe(r.json).accessToken)).json).capabilities
+      for (const nome of dosModulos) {
+        if (role === 'PROFESSIONAL') expect(capabilities).not.toContain(nome)
+        else expect(capabilities).toContain(nome)
+      }
+    }
+  })
+
   test('o profissional tem as 5 básicas, o professionalId ligado e o rótulo com o termo da conta', async () => {
     const c = await novaConta()
     await prisma.businessSettings.update({ where: { businessId: c.id }, data: { termProfessionalSingular: 'Barbeiro' } })

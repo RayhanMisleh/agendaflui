@@ -191,6 +191,7 @@ export async function adjustPoints(
         points: input.points,
         reason: input.reason,
         dedupeKey,
+        createdAt: ctx.clock(),
         createdByType: by.type,
         createdById: by.id,
       },

@@ -9,8 +9,13 @@ import { agendamentoComPontos, cenaFidelidade, lancar, memberOf, saldoNoBanco } 
 
 beforeEach(resetDb)
 
-const linhas = (businessId: string, appointmentId: string) =>
-  prisma.loyaltyTransaction.findMany({ where: { businessId, appointmentId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
+// Com o relógio parado as linhas empatam em `created_at`: a ordem vem do número da conclusão na chave (crédito antes do estorno).
+const ordem = (dedupeKey: string) => {
+  const [, , tipo, n] = dedupeKey.split(':')
+  return Number(n) * 2 + (tipo === 'reversal' ? 1 : 0)
+}
+const linhas = async (businessId: string, appointmentId: string) =>
+  (await prisma.loyaltyTransaction.findMany({ where: { businessId, appointmentId } })).sort((a, b) => ordem(a.dedupeKey) - ordem(b.dedupeKey))
 
 describe('crédito na conclusão', () => {
   test('dois serviços de 10 e 15 pontos creditam 25, uma vez, com a chave e o autor', async () => {
