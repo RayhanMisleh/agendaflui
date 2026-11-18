@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { StatNumber, Card } from '@/ui/components'
 import { DomainError } from '@/server/domain/errors'
 import { getAccountMetrics } from '@/server/domain/platform/metrics'
+import { formatBrl } from '@/server/notifications/render'
 import { HorariosNota } from '../../_lib/HorariosNota'
 import { quando } from '../../_lib/format'
 import { um } from '@/app/_lib/params'
@@ -51,11 +52,14 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
               <StatNumber label="Clientes" value={metricas.customers.total} />
               <StatNumber label="Clientes novos no mês" value={metricas.customers.newMonth} />
               <StatNumber label="Receita do mês" value={metricas.revenueCents.month.current} format="brl" />
+              {metricas.store ? <StatNumber label="Pedidos pagos da loja no mês" value={metricas.store.paidOrders.current} /> : null}
+              {metricas.store ? <StatNumber label="Receita da loja no mês" value={metricas.store.revenueCents.current} format="brl" /> : null}
               <StatNumber label="Equipe ativa" value={metricas.team.active} />
               <StatNumber label="Pessoas no app no mês" value={metricas.appUsers.activeMonth} />
             </div>
             <p className="af-listpanel__summary">
-              Mês passado: {metricas.appointments.month.previous} agendamentos. Última atividade:{' '}
+              Mês passado: {metricas.appointments.month.previous} agendamentos
+              {metricas.store ? `, ${metricas.store.paidOrders.previous} pedidos pagos e ${formatBrl(metricas.store.revenueCents.previous)} de receita da loja` : ''}. Última atividade:{' '}
               {metricas.lastActivityAt ? quando(metricas.lastActivityAt) : 'nenhuma ainda'}.
             </p>
             <HorariosNota />

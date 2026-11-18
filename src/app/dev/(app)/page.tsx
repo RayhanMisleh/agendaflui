@@ -106,6 +106,23 @@ export default async function VisaoGeralPage() {
                 {comparacao(o.revenueCents.month, formatBrl, 'Receita')}
               </StatTile>
             </Card>
+            {o.store.accounts > 0 ? (
+              <>
+                <Card>
+                  <StatTile label="Pedidos pagos da loja no mês" value={o.store.paidOrders.current} trend={describeTrend(o.store.paidOrders)}>
+                    {comparacao(o.store.paidOrders, (n) => formatInt(n), 'Pedidos pagos')}
+                    <p className="af-tile__note">
+                      {formatInt(o.store.accounts)} {o.store.accounts === 1 ? 'conta com Loja ligada' : 'contas com Loja ligada'}.
+                    </p>
+                  </StatTile>
+                </Card>
+                <Card>
+                  <StatTile label="Receita da loja no mês" value={o.store.revenueCents.current} format="brl" trend={describeTrend(o.store.revenueCents, formatBrl)}>
+                    {comparacao(o.store.revenueCents, formatBrl, 'Receita da loja')}
+                  </StatTile>
+                </Card>
+              </>
+            ) : null}
             <Card>
               <StatTile label="Clientes novos no mês" value={o.customers.newMonth.current} trend={describeTrend(o.customers.newMonth)}>
                 {comparacao(o.customers.newMonth, (n) => formatInt(n), 'Clientes novos')}
