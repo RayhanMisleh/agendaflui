@@ -184,3 +184,29 @@ describe('URL do banco', () => {
     expect(() => parseEnv({ ...base, DATABASE_USE_DIRECT_URL: 'sim' })).toThrow(/DATABASE_USE_DIRECT_URL/)
   })
 })
+
+describe('INTEGRATIONS_MODE', () => {
+  const prod = { ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40) }
+
+  test('em produção `fake` é erro de partida (e o valor não vai para a mensagem de outras variáveis)', () => {
+    expect(() => parseEnv({ ...prod, INTEGRATIONS_MODE: 'fake' })).toThrow(/INTEGRATIONS_MODE/)
+  })
+
+  test('sem a variável: produção resolve `real`; desenvolvimento e teste resolvem `fake`', () => {
+    expect(parseEnv(prod).INTEGRATIONS_MODE).toBe('real')
+    expect(parseEnv({ ...ok, NODE_ENV: 'development' }).INTEGRATIONS_MODE).toBe('fake')
+    expect(parseEnv({ ...ok, NODE_ENV: 'test' }).INTEGRATIONS_MODE).toBe('fake')
+    expect(parseEnv(ok).INTEGRATIONS_MODE).toBe('fake')
+  })
+
+  test('valores aceitos: `real` em qualquer ambiente, `fake` fora de produção; o resto é erro', () => {
+    expect(parseEnv({ ...prod, INTEGRATIONS_MODE: 'real' }).INTEGRATIONS_MODE).toBe('real')
+    expect(parseEnv({ ...ok, INTEGRATIONS_MODE: 'real' }).INTEGRATIONS_MODE).toBe('real')
+    expect(parseEnv({ ...ok, INTEGRATIONS_MODE: 'fake' }).INTEGRATIONS_MODE).toBe('fake')
+    expect(() => parseEnv({ ...ok, INTEGRATIONS_MODE: 'misto' })).toThrow(/INTEGRATIONS_MODE/)
+  })
+
+  test('na fase de build do Next, produção com `fake` ainda carrega (só a execução recusa)', () => {
+    expect(parseEnv({ ...prod, INTEGRATIONS_MODE: 'fake', NEXT_PHASE: 'phase-production-build' }).INTEGRATIONS_MODE).toBe('fake')
+  })
+})

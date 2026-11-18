@@ -762,4 +762,62 @@
     color: var(--ink-muted);
     font-size: var(--text-small);
   }
+
+  /* Galeria de imagens do produto: uma linha por imagem, com a miniatura e os botões de ordem e de remover. */
+  .af-gallery {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-gallery__item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-chip);
+    min-width: 0;
+  }
+  .af-gallery__img {
+    flex: none;
+    width: 5rem;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+  }
+  .af-gallery__label {
+    flex: 1 1 8rem;
+    min-width: 0;
+    font-weight: 600;
+  }
+  .af-gallery__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-inline-start: auto;
+  }
+  /* Bloco recolhido dentro de um formulário ("Entrega" nas medidas do produto) */
+  .af-fold {
+    border-top: 1px solid var(--line);
+    padding-top: 0.25rem;
+  }
+  .af-fold > summary {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    color: var(--brand-text);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .af-fold[open] > summary {
+    margin-bottom: 0.5rem;
+  }
+  .af-fold__body {
+    display: grid;
+    gap: 1rem;
+  }
 }

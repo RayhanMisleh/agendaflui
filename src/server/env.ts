@@ -22,6 +22,9 @@ const envSchema = z.object({
   // Definida pelo Next; só interessa para distinguir o `next build` da execução em produção.
   NEXT_PHASE: z.string().optional(),
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  // Serviços externos (Mercado Pago, Frenet, ViaCEP): `real` chama os serviços, `fake` usa as implementações falsas. Sem a
+  // variável, produção usa `real` e o resto usa `fake`; `fake` em produção é erro de partida.
+  INTEGRATIONS_MODE: z.enum(['real', 'fake']).optional(),
 })
 
 // Marcador estável do segredo de exemplo do .env.example; em produção ele nunca pode valer.
@@ -32,7 +35,7 @@ const MARCADOR_DE_EXEMPLO = 'EXEMPLO-'
 /** Remetente padrão (só desenvolvimento e teste; produção com SMTP exige `MAIL_FROM`). */
 export const DEFAULT_MAIL_FROM = 'AgendaFlui <nao-responda@agendaflui.localhost>'
 
-export type Env = z.infer<typeof envSchema>
+export type Env = Omit<z.infer<typeof envSchema>, 'INTEGRATIONS_MODE'> & { INTEGRATIONS_MODE: 'real' | 'fake' }
 
 type UrlsDoBanco = Pick<Env, 'DATABASE_URL' | 'DIRECT_URL' | 'DATABASE_USE_DIRECT_URL'>
 
@@ -113,6 +116,10 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
       path: ['APP_SECRET'],
       message: 'em produção, troque o valor de exemplo por um segredo aleatório (ex.: openssl rand -hex 32)',
     })
+    .refine((v) => !(v.NODE_ENV === 'production' && v.NEXT_PHASE !== FASE_DE_BUILD && v.INTEGRATIONS_MODE === 'fake'), {
+      path: ['INTEGRATIONS_MODE'],
+      message: 'em produção só vale `real` (ou deixe sem a variável); `fake` é para desenvolvimento e teste',
+    })
     .refine((v) => !(v.DATABASE_USE_DIRECT_URL && v.DIRECT_URL === undefined), {
       path: ['DATABASE_USE_DIRECT_URL'],
       message: 'só vale com DIRECT_URL definida',
@@ -133,7 +140,7 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     const problemas = problemasDosHosts(source)
     if (problemas.length > 0) falhar(problemas.join('; '))
   }
-  return data
+  return { ...data, INTEGRATIONS_MODE: data.INTEGRATIONS_MODE ?? (data.NODE_ENV === 'production' ? 'real' : 'fake') }
 }
 
 let cache: Env | undefined

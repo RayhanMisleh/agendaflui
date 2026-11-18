@@ -24,6 +24,8 @@ export const LIMITS = {
   booking: { limit: 20, windowSec: 60 },
   /** Resgates de prêmio por pessoa (a rota conta por chave de app e cliente). */
   redeem: { limit: 10, windowSec: 60 },
+  /** Consultas de CEP por pessoa (cada uma chama a ViaCEP). */
+  postalCode: { limit: 30, windowSec: 60 },
   /** Consultas públicas de disponibilidade (cada uma lê a agenda inteira de um ou mais dias). */
   availability: { limit: 60, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>

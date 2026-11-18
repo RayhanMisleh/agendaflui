@@ -25,6 +25,11 @@ export const TENANT_MODELS: Modelos = [
   'Prize',
   'PrizeRedemption',
   'Banner',
+  'StoreSettings',
+  'ProductCategory',
+  'Product',
+  'ProductImage',
+  'Address',
 ]
 
 /**

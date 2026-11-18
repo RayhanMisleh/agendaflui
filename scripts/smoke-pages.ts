@@ -110,6 +110,13 @@ const PAGINAS_MODULOS: string[] = [
   '/fidelidade?aba=clube',
   '/fidelidade?aba=ajustes',
   '/fidelidade/premios/novo',
+  '/loja',
+  '/loja?aba=produtos&search=a',
+  '/loja?aba=produtos&situacao=arquivados&categoria=nao-existe&cursor=nao-existe',
+  '/loja?aba=categorias',
+  '/loja?aba=configuracoes',
+  '/loja/produtos/novo',
+  '/loja/produtos/{produto}',
 ]
 
 /** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
@@ -275,6 +282,11 @@ async function main(): Promise<number> {
     limpezas.push(async () => {
       await prisma.banner.deleteMany({ where: { id: banner.id } })
     })
+    // Um produto de demonstração para a ficha; sai ao fim, junto com as sessões.
+    const produto = await prisma.product.create({ data: { businessId: conta.id, name: 'Produto da fumaça', priceCents: 1990, stock: 3 }, select: { id: true } })
+    limpezas.push(async () => {
+      await prisma.product.deleteMany({ where: { id: produto.id } })
+    })
     let falhas = 0
     let pulados = 0
     const hostPainel = `painel.localhost:${porta}`
@@ -285,7 +297,7 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id)
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id)
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {

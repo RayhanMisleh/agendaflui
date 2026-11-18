@@ -12,6 +12,7 @@ export const MENSAGENS_DE_IMAGEM: Record<string, { texto: string; ok: boolean }>
   unsupported_format: { texto: 'Este formato não é aceito. Envie JPEG, PNG ou WebP.', ok: false },
   too_many_pixels: { texto: 'A imagem é grande demais. Reduza e envie de novo.', ok: false },
   too_small: { texto: 'A imagem é pequena demais. Escolha uma com pelo menos 400 pixels no lado menor.', ok: false },
+  too_many_images: { texto: 'O produto já tem 6 imagens. Remova uma antes de enviar outra.', ok: false },
   refused: { texto: 'Você não pode trocar esta imagem agora.', ok: false },
   not_found: { texto: 'Este registro não existe mais.', ok: false },
 }

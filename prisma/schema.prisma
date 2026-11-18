@@ -305,6 +305,11 @@ model Business {
   prizes               Prize[]
   banners              Banner[]
   prizeRedemptions     PrizeRedemption[]
+  storeSettings        StoreSettings?
+  productCategories    ProductCategory[]
+  products             Product[]
+  productImages        ProductImage[]
+  addresses            Address[]
   notifications        Notification[]
   apiKeys              ApiKey[]
   apiUsage             ApiUsageHourly[]
@@ -515,6 +520,7 @@ model Upload {
   professionalAvatars Professional[]     @relation("ProfessionalAvatar")
   prizeImages         Prize[]            @relation("PrizeImage")
   bannerImages        Banner[]           @relation("BannerImage")
+  productImages       ProductImage[]
 
   @@unique([businessId, id])
   @@index([businessId])
@@ -575,6 +581,7 @@ model Customer {
 
   loyaltyTransactions LoyaltyTransaction[]
   prizeRedemptions    PrizeRedemption[]
+  addresses           Address[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -1051,4 +1058,125 @@ model Banner {
   @@unique([businessId, id])
   @@index([businessId, displayOrder])
   @@map("banners")
+}
+
+/// Configurações da loja da conta (retirada, entrega e prazo para pagar). Sem linha, valem os padrões do domínio; a primeira
+/// gravação cria a linha.
+model StoreSettings {
+  businessId         String   @id @map("business_id") @db.Uuid
+  pickupEnabled      Boolean  @default(true) @map("pickup_enabled")
+  pickupInstructions String?  @map("pickup_instructions")
+  shippingEnabled    Boolean  @default(false) @map("shipping_enabled")
+  /// CEP de origem da entrega, 8 dígitos.
+  originPostalCode   String?  @map("origin_postal_code")
+  /// Pacote usado quando o produto não tem as próprias medidas.
+  defaultWeightGrams Int      @default(1000) @map("default_weight_grams")
+  defaultLengthCm    Int      @default(20) @map("default_length_cm")
+  defaultHeightCm    Int      @default(10) @map("default_height_cm")
+  defaultWidthCm     Int      @default(30) @map("default_width_cm")
+  /// Minutos que o cliente tem para pagar antes de o pedido vencer e o estoque voltar.
+  paymentWindowMin   Int      @default(60) @map("payment_window_min")
+  /// Controle de edição: a gravação exige a versão lida.
+  version            Int      @default(1)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("store_settings")
+}
+
+model ProductCategory {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String    @map("business_id") @db.Uuid
+  name         String
+  /// Nome sem acentos, em minúsculas e com espaços colapsados: o índice único parcial (conta, chave) WHERE não arquivada vive só na migração.
+  nameKey      String    @map("name_key")
+  displayOrder Int       @default(0) @map("display_order")
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@unique([businessId, id])
+  @@index([businessId, displayOrder])
+  @@map("product_categories")
+}
+
+model Product {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String    @map("business_id") @db.Uuid
+  categoryId    String?   @map("category_id") @db.Uuid
+  name          String
+  description   String?
+  priceCents    Int       @map("price_cents")
+  promoPriceCents Int?    @map("promo_price_cents")
+  stock         Int       @default(0)
+  weightGrams   Int?      @map("weight_grams")
+  lengthCm      Int?      @map("length_cm")
+  heightCm      Int?      @map("height_cm")
+  widthCm       Int?      @map("width_cm")
+  active        Boolean   @default(true)
+  displayOrder  Int       @default(0) @map("display_order")
+  archivedAt    DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  images ProductImage[]
+
+  @@unique([businessId, id])
+  @@index([businessId, displayOrder])
+  @@index([businessId, categoryId])
+  @@map("products")
+}
+
+model ProductImage {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId String   @map("business_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  uploadId   String   @map("upload_id") @db.Uuid
+  position   Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  upload   Upload   @relation(fields: [uploadId], references: [id], onDelete: Restrict)
+
+  @@unique([businessId, id])
+  @@unique([productId, position])
+  @@index([uploadId])
+  @@map("product_images")
+}
+
+/// Endereço de entrega do cliente (até 10 por cliente, um padrão só). O pedido guarda uma cópia do endereço usado.
+model Address {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String   @map("business_id") @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+  label         String?
+  recipientName String   @map("recipient_name")
+  postalCode    String   @map("postal_code")
+  street        String
+  number        String
+  complement    String?
+  district      String
+  city          String
+  state         String
+  // O índice único parcial (customer_id) WHERE is_default vive só na migração.
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: NoAction)
+
+  @@unique([businessId, id])
+  @@index([businessId, customerId])
+  @@map("addresses")
 }
