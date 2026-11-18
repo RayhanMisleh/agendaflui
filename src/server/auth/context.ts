@@ -39,6 +39,26 @@ export async function createPlatformAdminContext(i: {
   }
 }
 
+/**
+ * Contexto do próprio sistema para tarefas internas que não esperam a conta voltar a ficar ativa: o pagamento já feito
+ * (webhook do Mercado Pago) e a varredura de pedidos vencidos valem com a conta suspensa ou arquivada. Só `not_found` se a conta
+ * não existe. Quem chama já decidiu o que fazer (não há ator humano); o domínio confere o resto.
+ */
+export async function createSystemContext(businessId: string, clock?: () => Date): Promise<TenantContext> {
+  if (!isUuid(businessId)) throw new DomainError('not_found', 'Conta não encontrada.')
+  const business = await prisma.business.findUnique({ where: { id: businessId }, select: { id: true, timezone: true } })
+  if (!business) throw new DomainError('not_found', 'Conta não encontrada.')
+  return {
+    businessId: business.id,
+    timeZone: business.timezone,
+    actor: { kind: 'system' },
+    db: tenantDb(business.id),
+    clock: clock ?? (() => new Date()),
+    request: { ip: null, userAgent: null },
+    channel: 'system',
+  }
+}
+
 /** Monta o contexto da conta: lê a conta (fuso e situação) e cria o cliente por conta uma vez. */
 export async function createTenantContext(i: {
   businessId: string

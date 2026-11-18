@@ -84,8 +84,11 @@ export function toAddressView(row: Address): AddressView {
   }
 }
 
-/** Endereços são do cliente do app: só ele os lê e altera. A equipe e o visitante não têm acesso. */
-async function ownCustomerId(ctx: TenantContext): Promise<string> {
+/**
+ * A loja é do cliente do app: módulo ligado e ator `customer`, senão recusa. Endereços, cotação e pedidos usam o id devolvido,
+ * nunca um id vindo do pedido (a equipe e o visitante não têm acesso).
+ */
+export async function ownCustomerId(ctx: TenantContext): Promise<string> {
   await requireModule(ctx, 'store')
   if (ctx.actor.kind !== 'customer') throw new DomainError('forbidden', 'Entre na sua conta para cuidar dos seus endereços.')
   return ctx.actor.customerId

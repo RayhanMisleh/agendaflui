@@ -61,9 +61,13 @@ import * as r58 from '@/app/api/v1/staff/time-blocks/route'
 import * as r59 from '@/app/api/v1/staff/working-hours/[professionalId]/route'
 import * as r60 from '@/app/api/v1/store/categories/route'
 import * as r61 from '@/app/api/v1/store/options/route'
-import * as r62 from '@/app/api/v1/store/postal-codes/[cep]/route'
-import * as r63 from '@/app/api/v1/store/products/[id]/route'
-import * as r64 from '@/app/api/v1/store/products/route'
+import * as r62 from '@/app/api/v1/store/orders/[id]/cancel/route'
+import * as r63 from '@/app/api/v1/store/orders/[id]/route'
+import * as r64 from '@/app/api/v1/store/orders/route'
+import * as r65 from '@/app/api/v1/store/postal-codes/[cep]/route'
+import * as r66 from '@/app/api/v1/store/products/[id]/route'
+import * as r67 from '@/app/api/v1/store/products/route'
+import * as r68 from '@/app/api/v1/store/shipping-quotes/route'
 
 export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'appointments/[id]/cancel/route.ts': r00,
@@ -128,9 +132,13 @@ export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unkn
   'staff/working-hours/[professionalId]/route.ts': r59,
   'store/categories/route.ts': r60,
   'store/options/route.ts': r61,
-  'store/postal-codes/[cep]/route.ts': r62,
-  'store/products/[id]/route.ts': r63,
-  'store/products/route.ts': r64,
+  'store/orders/[id]/cancel/route.ts': r62,
+  'store/orders/[id]/route.ts': r63,
+  'store/orders/route.ts': r64,
+  'store/postal-codes/[cep]/route.ts': r65,
+  'store/products/[id]/route.ts': r66,
+  'store/products/route.ts': r67,
+  'store/shipping-quotes/route.ts': r68,
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const

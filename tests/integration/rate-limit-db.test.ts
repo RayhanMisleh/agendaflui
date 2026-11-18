@@ -129,6 +129,8 @@ test('os limites combinados', () => {
     booking: { limit: 20, windowSec: 60 },
     redeem: { limit: 10, windowSec: 60 },
     postalCode: { limit: 30, windowSec: 60 },
+    shippingQuote: { limit: 20, windowSec: 60 },
+    order: { limit: 10, windowSec: 60 },
     availability: { limit: 60, windowSec: 60 },
   })
 })

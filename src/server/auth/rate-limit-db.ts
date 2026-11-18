@@ -26,6 +26,10 @@ export const LIMITS = {
   redeem: { limit: 10, windowSec: 60 },
   /** Consultas de CEP por pessoa (cada uma chama a ViaCEP). */
   postalCode: { limit: 30, windowSec: 60 },
+  /** Cotações de frete por pessoa (cada uma chama a Frenet). */
+  shippingQuote: { limit: 20, windowSec: 60 },
+  /** Pedidos da loja por pessoa. */
+  order: { limit: 10, windowSec: 60 },
   /** Consultas públicas de disponibilidade (cada uma lê a agenda inteira de um ou mais dias). */
   availability: { limit: 60, windowSec: 60 },
 } as const satisfies Record<string, LimitRule>

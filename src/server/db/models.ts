@@ -30,6 +30,8 @@ export const TENANT_MODELS: Modelos = [
   'Product',
   'ProductImage',
   'Address',
+  'Order',
+  'OrderItem',
 ]
 
 /**

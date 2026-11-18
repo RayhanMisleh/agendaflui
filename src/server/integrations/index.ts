@@ -1,5 +1,6 @@
 import { env } from '@/server/env'
-import { fakePostalCodes } from './fakes'
+import { fakeFrenet, fakePostalCodes } from './fakes'
+import { createFrenetGateway } from './frenet'
 import { createViaCepGateway } from './viacep'
 
 export { IntegrationError } from './errors'
@@ -16,7 +17,22 @@ export interface PostalCodeGateway {
   lookup(cep: string): Promise<PostalCodeAddress | null>
 }
 
-export type Integrations = { postalCodes: PostalCodeGateway }
+/** Uma cotação de frete: o serviço da transportadora, o preço em centavos e o prazo em dias. */
+export type FrenetService = { serviceCode: string; name: string; carrier: string; priceCents: number; days: number }
+
+export type FrenetQuote = {
+  sellerCep: string
+  recipientCep: string
+  invoiceValueCents: number
+  items: { sku: string; quantity: number; weightKg: number; lengthCm: number; heightCm: number; widthCm: number }[]
+}
+
+export interface FrenetGateway {
+  /** Serviços disponíveis para o envio; lista vazia se nenhum atende. Falha do serviço é `IntegrationError`. O token vai só no cabeçalho. */
+  quote(token: string, q: FrenetQuote): Promise<FrenetService[]>
+}
+
+export type Integrations = { postalCodes: PostalCodeGateway; frenet: FrenetGateway }
 
 let override: Partial<Integrations> | null = null
 let real: Integrations | null = null
@@ -24,7 +40,10 @@ let fake: Integrations | null = null
 
 /** As integrações do modo atual; `setIntegrationsForTests` troca partes só em teste. */
 export function integrations(): Integrations {
-  const base = env.INTEGRATIONS_MODE === 'real' ? (real ??= { postalCodes: createViaCepGateway() }) : (fake ??= { postalCodes: fakePostalCodes() })
+  const base =
+    env.INTEGRATIONS_MODE === 'real'
+      ? (real ??= { postalCodes: createViaCepGateway(), frenet: createFrenetGateway() })
+      : (fake ??= { postalCodes: fakePostalCodes(), frenet: fakeFrenet() })
   return override === null ? base : { ...base, ...override }
 }
 

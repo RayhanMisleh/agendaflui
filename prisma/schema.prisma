@@ -119,6 +119,32 @@ enum RedemptionStatus {
   @@map("redemption_status")
 }
 
+enum OrderStatus {
+  AWAITING_PAYMENT
+  PAID
+  CANCELED
+  EXPIRED
+
+  @@map("order_status")
+}
+
+enum FulfillmentStatus {
+  PENDING
+  READY_FOR_PICKUP
+  SHIPPED
+  DELIVERED
+
+  @@map("fulfillment_status")
+}
+
+enum DeliveryMethod {
+  PICKUP
+  SHIPPING
+  NONE
+
+  @@map("delivery_method")
+}
+
 enum NotificationKind {
   APPOINTMENT_CONFIRMED
   APPOINTMENT_CANCELED
@@ -310,6 +336,8 @@ model Business {
   products             Product[]
   productImages        ProductImage[]
   addresses            Address[]
+  orders               Order[]
+  orderItems           OrderItem[]
   notifications        Notification[]
   apiKeys              ApiKey[]
   apiUsage             ApiUsageHourly[]
@@ -582,6 +610,7 @@ model Customer {
   loyaltyTransactions LoyaltyTransaction[]
   prizeRedemptions    PrizeRedemption[]
   addresses           Address[]
+  orders              Order[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -1127,7 +1156,8 @@ model Product {
   business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  images ProductImage[]
+  images     ProductImage[]
+  orderItems OrderItem[]
 
   @@unique([businessId, id])
   @@index([businessId, displayOrder])
@@ -1179,4 +1209,84 @@ model Address {
   @@unique([businessId, id])
   @@index([businessId, customerId])
   @@map("addresses")
+}
+
+/// Pedido da loja. Guarda nome e preço de cada item, a cópia do endereço e o serviço de frete do momento da compra. O estoque é
+/// reservado ao criar e devolvido uma vez só (`stock_released_at`) ao cancelar ou vencer.
+model Order {
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId             String            @map("business_id") @db.Uuid
+  /// Sequencial por conta, a partir de 1001.
+  number                 Int
+  customerId             String            @map("customer_id") @db.Uuid
+  status                 OrderStatus       @default(AWAITING_PAYMENT)
+  fulfillmentStatus      FulfillmentStatus @default(PENDING) @map("fulfillment_status")
+  deliveryMethod         DeliveryMethod    @map("delivery_method")
+  itemsCents             Int               @map("items_cents")
+  shippingCents          Int               @default(0) @map("shipping_cents")
+  totalCents             Int               @map("total_cents")
+  shippingServiceCode    String?           @map("shipping_service_code")
+  shippingServiceName    String?           @map("shipping_service_name")
+  shippingDays           Int?              @map("shipping_days")
+  trackingCode           String?           @map("tracking_code")
+  shipRecipient          String?           @map("ship_recipient")
+  shipPostalCode         String?           @map("ship_postal_code")
+  shipStreet             String?           @map("ship_street")
+  shipNumber             String?           @map("ship_number")
+  shipComplement         String?           @map("ship_complement")
+  shipDistrict           String?           @map("ship_district")
+  shipCity               String?           @map("ship_city")
+  shipState              String?           @map("ship_state")
+  customerNote           String?           @map("customer_note")
+  expiresAt              DateTime          @map("expires_at") @db.Timestamptz(3)
+  paidAt                 DateTime?         @map("paid_at") @db.Timestamptz(3)
+  canceledAt             DateTime?         @map("canceled_at") @db.Timestamptz(3)
+  canceledByType         PartyType?        @map("canceled_by_type")
+  canceledById           String?           @map("canceled_by_id") @db.Uuid
+  cancelReason           String?           @map("cancel_reason")
+  stockReleasedAt        DateTime?         @map("stock_released_at") @db.Timestamptz(3)
+  /// `amount_mismatch`, `stock_shortfall` ou `payment_reversed`: o que o dono precisa resolver (CHECK na migração).
+  attention              String?
+  mpPreferenceId         String?           @map("mp_preference_id")
+  checkoutUrl            String?           @map("checkout_url")
+  // O índice único parcial (business_id, customer_id, idempotency_key) WHERE idempotency_key IS NOT NULL vive só na migração.
+  idempotencyKey         String?           @map("idempotency_key")
+  idempotencyRequestHash String?           @map("idempotency_request_hash")
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: NoAction)
+
+  items OrderItem[]
+
+  @@unique([businessId, id])
+  @@unique([businessId, number])
+  @@index([businessId, status, expiresAt])
+  @@index([businessId, customerId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String   @map("business_id") @db.Uuid
+  orderId        String   @map("order_id") @db.Uuid
+  productId      String?  @map("product_id") @db.Uuid
+  /// Cópias do momento da compra.
+  name           String
+  unitPriceCents Int      @map("unit_price_cents")
+  quantity       Int
+  totalCents     Int      @map("total_cents")
+  position       Int
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product  Product? @relation(fields: [productId], references: [id], onDelete: NoAction)
+
+  @@unique([businessId, id])
+  @@unique([orderId, position])
+  @@index([productId])
+  @@map("order_items")
 }
