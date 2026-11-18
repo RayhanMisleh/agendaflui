@@ -3,7 +3,7 @@ import { DomainError, z } from '@/server/domain/errors'
 import { readFrenetToken } from '@/server/domain/platform/integration-secrets'
 import { ownCustomerId } from '@/server/domain/store/addresses'
 import { priceCart } from '@/server/domain/store/cart'
-import type { CartLine } from '@/server/domain/store/cart'
+import type { RawCartLine } from '@/server/domain/store/cart'
 import { QUOTE_TTL_MIN, signQuote } from '@/server/domain/store/quote-token'
 import { loadStoreSettings } from '@/server/domain/store/settings'
 import { integrations, IntegrationError } from '@/server/integrations'
@@ -23,7 +23,7 @@ const MS_PER_MIN = 60_000
  * vai assinado no `quoteToken`, que o pedido confere: o app nunca manda o preço do frete. Entrega indisponível (desligada,
  * sem CEP de origem, sem token, Frenet fora do ar ou sem opções) NÃO é erro: volta `shippingError` e a retirada continua.
  */
-export async function quoteShipping(ctx: TenantContext, i: { addressId: string; lines: CartLine[] }): Promise<ShippingQuote> {
+export async function quoteShipping(ctx: TenantContext, i: { addressId: string; lines: RawCartLine[] }): Promise<ShippingQuote> {
   const customerId = await ownCustomerId(ctx)
   const settings = await loadStoreSettings(ctx)
   const cart = await priceCart(ctx, i.lines)
@@ -31,6 +31,9 @@ export async function quoteShipping(ctx: TenantContext, i: { addressId: string; 
   if (address === null) throw new DomainError('not_found', 'Endereço não encontrado.')
   const pickup = { available: settings.pickupEnabled, instructions: settings.pickupEnabled ? settings.pickupInstructions : null }
   const error = settings.pickupEnabled ? 'A entrega não está disponível agora. Você pode retirar no local.' : 'A entrega não está disponível agora. Tente de novo em instantes.'
+  // Voucher não entra no frete (nem no peso): carrinho só de vouchers não tem entrega a cotar.
+  const physical = cart.lines.flatMap((l) => (l.kind === 'product' ? [l] : []))
+  if (physical.length === 0) return { pickup: { available: false, instructions: null }, options: [], shippingError: 'Este carrinho só tem vouchers e não precisa de entrega.' }
   const none = (): ShippingQuote => ({ pickup, options: [], shippingError: error })
 
   const token = settings.shippingEnabled && settings.originPostalCode !== null ? await readFrenetToken(ctx.businessId) : null
@@ -41,8 +44,8 @@ export async function quoteShipping(ctx: TenantContext, i: { addressId: string; 
     services = await integrations().frenet.quote(token, {
       sellerCep: settings.originPostalCode,
       recipientCep: address.postalCode,
-      invoiceValueCents: cart.itemsCents,
-      items: cart.lines.map((l) => ({ sku: l.id, quantity: l.quantity, weightKg: l.weightGrams / 1000, lengthCm: l.lengthCm, heightCm: l.heightCm, widthCm: l.widthCm })),
+      invoiceValueCents: physical.reduce((sum, l) => sum + l.totalCents, 0),
+      items: physical.map((l) => ({ sku: l.id, quantity: l.quantity, weightKg: l.weightGrams / 1000, lengthCm: l.lengthCm, heightCm: l.heightCm, widthCm: l.widthCm })),
     })
   } catch (err) {
     if (!(err instanceof IntegrationError)) throw err

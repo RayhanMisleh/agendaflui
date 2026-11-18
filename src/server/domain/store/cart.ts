@@ -5,11 +5,22 @@ import { DomainError, parse, z } from '@/server/domain/errors'
 import { requireModule } from '@/server/domain/modules'
 import { PUBLIC_PRODUCT_FILTER } from '@/server/domain/store/products'
 import { loadStoreSettings } from '@/server/domain/store/settings'
+import { PUBLIC_VOUCHER_FILTER } from '@/server/domain/vouchers/vouchers'
 
-/** Uma linha do carrinho como o app a manda: só o produto e a quantidade. Preço, nome e medidas vêm sempre do banco. */
-export type CartLine = { productId: string; quantity: number }
+/** Uma linha do carrinho como o app a manda: só o produto (ou o voucher) e a quantidade. Preço, nome e medidas vêm sempre do banco. */
+export type CartLine = { productId: string; quantity: number } | { voucherId: string; quantity: number }
 
-export type PricedLine = {
+/** A linha como chega de fora (corpo da API): o domínio confere que tem produto OU voucher e a normaliza em `CartLine`. */
+export type RawCartLine = { productId?: string | undefined; voucherId?: string | undefined; quantity: number }
+
+/** Chave de uma linha (produto ou voucher), para ordenar, repetir e assinar. */
+export function lineKey(l: CartLine): string {
+  return 'productId' in l ? l.productId : `voucher:${l.voucherId}`
+}
+
+export type PricedVoucherLine = { kind: 'voucher'; id: string; name: string; unitPriceCents: number; quantity: number; totalCents: number }
+
+export type PricedProductLine = {
   kind: 'product'
   id: string
   name: string
@@ -22,10 +33,12 @@ export type PricedLine = {
   widthCm: number
 }
 
+export type PricedLine = PricedProductLine | PricedVoucherLine
+
 export type PricedCart = {
   lines: PricedLine[]
   itemsCents: number
-  /** Algum item precisa de entrega (todo produto é físico). */
+  /** Algum item precisa de entrega (todo produto é físico; voucher não). */
   physical: boolean
   /** SHA-256 do carrinho normalizado: é o que a cotação assinada de frete guarda para só valer para este carrinho. */
   hash: string
@@ -42,16 +55,17 @@ const linesSchema = z.object({
   lines: z
     .array(
       z.strictObject({
-        productId: z.uuid('Escolha um produto válido.'),
+        productId: z.uuid('Escolha um produto válido.').optional(),
+        voucherId: z.uuid('Escolha um voucher válido.').optional(),
         quantity: z
           .number('Informe a quantidade.')
           .int('Informe a quantidade em unidades inteiras.')
           .min(1, 'A quantidade mínima é 1.')
           .max(MAX_QUANTITY, 'A quantidade máxima é 99 por produto.'),
       }),
-      'Informe os produtos do carrinho.',
+      'Informe os itens do carrinho.',
     )
-    .min(1, 'Coloque ao menos um produto no carrinho.')
+    .min(1, 'Coloque ao menos um item no carrinho.')
     .max(MAX_LINES, 'O carrinho aceita até 20 produtos diferentes.'),
 })
 
@@ -60,20 +74,26 @@ function fieldError(field: string, message: string): DomainError {
 }
 
 /** Confere o formato das linhas (1 a 20, sem produto repetido, quantidade de 1 a 99) e normaliza o id para minúsculas. */
-export function normalizeLines(lines: CartLine[]): CartLine[] {
-  const parsed = parse(linesSchema, { lines }).lines.map((l) => ({ productId: l.productId.toLowerCase(), quantity: l.quantity }))
+export function normalizeLines(lines: RawCartLine[]): CartLine[] {
+  const raw = parse(linesSchema, { lines }).lines
+  const parsed: CartLine[] = []
   const seen = new Set<string>()
-  for (const [i, l] of parsed.entries()) {
-    if (seen.has(l.productId)) throw fieldError(`lines.${i}.productId`, 'Este produto aparece mais de uma vez no carrinho. Some as quantidades em uma linha só.')
-    seen.add(l.productId)
+  for (const [i, l] of raw.entries()) {
+    // Cada linha é de um produto OU de um voucher.
+    if ((l.productId === undefined) === (l.voucherId === undefined)) throw fieldError(`lines.${i}.productId`, 'Cada linha do carrinho é de um produto ou de um voucher, nunca dos dois.')
+    const line: CartLine = l.productId !== undefined ? { productId: l.productId.toLowerCase(), quantity: l.quantity } : { voucherId: (l.voucherId ?? '').toLowerCase(), quantity: l.quantity }
+    const key = lineKey(line)
+    if (seen.has(key)) throw fieldError(`lines.${i}.${'productId' in line ? 'productId' : 'voucherId'}`, 'Este item aparece mais de uma vez no carrinho. Some as quantidades em uma linha só.')
+    seen.add(key)
+    parsed.push(line)
   }
   return parsed
 }
 
 function cartHash(lines: CartLine[]): string {
   const text = [...lines]
-    .sort((a, b) => (a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0))
-    .map((l) => `${l.productId}:${l.quantity}`)
+    .sort((a, b) => (lineKey(a) < lineKey(b) ? -1 : lineKey(a) > lineKey(b) ? 1 : 0))
+    .map((l) => `${lineKey(l)}:${l.quantity}`)
     .join(',')
   return createHash('sha256').update(text).digest('hex')
 }
@@ -83,14 +103,26 @@ function cartHash(lines: CartLine[]): string {
  * padrão da loja). Produto inativo, arquivado, de categoria arquivada ou de outra conta não entra. Não olha o estoque: quem
  * reserva é o pedido, sob trava.
  */
-export async function priceCart(ctx: TenantContext, lines: CartLine[], db: Db = ctx.db): Promise<PricedCart> {
+export async function priceCart(ctx: TenantContext, lines: RawCartLine[], db: Db = ctx.db): Promise<PricedCart> {
   await requireModule(ctx, 'store', db)
   const wanted = normalizeLines(lines)
-  const rows = await db.product.findMany({ where: { AND: [{ id: { in: wanted.map((l) => l.productId) } }, PUBLIC_PRODUCT_FILTER] } })
+  const productIds = wanted.flatMap((l) => ('productId' in l ? [l.productId] : []))
+  const voucherIds = wanted.flatMap((l) => ('voucherId' in l ? [l.voucherId] : []))
+  // Voucher só vende com o módulo Vouchers ligado (além da Loja).
+  if (voucherIds.length > 0) await requireModule(ctx, 'vouchers', db)
+  const rows = productIds.length === 0 ? [] : await db.product.findMany({ where: { AND: [{ id: { in: productIds } }, PUBLIC_PRODUCT_FILTER] } })
   const byId = new Map(rows.map((r) => [r.id, r]))
+  const vouchers = voucherIds.length === 0 ? [] : await db.voucher.findMany({ where: { AND: [{ id: { in: voucherIds } }, PUBLIC_VOUCHER_FILTER] } })
+  const voucherById = new Map(vouchers.map((v) => [v.id, v]))
   const pack = (await loadStoreSettings(ctx, db)).defaultPackage
   const priced: PricedLine[] = []
   for (const [i, l] of wanted.entries()) {
+    if ('voucherId' in l) {
+      const v = voucherById.get(l.voucherId)
+      if (v === undefined) throw fieldError(`lines.${i}.voucherId`, 'Um dos vouchers do carrinho não está mais à venda. Tire-o do carrinho e tente de novo.')
+      priced.push({ kind: 'voucher', id: v.id, name: v.name, unitPriceCents: v.priceCents, quantity: l.quantity, totalCents: v.priceCents * l.quantity })
+      continue
+    }
     const p = byId.get(l.productId)
     if (p === undefined) throw fieldError(`lines.${i}.productId`, 'Um dos produtos do carrinho não está mais à venda. Tire-o do carrinho e tente de novo.')
     const unitPriceCents = p.promoPriceCents ?? p.priceCents
@@ -108,6 +140,6 @@ export async function priceCart(ctx: TenantContext, lines: CartLine[], db: Db = 
     })
   }
   const itemsCents = priced.reduce((sum, l) => sum + l.totalCents, 0)
-  if (itemsCents > MAX_ITEMS_CENTS) throw fieldError('lines', 'O valor do carrinho passa do limite. Tire alguns produtos e tente de novo.')
-  return { lines: priced, itemsCents, physical: priced.length > 0, hash: cartHash(wanted) }
+  if (itemsCents > MAX_ITEMS_CENTS) throw fieldError('lines', 'O valor do carrinho passa do limite. Tire alguns itens e tente de novo.')
+  return { lines: priced, itemsCents, physical: priced.some((l) => l.kind === 'product'), hash: cartHash(wanted) }
 }

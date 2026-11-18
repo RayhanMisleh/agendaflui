@@ -35,12 +35,16 @@ export const POST = defineRoute({
     'Faz o pedido do cliente e reserva o estoque. O servidor refaz os preços no banco e o frete vem do `quoteToken`: `priceCents`, `totalCents` e `shippingCents` no corpo são recusados (422). O cabeçalho Idempotency-Key é obrigatório (422 sem ele): repetir o mesmo pedido com a mesma chave em até 24 h devolve o mesmo pedido (200), e uma nova cotação entre as tentativas é outro pedido (409 `idempotency_key_reused`). Cada cliente pode ter até 3 pedidos aguardando pagamento (409 `too_many_open_orders`)',
   tag: 'Loja',
   body: z.object({
-    lines: z.array(z.strictObject({ productId: z.string().max(64), quantity: z.number() })).max(100).describe('Os produtos do pedido: só o id e a quantidade.'),
+    lines: z
+      .array(z.strictObject({ productId: z.string().max(64).optional().describe('O produto (use este ou `voucherId`).'), voucherId: z.string().max(64).optional().describe('O voucher (use este ou `productId`). Exige o módulo Vouchers.'), quantity: z.number() }))
+      .max(100)
+      .describe('Os itens do pedido: só o id (de um produto ou de um voucher) e a quantidade.'),
     delivery: z.discriminatedUnion('method', [
       z.strictObject({ method: z.literal('PICKUP') }).describe('Retirada no local.'),
       z
         .strictObject({ method: z.literal('SHIPPING'), addressId: z.string().max(64), quoteToken: z.string().max(2000).describe('O `quoteToken` da opção escolhida em `/v1/store/shipping-quotes`, para este mesmo carrinho e endereço.') })
         .describe('Entrega no endereço, pelo serviço da cotação.'),
+      z.strictObject({ method: z.literal('NONE') }).describe('Sem entrega: só para pedido só de vouchers (que não aceita retirada nem entrega).'),
     ]),
     note: z.string().max(1000).nullable().optional().describe('Observação do cliente (até 300 caracteres).'),
   }),

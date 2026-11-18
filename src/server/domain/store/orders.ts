@@ -12,12 +12,14 @@ import { IDEMPOTENCY_TTL_MIN } from '@/server/domain/scheduling/appointments'
 import { TX_OPTIONS } from '@/server/domain/scheduling/placement'
 import { ownCustomerId } from '@/server/domain/store/addresses'
 import type { AddressInput } from '@/server/domain/store/addresses'
-import { normalizeLines, priceCart } from '@/server/domain/store/cart'
-import type { CartLine, PricedCart } from '@/server/domain/store/cart'
+import { lineKey, normalizeLines, priceCart } from '@/server/domain/store/cart'
+import type { CartLine, PricedCart, RawCartLine } from '@/server/domain/store/cart'
 import { orderVoided } from '@/server/domain/store/order-events'
 import { quoteExpired, readQuote } from '@/server/domain/store/quote-token'
 import { loadStoreSettings } from '@/server/domain/store/settings'
 import type { StoreSettings } from '@/server/domain/store/settings'
+import { PUBLIC_VOUCHER_FILTER } from '@/server/domain/vouchers/vouchers'
+import { redeemedByItem } from '@/server/domain/vouchers/codes'
 import { addMinutes, formatDateTime, minutesBetween } from '@/server/time'
 
 export type { DeliveryMethod, FulfillmentStatus, OrderStatus }
@@ -151,7 +153,7 @@ function toView(ctx: TenantContext, row: Row, settings: StoreSettings): OrderVie
     status: row.status,
     fulfillmentStatus: row.fulfillmentStatus,
     deliveryMethod: row.deliveryMethod,
-    items: row.items.map((i) => ({ kind: 'product', id: i.productId ?? i.id, name: i.name, unitPriceCents: i.unitPriceCents, quantity: i.quantity, totalCents: i.totalCents })),
+    items: row.items.map((i) => ({ kind: i.voucherId === null ? 'product' : 'voucher', id: i.productId ?? i.voucherId ?? i.id, name: i.name, unitPriceCents: i.unitPriceCents, quantity: i.quantity, totalCents: i.totalCents })),
     itemsCents: row.itemsCents,
     shippingCents: row.shippingCents,
     totalCents: row.totalCents,
@@ -257,7 +259,7 @@ export async function listOrders(
 
 /** Impressão do pedido (SHA-256 de uma forma canônica): é o que a repetição da mesma `Idempotency-Key` compara. */
 function requestHash(r: { lines: CartLine[]; delivery: Delivery; note: string | null }): string {
-  const lines = [...r.lines].sort((a, b) => (a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0)).map((l) => [l.productId, l.quantity])
+  const lines = [...r.lines].sort((a, b) => (lineKey(a) < lineKey(b) ? -1 : lineKey(a) > lineKey(b) ? 1 : 0)).map((l) => [lineKey(l), l.quantity])
   const d = r.delivery
   const delivery = d.method === 'SHIPPING' ? [d.method, d.addressId.toLowerCase(), d.quoteToken] : [d.method]
   return createHash('sha256').update(JSON.stringify([lines, delivery, r.note])).digest('hex')
@@ -302,13 +304,16 @@ const invalidQuote = (): DomainError => {
  * cotação só vale para esta conta, este cliente, este endereço (com o mesmo CEP de quando foi cotada) e este carrinho.
  */
 async function resolveDelivery(ctx: TenantContext, tx: TenantTx, customerId: string, delivery: Delivery, settings: StoreSettings, cart: PricedCart): Promise<Resolved> {
+  // Carrinho só de vouchers não tem o que retirar nem entregar: a única forma é `NONE`. Carrinho com produto segue as regras de sempre.
+  if (!cart.physical && delivery.method !== 'NONE') throw fieldError('delivery', 'Este pedido só tem vouchers: não tem retirada nem entrega. Escolha "sem entrega".')
   if (delivery.method === 'PICKUP') {
     if (!settings.pickupEnabled) throw new DomainError('conflict', 'A retirada no local não está disponível. Escolha a entrega.', { reason: 'pickup_unavailable' })
     return { method: 'PICKUP', shippingCents: 0, fields: {} }
   }
   if (delivery.method === 'NONE') {
-    // Só carrinho sem item físico dispensa entrega, e nesta fase todo produto é físico.
-    throw fieldError('delivery', cart.physical ? 'Escolha retirada no local ou entrega.' : 'Este pedido não tem entrega.')
+    // Só carrinho sem item físico dispensa entrega (todo produto é físico; voucher não).
+    if (cart.physical) throw fieldError('delivery', 'Escolha retirada no local ou entrega.')
+    return { method: 'NONE', shippingCents: 0, fields: {} }
   }
   if (!settings.shippingEnabled) throw new DomainError('conflict', 'A entrega não está disponível. Escolha a retirada no local.', { reason: 'shipping_unavailable' })
   const address = idSchema.safeParse(delivery.addressId).success ? await tx.address.findFirst({ where: { id: delivery.addressId, customerId } }) : null
@@ -357,7 +362,7 @@ function outOfStock(name: string, stock: number): DomainError {
  */
 export async function createOrder(
   ctx: TenantContext,
-  i: { lines: CartLine[]; delivery: Delivery; note: string | null; idempotencyKey?: string },
+  i: { lines: RawCartLine[]; delivery: Delivery; note: string | null; idempotencyKey?: string },
 ): Promise<{ order: OrderView; replayed: boolean }> {
   const customerId = await ownCustomerId(ctx)
   const input = parse(createSchema, { delivery: i.delivery, note: i.note, idempotencyKey: i.idempotencyKey })
@@ -385,10 +390,19 @@ export async function createOrder(
       const cart = await priceCart(ctx, lines, tx)
       const resolved = await resolveDelivery(ctx, tx, customerId, delivery, settings, cart)
       // Reserva em ordem de id: dois pedidos com os mesmos produtos nunca esperam um ao outro em ordens trocadas.
-      for (const l of [...cart.lines].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
+      // Primeiro os produtos, depois os vouchers (cada grupo em ordem de id): a ordem é a mesma em todo pedido.
+      const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      for (const l of cart.lines.filter((x) => x.kind === 'product').sort(byId)) {
         const { count } = await tx.product.updateMany({ where: { id: l.id, active: true, archivedAt: null, stock: { gte: l.quantity } }, data: { stock: { decrement: l.quantity } } })
         if (count === 0) {
           const atual = await tx.product.findUnique({ where: { id: l.id }, select: { stock: true } })
+          throw outOfStock(l.name, atual?.stock ?? 0)
+        }
+      }
+      for (const l of cart.lines.filter((x) => x.kind === 'voucher').sort(byId)) {
+        const { count } = await tx.voucher.updateMany({ where: { id: l.id, ...PUBLIC_VOUCHER_FILTER, stock: { gte: l.quantity } }, data: { stock: { decrement: l.quantity } } })
+        if (count === 0) {
+          const atual = await tx.voucher.findUnique({ where: { id: l.id }, select: { stock: true } })
           throw outOfStock(l.name, atual?.stock ?? 0)
         }
       }
@@ -413,7 +427,7 @@ export async function createOrder(
         },
       })
       await tx.orderItem.createMany({
-        data: cart.lines.map((l, index) => ({ businessId: ctx.businessId, orderId: order.id, productId: l.id, name: l.name, unitPriceCents: l.unitPriceCents, quantity: l.quantity, totalCents: l.totalCents, position: index + 1 })),
+        data: cart.lines.map((l, index) => ({ businessId: ctx.businessId, orderId: order.id, ...(l.kind === 'product' ? { productId: l.id } : { voucherId: l.id }), name: l.name, unitPriceCents: l.unitPriceCents, quantity: l.quantity, totalCents: l.totalCents, position: index + 1 })),
       })
       await audit(ctx, { action: 'order.created', targetType: 'Order', targetId: order.id, metadata: { number, totalCents: order.totalCents, delivery: resolved.method } }, tx)
       return { order: toView(ctx, await loadRow(tx, order.id), settings), replayed: false }
@@ -447,6 +461,10 @@ export async function cancelOrder(ctx: TenantContext, id: string, i: { reason?: 
     const current = await loadRow(tx, id)
     const message = own !== null ? 'Só dá para cancelar pedidos que aguardam o pagamento.' : 'Só dá para cancelar pedidos que aguardam o pagamento ou já foram pagos.'
     if (!allowed.includes(current.status)) throw invalidTransition(message)
+    // Voucher já usado no balcão não volta: a equipe resolve com o cliente e estorna no Mercado Pago (o estorno automático avisa o pedido).
+    if (current.status === 'PAID' && (await redeemedByItem(tx, id)).size > 0) {
+      throw new DomainError('conflict', 'Este pedido tem voucher já usado no balcão. Não dá para cancelá-lo: estorne o pagamento no Mercado Pago e confira o que foi usado.', { reason: 'codes_in_use' })
+    }
     const { count } = await tx.order.updateMany({
       where: { id, status: current.status },
       data: { status: 'CANCELED', canceledAt: ctx.clock(), canceledByType: by.type as PartyType, canceledById: by.id, cancelReason: reason ?? null },

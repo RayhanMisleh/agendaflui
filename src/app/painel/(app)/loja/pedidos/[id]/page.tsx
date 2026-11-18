@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { fulfillmentSteps } from '@/server/domain/store/fulfillment'
@@ -9,10 +10,14 @@ import type { OrderAttention, OrderView } from '@/server/domain/store/orders'
 import { listOrderPayments } from '@/server/domain/store/payments'
 import type { OrderPaymentView } from '@/server/domain/store/payments'
 import { canSimulatePayment } from '@/server/domain/store/simulate'
+import { isModuleOn } from '@/server/domain/modules'
+import { listCodesOfOrder } from '@/server/domain/vouchers/codes'
+import type { VoucherCodeView } from '@/server/domain/vouchers/codes'
 import { ATTENTION_LABELS, Card, LinkButton, OrderStatusBadge } from '@/ui/components'
 import { formatMoney } from '@/ui/format'
 import { PainelFrame } from '../../../PainelFrame'
 import { requirePainelModule } from '../../../_lib/modulo'
+import { SITUACAO_DO_CODIGO } from '../../../vouchers/situacao'
 import { PedidoAcoes } from '../PedidoAcoes'
 
 export const metadata: Metadata = { title: 'Pedido | AgendaFlui' }
@@ -24,7 +29,7 @@ const ATENCAO: Record<OrderAttention, string> = {
   stock_shortfall:
     'O cliente pagou depois do prazo e já não havia estoque de todos os itens. Fale com o cliente para combinar a entrega, ou cancele o pedido e estorne o pagamento no painel do Mercado Pago.',
   payment_reversed:
-    'O pagamento foi devolvido ou contestado depois de a entrega começar, então os itens não voltaram ao estoque. Confira com o cliente o que ele recebeu e recupere o que for devido.',
+    'O pagamento foi devolvido ou contestado depois de a entrega começar ou de um voucher ser usado no balcão, então esses itens não voltaram ao estoque. Confira com o cliente o que ele recebeu e recupere o que for devido.',
 }
 
 const SITUACAO_DO_PAGAMENTO: Record<OrderPaymentView['status'], string> = {
@@ -62,6 +67,9 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     if (err instanceof DomainError && err.code === 'not_found') notFound()
     throw err
   }
+  // Códigos de voucher: só com o módulo Vouchers ligado e a permissão de gerenciá-lo.
+  const temVoucher = pedido.items.some((i) => i.kind === 'voucher')
+  const codigos: VoucherCodeView[] = temVoucher && can(ctx.actor, 'manage_vouchers') && (await isModuleOn(ctx.db, ctx.businessId, 'vouchers')) ? await listCodesOfOrder(ctx, id) : []
   const numero = `#${pedido.number}`
   const paga = pedido.status === 'PAID'
   const passos = paga ? fulfillmentSteps(pedido.deliveryMethod, pedido.fulfillmentStatus) : { next: null, back: null }
@@ -155,6 +163,38 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
             </tfoot>
           </table>
         </Card>
+
+        {temVoucher ? (
+          <Card as="section" aria-labelledby="pedido-vouchers" className="af-profile">
+            <h2 id="pedido-vouchers" className="af-section__title">
+              Vouchers do pedido
+            </h2>
+            {codigos.length === 0 ? (
+              <p className="af-section__help">Os códigos aparecem aqui quando o pagamento é aprovado.</p>
+            ) : (
+              <table className="af-ordertable">
+                <thead>
+                  <tr>
+                    <th scope="col">Código</th>
+                    <th scope="col">Voucher</th>
+                    <th scope="col">Validade</th>
+                    <th scope="col">Situação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {codigos.map((c) => (
+                    <tr key={c.id}>
+                      <td className="af-codetext">{c.code}</td>
+                      <td>{c.voucher.name}</td>
+                      <td>{c.expiresLabel ?? 'Sem validade'}</td>
+                      <td>{SITUACAO_DO_CODIGO[c.status].text}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        ) : null}
 
         <Card as="section" aria-labelledby="pedido-cliente" className="af-profile">
           <h2 id="pedido-cliente" className="af-section__title">

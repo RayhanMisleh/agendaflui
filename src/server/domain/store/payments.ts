@@ -88,21 +88,31 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
       // Vencido ou cancelado e pago mesmo assim: o dinheiro entrou, então o pedido vale. Só reabre se o estoque já voltou
       // (pedido cancelado depois de separado não devolveu nada e já foi pago antes: não há o que reabrir).
       if (order.stockReleasedAt === null) return unchanged
-      const lines = order.items
-        .flatMap((it) => (it.productId === null ? [] : [{ productId: it.productId, quantity: it.quantity }]))
-        .sort((a, b) => (a.productId < b.productId ? -1 : a.productId > b.productId ? 1 : 0))
+      const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+      const lines = order.items.flatMap((it) => (it.productId === null ? [] : [{ kind: 'product' as const, id: it.productId, quantity: it.quantity }])).sort(byId)
+      // Voucher volta ao estoque com o pedido (as unidades não usadas): reserva de novo junto, depois dos produtos.
+      const voucherLines = order.items.flatMap((it) => (it.voucherId === null ? [] : [{ kind: 'voucher' as const, id: it.voucherId, quantity: it.quantity }])).sort(byId)
       // Reserva de novo, em ordem de id (a mesma ordem da criação do pedido), tudo ou nada.
-      const reserved: typeof lines = []
+      type Reserva = { kind: 'product' | 'voucher'; id: string; quantity: number }
+      const reserved: Reserva[] = []
       let short = false
-      for (const l of lines) {
-        const { count } = await tx.product.updateMany({ where: { id: l.productId, stock: { gte: l.quantity } }, data: { stock: { decrement: l.quantity } } })
+      for (const l of [...lines, ...voucherLines] as Reserva[]) {
+        const where = { id: l.id, stock: { gte: l.quantity } }
+        const data = { stock: { decrement: l.quantity } }
+        const { count } = l.kind === 'product' ? await tx.product.updateMany({ where, data }) : await tx.voucher.updateMany({ where, data })
         if (count === 0) {
           short = true
           break
         }
         reserved.push(l)
       }
-      if (short) for (const l of reserved) await tx.product.updateMany({ where: { id: l.productId }, data: { stock: { increment: l.quantity } } })
+      if (short) {
+        for (const l of reserved) {
+          const data = { stock: { increment: l.quantity } }
+          if (l.kind === 'product') await tx.product.updateMany({ where: { id: l.id }, data })
+          else await tx.voucher.updateMany({ where: { id: l.id }, data })
+        }
+      }
       await tx.order.update({
         where: { id: orderId },
         data: {
@@ -132,7 +142,7 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
       })
       if (count !== 1) return unchanged
       await orderVoided(tx, ctx, orderId, 'refunded')
-      if (order.fulfillmentStatus !== 'PENDING') await tx.order.update({ where: { id: orderId }, data: { attention: 'payment_reversed' } })
+      if (order.fulfillmentStatus !== 'PENDING' && order.deliveryMethod !== 'NONE') await tx.order.update({ where: { id: orderId }, data: { attention: 'payment_reversed' } })
       await audit(ctx, { action: 'order.payment_reversed', targetType: 'Order', targetId: orderId, metadata: { how: status } }, tx)
       return { orderStatus: 'CANCELED', changed: true }
     }

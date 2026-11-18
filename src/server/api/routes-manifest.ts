@@ -69,6 +69,9 @@ import * as r66 from '@/app/api/v1/store/products/[id]/route'
 import * as r67 from '@/app/api/v1/store/products/route'
 import * as r68 from '@/app/api/v1/store/shipping-quotes/route'
 import * as r69 from '@/app/api/v1/store/orders/[id]/checkout/route'
+import * as r70 from '@/app/api/v1/vouchers/[id]/route'
+import * as r71 from '@/app/api/v1/vouchers/route'
+import * as r72 from '@/app/api/v1/me/voucher-codes/route'
 
 export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unknown>>>> = {
   'appointments/[id]/cancel/route.ts': r00,
@@ -141,6 +144,9 @@ export const ROUTE_MODULES: Readonly<Record<string, Readonly<Record<string, unkn
   'store/products/[id]/route.ts': r66,
   'store/products/route.ts': r67,
   'store/shipping-quotes/route.ts': r68,
+  'vouchers/[id]/route.ts': r70,
+  'vouchers/route.ts': r71,
+  'me/voucher-codes/route.ts': r72,
 }
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const

@@ -907,4 +907,35 @@
   .af-orderactions__test p {
     margin: 0;
   }
+
+  /* Vouchers: campo grande do código no balcão e o cartão do resultado. */
+  .af-input--code {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    min-height: 3.5rem;
+  }
+  .af-redeemcard {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-inline-start: 4px solid var(--accent);
+    border-radius: var(--radius-chip);
+  }
+  .af-redeemcard p {
+    margin: 0;
+    font-size: 1.125rem;
+  }
+  .af-redeemcard--refused {
+    border-inline-start-color: var(--danger, var(--accent));
+  }
+  .af-codetext {
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
 }

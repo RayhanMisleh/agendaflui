@@ -357,6 +357,9 @@ model Business {
   orders               Order[]
   payments             Payment[]
   orderItems           OrderItem[]
+  partners             Partner[]
+  vouchers             Voucher[]
+  voucherCodes         VoucherCode[]
   notifications        Notification[]
   apiKeys              ApiKey[]
   apiUsage             ApiUsageHourly[]
@@ -568,6 +571,8 @@ model Upload {
   prizeImages         Prize[]            @relation("PrizeImage")
   bannerImages        Banner[]           @relation("BannerImage")
   productImages       ProductImage[]
+  partnerLogos        Partner[]          @relation("PartnerLogo")
+  voucherImages       Voucher[]          @relation("VoucherImage")
 
   @@unique([businessId, id])
   @@index([businessId])
@@ -630,6 +635,7 @@ model Customer {
   prizeRedemptions    PrizeRedemption[]
   addresses           Address[]
   orders              Order[]
+  voucherCodes        VoucherCode[]
 
   @@unique([businessId, id])
   @@index([businessId, phone])
@@ -1279,6 +1285,7 @@ model Order {
 
   items    OrderItem[]
   payments Payment[]
+  codes    VoucherCode[]
 
   @@unique([businessId, id])
   @@unique([businessId, number])
@@ -1317,6 +1324,7 @@ model OrderItem {
   businessId     String   @map("business_id") @db.Uuid
   orderId        String   @map("order_id") @db.Uuid
   productId      String?  @map("product_id") @db.Uuid
+  voucherId      String?  @map("voucher_id") @db.Uuid
   /// Cópias do momento da compra.
   name           String
   unitPriceCents Int      @map("unit_price_cents")
@@ -1329,9 +1337,117 @@ model OrderItem {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product  Product? @relation(fields: [productId], references: [id], onDelete: NoAction)
+  voucher  Voucher? @relation(fields: [voucherId], references: [id], onDelete: NoAction)
+
+  codes VoucherCode[]
 
   @@unique([businessId, id])
   @@unique([orderId, position])
   @@index([productId])
+  @@index([voucherId])
   @@map("order_items")
+}
+
+enum VoucherCodeStatus {
+  ACTIVE
+  REDEEMED
+  VOID
+
+  @@map("voucher_code_status")
+}
+
+/// Parceiro dos vouchers (restaurante, cinema...). Arquivar o tira da vitrine; os códigos já vendidos seguem valendo.
+model Partner {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String    @map("business_id") @db.Uuid
+  name         String
+  description  String?
+  address      String?
+  phone        String?
+  website      String?
+  logoUploadId String?   @map("logo_upload_id") @db.Uuid
+  active       Boolean   @default(true)
+  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  logo     Upload?  @relation("PartnerLogo", fields: [logoUploadId], references: [id], onDelete: SetNull)
+
+  vouchers Voucher[]
+
+  @@unique([businessId, id])
+  @@index([businessId])
+  @@map("partners")
+}
+
+/// Voucher à venda na loja. O estoque é reservado ao criar o pedido e devolvido uma vez só, como o de produto.
+model Voucher {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String    @map("business_id") @db.Uuid
+  partnerId     String    @map("partner_id") @db.Uuid
+  name          String
+  description   String?
+  terms         String?
+  imageUploadId String?   @map("image_upload_id") @db.Uuid
+  priceCents    Int       @map("price_cents")
+  stock         Int       @default(0)
+  /// Dias de validade a partir do pagamento (nulo = sem validade).
+  validDays     Int?      @map("valid_days")
+  active        Boolean   @default(true)
+  displayOrder  Int       @default(0) @map("display_order")
+  archivedAt    DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  partner  Partner  @relation(fields: [partnerId], references: [id], onDelete: NoAction)
+  image    Upload?  @relation("VoucherImage", fields: [imageUploadId], references: [id], onDelete: SetNull)
+
+  orderItems OrderItem[]
+  codes      VoucherCode[]
+
+  @@unique([businessId, id])
+  @@index([businessId, displayOrder])
+  @@index([partnerId])
+  @@map("vouchers")
+}
+
+/// Código único de uma unidade vendida (uma linha por unidade paga). Único na conta; `(order_item_id, seq)` único torna a
+/// geração repetível sem duplicar. O status EXPIRED não é gravado: é calculado na leitura.
+model VoucherCode {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId     String            @map("business_id") @db.Uuid
+  voucherId      String            @map("voucher_id") @db.Uuid
+  orderId        String            @map("order_id") @db.Uuid
+  orderItemId    String            @map("order_item_id") @db.Uuid
+  customerId     String            @map("customer_id") @db.Uuid
+  seq            Int
+  code           String
+  status         VoucherCodeStatus @default(ACTIVE)
+  expiresAt      DateTime?         @map("expires_at") @db.Timestamptz(3)
+  redeemedAt     DateTime?         @map("redeemed_at") @db.Timestamptz(3)
+  redeemedByType PartyType?        @map("redeemed_by_type")
+  redeemedById   String?           @map("redeemed_by_id") @db.Uuid
+  /// Nome de quem deu baixa, como era na hora (a lista de usuários não é da conta).
+  redeemedByName String?           @map("redeemed_by_name")
+  voidedAt       DateTime?         @map("voided_at") @db.Timestamptz(3)
+  voidReason     String?           @map("void_reason")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business  Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  voucher   Voucher   @relation(fields: [voucherId], references: [id], onDelete: NoAction)
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: NoAction)
+
+  @@unique([businessId, id])
+  @@unique([businessId, code])
+  @@unique([orderItemId, seq])
+  @@index([businessId, customerId])
+  @@index([businessId, status])
+  @@index([orderId])
+  @@index([voucherId])
+  @@map("voucher_codes")
 }

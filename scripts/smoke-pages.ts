@@ -120,6 +120,14 @@ const PAGINAS_MODULOS: string[] = [
   '/loja?aba=configuracoes',
   '/loja/produtos/novo',
   '/loja/produtos/{produto}',
+  '/vouchers',
+  '/vouchers?aba=vouchers',
+  '/vouchers?aba=parceiros',
+  '/vouchers?aba=codigos&situacao=ACTIVE',
+  '/vouchers/novo',
+  '/vouchers/parceiros/novo',
+  '/vouchers/{voucher}',
+  '/vouchers/parceiros/{parceiro}',
 ]
 
 /** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
@@ -285,6 +293,13 @@ async function main(): Promise<number> {
     limpezas.push(async () => {
       await prisma.banner.deleteMany({ where: { id: banner.id } })
     })
+    // Um parceiro e um voucher de demonstração para as fichas; saem ao fim (o voucher antes do parceiro).
+    const parceiro = await prisma.partner.create({ data: { businessId: conta.id, name: 'Parceiro da fumaça' }, select: { id: true } })
+    const voucher = await prisma.voucher.create({ data: { businessId: conta.id, partnerId: parceiro.id, name: 'Voucher da fumaça', priceCents: 5000, stock: 3 }, select: { id: true } })
+    limpezas.push(async () => {
+      await prisma.voucher.deleteMany({ where: { id: voucher.id } })
+      await prisma.partner.deleteMany({ where: { id: parceiro.id } })
+    })
     // Um produto de demonstração para a ficha; sai ao fim, junto com as sessões.
     const produto = await prisma.product.create({ data: { businessId: conta.id, name: 'Produto da fumaça', priceCents: 1990, stock: 3 }, select: { id: true } })
     limpezas.push(async () => {
@@ -323,7 +338,7 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '')
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{voucher}', voucher.id).replace('{parceiro}', parceiro.id).replace('{pedido}', pedido?.id ?? '')
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
