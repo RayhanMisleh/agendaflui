@@ -34,7 +34,7 @@ conferem `Origin == Host`.
 - `src/ui/` design system (componentes, molduras, temas, estilos); `src/shared/` código sem servidor (módulos, tema).
   A marca vem do repositório `branding/`; os tokens ficam em `src/ui/theme` e `src/shared/theme`.
 
-O ESLint impõe as fronteiras: cliente Prisma cru só em `src/server/db`, `auth`, `domain/platform`, `prisma`, `scripts` e
+O ESLint impõe as fronteiras: cliente Prisma cru só em `src/server/db`, `auth`, `notifications`, `domain/platform`, `prisma`, `scripts` e
 `tests`; rotas não importam `tenantDb`; `new Date(texto)` e os métodos locais de data são proibidos fora de `src/server/time/`.
 
 ## Isolamento entre contas
@@ -80,7 +80,7 @@ guarda os dados. A capacidade `manage_*` correspondente controla quem edita.
 Mercado Pago (pagamento), Frenet (frete) e ViaCEP (CEP) ficam em `src/server/integrations/`, escolhidos por
 `INTEGRATIONS_MODE` (`real` ou `fake`; produção só `real`). Os tokens por conta ficam cifrados (`auth/secret-box.ts`: AES-256-GCM,
 chave derivada do `APP_SECRET`, conta e campo autenticados junto). Só o admin os grava. A leitura em texto puro passa pelo
-leitor restrito `domain/platform/integration-secrets.ts`, que só `domain/store/**` e `domain/platform/**` podem importar
+leitor restrito `domain/platform/integration-secrets.ts`, que só `domain/store/**` pode importar (o arquivo mora em `domain/platform`, e o resto de `domain/platform` não o importa)
 (ESLint e `tests/unit/integration-secrets-imports.test.ts`). O texto puro nunca vai para tela, API, log ou auditoria; as telas
 mostram só os 4 últimos caracteres. O webhook do Mercado Pago é `POST /v1/webhooks/mercadopago/{chave da conta}`: a chave
 secreta da URL identifica a conta e o estado do pagamento vem sempre da consulta à API do provedor.
@@ -90,13 +90,18 @@ secreta da URL identifica a conta e o estado do pagamento vem sempre da consulta
 Concorrência no mesmo registro é serializada por travas de transação do Postgres, sempre pela **função única**
 `$lockKey(escopo, id)` do `tenantDb` (`pg_advisory_xact_lock` sobre `conta:escopo:id`; só dentro de `$transaction`). O domínio de
 plataforma, que usa o cliente cru, tem `lockKeyRaw` (`db/tenant.ts`) com a mesma chave. Escopos permitidos: `professional`,
-`customer`, `membership`, `business_owners`, `catalog`, `loyalty`, `banners`, `store`, `order`. Não existe outra forma de
-travar. Para nunca esperar em círculo (deadlock 40P01), a ordem é:
+`customer`, `membership`, `business_owners`, `catalog`, `loyalty`, `banners`, `store`, `order`. A única exceção é a trava global dos
+admins da plataforma (`travarAdmins` em `domain/platform/admins.ts`, `pg_advisory_xact_lock` sobre `platform_admins`), que não
+pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca esperar em círculo (deadlock 40P01), a ordem é:
 
 - Acesso (convite, papel, desativação, redefinição de senha, login do app): `business_owners` da conta, depois os vínculos em
   ordem crescente de id, depois a linha do usuário, depois tokens e sessões (`lockUserAccess` em `auth/password-reset.ts`).
 - Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
-- Pedidos: o pedido (`order`) reserva e devolve estoque em ordem de id, produtos antes de vouchers.
+- Remover profissional (`removerProfissional`, `access-core.ts`): acesso primeiro (`business_owners`, vínculos), depois `professional`.
+- Escopos sozinhos, sem combinar com outros: `catalog`, `loyalty`, `banners`, `customer` (resgate, ajuste, endereço, conta do
+  app) e `membership` (login e renovação do app). `store` também trava sozinho em produtos, categorias e vouchers.
+- Loja: criar pedido trava `store` e reserva o estoque; cancelar, vencer e estornar travam `order` e devolvem. As linhas de
+  produto e de voucher são sempre travadas em ordem de id, produtos antes de vouchers. Nunca `store` e `order` juntos.
 
 ## Fila de avisos e agendador interno
 

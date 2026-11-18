@@ -11,7 +11,7 @@ import {
   addDays,
   addMinutes,
   compareLocalDates,
-  formatTime,
+  formatTimeDistinct,
   isLocalDate,
   localDayRange,
   todayIn,
@@ -19,6 +19,7 @@ import {
   type Weekday,
 } from '@/server/time'
 
+/** `label` é o horário local pronto; pode repetir-se na hora repetida do horário de verão, e então traz "(1ª vez)" ou "(2ª vez)". */
 export type SlotView = { startsAt: Date; label: string; professionalIds: string[] }
 export type AvailabilityView = { date: string; durationMin: number; totalCents: number; slots: SlotView[] }
 export type DayOccupancy = { workingRanges: WorkingRange[]; busy: Interval[]; blocked: Interval[] }
@@ -324,7 +325,7 @@ export async function getAvailability(
   return view(
     [...starts.values()]
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
-      .map((s) => ({ startsAt: s.startsAt, label: formatTime(s.startsAt, ctx.timeZone), professionalIds: s.professionalIds })),
+      .map((s) => ({ startsAt: s.startsAt, label: formatTimeDistinct(s.startsAt, ctx.timeZone), professionalIds: s.professionalIds })),
   )
 }
 

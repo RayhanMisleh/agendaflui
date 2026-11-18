@@ -21,7 +21,7 @@ auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quan
 produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
 produção ele impede a partida.
 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` (base64 de 32 bytes, ex.: `openssl rand -base64 32`) fixa a chave das Server Actions. Com
-uma só instância é opcional; com várias é obrigatória, a mesma em todas e também no build (o Coolify a injeta nos dois).
+uma só instância é opcional; com várias é obrigatória, a mesma em todas. Ela fica gravada na saída do build, então precisa estar disponível no build (build arg, que o Dockerfile declara) e na execução (o Coolify a injeta nos dois).
 Em produção o servidor manda `Strict-Transport-Security` (1 ano, com subdomínios): não ligue o HSTS de novo no proxy com valor diferente.
 O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS no proxy o login não funciona.
 
@@ -66,7 +66,7 @@ Novo deploy: a partida aplica as migrações novas antes de servir.
 ## Não faça
 
 - Rodar o seed de demonstração (recusa em produção sem `SEED_ALLOW_PRODUCTION=1`; não use).
-- Subir mais de uma instância sem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa (base64 de 32 bytes, também no build).
+- Subir mais de uma instância sem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa (base64 de 32 bytes, disponível no build e na execução).
 
 ## Coolify
 

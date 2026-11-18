@@ -107,7 +107,7 @@ export function productionWarnings(config: Env): string[] {
     avisos.push('SMTP_URL ausente: sem envio de e-mail, convites e cadastro pelo app não chegam.')
   }
   if (config.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY === undefined) {
-    avisos.push('NEXT_SERVER_ACTIONS_ENCRYPTION_KEY ausente: com várias instâncias, as ações do painel falham entre elas; defina a mesma chave fixa (base64 de 32 bytes, também no build).')
+    avisos.push('NEXT_SERVER_ACTIONS_ENCRYPTION_KEY ausente na execução: a chave precisa estar disponível no build (build arg) e na execução, igual em todas as instâncias; sem ela, builds diferentes ou várias instâncias fazem as ações do painel falharem entre si (base64 de 32 bytes).')
   }
   return avisos
 }

@@ -227,6 +227,18 @@ export function formatTime(instant: Date, tz: string): string {
   return `${pad2(z.hour)}:${pad2(z.minute)}`
 }
 
+/**
+ * O horário local para oferecer em lista: igual a `formatTime`, e na hora repetida do fim do horário de verão (dois
+ * instantes com o mesmo relógio) acrescenta a ordem: "01:00 (1ª vez)" e "01:00 (2ª vez)". Os cinco primeiros caracteres
+ * são sempre `HH:mm`.
+ */
+export function formatTimeDistinct(instant: Date, tz: string): string {
+  const { date, time } = localParts(instant, tz)
+  const todos = minuteToInstants(date, minuteOfDay(instant, tz), tz)
+  const posicao = todos.findIndex((t) => t.getTime() === instant.getTime())
+  return todos.length > 1 && posicao >= 0 ? `${time} (${posicao + 1}ª vez)` : time
+}
+
 export function formatDateTime(instant: Date, tz: string): string {
   return `${formatDate(instant, tz)} ${formatTime(instant, tz)}`
 }

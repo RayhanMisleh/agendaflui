@@ -19,7 +19,7 @@ for (const [nome, url] of paginas) {
     expect(h['content-security-policy']).toBe("frame-ancestors 'none'")
     expect(h['x-content-type-options']).toBe('nosniff')
     expect(h['referrer-policy']).toBe('strict-origin-when-cross-origin')
-    expect(h['permissions-policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()')
+    expect(h['permissions-policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=()')
     expect(h['x-powered-by']).toBeUndefined()
   })
 }

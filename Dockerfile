@@ -28,7 +28,11 @@ COPY . .
 # O cliente gerado é ignorado pelo Git e pelo .dockerignore: vem do estágio de dependências (postinstall).
 COPY --from=deps /app/src/server/db/generated ./src/server/db/generated
 RUN test -f src/server/db/generated/client.ts || npx prisma generate
-RUN DATABASE_URL="postgres://build:build@localhost:5432/build" \
+# A chave das Server Actions fica gravada na saída do build: passe-a como build arg (o Coolify injeta as variáveis
+# da aplicação como ARG). Ausente ou vazia, é retirada do ambiente e o build segue sem ela.
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+RUN if [ -z "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}" ]; then unset NEXT_SERVER_ACTIONS_ENCRYPTION_KEY; fi; \
+    DATABASE_URL="postgres://build:build@localhost:5432/build" \
     APP_SECRET="segredo-ficticio-so-para-o-build-do-next-0123456789" \
     DEV_HOST="dev.build.test" PAINEL_HOST="painel.build.test" API_HOST="api.build.test" \
     npm run build

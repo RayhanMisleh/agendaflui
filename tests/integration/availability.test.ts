@@ -42,6 +42,17 @@ async function clienteCtx(b: { id: string }, now: Date, overrides: { isClubMembe
 const labels = (v: { slots: { label: string }[] }) => v.slots.map((s) => s.label)
 
 describe('getAvailability', () => {
+  test('hora repetida do horário de verão: os dois inícios têm rótulos distintos', async () => {
+    const b = await makeBusiness({ timezone: 'America/New_York' })
+    await prisma.businessSettings.update({ where: { businessId: b.id }, data: { slotStepMin: 60 } })
+    const banho = await makeService(b.id, { name: 'Banho', durationMin: 60, priceCents: 8000 })
+    const a = await makeProfessional(b.id, { name: 'Ana', displayOrder: 1, serviceIds: [banho.id] })
+    await makeWorkingHours(b.id, a.id, 'SUNDAY', [{ startMin: 0, endMin: 180 }])
+    const ctx = await makeCtx(b, { now: new Date('2026-10-30T12:00:00Z') })
+    const v = await getAvailability(ctx, { date: '2026-11-01', serviceIds: [banho.id] })
+    expect(labels(v)).toEqual(['00:00', '01:00 (1ª vez)', '01:00 (2ª vez)', '02:00'])
+  })
+
   test('cliente vê os inícios da grade, com os dois profissionais, duração e total', async () => {
     const s = await montar()
     const v = await getAvailability(s.cliente, { date: SEGUNDA, serviceIds: [s.banho.id] })

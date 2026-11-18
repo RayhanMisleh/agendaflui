@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { rotuloDoHorario } from '@/app/_lib/form-state'
+import { horaDoRotulo, rotuloDoHorario } from '@/app/_lib/form-state'
 import type { Conflito } from '@/app/_lib/form-state'
 import { Button, Field, Input, TimeChip } from '@/ui/components'
 import { buscarHorarios } from './consultas'
@@ -52,7 +52,7 @@ export function HorarioFields({
       if (r.ok) {
         setHorarios(r.horarios)
         setErro(null)
-        const ofertado = r.horarios.find((h) => h.label === prefillTime)
+        const ofertado = r.horarios.find((h) => horaDoRotulo(h.label) === prefillTime)
         if (ofertado && chosen === '') onChosen(ofertado.iso)
       } else {
         setHorarios([])
@@ -67,7 +67,7 @@ export function HorarioFields({
   }, [chave, date, professionalId, prefillTime])
 
   const lista = chave === '' ? null : horarios
-  const foraDaLista = chosen === '' && time !== '' && lista !== null && !lista.some((h) => h.label === time)
+  const foraDaLista = chosen === '' && time !== '' && lista !== null && !lista.some((h) => horaDoRotulo(h.label) === time)
 
   return (
     <>
@@ -103,7 +103,7 @@ export function HorarioFields({
                 state={chosen === h.iso ? 'selected' : 'free'}
                 onSelect={() => {
                   onChosen(h.iso)
-                  onTime(h.label)
+                  onTime(horaDoRotulo(h.label))
                 }}
               />
             ))}
@@ -139,7 +139,7 @@ export function HorarioFields({
                   // consulta e solta a escolha da lista; o dia e a hora locais dão o mesmo horário.
                   if (n.date !== '' && n.date !== date) onDate(n.date)
                   onChosen(n.iso)
-                  onTime(n.label)
+                  onTime(horaDoRotulo(n.label))
                 }}
               >
                 Usar {rotuloDoHorario(n, date)}

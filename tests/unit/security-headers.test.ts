@@ -19,7 +19,7 @@ describe('cabeçalhos de segurança (next.config)', () => {
     expect(h['X-Content-Type-Options']).toBe('nosniff')
     expect(h['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
     expect(h['X-Frame-Options']).toBe('DENY')
-    expect(h['Permissions-Policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()')
+    expect(h['Permissions-Policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=()')
   })
 
   test('em produção acrescenta HSTS de um ano com subdomínios', async () => {

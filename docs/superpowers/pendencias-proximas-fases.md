@@ -48,3 +48,12 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
 - Banco embutido: escutar só em 127.0.0.1 e parar quando um passo posterior ao start falha.
 - Telefones de demonstração são fictícios, mas não há faixa reservada no Brasil.
 - Apagar a pasta local `_legacy/` (fora do git) quando o dono confirmar.
+- Devolvidas da revisão do fechamento (conferidas no código):
+  - `isUniqueViolation` olha só o código `P2002`; `team/professionals.ts` não confere o alvo (qual índice único).
+  - `labelOfMinute` (`ui/components/planner/drag-math.ts`) repete `minuteLabel` do servidor sem comentário que explique a duplicação.
+  - `scripts/dev.ts` registra `SIGINT`/`SIGTERM` só depois de subir o banco e o Next: Ctrl+C durante a partida deixa o banco ligado.
+  - Agenda no celular: com uma coluna visível, a seta para o lado em teclado físico pode mover a prévia para uma coluna oculta (`use-drag-reschedule.ts`).
+  - `Tabs` com `href` são links sem `aria-current`; abas a 375 px sem pista de rolagem; aba inativa descola 1 px no hover.
+  - Anel de foco depende do contêiner (papel dentro de capa, `Checkbox` sobre capa); `Dialog` e Esc de filhos a conferir no navegador.
+  - "GET / 404" no log quando uma ação redireciona atrás do proxy; `occupancy` do resumo da agenda limitado a 1 por exibição.
+  - Para o dono conferir no navegador: todas as telas a 375 px, foco nos diálogos, arrastar a ficha na agenda (mouse, teclado e folha), prévia com cores extremas, envio de foto da equipe e do logo, CSV de relatórios.

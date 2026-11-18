@@ -1001,6 +1001,7 @@ model ApiUsageHourly {
 
   @@unique([apiKeyId, businessId, route, hour])
   @@index([businessId, hour])
+  @@index([hour])
   @@map("api_usage_hourly")
 }
 

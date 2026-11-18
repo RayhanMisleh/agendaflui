@@ -4,6 +4,7 @@ import {
   effectiveLocalTime,
   compareLocalDates,
   daysBetween,
+  formatTimeDistinct,
   fromEpochMs,
   fromIsoInstant,
   toIsoInstant,
@@ -180,5 +181,18 @@ describe('minuteToInstants (todas as ocorrências de um minuto local)', () => {
   test('minuto vizinho da emenda existe uma vez', () => {
     expect(iso2(minuteToInstants('2026-03-29', 120, 'Europe/Lisbon'))).toEqual(['2026-03-29T01:00:00.000Z'])
     expect(iso2(minuteToInstants('2026-10-25', 120, 'Europe/Lisbon'))).toEqual(['2026-10-25T02:00:00.000Z'])
+  })
+})
+
+describe('formatTimeDistinct (rótulo de horário livre)', () => {
+  test('dia comum: só HH:mm', () => {
+    expect(formatTimeDistinct(new Date('2026-11-16T12:00:00Z'), 'America/Sao_Paulo')).toBe('09:00')
+  })
+
+  test('hora repetida em Nova York: 1ª vez e 2ª vez; a hora vizinha fica comum', () => {
+    expect(formatTimeDistinct(new Date('2026-11-01T05:00:00Z'), 'America/New_York')).toBe('01:00 (1ª vez)')
+    expect(formatTimeDistinct(new Date('2026-11-01T06:00:00Z'), 'America/New_York')).toBe('01:00 (2ª vez)')
+    expect(formatTimeDistinct(new Date('2026-11-01T04:00:00Z'), 'America/New_York')).toBe('00:00')
+    expect(formatTimeDistinct(new Date('2026-11-01T07:00:00Z'), 'America/New_York')).toBe('02:00')
   })
 })

@@ -7,7 +7,7 @@ import type { Db, Row, Who } from '@/server/domain/scheduling/appointment-view'
 import { withinCustomerWindow } from '@/server/domain/scheduling/change-window'
 import { overlaps } from '@/server/domain/scheduling/slots'
 import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
-import { addMinutes, formatTime, localDayRange, localParts } from '@/server/time'
+import { addMinutes, formatTimeDistinct, localDayRange, localParts } from '@/server/time'
 
 /** Limite do passado e do futuro que a equipe pode registrar. */
 export const STAFF_RANGE_DAYS = 366
@@ -126,7 +126,7 @@ async function slotTaken(
       .filter((s) => s.startsAt.getTime() > i.startsAt.getTime())
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
       .slice(0, 3)
-      .map((s) => ({ startsAt: s.startsAt, label: formatTime(s.startsAt, ctx.timeZone), date: localParts(s.startsAt, ctx.timeZone).date }))
+      .map((s) => ({ startsAt: s.startsAt, label: formatTimeDistinct(s.startsAt, ctx.timeZone), date: localParts(s.startsAt, ctx.timeZone).date }))
   } catch {
     nearest = []
   }

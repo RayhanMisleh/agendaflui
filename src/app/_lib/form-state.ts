@@ -8,6 +8,11 @@ export type FormState<V> = { ok: boolean; message: string | null; fields: Record
 /** Horário ocupado: os próximos horários livres que o domínio devolveu (instante exato e rótulo local pronto). */
 export type Conflito = { nearest: { iso: string; label: string; date: string }[] }
 
+/** O `HH:mm` de um rótulo de horário livre (o rótulo pode trazer "(2ª vez)" na hora repetida do horário de verão). */
+export function horaDoRotulo(label: string): string {
+  return label.slice(0, 5)
+}
+
 /** O texto de um horário sugerido: só `HH:mm`, e com o dia (`HH:mm (dd/mm)`) quando cai em outro dia que `dia` (`AAAA-MM-DD`). */
 export function rotuloDoHorario(n: Conflito['nearest'][number], dia: string): string {
   return n.date !== '' && n.date !== dia ? `${n.label} (${n.date.slice(8, 10)}/${n.date.slice(5, 7)})` : n.label

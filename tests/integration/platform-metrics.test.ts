@@ -354,6 +354,7 @@ describe('índices das métricas', () => {
     ['refresh_tokens', 'refresh_tokens_used_at_idx'],
     ['audit_logs', 'audit_logs_created_at_id_idx'],
     ['notifications', 'notifications_status_updated_at_idx'],
+    ['api_usage_hourly', 'api_usage_hourly_hour_idx'],
   ] as const
 
   test('existem no catálogo, e o parcial de término só vale para COMPLETED', async () => {
