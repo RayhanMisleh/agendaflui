@@ -272,6 +272,20 @@ describe('agenda de demonstração', () => {
 
   async function limparAgenda(businessId: string) {
     const filtro = { businessId }
+    await prisma.voucherCode.deleteMany({ where: filtro })
+    await prisma.payment.deleteMany({ where: filtro })
+    await prisma.orderItem.deleteMany({ where: filtro })
+    await prisma.order.deleteMany({ where: filtro })
+    await prisma.loyaltyTransaction.deleteMany({ where: filtro })
+    await prisma.prizeRedemption.deleteMany({ where: filtro })
+    await prisma.voucher.deleteMany({ where: filtro })
+    await prisma.partner.deleteMany({ where: filtro })
+    await prisma.productImage.deleteMany({ where: filtro })
+    await prisma.product.deleteMany({ where: filtro })
+    await prisma.productCategory.deleteMany({ where: filtro })
+    await prisma.prize.deleteMany({ where: filtro })
+    await prisma.banner.deleteMany({ where: filtro })
+    await prisma.businessIntegration.deleteMany({ where: filtro })
     await prisma.notification.deleteMany({ where: filtro })
     await prisma.appointmentItem.deleteMany({ where: filtro })
     await prisma.appointment.deleteMany({ where: filtro })
@@ -834,5 +848,117 @@ describe('avisos do seed', () => {
     const futuros = avisos.filter((a) => a.appointment && a.appointment.endsAt.getTime() > NOW.getTime())
     expect(futuros.some((a) => a.status === 'PENDING')).toBe(true)
     for (const a of futuros) expect(a.skipReason).toBeNull()
+  })
+})
+
+describe('módulos de demonstração', () => {
+  beforeAll(async () => {
+    await resetDb()
+    await seed(prisma, ENV, { now: NOW })
+  })
+
+  const conta = (slug: string) => prisma.business.findUniqueOrThrow({ where: { slug } })
+
+  test('Navalha de Ouro: catálogo da loja com 2 categorias e 5 produtos (um em promoção, um sem estoque)', async () => {
+    const b = await conta('navalha-de-ouro')
+    expect(await prisma.productCategory.count({ where: { businessId: b.id, archivedAt: null } })).toBe(2)
+    const produtos = await prisma.product.findMany({ where: { businessId: b.id } })
+    expect(produtos).toHaveLength(5)
+    expect(produtos.filter((p) => p.promoPriceCents !== null)).toHaveLength(1)
+    expect(produtos.filter((p) => p.stock === 0 && p.active)).toHaveLength(1)
+  })
+
+  test('Navalha de Ouro: 3 prêmios, 2 banners no ar e 1 agendado, 1 parceiro e 2 vouchers', async () => {
+    const b = await conta('navalha-de-ouro')
+    expect(await prisma.prize.count({ where: { businessId: b.id } })).toBe(3)
+    const hoje = todayIn(b.timezone, NOW)
+    const banners = await prisma.banner.findMany({ where: { businessId: b.id } })
+    const noAr = banners.filter((x) => x.active && x.imageUploadId !== null && (x.startsOn === null || dbDateToLocal(x.startsOn) <= hoje) && (x.endsOn === null || dbDateToLocal(x.endsOn) >= hoje))
+    const agendados = banners.filter((x) => x.active && x.startsOn !== null && dbDateToLocal(x.startsOn) > hoje)
+    expect([noAr.length, agendados.length, banners.length]).toEqual([2, 1, 3])
+    expect(await prisma.partner.count({ where: { businessId: b.id } })).toBe(1)
+    expect(await prisma.voucher.count({ where: { businessId: b.id } })).toBe(2)
+  })
+
+  test('pontos vêm dos atendimentos concluídos (EARN com o atendimento) e o saldo de cada cliente é a soma do extrato', async () => {
+    const b = await conta('navalha-de-ouro')
+    const concluidos = await prisma.appointment.findMany({ where: { businessId: b.id, status: 'COMPLETED' }, include: { items: true } })
+    const esperado = concluidos.reduce((t, a) => t + a.items.reduce((u, i) => u + i.rewardPoints, 0), 0)
+    expect(esperado).toBeGreaterThan(0)
+    const ganhos = await prisma.loyaltyTransaction.findMany({ where: { businessId: b.id, kind: 'EARN' } })
+    expect(ganhos.every((g) => g.appointmentId !== null && g.createdByType !== 'SYSTEM')).toBe(true)
+    expect(ganhos.reduce((t, g) => t + g.points, 0)).toBe(esperado)
+    const linhas = await prisma.loyaltyTransaction.findMany({ where: { businessId: b.id } })
+    const ctx = await createTenantContext({ businessId: b.id, actor: { kind: 'impersonator', adminId: (await prisma.platformAdmin.findFirstOrThrow()).id, name: 'Teste' }, clock: () => NOW })
+    const { getBalance } = await import('@/server/domain/loyalty/ledger')
+    for (const clienteId of new Set(linhas.map((l) => l.customerId))) {
+      const soma = linhas.filter((l) => l.customerId === clienteId).reduce((t, l) => t + l.points, 0)
+      expect(await getBalance(ctx.db, clienteId)).toBe(soma)
+      expect(soma).toBeGreaterThanOrEqual(0)
+    }
+  })
+
+  test('Navalha de Ouro: 1 resgate pendente, 1 pedido pago a entregar, 1 aguardando pagamento e 1 de vouchers com códigos', async () => {
+    const b = await conta('navalha-de-ouro')
+    expect(await prisma.prizeRedemption.count({ where: { businessId: b.id, status: 'PENDING' } })).toBe(1)
+    const pedidos = await prisma.order.findMany({ where: { businessId: b.id }, include: { items: true }, orderBy: { number: 'asc' } })
+    expect(pedidos).toHaveLength(3)
+    const aEntregar = pedidos.filter((p) => p.status === 'PAID' && p.fulfillmentStatus === 'PENDING' && p.items.every((i) => i.productId !== null))
+    const aguardando = pedidos.filter((p) => p.status === 'AWAITING_PAYMENT')
+    const deVouchers = pedidos.filter((p) => p.items.some((i) => i.voucherId !== null))
+    expect([aEntregar.length, aguardando.length, deVouchers.length]).toEqual([1, 1, 1])
+    expect(deVouchers[0]?.status).toBe('PAID')
+    const codigos = await prisma.voucherCode.findMany({ where: { businessId: b.id, orderId: deVouchers[0]?.id ?? '' } })
+    const comprados = deVouchers[0]?.items.reduce((t, i) => t + i.quantity, 0) ?? 0
+    expect(codigos.length).toBe(comprados)
+    expect(codigos.every((c) => c.status === 'ACTIVE' && /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(c.code))).toBe(true)
+    // Estoque reservado e pagamentos pelo caminho real.
+    expect(await prisma.payment.count({ where: { businessId: b.id, status: 'APPROVED' } })).toBe(2)
+  })
+
+  test('Mercado Pago e Frenet da Navalha de Ouro ficam cifrados; nada em texto, nem na auditoria', async () => {
+    const b = await conta('navalha-de-ouro')
+    const i = await prisma.businessIntegration.findUniqueOrThrow({ where: { businessId: b.id } })
+    expect(i.mpAccessTokenEnc).not.toBeNull()
+    expect(i.mpWebhookSecretEnc).not.toBeNull()
+    expect(i.mpWebhookKey).not.toBeNull()
+    expect(i.frenetTokenEnc).not.toBeNull()
+    const todos = JSON.stringify(i)
+    expect(todos).not.toContain('TEST-')
+    const { getStoreIntegrations } = await import('@/server/domain/store/settings')
+    const ctx = await createTenantContext({ businessId: b.id, actor: { kind: 'impersonator', adminId: (await prisma.platformAdmin.findFirstOrThrow()).id, name: 'Teste' }, clock: () => NOW })
+    expect(await getStoreIntegrations(ctx)).toEqual({ mercadoPago: true, frenet: true })
+    const { readMercadoPagoSecrets } = await import('@/server/domain/platform/integration-secrets')
+    expect((await readMercadoPagoSecrets(b.id))?.accessToken).toMatch(/^TEST-/)
+    const auditoria = JSON.stringify(await prisma.auditLog.findMany({ where: { businessId: b.id } }))
+    expect(auditoria).not.toMatch(/TEST-[0-9A-Za-z]{10}/)
+  })
+
+  test('Patas & Cia: prêmios e um banner no ar, e nada de loja nem vouchers', async () => {
+    const b = await conta('patas-e-cia')
+    expect(await prisma.prize.count({ where: { businessId: b.id } })).toBeGreaterThanOrEqual(2)
+    const hoje = todayIn(b.timezone, NOW)
+    const banners = await prisma.banner.findMany({ where: { businessId: b.id, active: true } })
+    expect(banners).toHaveLength(1)
+    expect(banners[0]?.imageUploadId).not.toBeNull()
+    const inicio = banners[0]?.startsOn ?? null
+    expect(inicio === null || dbDateToLocal(inicio) <= hoje).toBe(true)
+    expect(await prisma.product.count({ where: { businessId: b.id } })).toBe(0)
+    expect(await prisma.order.count({ where: { businessId: b.id } })).toBe(0)
+    expect(await prisma.businessIntegration.count({ where: { businessId: b.id } })).toBe(0)
+  })
+
+  test('rodar de novo não duplica nada dos módulos', async () => {
+    const contar = async () => ({
+      produtos: await prisma.product.count(),
+      premios: await prisma.prize.count(),
+      banners: await prisma.banner.count(),
+      pedidos: await prisma.order.count(),
+      codigos: await prisma.voucherCode.count(),
+      pontos: await prisma.loyaltyTransaction.count(),
+    })
+    const antes = await contar()
+    await seed(prisma, ENV, { now: NOW })
+    expect(await contar()).toEqual(antes)
   })
 })

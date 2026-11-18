@@ -101,6 +101,37 @@ describe('painel do negócio: toda entrada exige uma conta ativa', () => {
     }
   })
 
+  test('toda page.tsx dos quatro módulos chama requirePainelModule do módulo certo, depois de requireTenant', () => {
+    const MODULOS: Record<string, string> = { fidelidade: 'loyalty', banners: 'banners', loja: 'store', vouchers: 'vouchers' }
+    for (const [pasta, modulo] of Object.entries(MODULOS)) {
+      const doModulo = todos.filter((f) => rel(f).startsWith(`${pasta}/`) && /\/page\.tsx$/.test(rel(f)))
+      expect(doModulo.length, `${pasta} sem páginas`).toBeGreaterThanOrEqual(2)
+      for (const f of doModulo) {
+        const src = ler(f)
+        const tenant = src.search(/\brequireTenant\(/)
+        const gate = src.search(new RegExp(`\\brequirePainelModule\\(\\s*ctx,\\s*'${modulo}'\\s*\\)`))
+        expect(tenant, `${rel(f)} não chama requireTenant`).toBeGreaterThan(-1)
+        expect(gate, `${rel(f)} não chama requirePainelModule(ctx, '${modulo}')`).toBeGreaterThan(-1)
+        expect(gate, `${rel(f)} confere o módulo antes de requireTenant`).toBeGreaterThan(tenant)
+        // Nada de ler dado antes do guarda do módulo.
+        expect(src.slice(0, gate), `${rel(f)} lê dado antes do guarda do módulo`).not.toMatch(/\bawait request\.|formData\(|\.json\(\)|\bctx\.db/)
+      }
+    }
+  })
+
+  test('toda route.ts dos módulos (envio de imagem) chama requireTenant e uma função do domínio do módulo, que confere o módulo ligado', () => {
+    const DOMINIOS: Record<string, string> = { fidelidade: 'loyalty', banners: 'banners', loja: 'store', vouchers: 'vouchers' }
+    for (const [pasta, dominio] of Object.entries(DOMINIOS)) {
+      const rotas = todos.filter((f) => rel(f).startsWith(`${pasta}/`) && rel(f).endsWith('/route.ts'))
+      expect(rotas.length, `${pasta} sem rotas`).toBeGreaterThan(0)
+      for (const f of rotas) {
+        const src = ler(f)
+        expect(src, `${rel(f)} não chama requireTenant`).toMatch(/\brequireTenant\(/)
+        expect(src, `${rel(f)} não usa o domínio de ${dominio}`).toContain(`from '@/server/domain/${dominio}/`)
+      }
+    }
+  })
+
   test('nenhuma página ou ação do painel importa o cliente cru do banco', () => {
     for (const f of todos.filter((x) => /\.(ts|tsx)$/.test(x))) {
       expect(ler(f), `${rel(f)} importa @/server/db/client`).not.toMatch(/from '@\/server\/db\/client'/)

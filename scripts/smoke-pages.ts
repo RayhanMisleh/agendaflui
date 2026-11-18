@@ -110,6 +110,7 @@ const PAGINAS_MODULOS: string[] = [
   '/fidelidade?aba=clube',
   '/fidelidade?aba=ajustes',
   '/fidelidade/premios/novo',
+  '/fidelidade/premios/{premio}',
   '/loja',
   '/loja?aba=pedidos',
   '/loja?aba=pedidos&situacao=a-entregar&search=1',
@@ -288,6 +289,11 @@ async function main(): Promise<number> {
 
     const cliente = await prisma.customer.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     const profissional = await prisma.professional.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
+    // Um prêmio de demonstração para a ficha; sai ao fim, junto com as sessões.
+    const premio = await prisma.prize.create({ data: { businessId: conta.id, name: 'Prêmio da fumaça', costPoints: 50 }, select: { id: true } })
+    limpezas.push(async () => {
+      await prisma.prize.deleteMany({ where: { id: premio.id } })
+    })
     // Um banner de demonstração (inativo, sem imagem) para a ficha; sai ao fim, junto com as sessões.
     const banner = await prisma.banner.create({ data: { businessId: conta.id, title: 'Banner da fumaça' }, select: { id: true } })
     limpezas.push(async () => {
@@ -338,7 +344,7 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{voucher}', voucher.id).replace('{parceiro}', parceiro.id).replace('{pedido}', pedido?.id ?? '')
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{voucher}', voucher.id).replace('{parceiro}', parceiro.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id)
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {

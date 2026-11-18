@@ -19,7 +19,7 @@ export type DemoExpediente = Partial<
 
 /** Agenda de demonstração de uma conta: o que o seed cria pelas funções de domínio. */
 export type DemoAgenda = {
-  servicos: { nome: string; minutos: number; centavos: number; clube?: boolean }[]
+  servicos: { nome: string; minutos: number; centavos: number; pontos: number; clube?: boolean }[]
   /** `papel` liga a ficha ao acesso de demonstração desse papel; `null` fica sem acesso. */
   profissionais: { nome: string; papel: 'gerente' | 'profissional' | null }[]
   comissaoBps: number
@@ -34,11 +34,11 @@ export type DemoAgenda = {
 const manha = { startMin: 480, endMin: 720 }
 const AGENDA_PATAS: DemoAgenda = {
   servicos: [
-    { nome: 'Banho', minutos: 60, centavos: 7000 },
-    { nome: 'Tosa higiênica', minutos: 30, centavos: 4500 },
-    { nome: 'Banho e tosa completa', minutos: 120, centavos: 14000 },
-    { nome: 'Corte de unhas', minutos: 15, centavos: 2500 },
-    { nome: 'Hidratação', minutos: 30, centavos: 5500, clube: true },
+    { nome: 'Banho', minutos: 60, centavos: 7000, pontos: 10 },
+    { nome: 'Tosa higiênica', minutos: 30, centavos: 4500, pontos: 5 },
+    { nome: 'Banho e tosa completa', minutos: 120, centavos: 14000, pontos: 20 },
+    { nome: 'Corte de unhas', minutos: 15, centavos: 2500, pontos: 3 },
+    { nome: 'Hidratação', minutos: 30, centavos: 5500, pontos: 8, clube: true },
   ],
   profissionais: [
     { nome: 'Bia Nogueira', papel: 'profissional' },
@@ -74,11 +74,11 @@ const AGENDA_PATAS: DemoAgenda = {
 
 const AGENDA_NAVALHA: DemoAgenda = {
   servicos: [
-    { nome: 'Corte', minutos: 30, centavos: 5000 },
-    { nome: 'Barba', minutos: 30, centavos: 4000 },
-    { nome: 'Corte e barba', minutos: 60, centavos: 8000 },
-    { nome: 'Sobrancelha', minutos: 15, centavos: 2000 },
-    { nome: 'Pigmentação', minutos: 45, centavos: 9000 },
+    { nome: 'Corte', minutos: 30, centavos: 5000, pontos: 10 },
+    { nome: 'Barba', minutos: 30, centavos: 4000, pontos: 8 },
+    { nome: 'Corte e barba', minutos: 60, centavos: 8000, pontos: 20 },
+    { nome: 'Sobrancelha', minutos: 15, centavos: 2000, pontos: 5 },
+    { nome: 'Pigmentação', minutos: 45, centavos: 9000, pontos: 15 },
   ],
   profissionais: [
     { nome: 'Davi Castro', papel: 'profissional' },
@@ -111,6 +111,56 @@ const AGENDA_NAVALHA: DemoAgenda = {
   combinacoes: [[0], [2], [1], [0, 3], [4], [0], [1, 3], [2], [0], [1], [4, 3], [2]],
 }
 
+/** Módulos de demonstração de uma conta: o que o seed cria pelas funções de domínio (preços em centavos, datas em dias a partir de hoje). */
+export type DemoModulos = {
+  premios: { nome: string; descricao: string; pontos: number; estoque: number | null }[]
+  /** Um banner por item; `inicio` e `fim` em dias a partir de hoje (`null` = sem limite). Todos ativos, com imagem. */
+  banners: { titulo: string; link: string | null; inicio: number | null; fim: number | null }[]
+  loja?: {
+    categorias: string[]
+    /** `categoria` é o índice em `categorias`. */
+    produtos: { nome: string; descricao: string; categoria: number; centavos: number; promocaoCentavos?: number; estoque: number; gramas: number }[]
+    parceiro: { nome: string; descricao: string; endereco: string; telefone: string; site: string }
+    vouchers: { nome: string; descricao: string; regras: string; centavos: number; estoque: number; validadeDias: number }[]
+  }
+}
+
+const MODULOS_PATAS: DemoModulos = {
+  premios: [
+    { nome: 'Banho grátis', descricao: 'Um banho simples para o seu pet.', pontos: 150, estoque: null },
+    { nome: 'Corte de unhas grátis', descricao: 'Corte de unhas na próxima visita.', pontos: 40, estoque: 20 },
+  ],
+  banners: [{ titulo: 'Semana do banho e tosa', link: null, inicio: null, fim: 30 }],
+}
+
+const MODULOS_NAVALHA: DemoModulos = {
+  premios: [
+    { nome: 'Pomada modeladora', descricao: 'Uma pomada para levar para casa.', pontos: 60, estoque: 10 },
+    { nome: 'Corte grátis', descricao: 'Um corte na próxima visita.', pontos: 120, estoque: null },
+    { nome: 'Barba grátis', descricao: 'Barba completa na próxima visita.', pontos: 90, estoque: 5 },
+  ],
+  banners: [
+    { titulo: 'Combo corte e barba', link: '/servicos', inicio: null, fim: 30 },
+    { titulo: 'Produtos para a barba', link: null, inicio: -3, fim: null },
+    { titulo: 'Especial de fim de ano', link: null, inicio: 14, fim: 45 },
+  ],
+  loja: {
+    categorias: ['Barba', 'Cabelo'],
+    produtos: [
+      { nome: 'Óleo para barba', descricao: 'Hidrata e dá brilho à barba.', categoria: 0, centavos: 4500, estoque: 12, gramas: 120 },
+      { nome: 'Balm para barba', descricao: 'Modela e suaviza os fios.', categoria: 0, centavos: 3900, promocaoCentavos: 3200, estoque: 8, gramas: 100 },
+      { nome: 'Pente de madeira', descricao: 'Pente de madeira para barba.', categoria: 0, centavos: 2500, estoque: 15, gramas: 60 },
+      { nome: 'Pomada modeladora', descricao: 'Fixação forte e acabamento fosco.', categoria: 1, centavos: 4200, estoque: 10, gramas: 150 },
+      { nome: 'Shampoo anticaspa', descricao: 'Limpeza profunda do couro cabeludo.', categoria: 1, centavos: 3500, estoque: 0, gramas: 300 },
+    ],
+    parceiro: { nome: 'Café do Largo', descricao: 'Cafeteria parceira, a dois quarteirões da barbearia.', endereco: 'Rua do Largo, 120, Centro, Manaus', telefone: '(92) 3000-1234', site: 'https://cafedolargo.agendaflui.localhost' },
+    vouchers: [
+      { nome: 'Café com pão de queijo', descricao: 'Um café com pão de queijo no balcão.', regras: 'Válido de segunda a sexta, uma vez por código.', centavos: 1800, estoque: 30, validadeDias: 30 },
+      { nome: 'Combo lanche para dois', descricao: 'Dois sanduíches e duas bebidas.', regras: 'Válido todos os dias, até as 18 horas.', centavos: 5500, estoque: 10, validadeDias: 60 },
+    ],
+  },
+}
+
 export const DEMO_CONTAS = [
   {
     chave: 'patas',
@@ -141,6 +191,7 @@ export const DEMO_CONTAS = [
       profissional: 'Bia Nogueira',
     },
     agenda: AGENDA_PATAS,
+    moduloDados: MODULOS_PATAS,
   },
   {
     chave: 'navalha',
@@ -167,6 +218,7 @@ export const DEMO_CONTAS = [
       profissional: 'Davi Castro',
     },
     agenda: AGENDA_NAVALHA,
+    moduloDados: MODULOS_NAVALHA,
   },
 ] as const
 

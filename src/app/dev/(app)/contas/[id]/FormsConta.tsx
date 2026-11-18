@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useId } from 'react'
 import { Checkbox, Field, Input, Select, Textarea } from '@/ui/components'
 import { ContaForm } from './ContaForm'
@@ -72,35 +73,65 @@ export function TermosForm({ action, valores }: { action: AcaoConta; valores: Ca
   )
 }
 
-export function ModulosForm({ action, valores }: { action: AcaoConta; valores: Campos }) {
+/** O que está em andamento na conta, como a página lê (`getModuleUsage`). */
+export type UsoDosModulos = { openOrders: number; pendingRedemptions: number; activeVoucherCodes: number; mercadoPagoConfigured: boolean }
+
+const plural = (n: number, um: string, varios: string): string => (n === 1 ? `1 ${um}` : `${String(n)} ${varios}`)
+
+/** A frase do que está em andamento num módulo; `null` quando não há nada a dizer (Banners não tem andamento). */
+function andamento(modulo: 'loyalty' | 'store' | 'vouchers', uso: UsoDosModulos): string {
+  if (modulo === 'store') return uso.openOrders === 0 ? 'Nenhum pedido pago a entregar.' : `${plural(uso.openOrders, 'pedido pago a entregar', 'pedidos pagos a entregar')}.`
+  if (modulo === 'loyalty') return uso.pendingRedemptions === 0 ? 'Nenhum resgate a entregar.' : `${plural(uso.pendingRedemptions, 'resgate a entregar', 'resgates a entregar')}.`
+  return uso.activeVoucherCodes === 0 ? 'Nenhum código de voucher ativo.' : `${plural(uso.activeVoucherCodes, 'código de voucher ativo', 'códigos de voucher ativos')}.`
+}
+
+export function ModulosForm({ action, valores, businessId, uso }: { action: AcaoConta; valores: Campos; businessId: string; uso: UsoDosModulos }) {
   return (
     <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar módulos">
-      {({ values: v, fields }) => <ModulosCampos v={v} erroVouchers={fields.vouchers} />}
+      {({ values: v, fields }) => <ModulosCampos v={v} erroVouchers={fields.vouchers} businessId={businessId} uso={uso} />}
     </ContaForm>
   )
 }
 
 /** O erro de "vouchers exigem Loja" fica ligado ao checkbox de vouchers (`aria-describedby`), não solto no formulário. */
-function ModulosCampos({ v, erroVouchers }: { v: Campos; erroVouchers: string | undefined }) {
+function ModulosCampos({ v, erroVouchers, businessId, uso }: { v: Campos; erroVouchers: string | undefined; businessId: string; uso: UsoDosModulos }) {
   const uid = useId()
   const erroId = erroVouchers ? `${uid}-vouchers-erro` : undefined
+  const semMercadoPago = v.store === 'on' && !uso.mercadoPagoConfigured
   return (
     <div className="af-wizard__checks">
-      <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" defaultChecked={v.loyalty === 'on'} />
+      <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" defaultChecked={v.loyalty === 'on'} aria-describedby={`${uid}-loyalty`} />
+      <p id={`${uid}-loyalty`} className="af-wizard__note">
+        Em andamento: {andamento('loyalty', uso)}
+      </p>
       <Checkbox name="banners" label="Banners: avisos e promoções no app" defaultChecked={v.banners === 'on'} />
-      <Checkbox name="store" label="Loja: produtos e pedidos" defaultChecked={v.store === 'on'} />
+      <Checkbox name="store" label="Loja: produtos e pedidos" defaultChecked={v.store === 'on'} aria-describedby={`${uid}-store`} />
+      <p id={`${uid}-store`} className="af-wizard__note">
+        Em andamento: {andamento('store', uso)}
+      </p>
+      {semMercadoPago ? (
+        <p role="note" className="af-wizard__note">
+          Atenção: a Loja está ligada, mas o Mercado Pago não está configurado, então os clientes não conseguem pagar.{' '}
+          <Link href={`/contas/${businessId}/integracoes`}>Configurar na aba Integrações</Link>.
+        </p>
+      ) : null}
       <Checkbox
         name="vouchers"
         label="Vouchers: vendidos dentro de um pedido da Loja"
         defaultChecked={v.vouchers === 'on'}
-        {...(erroId ? { 'aria-describedby': erroId, 'aria-invalid': true } : {})}
+        {...(erroId ? { 'aria-describedby': erroId, 'aria-invalid': true } : { 'aria-describedby': `${uid}-vouchers` })}
       />
+      <p id={`${uid}-vouchers`} className="af-wizard__note">
+        Em andamento: {andamento('vouchers', uso)}
+      </p>
       {erroVouchers ? (
         <p id={erroId} className="af-field__error">
           {erroVouchers}
         </p>
       ) : null}
-      <p className="af-wizard__note">Módulo desligado some do menu, das telas e da API desta conta. Vouchers só funcionam com a Loja ligada.</p>
+      <p className="af-wizard__note">
+        Desligar um módulo esconde tudo isso da conta e do app, mas guarda os dados: ao ligar de novo, tudo volta. Vouchers só funcionam com a Loja ligada; para desligar os dois, desmarque os dois no mesmo envio.
+      </p>
     </div>
   )
 }

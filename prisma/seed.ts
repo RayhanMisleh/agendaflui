@@ -15,10 +15,12 @@ import {
   DEMO_MULTI_NOME,
   DEMO_ROTAS_USO,
   demoEmail, type DemoAgenda,
+  type DemoModulos,
   type DemoPapel,
 } from './seed-data'
 import { planejarAgenda } from './seed-plan'
-import { addMinutes, fromEpochMs, startOfUtcHour } from '../src/server/time'
+import sharp from 'sharp'
+import { addDays, addMinutes, fromEpochMs, startOfUtcHour, todayIn } from '../src/server/time'
 
 /** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD, SEED_MULTI_EMAIL). */
 export type SeedEnv = Record<string, string | undefined>
@@ -243,7 +245,7 @@ async function avisoComFalha(prisma: PrismaClient, businessId: string, now: Date
 }
 
 async function dominio() {
-  const [auditoria, contexto, catalogo, equipe, horarios, bloqueios, fechamentos, clientes, agendamentos] = await Promise.all([
+  const [auditoria, contexto, catalogo, equipe, horarios, bloqueios, fechamentos, clientes, agendamentos, premios, avisos, categorias, produtos, pedidos, pagamentos, parceiros, vouchers, integracoes, fidelidade, razao] = await Promise.all([
     import('../src/server/domain/audit'),
     import('../src/server/auth/context'),
     import('../src/server/domain/catalog/services'),
@@ -253,8 +255,143 @@ async function dominio() {
     import('../src/server/domain/settings/closures'),
     import('../src/server/domain/customers/customers'),
     import('../src/server/domain/scheduling/appointments'),
+    import('../src/server/domain/loyalty/prizes'),
+    import('../src/server/domain/banners/banners'),
+    import('../src/server/domain/store/categories'),
+    import('../src/server/domain/store/products'),
+    import('../src/server/domain/store/orders'),
+    import('../src/server/domain/store/payments'),
+    import('../src/server/domain/vouchers/partners'),
+    import('../src/server/domain/vouchers/vouchers'),
+    import('../src/server/domain/platform/integrations'),
+    import('../src/server/domain/loyalty/redemptions'),
+    import('../src/server/domain/loyalty/ledger'),
   ])
-  return { ...auditoria, ...contexto, ...catalogo, ...equipe, ...horarios, ...bloqueios, ...fechamentos, ...clientes, ...agendamentos }
+  const { redeemPrize } = fidelidade
+  return { ...auditoria, ...contexto, ...catalogo, ...equipe, ...horarios, ...bloqueios, ...fechamentos, ...clientes, ...agendamentos, ...premios, ...avisos, ...categorias, ...produtos, ...pedidos, ...pagamentos, ...parceiros, ...vouchers, ...integracoes, redeemPrize, adjustPoints: razao.adjustPoints }
+}
+
+type Dominio = Awaited<ReturnType<typeof dominio>>
+
+/** Imagem sólida na cor da marca: o banner só vai ao ar com imagem. */
+async function imagemDaMarca(cor: string): Promise<{ bytes: Uint8Array }> {
+  return { bytes: new Uint8Array(await sharp({ create: { width: 1200, height: 500, channels: 3, background: cor } }).png().toBuffer()) }
+}
+
+/**
+ * Mercado Pago e Frenet de teste: os textos `TEST-…` nascem aqui, vão direto para a função de domínio (que os cifra) e não
+ * são impressos nem gravados em arquivo. Só quando a conta ainda não tem a integração.
+ */
+async function integracoesDeTeste(d: Dominio, ator: AdminAtor, businessId: string, now: Date): Promise<void> {
+  const hex = (n: number) => randomBytes(n).toString('hex')
+  const atual = await d.getIntegrations(ator, businessId)
+  let versao = atual.version
+  if (!atual.mercadoPago.configured) {
+    const r = await d.setMercadoPago(ator, businessId, versao, { accessToken: `TEST-${hex(20)}`, webhookSecret: hex(16) }, now)
+    versao = r.version
+  }
+  if (!atual.frenet.configured) await d.setFrenet(ator, businessId, versao, { token: `TEST-${hex(16)}` }, now)
+}
+
+/**
+ * Fidelidade, Banners, Loja e Vouchers de uma conta, sempre pelas funções de domínio e nos caminhos reais: os pontos já
+ * foram creditados pelos atendimentos concluídos; o resgate, os pedidos e os códigos nascem de `redeemPrize`, `createOrder`
+ * e `applyPayment` (o mesmo caminho do webhook, com o pagamento como a consulta ao Mercado Pago o devolveria).
+ */
+async function semearModulos(
+  prisma: PrismaClient,
+  d: Dominio,
+  ctx: Awaited<ReturnType<Dominio['createTenantContext']>>,
+  modulos: DemoModulos,
+  clientes: { id: string; name: string }[],
+  cor: string,
+  ator: AdminAtor,
+  now: Date,
+): Promise<void> {
+  const hoje = todayIn(ctx.timeZone, now)
+  const premios = []
+  for (const p of modulos.premios) {
+    premios.push(await d.createPrize(ctx, { name: p.nome, description: p.descricao, costPoints: p.pontos, stock: p.estoque, active: true }))
+  }
+  for (const b of modulos.banners) {
+    const criado = await d.createBanner(ctx, {
+      title: b.titulo,
+      linkUrl: b.link,
+      startsOn: b.inicio === null ? null : addDays(hoje, b.inicio),
+      endsOn: b.fim === null ? null : addDays(hoje, b.fim),
+      active: false,
+    })
+    await d.setBannerImage(ctx, criado.id, await imagemDaMarca(cor))
+    await d.updateBanner(ctx, criado.id, { active: true })
+  }
+  const loja = modulos.loja
+  if (!loja) return
+
+  // Pontos: quem mais ganhou resgata o prêmio mais barato; se o saldo não chega, a equipe soma o que falta (pela função de domínio).
+  const saldos = await prisma.loyaltyTransaction.groupBy({ by: ['customerId'], where: { businessId: ctx.businessId }, _sum: { points: true } })
+  const [melhor] = [...saldos].sort((a, b) => (b._sum.points ?? 0) - (a._sum.points ?? 0))
+  const barato = [...premios].sort((a, b) => a.costPoints - b.costPoints)[0]
+  const quemResgata = clientes.find((c) => c.id === melhor?.customerId) ?? clientes[0]
+  if (barato && quemResgata) {
+    const falta = barato.costPoints - (melhor?._sum.points ?? 0)
+    if (falta > 0) await d.adjustPoints(ctx, { customerId: quemResgata.id, points: falta, reason: 'Pontos de boas-vindas (demonstração)' })
+    const ctxCliente = await d.createTenantContext({ businessId: ctx.businessId, actor: { kind: 'customer', customerId: quemResgata.id, name: quemResgata.name }, clock: () => now, channel: 'app' })
+    await d.redeemPrize(ctxCliente, { prizeId: barato.id })
+  }
+
+  const categorias = []
+  for (const nome of loja.categorias) categorias.push(await d.createCategory(ctx, { name: nome }))
+  const produtos = []
+  for (const p of loja.produtos) {
+    produtos.push(
+      await d.createProduct(ctx, {
+        categoryId: categorias[p.categoria]?.id ?? null,
+        name: p.nome,
+        description: p.descricao,
+        priceCents: p.centavos,
+        promoPriceCents: p.promocaoCentavos ?? null,
+        stock: p.estoque,
+        weightGrams: p.gramas,
+        lengthCm: null,
+        heightCm: null,
+        widthCm: null,
+        active: true,
+      }),
+    )
+  }
+  const parceiro = await d.createPartner(ctx, { name: loja.parceiro.nome, description: loja.parceiro.descricao, address: loja.parceiro.endereco, phone: loja.parceiro.telefone, website: loja.parceiro.site, active: true })
+  const vouchers = []
+  for (const v of loja.vouchers) {
+    vouchers.push(await d.createVoucher(ctx, { partnerId: parceiro.id, name: v.nome, description: v.descricao, terms: v.regras, priceCents: v.centavos, stock: v.estoque, validDays: v.validadeDias, active: true }))
+  }
+  await integracoesDeTeste(d, ator, ctx.businessId, now)
+
+  // Pedidos pelo caminho do app: três clientes, três pedidos (a entregar, aguardando pagamento e de vouchers).
+  const comEstoque = produtos.filter((p) => p.stock > 0)
+  const [c1, c2, c3] = clientes.filter((c) => c.id !== quemResgata?.id).slice(0, 3)
+  const doCliente = (c: { id: string; name: string }) => d.createTenantContext({ businessId: ctx.businessId, actor: { kind: 'customer', customerId: c.id, name: c.name }, clock: () => now, channel: 'app' })
+  const sistema = await d.createSystemContext(ctx.businessId, () => now)
+  const pagar = async (orderId: string, totalCents: number, n: number) =>
+    d.applyPayment(sistema, orderId, {
+      id: `${now.getTime()}${n}`,
+      status: 'approved',
+      statusDetail: 'accredited',
+      amountCents: totalCents,
+      currency: 'BRL',
+      externalReference: orderId,
+      approvedAt: now,
+    })
+  const [p1, p2] = comEstoque
+  if (c1 && p1 && p2) {
+    const pedido = await d.createOrder(await doCliente(c1), { lines: [{ productId: p1.id, quantity: 1 }, { productId: p2.id, quantity: 2 }], delivery: { method: 'PICKUP' }, note: null })
+    await pagar(pedido.order.id, pedido.order.totalCents, 1)
+  }
+  if (c2 && p2) await d.createOrder(await doCliente(c2), { lines: [{ productId: p2.id, quantity: 1 }], delivery: { method: 'PICKUP' }, note: 'Retiro na sexta.' })
+  const [v1] = vouchers
+  if (c3 && v1) {
+    const pedido = await d.createOrder(await doCliente(c3), { lines: [{ voucherId: v1.id, quantity: 2 }], delivery: { method: 'NONE' }, note: null })
+    await pagar(pedido.order.id, pedido.order.totalCents, 2)
+  }
 }
 
 /**
@@ -263,12 +400,13 @@ async function dominio() {
  */
 async function semearAgenda(
   prisma: PrismaClient,
-  conta: { chave: 'patas' | 'navalha'; agenda: DemoAgenda },
+  conta: { chave: 'patas' | 'navalha'; agenda: DemoAgenda; moduloDados: DemoModulos; marca: { primaryColor: string } },
   negocio: { id: string; slug: string; name: string; timezone: string },
   adminId: string,
   now: Date,
 ): Promise<AgendaResumo> {
   const d = await dominio()
+  const ator: AdminAtor = { kind: 'platform_admin', adminId, name: 'Seed' }
   const { agenda } = conta
   const tz = negocio.timezone
   const ctx = await d.createTenantContext({
@@ -280,7 +418,7 @@ async function semearAgenda(
   const servicos: Awaited<ReturnType<typeof d.createService>>[] = []
   for (const s of agenda.servicos) {
     servicos.push(
-      await d.createService(ctx, { name: s.nome, durationMin: s.minutos, priceCents: s.centavos, clubOnly: s.clube ?? false }),
+      await d.createService(ctx, { name: s.nome, durationMin: s.minutos, priceCents: s.centavos, rewardPoints: s.pontos, clubOnly: s.clube ?? false }),
     )
   }
   const profissionais = []
@@ -347,6 +485,7 @@ async function semearAgenda(
     isClubMember: false,
   })
   await d.archiveCustomer(ctx, arquivado.id)
+  await semearModulos(prisma, d, ctx, conta.moduloDados, clientes, conta.marca.primaryColor, ator, now)
   await d.createClosure(ctx, { startDate: plano.fechamento, endDate: plano.fechamento, reason: DEMO_CLOSURE_REASON })
   // Por último: o marcador de que a agenda desta conta ficou completa. O fechamento não serve, porque o
   // usuário pode apagá-lo pela tela.

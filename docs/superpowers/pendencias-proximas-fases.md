@@ -22,17 +22,17 @@
 - Molduras: a barra da base do celular deixa de grudar se um ancestral tiver `overflow`; falta teste da barra grudada no meio da rolagem.
 - Para o dono conferir no navegador (nenhum agente abriu o painel do negócio): todas as telas a 375 px, foco nos diálogos, arrastar a ficha na agenda (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, faixa de suporte em todas as telas, envio de foto da equipe e do logo, exportação do CSV de relatórios.
 
-## Fase 5 (módulos)
-
-- Aba "Integrações" na página da conta do painel dev (pagamento, frete), com segredos mostrados só pelos 4 últimos caracteres.
-- Crédito de pontos na conclusão do atendimento (spec 8.3): pendurar no ponto único de eventos do agendamento (`afterChange`), uma vez só por agendamento.
-
 ## Fase 6 (fechamento e produção)
 
 - As telas do painel dev nunca foram vistas em navegador pelos agentes (só fumaça por HTTP): conferência visual e a 375 px pendente com o dono.
 - Ações destrutivas do painel dev exigem JavaScript para a confirmação.
 - Várias instâncias exigem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa.
 - A conferência `Origin == Host` das rotas POST do painel dev depende de o proxy preservar o `Host`: documentar junto com `TRUSTED_PROXY_HOPS`.
+- Módulos (vindos da Fase 5): volume financeiro da loja (pedidos pagos, receita) nas métricas do painel dev; rotas `staff/*` de módulos para o app da equipe (pedidos, resgates, baixa de voucher); rotação da chave de cifra dos segredos de integração.
+- Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas): testar com credenciais de teste do Mercado Pago, em especial a expiração do Pix (mínimo de 30 minutos), o webhook e a assinatura `x-signature`.
+- Sem avisos de e-mail ou push para pedido, pagamento, resgate e código de voucher; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout; SMTP próprio por conta fora do escopo.
+- App: `POST /v1/store/orders` deve sempre mandar `Idempotency-Key` (sem ela, dois toques criam dois pedidos); nova cotação entre os toques muda o hash e dá 409 `idempotency_key_reused`.
+- Para o dono conferir no navegador (nenhum agente abriu): telas de Fidelidade, Banners, Loja e Vouchers a 375 px, envio de imagens, pedido com "Simular pagamento aprovado", baixa de código de voucher e a aba Módulos do painel dev.
 - Para o dono conferir no navegador: criar conta, convite, definir senha e entrar; entrar como, faixa e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
 - Para o dono conferir no navegador: todas as telas a 375 px, foco nos diálogos, contraste da faixa de suporte; envio de imagens sem JavaScript e prévia com cores extremas; "tentar de novo" em /sistema.
 - Produção exige `TRUSTED_PROXY_HOPS` ≥ 1 (sem ele os limites viram globais por chave e a auditoria fica sem IP): avisar na partida.
