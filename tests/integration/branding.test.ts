@@ -5,7 +5,7 @@ import { makeBusiness, makeUpload } from '../setup/factories'
 
 beforeEach(resetDb)
 
-const CHAVES_DA_MARCA = ['businessId', 'loginImageUrl', 'logoUrl', 'name', 'slug', 'symbolUrl', 'theme']
+const CHAVES_DA_MARCA = ['businessId', 'faviconUrl', 'loginImageUrl', 'logoUrl', 'name', 'slug', 'symbolUrl', 'theme']
 
 test('devolve o tema derivado das cores gravadas', async () => {
   const b = await makeBusiness({

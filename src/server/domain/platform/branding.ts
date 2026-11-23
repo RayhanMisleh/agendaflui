@@ -11,6 +11,8 @@ export type PublicBrand = {
   name: string
   logoUrl: string | null
   symbolUrl: string | null
+  /** Ícone da aba do navegador enviado pela conta; sem ele vale o da marca Agenda Flui. */
+  faviconUrl: string | null
   loginImageUrl: string | null
   theme: ThemeTokens
 }
@@ -28,6 +30,7 @@ const SELECAO = {
       coverMaterial: true,
       logo: { select: { path: true } },
       symbol: { select: { path: true } },
+      favicon: { select: { path: true } },
       loginImage: { select: { path: true } },
     },
   },
@@ -44,6 +47,7 @@ function paraMarca(linha: Linha | null): PublicBrand | null {
     name: marca.displayName || linha.name,
     logoUrl: uploadUrl(marca.logo),
     symbolUrl: uploadUrl(marca.symbol),
+    faviconUrl: uploadUrl(marca.favicon),
     loginImageUrl: uploadUrl(marca.loginImage),
     theme: deriveTheme({
       primary: marca.primaryColor,
