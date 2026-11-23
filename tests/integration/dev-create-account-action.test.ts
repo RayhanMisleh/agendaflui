@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
+import { env } from '@/server/env'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makePlatformAdmin, makeUser } from '../setup/factories'
 
@@ -91,6 +92,7 @@ describe('criar conta pela ação do assistente', () => {
     const r = estado.values.result
     expect(r?.pendencias).toEqual([])
     expect(r).not.toHaveProperty('entryUrl')
+    expect(r?.customerLinkUrl).toBe(`${env.APP_WEB_URL}/pata-viva`)
 
     const conta = await prisma.business.findUniqueOrThrow({
       where: { slug: 'pata-viva' },

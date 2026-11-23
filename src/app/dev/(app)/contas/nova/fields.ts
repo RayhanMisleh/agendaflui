@@ -44,6 +44,8 @@ export type WizardResult = {
   ownerEmail: string
   ownerExisting: boolean
   emailSent: boolean
+  /** O link que a loja passa aos clientes. */
+  customerLinkUrl: string
   /** Passos depois da criação que falharam, em texto para a pessoa. */
   pendencias: string[]
 }

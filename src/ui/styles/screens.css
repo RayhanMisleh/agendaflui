@@ -43,6 +43,10 @@
     min-width: 0;
     max-width: 24rem;
   }
+  .af-entrylink .af-input {
+    flex: 1 1 14rem;
+    min-width: 0;
+  }
   .af-entrylink__url {
     min-width: 0;
     color: var(--ink);

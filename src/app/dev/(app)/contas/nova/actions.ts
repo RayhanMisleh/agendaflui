@@ -1,5 +1,6 @@
 'use server'
 import { redirect, unstable_rethrow } from 'next/navigation'
+import { customerLinkUrl } from '@/server/customer-link'
 import { DomainError } from '@/server/domain/errors'
 import { createBusiness, validateNewBusiness } from '@/server/domain/platform/businesses'
 import { getCustomization, updateBrand, updateModules, updateRulesAsAdmin, updateTerms, validateAccountSetup } from '@/server/domain/platform/customization'
@@ -144,6 +145,7 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
     ownerEmail: v.ownerEmail.trim().toLowerCase(),
     ownerExisting: criada.owner.existing,
     emailSent: criada.emailSent,
+    customerLinkUrl: customerLinkUrl(criada.business.slug),
     pendencias: falhas.map((f) => (f.motivo ? `${PENDENCIA[f.codigo]}: ${f.motivo}` : `${PENDENCIA[f.codigo]}.`)),
     faltou: falhas.map((f) => f.codigo),
   }

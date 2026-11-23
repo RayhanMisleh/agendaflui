@@ -109,6 +109,7 @@ test('depois de criar, mostra a conta criada e o convite do dono, sem chave e se
         ownerEmail: 'marina@exemplo.test',
         ownerExisting: false,
         emailSent: true,
+        customerLinkUrl: 'https://app.agendaflui.com.br/pata-viva',
         pendencias: [],
       },
     },
@@ -121,4 +122,7 @@ test('depois de criar, mostra a conta criada e o convite do dono, sem chave e se
   expect(screen.queryByText(/chave de app/i)).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Abrir a conta' })).toHaveAttribute('href', '/contas/c-1')
   expect(screen.getByText(/Enviamos para marina@exemplo.test o convite/)).toBeInTheDocument()
+  expect(screen.getByText('Link para clientes')).toBeInTheDocument()
+  expect(screen.getByDisplayValue('https://app.agendaflui.com.br/pata-viva')).toHaveAttribute('readonly')
+  expect(screen.getByRole('button', { name: 'Copiar o link para clientes' })).toBeInTheDocument()
 })

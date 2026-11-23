@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Actor } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
+import { customerLinkUrl } from '@/server/customer-link'
 import { issueInvite, INVITE_TTL_DAYS } from '@/server/auth/invites'
 import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
@@ -36,6 +37,8 @@ export type BusinessDetail = BusinessRow & {
   contactPhone: string | null
   timeZone: string
   modules: Modules
+  /** O link que a loja passa aos clientes (`<APP_WEB_URL>/<slug>`). */
+  customerLinkUrl: string
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -235,6 +238,7 @@ function paraDetalhe(b: DetalheBruto): BusinessDetail {
     contactPhone: b.phone,
     timeZone: b.timezone,
     modules: b.modules ?? { loyalty: false, banners: false, store: false },
+    customerLinkUrl: customerLinkUrl(b.slug),
   }
 }
 

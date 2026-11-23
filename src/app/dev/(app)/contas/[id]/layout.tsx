@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { DoorOpen } from 'lucide-react'
-import { Button, LinkButton, NavTabs, Card, StatusDot, businessStatusDot } from '@/ui/components'
+import { Button, CopyButton, LinkButton, NavTabs, Card, StatusDot, businessStatusDot } from '@/ui/components'
 import { DevFrame } from '../../DevFrame'
 import { carregarConta } from './_data'
 import { arquivarConta, reativarConta, suspenderConta } from './actions'
@@ -27,6 +27,11 @@ export default async function ContaLayout({ children, params }: { children: Reac
           <span className="af-account__slug">
             Identificador {conta.slug}. Dono: {conta.ownerName ?? 'sem dono ativo'}.
           </span>
+        </div>
+        <div className="af-entrylink">
+          <span className="af-account__slug">Link para clientes:</span>
+          <span className="af-entrylink__url">{conta.customerLinkUrl}</span>
+          <CopyButton text={conta.customerLinkUrl} label="Copiar o link para clientes" />
         </div>
         <div className="af-acct__actions">
           {conta.status === 'ARCHIVED' ? (

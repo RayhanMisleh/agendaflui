@@ -13,6 +13,7 @@ import {
   slugSchema,
   updateBusinessData,
 } from '@/server/domain/platform/businesses'
+import { env } from '@/server/env'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import { makeBusiness, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
@@ -308,6 +309,7 @@ describe('listBusinesses e getBusinessDetail', () => {
     const r = await createBusiness(actor, { ...base, contactEmail: 'contato@central.test', contactPhone: '5592999990000' })
     const d = await getBusinessDetail(actor, r.business.id)
     expect(d).toMatchObject({ contactEmail: 'contato@central.test', contactPhone: '5592999990000', version: 1, timeZone: 'America/Sao_Paulo' })
+    expect(d.customerLinkUrl).toBe(`${env.APP_WEB_URL}/${d.slug}`)
     expect((await domainError(getBusinessDetail(actor, UUID_INEXISTENTE))).code).toBe('not_found')
     expect((await domainError(getBusinessDetail(actor, 'nao-e-uuid'))).code).toBe('not_found')
   })

@@ -7,6 +7,7 @@ import {
   Button,
   Checkbox,
   ColorField,
+  CopyButton,
   Field,
   FoldablePreview,
   FormErrors,
@@ -389,11 +390,21 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
 
       <p className="af-wizard__note">
         {result.ownerExisting
-          ? `${result.ownerEmail} já tinha cadastro: foi vinculado à conta sem trocar a senha${result.emailSent ? ' e recebeu um aviso de acesso novo.' : '. O aviso por e-mail não saiu; avise a pessoa pelo link acima.'}`
+          ? `${result.ownerEmail} já tinha cadastro: foi vinculado à conta sem trocar a senha${result.emailSent ? ' e recebeu um aviso de acesso novo.' : '. O aviso por e-mail não saiu; avise a pessoa por outro meio.'}`
           : result.emailSent
             ? `Enviamos para ${result.ownerEmail} o convite para definir a senha.`
             : `O convite para ${result.ownerEmail} não saiu por e-mail. Reenvie o convite na página da conta.`}
       </p>
+
+      <div className="af-done__row">
+        <label htmlFor="link-clientes" className="af-done__label">
+          Link para clientes
+        </label>
+        <div className="af-entrylink">
+          <Input id="link-clientes" readOnly value={result.customerLinkUrl} onFocus={(e) => e.currentTarget.select()} />
+          <CopyButton text={result.customerLinkUrl} label="Copiar o link para clientes" variant="secondary" />
+        </div>
+      </div>
 
       <div className="af-done__actions">
         <LinkButton href={`/contas/${result.createdId}`} variant="primary">
