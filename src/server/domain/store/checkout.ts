@@ -1,6 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
-import { originAllowed, type WebOrigins } from '@/server/api/cors'
 import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
 import { readMercadoPagoSecrets, readMercadoPagoWebhookKey } from '@/server/domain/platform/integration-secrets'
 import { ownCustomerId } from '@/server/domain/store/addresses'
@@ -15,23 +14,16 @@ const idSchema = z.uuid()
 const unavailable = (): DomainError => new DomainError('conflict', MSG_INDISPONIVEL, { reason: 'payment_unavailable' })
 const invalidTransition = (message: string): DomainError => new DomainError('conflict', message, { reason: 'invalid_transition' })
 
-const returnUrlSchema = z.object({ returnUrl: z.string('Informe o endereço de retorno em texto.').max(500, 'Use até 500 caracteres no endereço de retorno.').nullable().optional() })
-
-/** O endereço de retorno só vale se a origem dele for do app web (`APP_WEB_ORIGINS`; localhost só fora de produção). */
-function checkReturnUrl(returnUrl: string | null | undefined, webOrigins: WebOrigins): string | null {
-  if (returnUrl === null || returnUrl === undefined || returnUrl === '') return null
-  const message = 'O endereço de retorno não está liberado para este app.'
-  let url: URL
-  try {
-    url = new URL(returnUrl)
-  } catch {
-    throw new DomainError('validation', 'Informe um endereço de retorno válido.', { fields: { returnUrl: 'Informe um endereço de retorno válido.' } })
-  }
-  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username !== '' || url.password !== '' || !originAllowed(url.origin, webOrigins)) {
-    throw new DomainError('validation', message, { fields: { returnUrl: message } })
-  }
-  return url.toString()
-}
+const MSG_VOLTA = 'Informe um caminho de retorno válido.'
+// Caminho relativo no app (sem host): começa por barra, sem barras duplas nem pontos.
+const backPathSchema = z.object({
+  backPath: z
+    .string('Informe o caminho de retorno em texto.')
+    .regex(/^\/[a-z0-9][a-z0-9/-]{0,199}$/, MSG_VOLTA)
+    .refine((v) => !v.includes('//'), MSG_VOLTA)
+    .nullable()
+    .optional(),
+})
 
 /**
  * Começa o pagamento de um pedido do cliente pelo Checkout Pro do Mercado Pago. Só o próprio cliente, só pedido aguardando
@@ -42,11 +34,11 @@ function checkReturnUrl(returnUrl: string | null | undefined, webOrigins: WebOri
 export async function startCheckout(
   ctx: TenantContext,
   orderId: string,
-  i: { returnUrl?: string | null; webOrigins?: WebOrigins } = {},
+  i: { backPath?: string | null } = {},
 ): Promise<{ checkoutUrl: string; expiresAt: Date; expiresLabel: string }> {
   const customerId = await ownCustomerId(ctx)
-  const { returnUrl } = parse(returnUrlSchema, { returnUrl: i.returnUrl })
-  const backUrl = checkReturnUrl(returnUrl, i.webOrigins ?? { origins: [], allowLocalhost: false })
+  const { backPath } = parse(backPathSchema, { backPath: i.backPath })
+  const backUrl = backPath === null || backPath === undefined || backPath === '' ? null : areaLink('app', backPath)
   if (!idSchema.safeParse(orderId).success) throw new DomainError('not_found', 'Pedido não encontrado.')
   const order = orNotFound(await ctx.db.order.findFirst({ where: { id: orderId, customerId }, include: { items: { orderBy: { position: 'asc' } }, customer: { select: { email: true } } } }), 'Pedido')
   const now = ctx.clock()
@@ -72,7 +64,7 @@ export async function startCheckout(
       orderId: order.id,
       items,
       payerEmail: order.customer.email,
-      notificationUrl: areaLink('api', `/v1/webhooks/mercadopago/${webhookKey}`),
+      notificationUrl: areaLink('app', `/webhooks/mercadopago/${webhookKey}`),
       backUrl,
       // O Pix exige pelo menos 30 minutos: o pagamento que chega depois do prazo do pedido segue a regra "pago depois de vencer".
       expiresAt: fromEpochMs(Math.max(order.expiresAt.getTime(), addMinutes(now, MIN_PAYMENT_WINDOW_MIN).getTime())),

@@ -87,7 +87,6 @@ export default async function ClientePage({
   ])
   const { terms } = painel
   const podeEscrever = can(ctx.actor, 'manage_clients')
-  const suporte = ctx.actor.kind === 'impersonator'
   const removido = await isCustomerAnonymized(ctx, id)
   const todos = can(ctx.actor, 'view_all_agendas')
   const zap = cliente.phone ? `https://wa.me/${cliente.phone.replace(/\D/g, '')}` : null
@@ -171,7 +170,7 @@ export default async function ClientePage({
                 <h2 id="cliente-cuidados" className="af-section__title">
                   Cuidados com o cadastro
                 </h2>
-                <Cuidados id={cliente.id} name={cliente.name} singular={terms.customerSingular} archived={cliente.archived} hasAppAccess={cliente.hasAppAccess} suporte={suporte} />
+                <Cuidados id={cliente.id} name={cliente.name} archived={cliente.archived} />
               </Card>
             ) : null}
           </div>

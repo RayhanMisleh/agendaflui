@@ -181,9 +181,9 @@ describe('8. prazo mínimo de pagamento de 30 minutos (Pix)', () => {
 describe('3. limite do webhook por IP e chave', () => {
   test('uma chave que estourou o limite não segura as outras contas do mesmo IP', async () => {
     const b = await cenaPagamento()
-    const { POST } = await import('@/app/api/v1/webhooks/mercadopago/[webhookKey]/route')
+    const { POST } = await import('@/app/app/webhooks/mercadopago/[key]/route')
     const chamar = (key: string) =>
-      POST(new Request(`http://api.localhost:3000/v1/webhooks/mercadopago/${key}?type=merchant_order`, { method: 'POST', headers: { 'x-forwarded-for': '203.0.113.50' } }), { params: Promise.resolve({ webhookKey: key }) })
+      POST(new Request(`http://app.localhost:3000/webhooks/mercadopago/${key}?type=merchant_order`, { method: 'POST', headers: { 'x-forwarded-for': '203.0.113.50' } }), { params: Promise.resolve({ key }) })
     for (let i = 0; i < 120; i++) expect((await chamar(c.webhookKey)).status).toBe(200)
     expect((await chamar(c.webhookKey)).status).toBe(429)
     expect((await chamar(b.webhookKey)).status).toBe(200)

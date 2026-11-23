@@ -2,14 +2,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { loginPlatformAdmin } from '@/server/auth/platform-auth'
 import { loginUser } from '@/server/auth/member-auth'
 import { hashPassword } from '@/server/auth/password'
-import { loginStaff } from '@/server/auth/staff-app-auth'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
 
 /*
  * Troca de senha entre a conferência do hash e a gravação da sessão: o login que começou com a senha ANTIGA não pode
- * deixar sessão nem token. A troca é simulada logo depois da leitura do usuário (a conferência já usou o hash antigo).
+ * deixar sessão. A troca é simulada logo depois da leitura do usuário (a conferência já usou o hash antigo).
  */
 
 beforeEach(async () => {
@@ -49,34 +48,14 @@ describe('login condicional ao hash conferido', () => {
     expect(await prisma.platformSession.count({ where: { adminId: admin.id } })).toBe(0)
   })
 
-  test('equipe pelo app: troca entre a leitura e a emissão falha e nenhum token fica', async () => {
-    const user = await makeUser({ email: 'bia@exemplo.test', password: 'senha-antiga-1' })
-    const conta = await makeBusiness()
-    await makeMembership(conta.id, user.id, 'MANAGER')
-    const original = prisma.user.findUnique.bind(prisma.user)
-    vi.spyOn(prisma.user, 'findUnique').mockImplementationOnce(((args: Parameters<typeof original>[0]) => {
-      const lido = original(args)
-      return lido.then(async (u) => {
-        await prisma.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword('senha-nova-bem-longa') } })
-        return u
-      })
-    }) as never)
-    await expect(
-      loginStaff({ email: 'bia@exemplo.test', password: 'senha-antiga-1' }, { ip: null, userAgent: null }, new Date()),
-    ).rejects.toMatchObject({ code: 'invalid_credentials' })
-    expect(await prisma.refreshToken.count({ where: { businessId: conta.id } })).toBe(0)
-  })
-
-  test('sem troca, os três logins continuam entrando e gravando o último acesso', async () => {
+  test('sem troca, os dois logins continuam entrando e gravando o último acesso', async () => {
     const user = await makeUser({ email: 'ok@exemplo.test', password: 'senha-antiga-1' })
     const conta = await makeBusiness()
     await makeMembership(conta.id, user.id, 'OWNER')
     const admin = await makePlatformAdmin({ email: 'adm@exemplo.test', password: 'senha-antiga-1' })
     expect((await loginUser({ email: 'ok@exemplo.test', password: 'senha-antiga-1' })).session.user.id).toBe(user.id)
-    await loginStaff({ email: 'ok@exemplo.test', password: 'senha-antiga-1' }, { ip: null, userAgent: null }, new Date())
     await loginPlatformAdmin({ email: 'adm@exemplo.test', password: 'senha-antiga-1' })
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).lastLoginAt).not.toBeNull()
     expect((await prisma.platformAdmin.findUniqueOrThrow({ where: { id: admin.id } })).lastLoginAt).not.toBeNull()
-    expect(await prisma.refreshToken.count({ where: { businessId: conta.id } })).toBe(1)
   })
 })

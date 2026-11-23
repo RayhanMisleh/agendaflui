@@ -1,7 +1,6 @@
 import 'server-only'
 import { areaLink } from '@/server/area-links'
 import type { TenantContext } from '@/server/auth/actor'
-import { revokeMemberTokensIn } from '@/server/auth/api-tokens'
 import { can } from '@/server/auth/capabilities'
 import { INVITE_TTL_DAYS, issueInvite } from '@/server/auth/invites'
 import { allowResetEmail, issuePanelPasswordReset, lockUserAccess, PANEL_RESET_TTL_MINUTES } from '@/server/auth/password-reset'
@@ -343,10 +342,10 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
               name: feito.nomeDoUsuario,
               businessName: conta.name,
               roleLabel: roleLabel(i.role, 'Profissional'),
-              link: areaLink('painel', `/definir-senha/${convite.token}`),
+              link: areaLink('app', `/convite/${convite.token}`),
               ttlDays: INVITE_TTL_DAYS,
             })
-          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('painel', '/entrar') }),
+          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('app', '/entrar') }),
       )
       await marcarEnvio(membro.membershipId, enviado, now)
       return { ...membro, inviteMailFailed: !enviado }
@@ -438,7 +437,6 @@ async function alterarVinculoEm(
       where: { userId: atual.user.id, activeBusinessId: businessId, revokedAt: null },
       data: { revokedAt: now },
     })
-    await revokeMemberTokensIn(tx, businessId, membershipId, now)
   }
   // Um login tem no máximo um vínculo ativo: quem é desativado fica sem acesso e não define nem redefine a senha por um link antigo.
   if (desativou) {
@@ -500,7 +498,7 @@ export async function reenviarConvite(autor: Autor, businessId: string, membersh
       name: feito.m.user.name,
       businessName: feito.m.business.name,
       roleLabel: roleLabel(feito.m.role, 'Profissional'),
-      link: areaLink('painel', `/definir-senha/${feito.convite.token}`),
+      link: areaLink('app', `/convite/${feito.convite.token}`),
       ttlDays: INVITE_TTL_DAYS,
     }),
   )
@@ -546,7 +544,7 @@ export async function enviarRedefinicao(autor: Autor, businessId: string, member
     renderPanelPasswordReset({
       name: feito.m.user.name,
       businessName: feito.m.business.name,
-      link: areaLink('painel', `/redefinir-senha/${feito.emitido.token}`),
+      link: areaLink('app', `/redefinir-senha/${feito.emitido.token}`),
       ttlMin: PANEL_RESET_TTL_MINUTES,
     }),
   )

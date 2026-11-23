@@ -13,6 +13,7 @@ import { exigirSemOutraLoja, marcarEnvio, outraLoja, violouUmaLoja } from '@/ser
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
+import { isReservedSlug } from '@/shared/reserved-slugs'
 import type { Modules } from '@/shared/modules'
 import { fromIsoInstant, toIsoInstant } from '@/server/time'
 
@@ -37,24 +38,12 @@ export type BusinessDetail = BusinessRow & {
   contactPhone: string | null
   timeZone: string
   modules: Modules
-  /** O link que a loja passa aos clientes (`<APP_WEB_URL>/<slug>`). */
+  /** O link que a loja passa aos clientes (`<APP_HOST>/<slug>`). */
   customerLinkUrl: string
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SLUG = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
-const SLUGS_RESERVADOS: readonly string[] = [
-  'entrar',
-  'sair',
-  'api',
-  'dev',
-  'painel',
-  'arquivos',
-  'suporte',
-  'definir-senha',
-  'admin',
-  'www',
-]
 /** Toda conta usa este fuso (fixo); a coluna `businesses.timezone` continua sendo lida pela agenda. */
 const FUSO_PADRAO = 'America/Sao_Paulo'
 const LIMITE_PADRAO = 50
@@ -67,7 +56,7 @@ export const slugSchema = z
   .min(3, MSG_SLUG)
   .max(40, MSG_SLUG)
   .regex(SLUG, MSG_SLUG)
-  .refine((s) => !SLUGS_RESERVADOS.includes(s), 'Este identificador é reservado pelo sistema. Escolha outro.')
+  .refine((s) => !isReservedSlug(s), 'Este identificador é reservado pelo sistema. Escolha outro.')
 
 function normalizarDocumento(v: string): string {
   return v.replace(/[.\-/\s]/g, '').toUpperCase()
@@ -378,11 +367,11 @@ async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
   try {
     const mail =
       m.token === null
-        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: areaLink('painel', '/entrar') })
+        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: areaLink('app', '/entrar') })
         : renderOwnerInvite({
             ownerName: m.ownerName,
             businessName: m.businessName,
-            link: areaLink('painel', `/definir-senha/${m.token}`),
+            link: areaLink('app', `/convite/${m.token}`),
             ttlDays: INVITE_TTL_DAYS,
           })
     await channel.send({ to: m.to, fromName: 'Agenda Flui', ...mail })

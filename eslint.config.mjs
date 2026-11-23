@@ -63,11 +63,6 @@ const semSegredos = {
   message: 'O leitor de segredos de integração só vale em src/server/domain/store (o teste tests/unit/integration-secrets-imports.test.ts confere o mesmo).',
 }
 
-const semTenantDbNaRota = {
-  group: ['@/server/db/tenant', '**/db/tenant', '**/server/db/tenant'],
-  message: 'Rota e camada HTTP não usam tenantDb: o contexto da conta chega pronto e a regra de negócio fica em src/server/domain.',
-}
-
 const semInterface = {
   group: ['@/ui', '@/ui/**', '**/ui/**'],
   message: 'O servidor não importa da interface. O que for comum fica em src/shared.',
@@ -108,14 +103,6 @@ export default defineConfig([
   {
     files: ['src/server/**'],
     rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semInterface] }] },
-  },
-  {
-    files: ['src/server/api/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semInterface, semTenantDbNaRota] }] },
-  },
-  {
-    files: ['src/app/api/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semTenantDbNaRota] }] },
   },
   {
     files: ['src/shared/**'],

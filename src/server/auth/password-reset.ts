@@ -157,7 +157,7 @@ export async function requestPanelPasswordReset(email: string, meta: RequestMeta
           name: usuario.name,
           businessName: vinculo.business.name,
           roleLabel: roleLabel(vinculo.role, 'Profissional'),
-          link: areaLink('painel', `/definir-senha/${convite.token}`),
+          link: areaLink('app', `/convite/${convite.token}`),
           ttlDays: INVITE_TTL_DAYS,
         }),
       )
@@ -169,7 +169,7 @@ export async function requestPanelPasswordReset(email: string, meta: RequestMeta
       i.email,
       renderPanelPasswordReset({
         name: usuario.name,
-        link: areaLink('painel', `/redefinir-senha/${emitido.token}`),
+        link: areaLink('app', `/redefinir-senha/${emitido.token}`),
         ttlMin: PANEL_RESET_TTL_MINUTES,
       }),
     )

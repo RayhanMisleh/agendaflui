@@ -52,7 +52,7 @@ beforeEach(async () => {
 })
 
 function tokenDaUrl(url: string): string {
-  const m = /^http:\/\/painel\.localhost:3000\/suporte\/([A-Za-z0-9_-]+)$/.exec(url)
+  const m = /^http:\/\/app\.localhost:3000\/suporte\/([A-Za-z0-9_-]+)$/.exec(url)
   if (!m?.[1]) throw new Error(`URL inesperada: ${url}`)
   return m[1]
 }
@@ -323,15 +323,15 @@ describe('rota /suporte/[token]', () => {
   const PAINEL_COOKIE = 'af_painel_session'
 
   async function chamar(token: string) {
-    const { GET } = await import('@/app/painel/suporte/[token]/route')
-    return GET(new Request(`http://painel.localhost:3000/suporte/${token}`) as never, { params: Promise.resolve({ token }) })
+    const { GET } = await import('@/app/app/suporte/[token]/route')
+    return GET(new Request(`http://app.localhost:3000/suporte/${token}`) as never, { params: Promise.resolve({ token }) })
   }
 
   test('token certo: define o cookie do painel, redireciona para / e manda cabeçalhos que não vazam a URL', async () => {
     const token = tokenDaUrl((await startSupport(actor, business.id)).url)
     const res = await chamar(token)
     expect([302, 303, 307]).toContain(res.status)
-    expect(res.headers.get('location')).toBe('http://painel.localhost:3000/')
+    expect(res.headers.get('location')).toBe('http://app.localhost:3000/painel')
     expect(res.headers.get('referrer-policy')).toBe('no-referrer')
     expect(res.headers.get('cache-control')).toBe('no-store')
     const cookie = jar.get(PAINEL_COOKIE)

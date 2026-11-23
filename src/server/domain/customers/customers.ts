@@ -1,5 +1,4 @@
 import type { TenantContext } from '@/server/auth/actor'
-import { revokeAllFor } from '@/server/auth/api-tokens'
 import type { Prisma } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
@@ -382,8 +381,6 @@ export async function archiveCustomer(ctx: TenantContext, id: string): Promise<v
       }
       const now = ctx.clock()
       await tx.customer.update({ where: { id }, data: { archivedAt: now } })
-      // Cliente arquivado não renova a sessão do app (a trava do cliente já está nesta transação).
-      await revokeAllFor(tx, { customerId: id }, now)
       await cancelPendingForCustomer(tx, id)
       await audit(ctx, { action: 'customer.archived', targetType: 'Customer', targetId: id }, tx)
     })

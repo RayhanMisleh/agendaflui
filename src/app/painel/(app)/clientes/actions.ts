@@ -1,6 +1,5 @@
 'use server'
 import { redirect } from 'next/navigation'
-import { sendCustomerPasswordReset } from '@/server/domain/customers/account'
 import {
   anonymizeCustomer,
   archiveCustomer,
@@ -94,14 +93,4 @@ export const anonimizarCliente = tenantAction(
     return 'Dados do cliente removidos.'
   },
   (mensagem, v) => feito(mensagem, { id: v.id ?? '' }),
-)
-
-export const enviarRedefinicaoCliente = tenantAction(
-  'manage_clients',
-  (fd) => ler(fd, ['id']),
-  async (ctx, v) => {
-    await sendCustomerPasswordReset(ctx, v.id ?? '')
-    return 'Redefinição de senha enviada por e-mail.'
-  },
-  (mensagem, v) => feito(mensagem, v),
 )

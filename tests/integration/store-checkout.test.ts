@@ -46,7 +46,7 @@ describe('startCheckout', () => {
       expect(pref.items.map((i) => i.title)).toEqual(['Shampoo', 'Frete'])
       expect(pref.items.reduce((s, i) => s + i.quantity * i.unitPriceCents, 0)).toBe(order.totalCents)
       expect(order.totalCents).toBe(2 * 2500 + 2150)
-      expect(pref.notificationUrl).toMatch(new RegExp(`^http://api\\.localhost:3000/v1/webhooks/mercadopago/${c.webhookKey}$`))
+      expect(pref.notificationUrl).toMatch(new RegExp(`^http://app\\.localhost:3000/webhooks/mercadopago/${c.webhookKey}$`))
       expect(pref.expiresAt).toEqual(order.expiresAt)
       expect(pref.backUrl).toBeNull()
       expect(c.fake.calls.at(0)?.accessToken).toBe(mpTokenDe(c.b.id))
@@ -73,43 +73,20 @@ describe('startCheckout', () => {
       expect((await prisma.order.findUniqueOrThrow({ where: { id: c.pedido.id } })).checkoutUrl).toBe(r[0]!.checkoutUrl)
     })
 
-    test('returnUrl: só vale com origem da lista webOrigins; fora dela ou sem webOrigins é validation', async () => {
-      const web = { origins: ['https://app.exemplo.test'], allowLocalhost: false }
-      const e1 = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://evil.test/pedido', webOrigins: web }))
-      expect(e1.code).toBe('validation')
-      expect(e1.fields?.returnUrl).toBeDefined()
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/pedido' }))).code).toBe('validation')
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'nao-e-url', webOrigins: web }))).code).toBe('validation')
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'javascript:alert(1)', webOrigins: web }))).code).toBe('validation')
+    test('backPath: caminho relativo no app vira o endereço de volta; fora do formato é validation', async () => {
+      for (const ruim of ['https://evil.test/x', '//evil.test/x', '/a//b', 'pedido', '/Pedido', '/a b', '/' + 'a'.repeat(201)]) {
+        const e = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { backPath: ruim }))
+        expect(e.code, ruim).toBe('validation')
+        expect(e.fields?.backPath, ruim).toBeDefined()
+      }
       expect(c.fake.preferences).toHaveLength(0)
-      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/pedido', webOrigins: web })
-      expect(c.fake.preferences[0]!.backUrl).toBe('https://app.exemplo.test/pedido')
+      await startCheckout(c.ctxCliente, c.pedido.id, { backPath: '/patas/pedidos/1' })
+      expect(c.fake.preferences[0]!.backUrl).toBe('http://app.localhost:3000/patas/pedidos/1')
     })
 
-    test('returnUrl: origem de fora da lista é validation no campo returnUrl, mesmo com outra origem liberada', async () => {
-      const web = { origins: ['https://app.exemplo.test'], allowLocalhost: false }
-      const e = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://outro.exemplo.test/pedido', webOrigins: web }))
-      expect(e.code).toBe('validation')
-      expect(e.fields?.returnUrl).toBeDefined()
-      expect(c.fake.preferences).toHaveLength(0)
-    })
-
-    test('returnUrl: localhost passa com allowLocalhost e é recusado sem ele', async () => {
-      const recusado = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'http://localhost:3000/pedidos/1', webOrigins: { origins: [], allowLocalhost: false } }))
-      expect(recusado.code).toBe('validation')
-      expect(recusado.fields?.returnUrl).toBeDefined()
-      expect(c.fake.preferences).toHaveLength(0)
-      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'http://localhost:3000/pedidos/1', webOrigins: { origins: [], allowLocalhost: true } })
-      expect(c.fake.preferences[0]!.backUrl).toBe('http://localhost:3000/pedidos/1')
-    })
-
-    test('returnUrl: sem webOrigins só passa returnUrl nulo ou vazio', async () => {
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'http://localhost:3000/x' }))).code).toBe('validation')
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/x' }))).code).toBe('validation')
-      expect(c.fake.preferences).toHaveLength(0)
-      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: null })
-      expect(c.fake.preferences).toHaveLength(1)
-      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: '' })
+    test('backPath nulo ou vazio não define endereço de volta', async () => {
+      await startCheckout(c.ctxCliente, c.pedido.id, { backPath: null })
+      expect(c.fake.preferences[0]!.backUrl).toBeNull()
     })
 
     test('pedido vencido, pago, cancelado: invalid_transition, sem chamar o Mercado Pago', async () => {

@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { TenantContext } from '@/server/auth/actor'
 import { prisma } from '@/server/db/client'
-import { hashPassword } from '@/server/auth/password'
 import { listCustomers } from '@/server/domain/customers/customers'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makePlatformAdmin } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCustomer } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
@@ -20,7 +19,6 @@ import {
   arquivarCliente,
   criarCliente,
   editarCliente,
-  enviarRedefinicaoCliente,
   restaurarCliente,
 } from '@/app/painel/(app)/clientes/actions'
 
@@ -83,7 +81,6 @@ describe('criar e editar', () => {
       await editarCliente(ini, form({ id: alheio.id, name: 'Invadido' })),
       await arquivarCliente(ini, form({ id: alheio.id })),
       await anonimizarCliente(ini, form({ id: alheio.id, confirmName: 'Alheio' })),
-      await enviarRedefinicaoCliente(ini, form({ id: alheio.id })),
     ]) {
       expect(r.ok).toBe(false)
       expect(r.message).toBe('Cliente não encontrado.')
@@ -104,7 +101,6 @@ describe('permissões', () => {
       await arquivarCliente(ini, form({ id: c.id })),
       await restaurarCliente(ini, form({ id: c.id })),
       await anonimizarCliente(ini, form({ id: c.id, confirmName: 'Marina' })),
-      await enviarRedefinicaoCliente(ini, form({ id: c.id })),
     ]) {
       expect(r.message).toBe(NEGADO)
     }
@@ -165,54 +161,3 @@ describe('anonimizar', () => {
   })
 })
 
-describe('redefinição de senha do app', () => {
-  async function comConta() {
-    return makeCustomer(businessId, { name: 'Dani', email: 'dani@exemplo.com', passwordHash: await hashPassword('senha-bem-longa-123') })
-  }
-
-  test('o dono manda o código a quem tem conta no app', async () => {
-    const c = await comConta()
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(true)
-    expect(mail.sent.filter((m) => m.to === 'dani@exemplo.com')).toHaveLength(1)
-  })
-
-  test('no limite de pedidos a tela não diz "enviada" e a auditoria não registra envio', async () => {
-    const c = await comConta()
-    for (let i = 0; i < 3; i += 1) expect((await enviarRedefinicaoCliente(ini, form({ id: c.id }))).ok).toBe(true)
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('Espere alguns minutos')
-    expect(r.message).not.toContain('enviada')
-    expect(mail.sent.filter((m) => m.to === 'dani@exemplo.com')).toHaveLength(3)
-    const registros = await prisma.auditLog.count({ where: { businessId, action: 'customer.password_reset_sent' } })
-    expect(registros).toBe(3)
-  })
-
-  test('cadastro arquivado é recusado e nada é enviado', async () => {
-    const c = await comConta()
-    await prisma.customer.update({ where: { id: c.id }, data: { archivedAt: new Date() } })
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('arquivado')
-    expect(mail.sent).toHaveLength(0)
-  })
-
-  test('cliente sem conta no app: recusa dizendo o motivo, e nada é enviado', async () => {
-    const c = await makeCustomer(businessId, { name: 'Edu', email: 'edu@exemplo.com' })
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('conta no app')
-    expect(mail.sent).toHaveLength(0)
-  })
-
-  test('o suporte (entrando como) é recusado, e nada é enviado', async () => {
-    const c = await comConta()
-    const admin = await makePlatformAdmin()
-    guards.requireTenant.mockResolvedValue(await makeCtx({ id: businessId }, { actor: { kind: 'impersonator', adminId: admin.id, name: admin.name } }))
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('suporte')
-    expect(mail.sent).toHaveLength(0)
-  })
-})

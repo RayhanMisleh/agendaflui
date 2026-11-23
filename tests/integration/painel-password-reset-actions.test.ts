@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { setAfterScheduler } from '@/server/api/after'
+import { setAfterScheduler } from '@/server/after'
 import { verifyPassword } from '@/server/auth/password'
 import { RESET_INVALID_MESSAGE, requestPanelPasswordReset } from '@/server/auth/password-reset'
 import { prisma } from '@/server/db/client'

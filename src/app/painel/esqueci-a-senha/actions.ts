@@ -1,5 +1,5 @@
 'use server'
-import { runAfterResponse } from '@/server/api/after'
+import { runAfterResponse } from '@/server/after'
 import { requestInfo } from '@/server/auth/request-info'
 import { requestPanelPasswordReset } from '@/server/auth/password-reset'
 import { DomainError } from '@/server/domain/errors'

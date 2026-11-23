@@ -1,54 +1,29 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Archive, ArchiveRestore, KeyRound, ShieldX } from 'lucide-react'
+import { Archive, ArchiveRestore, ShieldX } from 'lucide-react'
 import { Button, ConfirmDialog } from '@/ui/components'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import type { EstadoPainel } from '../_lib/PainelForm'
-import { anonimizarCliente, arquivarCliente, enviarRedefinicaoCliente, restaurarCliente } from './actions'
+import { anonimizarCliente, arquivarCliente, restaurarCliente } from './actions'
 
 const VAZIO = { ok: false, message: null, fields: {} }
 
-/** Ações delicadas da ficha: redefinir a senha do app, arquivar e anonimizar, cada uma com o que acontece dito antes. */
+/** Ações delicadas da ficha: arquivar e anonimizar, cada uma com o que acontece dito antes. */
 export function Cuidados({
   id,
   name,
-  singular,
   archived,
-  hasAppAccess,
-  suporte,
 }: {
   id: string
   name: string
-  singular: string
   archived: boolean
-  hasAppAccess: boolean
-  suporte: boolean
 }) {
   const router = useRouter()
   const [dialogo, setDialogo] = useState<'arquivar' | 'anonimizar' | null>(null)
   const fechar = () => setDialogo(null)
-  const sing = singular.toLowerCase()
   return (
     <div className="af-careful">
-      <div className="af-careful__row">
-        <div className="af-careful__text">
-          <span className="af-careful__title">Senha do app</span>
-          <span className="af-careful__help">
-            {suporte
-              ? 'O suporte não envia redefinição de senha. Peça a um dono ou gerente da conta.'
-              : hasAppAccess
-                ? `Envia ao e-mail deste ${sing} um código para escolher uma senha nova.`
-                : `Este ${sing} ainda não tem conta no app. Quando criar uma, você poderá mandar a redefinição daqui.`}
-          </span>
-        </div>
-        {hasAppAccess && !suporte && !archived ? (
-          <AcaoDeLinha action={enviarRedefinicaoCliente} campos={{ id }} icon={<KeyRound size={16} />} size="md" showOk>
-            Enviar redefinição de senha
-          </AcaoDeLinha>
-        ) : null}
-      </div>
-
       <div className="af-careful__row">
         <div className="af-careful__text">
           <span className="af-careful__title">{archived ? 'Cadastro arquivado' : 'Arquivar cadastro'}</span>

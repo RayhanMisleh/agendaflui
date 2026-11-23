@@ -1,6 +1,11 @@
 import type { TenantContext } from '@/server/auth/actor'
-import { ownCustomerId } from '@/server/domain/customers/account'
 import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
+
+/** Id do cliente que age; qualquer outro ator (equipe, visitante) recebe `forbidden`. */
+function ownCustomerId(ctx: TenantContext): string {
+  if (ctx.actor.kind !== 'customer') throw new DomainError('forbidden', 'Só o próprio cliente pode fazer isso.')
+  return ctx.actor.customerId
+}
 
 export type NotificationPreferences = {
   pushAppointments: boolean

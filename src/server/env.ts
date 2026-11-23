@@ -1,9 +1,5 @@
 import { z } from 'zod'
-import { isLocalOrigin, isSyntacticOrigin, webOriginsFromEnv } from './api/cors'
 import { DEFAULT_HOSTS } from './hosts'
-
-/** Endereço padrão do app web (a base do link que cada loja passa aos clientes). */
-export const DEFAULT_APP_WEB_URL = 'https://app.agendaflui.com.br'
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -13,20 +9,16 @@ const envSchema = z.object({
   DATABASE_USE_DIRECT_URL: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
   APP_SECRET: z.string().min(32),
   DEV_HOST: z.string().min(1).default(DEFAULT_HOSTS.dev),
-  PAINEL_HOST: z.string().min(1).default(DEFAULT_HOSTS.painel),
-  API_HOST: z.string().min(1).default(DEFAULT_HOSTS.api),
-  // Origens do app web que podem chamar a API pelo navegador (CORS e `returnUrl` do checkout), separadas por vírgula.
-  APP_WEB_ORIGINS: z.string().optional(),
-  // Endereço público do app web (só esquema e host, sem caminho nem barra final): dele sai o "link para clientes" de cada loja.
-  APP_WEB_URL: z.string().trim().min(1).default(DEFAULT_APP_WEB_URL),
+  // Endereço único do app (entrada, painel da loja e área do cliente): dele sai o "link para clientes" de cada loja.
+  APP_HOST: z.string().min(1).default(DEFAULT_HOSTS.app),
+  // Endereço antigo do painel (painel.<domínio>), só para redirecionar os links já enviados; opcional.
+  LEGACY_PAINEL_HOST: z.string().optional(),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
   // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
   SMTP_URL: z.string().min(1).optional(),
   // Ou, em produção, o Resend (RESEND_API_KEY): quando as duas existem, vale o Resend. O domínio de MAIL_FROM precisa estar verificado nele.
   RESEND_API_KEY: z.string().min(1).optional(),
   MAIL_FROM: z.string().min(3).optional(),
-  // Push pelo Expo: o token de acesso é opcional (só vale se a conta Expo exigir).
-  EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
   // Agendador de avisos dentro do servidor; `false` desliga (por exemplo, numa instância só de leitura).
   WORKER_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
@@ -62,7 +54,7 @@ export function migrationDatabaseUrl(e: UrlsDoBanco): string {
   return e.DIRECT_URL ?? e.DATABASE_URL
 }
 
-const NOMES_DOS_HOSTS = ['DEV_HOST', 'PAINEL_HOST', 'API_HOST'] as const
+const NOMES_DOS_HOSTS = ['DEV_HOST', 'APP_HOST'] as const
 
 function normalizarHost(valor: string): string {
   return valor.trim().toLowerCase().replace(/\.$/, '')
@@ -79,16 +71,11 @@ function ehHostLocal(valor: string): boolean {
   return nome === 'localhost' || nome.endsWith('.localhost') || nome === '::1' || /^127\./.test(nome)
 }
 
-/** Regras só de produção para os três hosts. Os valores nunca entram nas mensagens. */
+/** Regras só de produção para os hosts. Os valores nunca entram nas mensagens. */
 function problemasDosHosts(source: Record<string, string | undefined>): string[] {
   const problemas: string[] = []
   const vistos = new Map<string, string>()
-  for (const nome of NOMES_DOS_HOSTS) {
-    const bruto = source[nome]
-    if (bruto === undefined || bruto.trim() === '') {
-      problemas.push(`${nome}: obrigatório em produção (o endereço público, ex.: ${nome === 'API_HOST' ? 'api' : nome === 'DEV_HOST' ? 'dev' : 'painel'}.seudominio.com)`)
-      continue
-    }
+  const conferir = (nome: string, bruto: string): void => {
     const host = normalizarHost(bruto)
     if (/[/\s]/.test(host)) {
       problemas.push(`${nome}: informe só o host, sem https:// nem barra`)
@@ -99,27 +86,17 @@ function problemasDosHosts(source: Record<string, string | undefined>): string[]
     if (igual) problemas.push(`${nome}: precisa ser diferente de ${igual}`)
     else vistos.set(host, nome)
   }
-  return problemas
-}
-
-/** Cada origem de APP_WEB_ORIGINS bem formada; em produção, só https e nunca local. Os valores nunca entram nas mensagens. */
-function problemasDasOrigens(source: Record<string, string | undefined>, producao: boolean): string[] {
-  const problemas: string[] = []
-  for (const [i, origem] of webOriginsFromEnv(source).origins.entries()) {
-    const n = i + 1
-    if (!isSyntacticOrigin(origem)) problemas.push(`APP_WEB_ORIGINS: a origem nº ${n} precisa ser só esquema e host, ex.: https://app.seudominio.com (sem caminho)`)
-    else if (producao && (!origem.startsWith('https://') || isLocalOrigin(origem))) {
-      problemas.push(`APP_WEB_ORIGINS: em produção a origem nº ${n} precisa ser https e não pode ser local`)
+  for (const nome of NOMES_DOS_HOSTS) {
+    const bruto = source[nome]
+    if (bruto === undefined || bruto.trim() === '') {
+      problemas.push(`${nome}: obrigatório em produção (o endereço público, ex.: ${nome === 'DEV_HOST' ? 'dev' : 'app'}.seudominio.com)`)
+      continue
     }
+    conferir(nome, bruto)
   }
+  const legado = source['LEGACY_PAINEL_HOST']
+  if (legado !== undefined && legado.trim() !== '') conferir('LEGACY_PAINEL_HOST', legado)
   return problemas
-}
-
-/** APP_WEB_URL bem formada (esquema e host); em produção, https e nunca local. O valor nunca entra na mensagem. */
-function problemasDaUrlDoApp(valor: string, producao: boolean): string[] {
-  if (!isSyntacticOrigin(valor)) return ['APP_WEB_URL: precisa ser só esquema e host, ex.: https://app.seudominio.com (sem caminho, consulta nem barra final)']
-  if (producao && (!valor.startsWith('https://') || isLocalOrigin(valor))) return ['APP_WEB_URL: em produção precisa ser https e não pode ser local']
-  return []
 }
 
 function falhar(problemas: string): never {
@@ -133,11 +110,8 @@ export function productionWarnings(config: Env): string[] {
   if (config.TRUSTED_PROXY_HOPS === 0) {
     avisos.push('TRUSTED_PROXY_HOPS=0: sem proxy confiável, limites por IP desligados e auditoria sem IP. Atrás do proxy do Coolify use TRUSTED_PROXY_HOPS=1.')
   }
-  if (webOriginsFromEnv({ APP_WEB_ORIGINS: config.APP_WEB_ORIGINS }).origins.length === 0) {
-    avisos.push('APP_WEB_ORIGINS vazio: o app web não consegue chamar a API pelo navegador (os apps iOS e Android seguem funcionando).')
-  }
   if (config.SMTP_URL === undefined && config.RESEND_API_KEY === undefined) {
-    avisos.push('SMTP_URL e RESEND_API_KEY ausentes: sem envio de e-mail, convites e cadastro pelo app não chegam.')
+    avisos.push('SMTP_URL e RESEND_API_KEY ausentes: sem envio de e-mail, convites e cadastro de clientes não chegam.')
   }
   if (config.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY === undefined) {
     avisos.push('NEXT_SERVER_ACTIONS_ENCRYPTION_KEY ausente na execução: a chave precisa estar disponível no build (build arg) e na execução, igual em todas as instâncias; sem ela, builds diferentes ou várias instâncias fazem as ações do painel falharem entre si (base64 de 32 bytes).')
@@ -178,8 +152,6 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   const producao = data.NODE_ENV === 'production' && data.NEXT_PHASE !== FASE_DE_BUILD
   const problemas = [
     ...(producao ? problemasDosHosts(source) : []),
-    ...problemasDasOrigens(source, producao),
-    ...problemasDaUrlDoApp(data.APP_WEB_URL, producao),
   ]
   if (problemas.length > 0) falhar(problemas.join('; '))
   return { ...data, INTEGRATIONS_MODE: data.INTEGRATIONS_MODE ?? (data.NODE_ENV === 'production' ? 'real' : 'fake') }
