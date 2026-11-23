@@ -314,9 +314,28 @@ describe('convidar membro novo', () => {
     const conta = await makeBusiness()
     const r = await convidarMembro(conta.id, ini, form({ name: 'Ana Gerente', email: 'ANA@exemplo.test', role: 'MANAGER' }))
     expect(r.ok).toBe(true)
-    expect(r.message).toMatch(/convite/i)
+    expect(r.message).toMatch(/^Convite enviado/)
     const m = await prisma.membership.findFirstOrThrow({ where: { businessId: conta.id }, include: { user: true } })
     expect([m.role, m.user.email]).toEqual(['MANAGER', 'ana@exemplo.test'])
+    expect(m.inviteMailFailedAt).toBeNull()
+  })
+
+  test('com o e-mail falhando o cadastro fica e a tela diz "Convite não enviado", não "enviado"', async () => {
+    const conta = await makeBusiness()
+    canal.falha = true
+    try {
+      const r = await convidarMembro(conta.id, ini, form({ name: 'Ana Gerente', email: 'ana@exemplo.test', role: 'MANAGER' }))
+      expect(r.ok).toBe(false)
+      expect(r.message).toMatch(/^Convite não enviado/)
+      expect(r.message).not.toMatch(/^Convite enviado/)
+      // O cadastro existe (não dá para repetir o envio digitando de novo): o formulário limpa e o reenvio está na lista.
+      expect(r.values).toMatchObject({ name: '', email: '' })
+      const m = await prisma.membership.findFirstOrThrow({ where: { businessId: conta.id }, include: { user: true } })
+      expect(m.user.email).toBe('ana@exemplo.test')
+      expect(m.inviteMailFailedAt).not.toBeNull()
+    } finally {
+      canal.falha = false
+    }
   })
 
   test('e-mail já vinculado à conta: erro do domínio no estado, com o que foi digitado', async () => {

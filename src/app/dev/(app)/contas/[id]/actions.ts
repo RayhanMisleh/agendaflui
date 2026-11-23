@@ -205,7 +205,11 @@ export const convidarMembro = porConta(
   (admin, v) =>
     // O domínio confere nome, e-mail e papel; o tipo só deixa de reclamar da lista de opções.
     inviteMember(admin, v.businessId ?? '', { name: v.name ?? '', email: v.email ?? '', role: (v.role ?? '') as Parameters<typeof inviteMember>[2]['role'] }),
-  (r, v) => feitoNaConta('Convite enviado. A pessoa já aparece na equipe.', v, { name: '', email: '' }),
+  // O cadastro existe de qualquer jeito (a pessoa já aparece na equipe): o formulário limpa, e se o e-mail não saiu a linha tem "Reenviar".
+  (r, v) =>
+    r.inviteMailFailed
+      ? falhaDeEnvio({ ...v, name: '', email: '' })
+      : feitoNaConta('Convite enviado. A pessoa já aparece na equipe.', v, { name: '', email: '' }),
 )
 
 export const trocarPapel = porConta(
