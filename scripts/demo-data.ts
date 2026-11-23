@@ -2,10 +2,11 @@
  * Dados fixos e planejamento puro (sem banco, sem relógio) da conta de demonstração do comando `npm run demo:create`.
  * Tudo é fictício: nomes, telefones e pets. Datas entram como parâmetro (nunca `new Date()` aqui).
  */
+import { DEMO_MARCA } from './demo-brand'
 import { addDays, minuteToInstant, weekdayOf, WEEKDAYS, type Weekday } from '../src/server/time'
 
 export const DEMO_SLUG = 'demo'
-export const DEMO_NOME = 'Pet Shop Demonstração'
+export const DEMO_NOME = DEMO_MARCA.nome
 export const DEMO_EMAIL_DONO = 'demo@agendaflui.com.br'
 const DOMINIO_EQUIPE = 'demo.agendaflui.com.br'
 

@@ -1,13 +1,14 @@
 /**
  * `npm run demo:create`: cria (uma vez só) a conta de demonstração "Pet Shop Demonstração", com equipe, clientes, agenda de
- * 4 semanas atrás a 2 semanas à frente, fidelidade, banners e loja. Roda em produção (`INTEGRATIONS_MODE=real`) sem
- * chamar nenhum serviço externo. Pode rodar de novo: não duplica nada e nunca troca a senha do dono.
+ * 4 semanas atrás a 2 semanas à frente, fidelidade, banners e loja, com marca própria (nome, paleta, logo, símbolo e favicon). Roda em produção (`INTEGRATIONS_MODE=real`) sem
+ * chamar nenhum serviço externo. Pode rodar de novo: não duplica nada, nunca troca a senha do dono, reaplica a marca e os
+ * termos da demo se estiverem diferentes e realinha os pedidos (de uma demo antiga) pelo cliente e pelos produtos.
  *
  * Tudo passa pelas funções de domínio, exceto o que não tem função (marcado "cru" abaixo): negócio, usuários e vínculos
  * (`createBusiness` exige um admin da plataforma ativo e manda e-mail de convite), a linha de módulos e a marca, as auditorias
  * de marcação e o descarte dos avisos na fila.
  */
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
@@ -17,6 +18,7 @@ import { hashPassword, passwordSchema } from '../src/server/auth/password'
 import { searchKey } from '../src/server/domain/customers/contact'
 import { hostConfigFromEnv } from '../src/server/hosts'
 import { addDays, addMinutes, fromIsoInstant, minuteToInstant, todayIn } from '../src/server/time'
+import { DEMO_MARCA, renderDemoBrandImages } from './demo-brand'
 import {
   DEMO_BANNERS,
   DEMO_CATEGORIAS,
@@ -41,6 +43,7 @@ import {
 const ACAO_CRIADA = 'demo.conta_criada'
 const ACAO_SECAO = 'demo.secao_concluida'
 const ACAO_AGENDA = 'demo.agenda_iniciada'
+const ACAO_MARCA = 'demo.marca_aplicada'
 
 export type DemoResultado = {
   slug: string
@@ -52,7 +55,7 @@ export type DemoResultado = {
 }
 
 async function dominio() {
-  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, perfil, audit] =
+  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca] =
     await Promise.all([
       import('../src/server/auth/context'),
       import('../src/server/domain/customers/customers'),
@@ -74,10 +77,10 @@ async function dominio() {
       import('../src/server/domain/store/orders'),
       import('../src/server/domain/store/payments'),
       import('../src/server/domain/store/settings'),
-      import('../src/server/domain/settings/business-profile'),
       import('../src/server/domain/audit'),
+      import('../src/server/domain/platform/brand-image'),
     ])
-  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, perfil, audit }
+  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca }
 }
 
 /** Imagem simples (cor da marca e duas formas), sem texto: não depende de fontes do sistema. */
@@ -93,6 +96,16 @@ async function imagem(largura: number, altura: number, cor: string): Promise<{ b
     .png()
     .toBuffer()
   return { bytes: new Uint8Array(png) }
+}
+
+const TERMOS_DEMO = {
+  professionalSingular: 'Profissional',
+  professionalPlural: 'Profissionais',
+  customerSingular: 'Cliente',
+  customerPlural: 'Clientes',
+  pointsSingular: 'Patinha',
+  pointsPlural: 'Patinhas',
+  club: 'Clube Patudo',
 }
 
 function senhaAleatoria(): string {
@@ -123,8 +136,15 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     const nossa = await prisma.auditLog.findFirst({ where: { businessId: negocio.id, action: ACAO_CRIADA }, select: { id: true } })
     if (!nossa) throw new Error(`Já existe uma conta com o identificador "${DEMO_SLUG}" que não é a de demonstração. Nada foi alterado.`)
   } else {
+    const { outraLoja, violouUmaLoja } = await import('../src/server/domain/platform/access-core')
     const senha = senhaAleatoria()
     passwordSchema.parse(senha)
+    // Cada login da equipe pertence a uma loja só: se algum e-mail da demo já é ativo em outra loja, para aqui, com a frase clara.
+    const emailsDaDemo = [DEMO_EMAIL_DONO, DEMO_GERENTE.email, ...DEMO_PROFISSIONAIS.map((p) => demoEmailEquipe(p.apelido))]
+    const ocupado = await prisma.membership.findFirst({ where: { active: true, user: { email: { in: emailsDaDemo } } }, select: { user: { select: { email: true } } } })
+    if (ocupado) {
+      throw new Error(`${outraLoja().message} O e-mail ${ocupado.user.email} já é de outra loja, então a conta de demonstração não foi criada e nada foi gravado. Desative esse acesso na outra loja e rode o comando de novo.`)
+    }
     const donoExistente = await prisma.user.findUnique({ where: { email: DEMO_EMAIL_DONO }, select: { id: true, passwordHash: true } })
     const hashDono = donoExistente ? null : await hashPassword(senha)
     // Cada pessoa da equipe tem senha aleatória que ninguém conhece (não é impressa nem guardada): ninguém entra por elas.
@@ -143,7 +163,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
           addressLine: 'Rua das Acácias, 120',
           city: 'São Paulo',
           state: 'SP',
-          branding: { create: { displayName: DEMO_NOME, primaryColor: '#2F7D5B', accentColor: '#F29A4B' } },
+          branding: { create: { displayName: DEMO_NOME, primaryColor: DEMO_MARCA.primaria, accentColor: DEMO_MARCA.destaque } },
           modules: { create: { loyalty: true, banners: true, store: true } },
           settings: { create: {} },
         },
@@ -165,6 +185,10 @@ export async function criarDemo(prisma: PrismaClient, opts: {
         data: { businessId: conta.id, actorType: 'SYSTEM', actorName: 'Demonstração', action: ACAO_CRIADA, targetType: 'business', targetId: conta.id, metadata: {} },
       })
       return conta
+    }).catch((e: unknown) => {
+      // A corrida com outro convite é barrada pelo índice de um vínculo ativo por login: mesma resposta clara.
+      if (violouUmaLoja(e)) throw new Error(`${outraLoja().message} A conta de demonstração não foi criada e nada foi gravado.`)
+      throw e
     })
     if (donoExistente) donoJaTinhaSenha = true
     else {
@@ -213,20 +237,53 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     const { version } = await d.termos.readTerms(ctx)
     await d.termos.updateTermsOf(
       ctx,
-      {
-        professionalSingular: 'Profissional',
-        professionalPlural: 'Profissionais',
-        customerSingular: 'Cliente',
-        customerPlural: 'Clientes',
-        pointsSingular: 'Patinha',
-        pointsPlural: 'Patinhas',
-        club: 'Clube Patudo',
-      },
+      TERMOS_DEMO,
       version,
     )
-    const perfil = await d.perfil.getBusinessProfile(ctx)
-    if (perfil.logoUrl === null) await d.perfil.setBusinessLogo(ctx, await imagem(512, 512, '#2F7D5B'))
   })
+
+  // ---- 2b. Marca e termos (a cada rodada) ----------------------------------------------------------------------
+  // Uma demo antiga volta para o nome, a paleta e as imagens atuais; sem mudança, nada é regravado.
+  {
+    const imagens = await renderDemoBrandImages()
+    const assinatura = createHash('sha256')
+      .update(JSON.stringify(DEMO_MARCA))
+      .update(imagens.logo)
+      .update(imagens.symbol)
+      .update(imagens.favicon)
+      .digest('hex')
+    const ultima = await prisma.auditLog.findFirst({ where: { businessId, action: ACAO_MARCA }, orderBy: { createdAt: 'desc' }, select: { metadata: true } })
+    const gravada = ultima?.metadata && typeof ultima.metadata === 'object' && !Array.isArray(ultima.metadata) ? ultima.metadata['assinatura'] : undefined
+    const atual = await prisma.businessBranding.findUniqueOrThrow({
+      where: { businessId },
+      select: { displayName: true, primaryColor: true, accentColor: true, logoUploadId: true, symbolUploadId: true, faviconUploadId: true },
+    })
+    const igual =
+      atual.displayName === DEMO_MARCA.nome &&
+      atual.primaryColor === DEMO_MARCA.primaria &&
+      atual.accentColor === DEMO_MARCA.destaque &&
+      atual.logoUploadId !== null &&
+      atual.symbolUploadId !== null &&
+      atual.faviconUploadId !== null
+    if (!igual || gravada !== assinatura) {
+      await prisma.$transaction([
+        prisma.business.update({ where: { id: businessId }, data: { name: DEMO_MARCA.nome, searchName: searchKey(DEMO_MARCA.nome), version: { increment: 1 } } }),
+        prisma.businessBranding.update({
+          where: { businessId },
+          data: { displayName: DEMO_MARCA.nome, primaryColor: DEMO_MARCA.primaria, accentColor: DEMO_MARCA.destaque, version: { increment: 1 } },
+        }),
+      ])
+      await d.marca.replaceBrandImage(ctx, 'logo', { bytes: imagens.logo })
+      await d.marca.replaceBrandImage(ctx, 'symbol', { bytes: imagens.symbol })
+      await d.marca.replaceBrandImage(ctx, 'favicon', { bytes: imagens.favicon })
+      await d.audit.audit(ctx, { action: ACAO_MARCA, targetType: 'demo', targetId: 'marca', metadata: { assinatura } })
+      log('Marca da demonstração aplicada.')
+    }
+    const { terms, version } = await d.termos.readTerms(ctx)
+    if (terms.customerSingular !== TERMOS_DEMO.customerSingular || terms.customerPlural !== TERMOS_DEMO.customerPlural) {
+      await d.termos.updateTermsOf(ctx, { ...terms, customerSingular: TERMOS_DEMO.customerSingular, customerPlural: TERMOS_DEMO.customerPlural }, version)
+    }
+  }
 
   // ---- 3. Catálogo e equipe ------------------------------------------------------------------------------------
   await secao('catalogo', async () => {
@@ -448,18 +505,31 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   // ---- 9. Pedidos ---------------------------------------------------------------------------------------------
   // Pagamento: `createOrder` não chama provedor nenhum; o pagamento aprovado entra por `applyPayment`, o mesmo caminho do
   // webhook, com o pagamento montado aqui (como a consulta ao Mercado Pago o devolveria). Nenhum `integrations()` é usado.
-  await secao('pedidos', async () => {
+  // Roda em toda rodada e casa cada pedido do plano com o que já existe pelo cliente e pelos itens (não pela posição): uma
+  // demo antiga, de quando havia outro tipo de pedido, se realinha, e só o que falta é criado.
+  {
     const prods = await ctx.db.product.findMany({ select: { id: true, name: true } })
-    const existentes = await ctx.db.order.findMany({ orderBy: { number: 'asc' }, select: { id: true, status: true, fulfillmentStatus: true, totalCents: true } })
-    for (const [k, p] of DEMO_PEDIDOS.entries()) {
+    const existentes = await ctx.db.order.findMany({
+      orderBy: { number: 'asc' },
+      select: { id: true, customerId: true, status: true, fulfillmentStatus: true, totalCents: true, items: { select: { productId: true, quantity: true } } },
+    })
+    const assinaturaDeItens = (itens: { productId: string | null; quantity: number }[]): string =>
+      itens.map((i) => `${i.productId ?? '-'}x${String(i.quantity)}`).sort().join(',')
+    const usados = new Set<string>()
+    for (const p of DEMO_PEDIDOS) {
       relogio.t = antes(minuteToInstant(addDays(hoje, -p.diasAtras), p.minuto, tz), now)
       const cliente = clientePorIdx[p.cliente]
       if (!cliente) continue
-      let pedido = existentes[k]
+      const linhas = p.linhas.map((l) => ({ productId: prods.find((x) => x.name === DEMO_PRODUTOS[l.produto]?.nome)?.id ?? '', quantity: l.qtd }))
+      const quero = assinaturaDeItens(linhas)
+      let pedido: { id: string; status: string; fulfillmentStatus: string; totalCents: number } | undefined = existentes.find(
+        (o) => !usados.has(o.id) && o.customerId === cliente.id && assinaturaDeItens(o.items) === quero,
+      )
+      if (pedido) usados.add(pedido.id)
       if (!pedido) {
-        const linhas = p.linhas.map((l) => ({ productId: prods.find((x) => x.name === DEMO_PRODUTOS[l.produto]?.nome)?.id ?? '', quantity: l.qtd }))
         const criado = await d.pedidos.createOrder(await doCliente(cliente), { lines: linhas, delivery: { method: 'PICKUP' }, note: null })
         pedido = { id: criado.order.id, status: 'AWAITING_PAYMENT', fulfillmentStatus: 'PENDING', totalCents: criado.order.totalCents }
+        usados.add(pedido.id)
       }
       if (p.fim === 'cancelado') {
         if (pedido.status === 'AWAITING_PAYMENT') await d.pedidos.cancelOrder(await doCliente(cliente), pedido.id, { reason: 'Mudei de ideia.' })
@@ -468,7 +538,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       if (pedido.status === 'AWAITING_PAYMENT') {
         relogio.t = antes(addMinutes(relogio.t, 10), now)
         await d.pagamentos.applyPayment(sistema, pedido.id, {
-          id: `demo-${businessId.slice(0, 8)}-${String(k + 1)}`,
+          id: `demo-${pedido.id}`,
           status: 'approved',
           statusDetail: 'accredited',
           amountCents: pedido.totalCents,
@@ -489,7 +559,8 @@ export async function criarDemo(prisma: PrismaClient, opts: {
         await d.pedidos.advanceFulfillment(ctx, pedido.id, { to: 'READY_FOR_PICKUP' })
       }
     }
-  })
+    relogio.t = now
+  }
 
   // ---- 10. Fila de avisos (cru) ---------------------------------------------------------------------------------
   // As marcações e pedidos enfileiraram avisos aos clientes (sem e-mail nem aparelho): nenhum deve tentar sair.
@@ -520,6 +591,9 @@ async function main(): Promise<void> {
     const { painel } = hostConfigFromEnv(process.env)
     const esquema = process.env['NODE_ENV'] === 'production' ? 'https' : 'http'
     const link = `${esquema}://${painel}/entrar`
+    // Depois do `.env`: o módulo lê o ambiente ao ser carregado.
+    const { customerLinkUrl } = await import('../src/server/customer-link')
+    const linkClientes = customerLinkUrl(DEMO_SLUG)
     const r = await criarDemo(prisma, {
       ...(now ? { now } : {}),
       log: (t) => console.log(t),
@@ -527,6 +601,7 @@ async function main(): Promise<void> {
         console.log('')
         console.log(`E-mail de acesso: ${DEMO_EMAIL_DONO}`)
         console.log(`Link de entrada: ${link}`)
+        console.log(`Link para clientes: ${linkClientes}`)
         console.log(`Senha (aparece só desta vez; anote agora): ${senha}`)
         console.log('')
       },
@@ -535,6 +610,7 @@ async function main(): Promise<void> {
     console.log(`Conta de demonstração: ${r.slug}`)
     console.log(`E-mail de acesso: ${DEMO_EMAIL_DONO}`)
     console.log(`Link de entrada: ${link}`)
+    console.log(`Link para clientes: ${linkClientes}`)
     if (r.senhaGerada) {
       console.log('A senha foi mostrada acima, uma única vez.')
     } else if (r.donoJaTinhaSenha) {

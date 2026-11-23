@@ -59,11 +59,11 @@ No terminal do contêiner (Coolify): `npm run admin:create`. Pergunta nome, e-ma
 
 ## Conta de demonstração
 
-No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Pet Shop Demonstração" (identificador `demo`,
+No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Focinho Feliz Pet Shop", com nome, paleta, logo, símbolo e favicon próprios (identificador `demo`,
 dono `demo@agendaflui.com.br`) com equipe, 40 clientes, agenda de 4 semanas atrás a 2 semanas à frente, fidelidade,
 banners e loja. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
 Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`. A senha do dono é gerada na hora e aparece
-**uma única vez** no terminal, junto do link de entrada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) e nunca troca a senha
+**uma única vez** no terminal, junto do link de entrada e do link para clientes. Se o e-mail do dono (ou de alguém da equipe) já for ativo em outra loja, o comando para com uma mensagem clara e não grava nada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) reaplica a marca, os termos e os pedidos se estiverem diferentes, e nunca troca a senha
 (para trocá-la, use a redefinição de senha do painel). O gerente e os profissionais têm e-mails `@demo.agendaflui.com.br`
 com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
 
