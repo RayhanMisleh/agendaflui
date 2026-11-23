@@ -98,7 +98,8 @@ describe('inviteMember', () => {
     expect(await prisma.userToken.count({ where: { userId: user.id } })).toBe(0)
     expect(mail.sent).toHaveLength(1)
     expect(mail.sent[0]?.text).not.toContain('/definir-senha/')
-    expect(mail.sent[0]?.text).toContain('/entrar/')
+    expect(mail.sent[0]?.text).toContain('/entrar')
+    expect(mail.sent[0]?.text).not.toMatch(/\/entrar\//)
   })
 
   test('mesma pessoa duas vezes na conta (mesmo desativada) dá conflict', async () => {

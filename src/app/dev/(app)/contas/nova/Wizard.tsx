@@ -7,7 +7,6 @@ import {
   Button,
   Checkbox,
   ColorField,
-  CopyButton,
   Field,
   FoldablePreview,
   FormErrors,
@@ -151,7 +150,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               </Field>
               <Field
                 label="Identificador"
-                hint={v.slug ? `O link de entrada termina em /entrar/${v.slug}.` : 'Letras minúsculas, números e hífens. Vira o final do link de entrada.'}
+                hint="Letras minúsculas, números e hífens. Identifica a conta no painel dev."
                 error={erro('slug')}
               >
                 <Input
@@ -361,7 +360,7 @@ function Etapa(p: {
   )
 }
 
-/** Tela final: o link de entrada, o estado do convite e o que faltou (se faltou). */
+/** Tela final: o estado do convite e o que faltou (se faltou). */
 function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => void }) {
   const titulo = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -387,14 +386,6 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
           Abra a conta e complete esses itens.
         </div>
       ) : null}
-
-      <div className="af-done__row">
-        <span className="af-done__label">Link de entrada da conta</span>
-        <span className="af-entrylink">
-          <span className="af-entrylink__url">{result.entryUrl}</span>
-          <CopyButton text={result.entryUrl} label="Copiar link de entrada" />
-        </span>
-      </div>
 
       <p className="af-wizard__note">
         {result.ownerExisting

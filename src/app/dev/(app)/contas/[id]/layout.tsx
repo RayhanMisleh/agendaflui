@@ -1,13 +1,13 @@
 import type { ReactNode } from 'react'
 import { DoorOpen } from 'lucide-react'
-import { Button, CopyButton, LinkButton, NavTabs, Card, StatusDot, businessStatusDot } from '@/ui/components'
+import { Button, LinkButton, NavTabs, Card, StatusDot, businessStatusDot } from '@/ui/components'
 import { DevFrame } from '../../DevFrame'
 import { carregarConta } from './_data'
 import { arquivarConta, reativarConta, suspenderConta } from './actions'
 import { StatusMenu } from './StatusMenu'
 import { accountTabs } from './tabs'
 
-/** Cabeçalho da conta (carrega uma vez): nome, situação, link de entrada, "Entrar como", menu de situação e as abas. */
+/** Cabeçalho da conta (carrega uma vez): nome, situação, "Entrar como", menu de situação e as abas. */
 export default async function ContaLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params
   const { admin, conta } = await carregarConta(id)
@@ -26,13 +26,6 @@ export default async function ContaLayout({ children, params }: { children: Reac
           <StatusDot {...businessStatusDot(conta.status)} />
           <span className="af-account__slug">
             Identificador {conta.slug}. Dono: {conta.ownerName ?? 'sem dono ativo'}.
-          </span>
-        </div>
-        <div className="af-acct__row">
-          <span className="af-done__label">Link de entrada</span>
-          <span className="af-entrylink">
-            <span className="af-entrylink__url">{conta.entryUrl}</span>
-            <CopyButton text={conta.entryUrl} label={`Copiar link de entrada de ${conta.name}`} />
           </span>
         </div>
         <div className="af-acct__actions">

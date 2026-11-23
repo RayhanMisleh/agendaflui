@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
 import { can, CAPABILITIES } from '@/server/auth/capabilities'
+import { requireTenant } from '@/server/auth/guards'
 import { getMemberSession, getTenantContext, loginUser } from '@/server/auth/member-auth'
-import { chooseBusiness } from '@/app/painel/escolher-conta/actions'
 import { logoutUser } from '@/server/auth/member-auth'
 import { checkSupportLimit, endSupport, redeemSupport, startSupport } from '@/server/auth/support-session'
 import { hashToken } from '@/server/auth/tokens'
@@ -296,14 +296,12 @@ describe('suporte encerrado por outro caminho', () => {
     expect(await fim()).toHaveLength(0)
   })
 
-  test('em sessão de suporte, escolher conta redireciona para /', async () => {
+  test('sessão de suporte abre a conta da sessão em requireTenant, sem passar pela entrada', async () => {
     const { sessionToken, expiresAt } = await abrir(new Date())
     jar.set('af_painel_session', { value: sessionToken, options: { expires: expiresAt } })
-    const form = new FormData()
-    form.set('businessId', business.id)
-    await expect(chooseBusiness(form)).rejects.toMatchObject({ to: '/' })
-    const { default: Pagina } = await import('@/app/painel/escolher-conta/page')
-    await expect(Pagina()).rejects.toMatchObject({ to: '/' })
+    const ctx = await requireTenant()
+    expect(ctx.businessId).toBe(business.id)
+    expect(ctx.actor.kind).toBe('impersonator')
   })
 })
 

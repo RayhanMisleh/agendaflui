@@ -50,7 +50,6 @@ describe('createBusiness', () => {
   test('dono novo: usuário sem senha, vínculo OWNER, convite só com hash e e-mail com o link', async () => {
     const r = await createBusiness(actor, base)
     expect(r.business).toMatchObject({ name: 'Barbearia Central', slug: 'central', status: 'ACTIVE', timeZone: 'America/Sao_Paulo', version: 1 })
-    expect(r.business.entryUrl).toBe('http://painel.localhost:3000/entrar/central')
     expect(r.business.ownerName).toBe('João Silva')
     expect(r.owner.existing).toBe(false)
     expect(r.emailSent).toBe(true)
@@ -111,7 +110,8 @@ describe('createBusiness', () => {
     expect(mail.sent[0]?.to).toBe('helena@exemplo.test')
     expect(mail.sent[0]?.text).toContain('Barbearia Central')
     expect(mail.sent[0]?.text).not.toContain('definir-senha')
-    expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar/central')
+    expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar')
+    expect(mail.sent[0]?.text).not.toContain('/entrar/central')
   })
 
   test('dono existente sem senha: emite convite novo e manda o e-mail de convite', async () => {
@@ -274,7 +274,7 @@ describe('listBusinesses e getBusinessDetail', () => {
     const ativas = await listBusinesses(actor, { status: 'ACTIVE' })
     expect(ativas.items.map((i) => i.slug)).toEqual(['outra'])
     const susp = await listBusinesses(actor, { status: 'SUSPENDED' })
-    expect(susp.items[0]).toMatchObject({ slug: 'central', status: 'SUSPENDED', ownerName: 'João Silva', entryUrl: 'http://painel.localhost:3000/entrar/central' })
+    expect(susp.items[0]).toMatchObject({ slug: 'central', status: 'SUSPENDED', ownerName: 'João Silva' })
   })
 
   test('paginação por cursor é estável: sem repetir nem perder, e o último não tem cursor', async () => {
@@ -311,7 +311,6 @@ describe('updateBusinessData', () => {
     const r = await createBusiness(actor, base)
     const d = await updateBusinessData(actor, r.business.id, 1, { name: 'Central Nova', slug: 'central-nova' })
     expect(d).toMatchObject({ name: 'Central Nova', slug: 'central-nova', version: 2 })
-    expect(d.entryUrl).toBe('http://painel.localhost:3000/entrar/central-nova')
     const linha = await prisma.auditLog.findFirstOrThrow({ where: { action: 'business.updated' } })
     expect(linha.actorId).toBe(adminId)
     expect(linha.metadata).toMatchObject({ fields: ['name', 'slug'] })

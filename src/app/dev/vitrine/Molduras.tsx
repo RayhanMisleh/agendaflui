@@ -62,7 +62,6 @@ export function Molduras() {
   const conta = (material: CoverMaterial) => deriveTheme({ ...CONTA.brand, material })
   const acoes = (
     <>
-      <Button variant="secondary">Trocar de conta</Button>
       <Button variant="secondary">Sair</Button>
     </>
   )

@@ -66,7 +66,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
         <h2 id="cfg-titulo" className="af-section__title">
           Dados do negócio
         </h2>
-        <NegocioForm version={p.version} name={p.name} contactEmail={p.contactEmail ?? ''} contactPhone={p.phoneLabel ?? ''} entryUrl={p.entryUrl} />
+        <NegocioForm version={p.version} name={p.name} contactEmail={p.contactEmail ?? ''} contactPhone={p.phoneLabel ?? ''} />
       </Card>
     )
   } else if (secao === 'aparencia') {

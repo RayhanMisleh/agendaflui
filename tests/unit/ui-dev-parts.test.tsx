@@ -63,9 +63,9 @@ test('FormErrors não desenha nada sem erro', () => {
 test('CopyButton copia o texto e avisa em texto', async () => {
   const escrever = vi.fn().mockResolvedValue(undefined)
   Object.defineProperty(navigator, 'clipboard', { value: { writeText: escrever }, configurable: true })
-  render(<CopyButton text="http://painel.test/entrar/pata" label="Copiar link de entrada" />)
-  await userEvent.click(screen.getByRole('button', { name: 'Copiar link de entrada' }))
-  expect(escrever).toHaveBeenCalledWith('http://painel.test/entrar/pata')
+  render(<CopyButton text="http://loja.test/pata" label="Copiar link" />)
+  await userEvent.click(screen.getByRole('button', { name: 'Copiar link' }))
+  expect(escrever).toHaveBeenCalledWith('http://loja.test/pata')
   expect(await screen.findByText('Copiado')).toBeInTheDocument()
   expect(screen.getByRole('status')).toHaveTextContent('Copiado para a área de transferência.')
 })

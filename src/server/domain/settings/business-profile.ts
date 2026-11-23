@@ -1,5 +1,4 @@
 import type { TenantContext } from '@/server/auth/actor'
-import { areaLink } from '@/server/area-links'
 import { audit } from '@/server/domain/audit'
 import { normalizeContactPhone, formatPhone, normalizeEmail } from '@/server/domain/customers/contact'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
@@ -15,7 +14,6 @@ export type BusinessProfile = {
   contactPhone: string | null
   phoneLabel: string | null
   timeZone: string
-  entryUrl: string
   logoUrl: string | null
   version: number
 }
@@ -48,7 +46,7 @@ const versionSchema = z.number('Informe a versão lida.').int().min(1)
 export async function getBusinessProfile(ctx: TenantContext): Promise<BusinessProfile> {
   authorize(ctx, 'manage_settings')
   const [business, branding] = await Promise.all([
-    ctx.db.business.findUnique({ where: { id: ctx.businessId }, select: { slug: true, email: true, phone: true, timezone: true, version: true } }),
+    ctx.db.business.findUnique({ where: { id: ctx.businessId }, select: { email: true, phone: true, timezone: true, version: true } }),
     ctx.db.businessBranding.findUnique({
       where: { businessId: ctx.businessId },
       select: { displayName: true, logo: { select: { path: true } } },
@@ -62,7 +60,6 @@ export async function getBusinessProfile(ctx: TenantContext): Promise<BusinessPr
     contactPhone: b.phone,
     phoneLabel: b.phone === null ? null : formatPhone(b.phone),
     timeZone: b.timezone,
-    entryUrl: areaLink('painel', `/entrar/${b.slug}`),
     logoUrl: uploadUrl(m.logo),
     version: b.version,
   }

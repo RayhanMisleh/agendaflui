@@ -16,7 +16,7 @@ export function DadosForm({ action, valores }: { action: AcaoConta; valores: Cam
             <Field label="Nome da conta" error={fields.name}>
               <Input name="name" defaultValue={v.name} autoComplete="off" />
             </Field>
-            <Field label="Identificador" hint="Trocar o identificador muda o link de entrada da conta." error={fields.slug}>
+            <Field label="Identificador" hint="Letras minúsculas, números e hífens." error={fields.slug}>
               <Input name="slug" defaultValue={v.slug} autoComplete="off" autoCapitalize="none" spellCheck={false} />
             </Field>
             <Field label="E-mail de contato" error={fields.contactEmail}>

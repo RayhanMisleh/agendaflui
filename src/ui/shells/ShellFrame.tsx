@@ -16,7 +16,7 @@ export type ShellFrameProps = {
   brand: { name: string; logoUrl: string | null; symbolUrl: string | null; platform?: boolean }
   nav: NavItem[]
   user: ShellUser
-  /** Sair, Trocar de conta, Meu perfil: vão no pé da barra (computador) e no menu da conta (celular). */
+  /** Sair e Meu perfil: vão no pé da barra (computador) e no menu da conta (celular). */
   accountActions?: ReactNode
   /** Bolha discreta no pé da barra (só a Cheia). */
   bubble?: boolean

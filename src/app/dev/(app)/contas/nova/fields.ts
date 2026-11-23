@@ -41,7 +41,6 @@ export type WizardValues = {
 export type WizardResult = {
   createdId: string
   businessName: string
-  entryUrl: string
   ownerEmail: string
   ownerExisting: boolean
   emailSent: boolean

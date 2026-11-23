@@ -28,10 +28,10 @@ describe('links de ação dos e-mails viram botão em pílula', () => {
   })
 
   test('aviso de acesso', () => {
-    const m = renderAccessGranted({ ownerName: 'Ana', businessName: 'Patas', entryLink: 'https://painel.test/entrar/patas' })
-    expect(botao(m.html, 'https://painel.test/entrar/patas')).toBe(true)
+    const m = renderAccessGranted({ ownerName: 'Ana', businessName: 'Patas', entryLink: 'https://painel.test/entrar' })
+    expect(botao(m.html, 'https://painel.test/entrar')).toBe(true)
     expect(m.html).toContain('>Entrar em Patas</a>')
-    expect(m.text).toContain('https://painel.test/entrar/patas')
+    expect(m.text).toContain('https://painel.test/entrar')
   })
 
   test('redefinição de senha', () => {

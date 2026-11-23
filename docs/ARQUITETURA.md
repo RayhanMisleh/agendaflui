@@ -57,7 +57,7 @@ de conta opcional, de plataforma ou o próprio registro da conta).
   configuram integrações e veem métricas, uso, auditoria e o estado do sistema (`/sistema`).
 - **Painel do negócio**: membros da conta (`member-auth.ts`, sessão de 30 dias, uma loja por login da equipe: o banco recusa um segundo vínculo ativo do mesmo usuário). Papéis
   `OWNER`, `MANAGER` e `PROFESSIONAL` mapeiam para capacidades (`can()` em `capabilities.ts`); o domínio chama `authorize`.
-  A conta sempre mantém ao menos um dono ativo. Cada conta tem o próprio link de entrada (`/entrar/{slug}`).
+  A conta sempre mantém ao menos um dono ativo. A equipe entra por um endereço único (`/entrar`); a loja vem do vínculo ativo da pessoa.
 - **Suporte** ("entrar como", `support-session.ts`): o admin troca um token de passagem (60 s, uso único) por uma sessão de
   60 minutos fixos no painel do negócio, com poderes de dono, exceto gerir acessos da equipe. Admin ou conta inativos derrubam a
   sessão na requisição seguinte. As ações ficam na auditoria.

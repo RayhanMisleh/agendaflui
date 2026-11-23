@@ -10,7 +10,7 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
 - Agenda: arrastar a ficha (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, envio da foto da equipe e do logo, exportação do CSV de relatórios.
 - Módulos: telas de Fidelidade, Banners e Loja, envio de imagens (também sem JavaScript), pedido com "Simular pagamento aprovado".
 - Entrada do painel do negócio sem JavaScript.
-- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar.
+- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar (`entrada.spec.ts` ainda cita as rotas `/entrar/<slug>` e `/escolher-conta`, removidas).
 
 ## Antes de abrir a loja (Mercado Pago real)
 

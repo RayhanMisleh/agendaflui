@@ -15,7 +15,7 @@ export function PainelShell(p: {
   brand: { name: string; logoUrl: string | null; symbolUrl: string | null }
   nav: NavItem[]
   user: { name: string; roleLabel: string; avatarUrl: string | null }
-  /** Sair e Trocar de conta: vão no pé da barra e no menu da conta do celular. */
+  /** Sair: vai no pé da barra e no menu da conta do celular. */
   accountActions?: ReactNode
   /** "Você está em modo suporte na conta X": faixa permanente, sem botão de fechar. */
   supportBanner?: string

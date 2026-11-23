@@ -30,8 +30,8 @@ O seed de demonstração não roda em produção, a menos que `SEED_ALLOW_PRODUC
 avisar que os dados de demonstração ficaram incompletos, rode `npm run db:reset` e inicie de novo.
 
 Os e-mails e as senhas de demonstração estão no `.env.example` (copiados para o seu `.env`).
-Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Cada conta tem o
-próprio link de entrada: `painel.localhost:3000/entrar/patas-e-cia`.
+Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). A equipe de todas as contas
+entra pelo mesmo endereço: `painel.localhost:3000/entrar`.
 A vitrine de componentes fica em `dev.localhost:3000/vitrine` (só para admin logado).
 
 Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
@@ -48,7 +48,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 
 ## Painel do negócio
 
-- Entre em `http://painel.localhost:3000` (ou no link da conta, `/entrar/patas-e-cia`) com os e-mails de
+- Entre em `http://painel.localhost:3000` (`/entrar`) com os e-mails de
   demonstração do `.env.example`: dono, gerente e profissional de cada conta.
 - Cada conta de demonstração tem uma semana de agenda variada (concluídos, faltas, cancelado e confirmados),
   um bloqueio, um fechamento (feriado) e um cliente arquivado.

@@ -90,7 +90,7 @@ describe('criar conta pela ação do assistente', () => {
     expect(estado.ok).toBe(true)
     const r = estado.values.result
     expect(r?.pendencias).toEqual([])
-    expect(r?.entryUrl).toContain('/entrar/pata-viva')
+    expect(r).not.toHaveProperty('entryUrl')
 
     const conta = await prisma.business.findUniqueOrThrow({
       where: { slug: 'pata-viva' },

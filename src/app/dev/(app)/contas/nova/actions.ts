@@ -141,7 +141,6 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
   return {
     createdId: id,
     businessName: criada.business.name,
-    entryUrl: criada.business.entryUrl,
     ownerEmail: v.ownerEmail.trim().toLowerCase(),
     ownerExisting: criada.owner.existing,
     emailSent: criada.emailSent,

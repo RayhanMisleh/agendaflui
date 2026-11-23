@@ -27,7 +27,6 @@ export type BusinessRow = {
   status: BusinessStatus
   createdAt: Date
   ownerName: string | null
-  entryUrl: string
 }
 
 export type BusinessDetail = BusinessRow & {
@@ -50,7 +49,6 @@ const SLUGS_RESERVADOS: readonly string[] = [
   'arquivos',
   'suporte',
   'definir-senha',
-  'escolher-conta',
   'admin',
   'www',
 ]
@@ -189,8 +187,6 @@ function idValido(id: string): string {
   return id
 }
 
-const entryUrlOf = (slug: string): string => areaLink('painel', `/entrar/${slug}`)
-
 const SELECAO_LINHA = {
   id: true,
   slug: true,
@@ -215,7 +211,6 @@ function paraLinha(b: LinhaBruta): BusinessRow {
     status: b.status,
     createdAt: b.createdAt,
     ownerName: b.memberships[0]?.user.name ?? null,
-    entryUrl: entryUrlOf(b.slug),
   }
 }
 
@@ -367,7 +362,7 @@ export async function getBusinessDetail(actor: PlatformAdminActor, id: string): 
   return lerDetalhe(idValido(id))
 }
 
-type OwnerMail = { to: string; ownerName: string; businessName: string; slug: string; token: string | null }
+type OwnerMail = { to: string; ownerName: string; businessName: string; token: string | null }
 
 /** Envia o e-mail do dono depois do commit. Falha ou falta de canal não desfaz nada: o retorno diz se saiu. */
 async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
@@ -379,7 +374,7 @@ async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
   try {
     const mail =
       m.token === null
-        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: entryUrlOf(m.slug) })
+        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: areaLink('painel', '/entrar') })
         : renderOwnerInvite({
             ownerName: m.ownerName,
             businessName: m.businessName,
@@ -473,7 +468,6 @@ export async function createBusiness(
         to: i.owner.email,
         ownerName: feito.ownerName,
         businessName: business.name,
-        slug: business.slug,
         token: feito.token,
       })
       return { business, owner: { userId: feito.userId, existing: feito.existing }, emailSent }
@@ -490,7 +484,7 @@ export async function createBusiness(
 
 /**
  * Edita os dados da conta. O UPDATE é uma instrução só, condicionada à versão lida: quem grava sobre uma versão antiga
- * recebe `conflict` (`stale_version`) em vez de sobrescrever. Trocar o slug troca o link de entrada (no retorno).
+ * recebe `conflict` (`stale_version`) em vez de sobrescrever.
  */
 export async function updateBusinessData(
   actor: PlatformAdminActor,

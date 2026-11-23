@@ -1,6 +1,6 @@
 'use client'
 import { Trash2 } from 'lucide-react'
-import { Checkbox, CopyButton, EmptyHint, Field, Input, MaskedInput, Select } from '@/ui/components'
+import { Checkbox, EmptyHint, Field, Input, MaskedInput, Select } from '@/ui/components'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
@@ -20,39 +20,31 @@ const Versao = ({ version }: { version: number }) => <input type="hidden" name="
 
 // ---------------------------------------------------------------- negócio
 
-export function NegocioForm({ version, name, contactEmail, contactPhone, entryUrl }: { version: number; name: string; contactEmail: string; contactPhone: string; entryUrl: string }) {
+export function NegocioForm({ version, name, contactEmail, contactPhone }: { version: number; name: string; contactEmail: string; contactPhone: string }) {
   return (
-    <>
-      <PainelForm
-        action={salvarNegocio}
-        initial={estado({ name, contactEmail, contactPhone })}
-        submit="Salvar dados"
-        labels={{ name: 'Nome do negócio', contactEmail: 'E-mail de contato', contactPhone: 'Telefone de contato' }}
-      >
-        {(state) => (
-          <>
-            <Versao version={version} />
-            <Field label="Nome do negócio" hint="Aparece na barra lateral, na entrada e nos e-mails." error={state.fields.name}>
-              <Input name="name" defaultValue={state.values.name ?? ''} maxLength={80} autoComplete="off" required />
+    <PainelForm
+      action={salvarNegocio}
+      initial={estado({ name, contactEmail, contactPhone })}
+      submit="Salvar dados"
+      labels={{ name: 'Nome do negócio', contactEmail: 'E-mail de contato', contactPhone: 'Telefone de contato' }}
+    >
+      {(state) => (
+        <>
+          <Versao version={version} />
+          <Field label="Nome do negócio" hint="Aparece na barra lateral e nos e-mails." error={state.fields.name}>
+            <Input name="name" defaultValue={state.values.name ?? ''} maxLength={80} autoComplete="off" required />
+          </Field>
+          <div className="af-formgrid">
+            <Field label="E-mail de contato" error={state.fields.contactEmail}>
+              <Input name="contactEmail" type="email" inputMode="email" defaultValue={state.values.contactEmail ?? ''} autoComplete="off" />
             </Field>
-            <div className="af-formgrid">
-              <Field label="E-mail de contato" error={state.fields.contactEmail}>
-                <Input name="contactEmail" type="email" inputMode="email" defaultValue={state.values.contactEmail ?? ''} autoComplete="off" />
-              </Field>
-              <Field label="Telefone de contato" hint="Com DDD. Fora do Brasil, comece com + e o código do país." error={state.fields.contactPhone}>
-                <MaskedInput mask="phone" name="contactPhone" defaultValue={state.values.contactPhone ?? ''} />
-              </Field>
-            </div>
-          </>
-        )}
-      </PainelForm>
-      <div className="af-acctform">
-        <Field label="Link de entrada da equipe" hint="Quem trabalha na conta entra por este endereço.">
-          <Input readOnly value={entryUrl} onFocus={(e) => e.currentTarget.select()} />
-        </Field>
-        <CopyButton text={entryUrl} label="Copiar o link de entrada" variant="secondary" />
-      </div>
-    </>
+            <Field label="Telefone de contato" hint="Com DDD. Fora do Brasil, comece com + e o código do país." error={state.fields.contactPhone}>
+              <MaskedInput mask="phone" name="contactPhone" defaultValue={state.values.contactPhone ?? ''} />
+            </Field>
+          </div>
+        </>
+      )}
+    </PainelForm>
   )
 }
 

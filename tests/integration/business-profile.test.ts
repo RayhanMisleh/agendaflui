@@ -60,7 +60,7 @@ const TERMOS = {
 }
 
 describe('dados do negócio', () => {
-  test('o dono lê o perfil da conta com o endereço de entrada e a versão', async () => {
+  test('o dono lê o perfil da conta com a versão', async () => {
     const b = await makeBusiness({ slug: 'pet-bonito', email: 'oi@pet.com.br', phone: '5511987654321' })
     const p = await getBusinessProfile(await makeCtx(b))
     expect(p).toMatchObject({
@@ -71,7 +71,7 @@ describe('dados do negócio', () => {
       logoUrl: null,
       version: 1,
     })
-    expect(p.entryUrl).toContain('/entrar/pet-bonito')
+    expect(p).not.toHaveProperty('entryUrl')
     expect(p.name).toBe((await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: b.id } })).displayName)
   })
 

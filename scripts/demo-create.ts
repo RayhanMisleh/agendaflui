@@ -519,7 +519,7 @@ async function main(): Promise<void> {
     const now = simulada ? fromIsoInstant(simulada) : undefined
     const { painel } = hostConfigFromEnv(process.env)
     const esquema = process.env['NODE_ENV'] === 'production' ? 'https' : 'http'
-    const link = `${esquema}://${painel}/entrar/${DEMO_SLUG}`
+    const link = `${esquema}://${painel}/entrar`
     const r = await criarDemo(prisma, {
       ...(now ? { now } : {}),
       log: (t) => console.log(t),

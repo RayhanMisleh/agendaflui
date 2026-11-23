@@ -106,14 +106,6 @@ export async function getMemberSession(token: string | undefined, now: Date = ne
   }
 }
 
-export async function selectBusiness(token: string, businessId: string): Promise<void> {
-  const session = await findValidSession(token, new Date())
-  if (!session) throw new AuthError('no_access')
-  const memberships = await listMemberships(session.userId)
-  if (!memberships.some((m) => m.businessId === businessId)) throw new AuthError('no_access')
-  await prisma.session.update({ where: { id: session.id }, data: { activeBusinessId: businessId } })
-}
-
 export async function getTenantContext(token: string | undefined, now: Date = new Date()): Promise<TenantContext | null> {
   const session = await findValidSession(token, now)
   if (!session) return getSupportContext(token, now)

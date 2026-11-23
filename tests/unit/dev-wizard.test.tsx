@@ -96,7 +96,7 @@ test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valo
   expect(screen.getByRole('alert')).toHaveTextContent('Identificador: Já existe uma conta')
 })
 
-test('depois de criar, mostra a conta criada, o link de entrada e o convite do dono, sem chave', async () => {
+test('depois de criar, mostra a conta criada e o convite do dono, sem chave e sem link de entrada', async () => {
   acao.criarConta.mockImplementation(async (): Promise<FormState<WizardData>> => ({
     ok: true,
     message: null,
@@ -106,7 +106,6 @@ test('depois de criar, mostra a conta criada, o link de entrada e o convite do d
       result: {
         createdId: 'c-1',
         businessName: 'Pata Viva',
-        entryUrl: 'http://painel.exemplo.test/entrar/pata-viva',
         ownerEmail: 'marina@exemplo.test',
         ownerExisting: false,
         emailSent: true,
@@ -118,7 +117,7 @@ test('depois de criar, mostra a conta criada, o link de entrada e o convite do d
   await userEvent.click(screen.getByRole('link', { name: /Dono/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
   expect(await screen.findByRole('heading', { name: 'Pata Viva está criada' })).toHaveFocus()
-  expect(screen.getByRole('button', { name: 'Copiar link de entrada' })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /link de entrada/i })).not.toBeInTheDocument()
   expect(screen.queryByText(/chave de app/i)).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Abrir a conta' })).toHaveAttribute('href', '/contas/c-1')
   expect(screen.getByText(/Enviamos para marina@exemplo.test o convite/)).toBeInTheDocument()

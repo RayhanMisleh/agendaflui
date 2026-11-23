@@ -253,7 +253,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
           throw proibido('Só um dono da conta pode convidar outro dono.')
         }
         const conta = UUID.test(businessId)
-          ? await tx.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, slug: true, status: true } })
+          ? await tx.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, status: true } })
           : null
         if (!conta) throw contaInexistente()
         if (conta.status === 'ARCHIVED') throw contaArquivada()
@@ -323,7 +323,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
               link: areaLink('painel', `/definir-senha/${convite.token}`),
               ttlDays: INVITE_TTL_DAYS,
             })
-          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('painel', `/entrar/${conta.slug}`) }),
+          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('painel', '/entrar') }),
       )
       return membro
     } catch (err) {
