@@ -220,11 +220,11 @@ export const convidarAcesso = tenantAction(
   'manage_team',
   (fd) => ler(fd, ['id', 'name', 'email', 'role']),
   async (ctx, v) => {
-    await inviteAccess(ctx, { name: v.name ?? '', email: v.email ?? '', role: papel(v.role), professionalId: v.id ?? '' })
+    const membro = await inviteAccess(ctx, { name: v.name ?? '', email: v.email ?? '', role: papel(v.role), professionalId: v.id ?? '' })
     atualizarPainel()
-    return `Convite enviado para ${v.email?.trim() ?? 'o e-mail informado'}.`
+    return membro.inviteMailFailed
   },
-  (mensagem, v) => feito(mensagem, v),
+  (falhou, v) => (falhou ? conviteNaoEnviado(v) : feito(`Convite enviado para ${v.email?.trim() || 'o e-mail informado'}.`, v)),
 )
 
 export const mudarPapelAcesso = tenantAction(

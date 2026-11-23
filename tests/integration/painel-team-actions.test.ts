@@ -386,6 +386,18 @@ describe('acessos', () => {
     expect(mail.sent.filter((m) => m.to === 'caio@exemplo.com')).toHaveLength(1)
   })
 
+  test('convidar o acesso com o e-mail falhando diz "Convite não enviado" e o cadastro fica', async () => {
+    const p = await makeProfessional(businessId, { name: 'Dani' })
+    mail.failing = true
+    const r = await convidarAcesso(ini, form({ id: p.id, name: 'Dani Souza', email: 'dani@exemplo.com', role: 'PROFESSIONAL' }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toMatch(/^Convite não enviado/)
+    expect(r.message).not.toMatch(/Convite enviado/)
+    const ficha = await prisma.professional.findUniqueOrThrow({ where: { id: p.id } })
+    const vinculo = await prisma.membership.findUniqueOrThrow({ where: { id: ficha.membershipId ?? '' } })
+    expect(vinculo.inviteMailFailedAt).not.toBeNull()
+  })
+
   test('reenviar convite: com o e-mail saindo confirma; falhando diz "Convite não enviado" e o cadastro fica', async () => {
     const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
     const ok = await reenviarConviteAcesso(ini, form({ membershipId: m.membershipId }))
