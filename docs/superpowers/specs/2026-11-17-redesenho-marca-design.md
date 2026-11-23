@@ -50,15 +50,13 @@ Bricolage Grotesque 700 para títulos e para números grandes (contadores, horá
 
 ## Personalização por conta (sem mudar o banco)
 
-A conta continua escolhendo cor principal, cor de destaque, logo, símbolo e fontes. Os campos antigos ganham sentido novo, com os mesmos valores gravados:
+A conta escolhe cor principal, cor de destaque, barra lateral, logo, símbolo, favicon e imagem de entrada. Fundo (Espuma) e fontes (Bricolage Grotesque e Figtree) são os da marca em toda conta. Os campos antigos ganham sentido novo, com os mesmos valores gravados:
 
 | Campo | Antes | Agora (rótulo na tela) |
 |---|---|---|
 | `primary` | cor da capa | cor da conta (no lugar de Água): dela saem `brand-strong`, `brand-tint` e `on-brand`, com contraste AA garantido |
 | `accent` | destaque | cor de destaque (no lugar de Caramelo), e dela o tom claro (Mel) |
 | `material` | couro, linho, madeira, esmalte | "Barra lateral": `LEATHER` Cheia (cor da conta, logo em negativo) · `LINEN` Suave (Bolha da conta) · `WOOD` Noite (tinta) · `ENAMEL` Clara (branca) |
-| `paper` | branco, creme, cinza | "Fundo": `WHITE` Branco · `CREAM` Espuma (o padrão; levemente tingido pela cor da conta) · `GRAY` Neutro |
-| `fontPair` | três pares | o par da marca (Bricolage Grotesque + Figtree) vira o padrão; os outros dois continuam como opção |
 
 A marca Agenda Flui (painel dev, entrada genérica, e-mails da plataforma, padrão de conta nova) usa Água e Caramelo, barra Cheia, fundo Espuma e o par da marca.
 

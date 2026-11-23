@@ -172,9 +172,6 @@ export const DEMO_CONTAS = [
       primaryColor: '#2F7D5B',
       accentColor: '#F29A4B',
       coverMaterial: 'LEATHER',
-      paperTone: 'CREAM',
-      fontPair: 'FRIENDLY',
-      loginMessage: 'Que bom ver você de volta. A agenda de banho e tosa está aberta.',
     },
     modulos: { loyalty: true, banners: true, store: false, vouchers: false },
     termos: {
@@ -203,9 +200,6 @@ export const DEMO_CONTAS = [
       primaryColor: '#243B6B',
       accentColor: '#E3A72F',
       coverMaterial: 'WOOD',
-      paperTone: 'WHITE',
-      fontPair: 'MODERN',
-      loginMessage: 'Entre para abrir a agenda da casa.',
     },
     modulos: { loyalty: true, banners: true, store: true, vouchers: true },
     termos: {

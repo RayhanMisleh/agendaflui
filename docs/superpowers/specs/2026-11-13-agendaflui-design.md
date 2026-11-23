@@ -179,8 +179,8 @@ pontos permanecem ligados a um cliente sem identificação, para os relatórios 
 - `platform_admins`, `platform_sessions`
 - `audit_logs` — quem fez o quê, em qual conta, quando (ações do painel dev e ações
   sensíveis do painel do negócio)
-- `businesses` — nome, `slug`, segmento, documento, contato, endereço, `timezone` (IANA),
-  situação (`ACTIVE`, `SUSPENDED`, `ARCHIVED`), observações internas
+- `businesses` — nome, `slug`, segmento, documento, contato, endereço, `timezone` (IANA;
+  sempre `America/Sao_Paulo`), situação (`ACTIVE`, `SUSPENDED`, `ARCHIVED`)
 - `business_branding` — ver seção 10
 - `business_modules` — quais módulos opcionais estão ligados
 - `business_settings` — regras de agenda, termos, notificações (seção 8.2)
@@ -376,8 +376,8 @@ Tudo abaixo é editado no painel dev, na criação da conta ou depois, com **pr�
 do painel do negócio ao lado do formulário.
 
 - **Marca**: nome de exibição, logo, símbolo (quadrado), favicon, cor principal, cor de
-  destaque, material da capa (couro, linho, madeira, esmalte), tom do papel (branco, creme,
-  cinza), par de fontes (entre opções curadas), imagem e mensagem da tela de entrada.
+  destaque, material da capa (couro, linho, madeira, esmalte) e imagem da tela de entrada.
+  O fundo (Espuma) e as fontes (Bricolage Grotesque e Figtree) são os da marca, iguais em toda conta.
   As cores derivadas (sombras, realces, texto sobre a cor) são calculadas; se a cor escolhida
   não der contraste suficiente, o sistema ajusta o texto e avisa no formulário.
 - **Termos**: como a conta chama o profissional ("Barbeiro", "Tosador", "Terapeuta"), o
@@ -387,12 +387,12 @@ do painel do negócio ao lado do formulário.
   some do menu, das rotas do painel e da API. Vouchers são vendidos dentro de um pedido e
   pagos como qualquer produto, então **Vouchers exige Loja**: o painel dev não deixa ligar
   um sem o outro.
-- **Regras de agenda** (8.2), **fuso**, **avisos** (8.4).
+- **Regras de agenda** (8.2) e **avisos** (8.4). O fuso é sempre `America/Sao_Paulo`: nenhuma tela nem rota o altera.
 - **Conta**: dados cadastrais, dono (cria o usuário e envia convite para definir senha),
-  situação, observações internas, chaves de app.
+  situação, chaves de app.
 
 O dono, no painel do negócio, pode ajustar regras de agenda, avisos, termos, integrações e
-trocar logo. Cores, material, fontes e módulos são só do painel dev.
+trocar logo. Cores, material e módulos são só do painel dev.
 
 **Tela de entrada com a marca**: o endereço é um só para todos, então antes do login o
 sistema não sabe de quem é a conta. Solução: cada conta tem um link de entrada próprio,
@@ -551,7 +551,7 @@ consulta e é apagado na fase 6.
 - Clientes finais são por conta, não globais.
 - Uma conta = uma unidade.
 - Sem modo escuro no painel do negócio.
-- Cores, material, fontes e módulos só mudam pelo painel dev; o dono troca logo e ajusta
+- Cores, material e módulos só mudam pelo painel dev; o dono troca logo e ajusta
   regras, termos e avisos.
 - Lembretes padrão: 24 h e 1 h antes.
 - Repositório git novo, local, sem histórico do sistema antigo, com commits por etapa e

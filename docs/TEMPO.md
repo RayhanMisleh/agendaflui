@@ -7,7 +7,7 @@ Regras da seção 7 da spec, como estão implementadas. Todo o código de conver
 
 1. O banco guarda **instantes** (`timestamptz`), nunca "os dígitos da hora local". A sessão do Postgres roda em UTC
    (`options -c timezone=UTC` em `src/server/db/connection.ts`; a partida em produção confere).
-2. Cada conta tem seu fuso IANA (`businesses.timezone`). O expediente é hora local da conta. Deslocamento fixo
+2. Cada conta tem seu fuso IANA (`businesses.timezone`; contas novas e o painel dev usam sempre `America/Sao_Paulo`, sem tela para trocar). O expediente é hora local da conta. Deslocamento fixo
    (`+03:00`) não vale: `isValidTimeZone` o recusa e `canonicalTimeZone` grava sempre a grafia canônica.
 3. Toda conversão entre instante e hora local passa por `src/server/time/`. O ESLint proíbe fora dela `new Date(texto)`,
    `getHours`, `getDay`, `toLocale*`, `toISOString`, `getUTC*` e parecidos. O fuso do processo e o do navegador nunca entram na conta.
