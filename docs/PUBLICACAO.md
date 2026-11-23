@@ -53,6 +53,16 @@ e auditoria com mais de 2 anos (prazos em `src/server/db/retention.ts`). A execu
 
 No terminal do contêiner (Coolify): `npm run admin:create`. Pergunta nome, e-mail e senha (digitada, não aparece).
 
+## Conta de demonstração
+
+No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Pet Shop Demonstração" (identificador `demo`,
+dono `demo@agendaflui.com.br`) com equipe, 40 clientes, agenda de 4 semanas atrás a 2 semanas à frente, fidelidade,
+banners, loja e vouchers. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
+Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`. A senha do dono é gerada na hora e aparece
+**uma única vez** no terminal, junto do link de entrada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) e nunca troca a senha
+(para trocá-la, use a redefinição de senha do painel). O gerente e os profissionais têm e-mails `@demo.agendaflui.com.br`
+com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
+
 ## Backup e restauração
 
 - Banco: `pg_dump --format=custom "$DATABASE_URL" > agendaflui.dump` (use a URL direta se houver pooler).

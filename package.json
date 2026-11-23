@@ -22,6 +22,7 @@
     "smoke": "tsx --conditions=react-server scripts/smoke-pages.ts",
     "worker:once": "tsx --conditions=react-server scripts/worker-once.ts",
     "admin:create": "tsx scripts/admin-create.ts",
+    "demo:create": "tsx --conditions=react-server scripts/demo-create.ts",
     "postinstall": "prisma generate",
     "start:prod": "node --import tsx scripts/start-production.ts"
   },
