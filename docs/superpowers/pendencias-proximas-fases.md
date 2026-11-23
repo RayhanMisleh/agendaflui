@@ -56,3 +56,4 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
   - Anel de foco depende do contêiner (papel dentro de capa, `Checkbox` sobre capa); `Dialog` e Esc de filhos a conferir no navegador.
   - "GET / 404" no log quando uma ação redireciona atrás do proxy; `occupancy` do resumo da agenda limitado a 1 por exibição.
   - Para o dono conferir no navegador: todas as telas a 375 px, foco nos diálogos, arrastar a ficha na agenda (mouse, teclado e folha), prévia com cores extremas, envio de foto da equipe e do logo, CSV de relatórios.
+- Vouchers saíram do banco (migração `20261123030000_remove_vouchers`): os arquivos de imagem de parceiros e vouchers já apagados ficam no disco de uploads; limpar à mão no servidor, se quiser o espaço.

@@ -152,7 +152,7 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
       })
       if (count !== 1) return unchanged
       await orderVoided(tx, ctx, orderId, 'refunded')
-      if (order.fulfillmentStatus !== 'PENDING' && order.deliveryMethod !== 'NONE') await tx.order.update({ where: { id: orderId }, data: { attention: 'payment_reversed' } })
+      if (order.fulfillmentStatus !== 'PENDING') await tx.order.update({ where: { id: orderId }, data: { attention: 'payment_reversed' } })
       await audit(ctx, { action: 'order.payment_reversed', targetType: 'Order', targetId: orderId, metadata: { how: status } }, tx)
       return { orderStatus: 'CANCELED', changed: true }
     }

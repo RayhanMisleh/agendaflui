@@ -70,7 +70,7 @@ export const orderSchema = z.object({
   number: z.number().describe('Número do pedido na conta, a partir de 1001.'),
   status: z.enum(['AWAITING_PAYMENT', 'PAID', 'CANCELED', 'EXPIRED']),
   fulfillmentStatus: z.enum(['PENDING', 'READY_FOR_PICKUP', 'SHIPPED', 'DELIVERED']),
-  deliveryMethod: z.enum(['PICKUP', 'SHIPPING', 'NONE']),
+  deliveryMethod: z.enum(['PICKUP', 'SHIPPING']),
   items: z.array(
     z.object({
       kind: z.literal('product'),

@@ -6,13 +6,11 @@ export type FulfillmentStep = { to: FulfillmentStatus; label: string }
 const FORWARD: Record<DeliveryMethod, Partial<Record<FulfillmentStatus, FulfillmentStep>>> = {
   PICKUP: { PENDING: { to: 'READY_FOR_PICKUP', label: 'Marcar pronto para retirar' }, READY_FOR_PICKUP: { to: 'DELIVERED', label: 'Marcar como entregue' } },
   SHIPPING: { PENDING: { to: 'SHIPPED', label: 'Marcar como enviado' }, SHIPPED: { to: 'DELIVERED', label: 'Marcar como entregue' } },
-  NONE: { PENDING: { to: 'DELIVERED', label: 'Marcar como entregue' } },
 }
 
 const BACK: Record<DeliveryMethod, Partial<Record<FulfillmentStatus, FulfillmentStatus>>> = {
   PICKUP: { READY_FOR_PICKUP: 'PENDING', DELIVERED: 'READY_FOR_PICKUP' },
   SHIPPING: { SHIPPED: 'PENDING', DELIVERED: 'SHIPPED' },
-  NONE: { DELIVERED: 'PENDING' },
 }
 
 /**

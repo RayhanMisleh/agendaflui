@@ -153,16 +153,6 @@ describe('restrições no banco', () => {
     }
   })
 
-  test('vouchers sem loja é recusado pelo banco', async () => {
-    const b = await prisma.business.create({ data: { slug: 'loja-um', name: 'Loja Um' } })
-    await expect(
-      prisma.businessModules.create({ data: { businessId: b.id, vouchers: true, store: false } }),
-    ).rejects.toThrow()
-    await expect(
-      prisma.businessModules.create({ data: { businessId: b.id, vouchers: true, store: true } }),
-    ).resolves.toBeDefined()
-  })
-
   test('e-mail com maiúsculas é recusado pelo banco', async () => {
     await expect(prisma.user.create({ data: { name: 'A', email: 'A@x.com' } })).rejects.toThrow()
     await expect(

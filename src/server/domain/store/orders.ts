@@ -132,7 +132,6 @@ const listSchema = z.object({
 const TRANSITIONS: Record<DeliveryMethod, Partial<Record<FulfillmentStatus, readonly FulfillmentStatus[]>>> = {
   PICKUP: { PENDING: ['READY_FOR_PICKUP'], READY_FOR_PICKUP: ['DELIVERED', 'PENDING'], DELIVERED: ['READY_FOR_PICKUP'] },
   SHIPPING: { PENDING: ['SHIPPED'], SHIPPED: ['DELIVERED', 'PENDING'], DELIVERED: ['SHIPPED'] },
-  NONE: { PENDING: ['DELIVERED'] },
 }
 
 const notFound = (): DomainError => new DomainError('not_found', 'Pedido não encontrado.')
