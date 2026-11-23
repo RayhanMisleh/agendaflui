@@ -17,6 +17,8 @@ const envSchema = z.object({
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
   // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
   SMTP_URL: z.string().min(1).optional(),
+  // Ou, em produção, o Resend (RESEND_API_KEY): quando as duas existem, vale o Resend. O domínio de MAIL_FROM precisa estar verificado nele.
+  RESEND_API_KEY: z.string().min(1).optional(),
   MAIL_FROM: z.string().min(3).optional(),
   // Push pelo Expo: o token de acesso é opcional (só vale se a conta Expo exigir).
   EXPO_ACCESS_TOKEN: z.string().min(1).optional(),
@@ -38,7 +40,7 @@ const envSchema = z.object({
 const FASE_DE_BUILD = 'phase-production-build'
 const MARCADOR_DE_EXEMPLO = 'EXEMPLO-'
 
-/** Remetente padrão (só desenvolvimento e teste; produção com SMTP exige `MAIL_FROM`). */
+/** Remetente padrão (só desenvolvimento e teste; produção com SMTP ou Resend exige `MAIL_FROM`). */
 export const DEFAULT_MAIL_FROM = 'Agenda Flui <nao-responda@agendaflui.localhost>'
 
 export type Env = Omit<z.infer<typeof envSchema>, 'INTEGRATIONS_MODE'> & { INTEGRATIONS_MODE: 'real' | 'fake' }
@@ -122,8 +124,8 @@ export function productionWarnings(config: Env): string[] {
   if (webOriginsFromEnv({ APP_WEB_ORIGINS: config.APP_WEB_ORIGINS }).origins.length === 0) {
     avisos.push('APP_WEB_ORIGINS vazio: o app web não consegue chamar a API pelo navegador (os apps iOS e Android seguem funcionando).')
   }
-  if (config.SMTP_URL === undefined) {
-    avisos.push('SMTP_URL ausente: sem envio de e-mail, convites e cadastro pelo app não chegam.')
+  if (config.SMTP_URL === undefined && config.RESEND_API_KEY === undefined) {
+    avisos.push('SMTP_URL e RESEND_API_KEY ausentes: sem envio de e-mail, convites e cadastro pelo app não chegam.')
   }
   if (config.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY === undefined) {
     avisos.push('NEXT_SERVER_ACTIONS_ENCRYPTION_KEY ausente na execução: a chave precisa estar disponível no build (build arg) e na execução, igual em todas as instâncias; sem ela, builds diferentes ou várias instâncias fazem as ações do painel falharem entre si (base64 de 32 bytes).')
@@ -149,9 +151,9 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
       path: ['DATABASE_USE_DIRECT_URL'],
       message: 'só vale com DIRECT_URL definida',
     })
-    .refine((v) => !(v.NODE_ENV === 'production' && v.NEXT_PHASE !== FASE_DE_BUILD && v.SMTP_URL !== undefined && v.MAIL_FROM === undefined), {
+    .refine((v) => !(v.NODE_ENV === 'production' && v.NEXT_PHASE !== FASE_DE_BUILD && (v.SMTP_URL !== undefined || v.RESEND_API_KEY !== undefined) && v.MAIL_FROM === undefined), {
       path: ['MAIL_FROM'],
-      message: 'em produção com SMTP_URL, informe o remetente (ex.: "Conta <contato@seudominio.com>")',
+      message: 'em produção com SMTP_URL ou RESEND_API_KEY, informe o remetente (ex.: "Conta <contato@seudominio.com>")',
     })
     .safeParse(source)
   if (!result.success) {

@@ -10,6 +10,9 @@ import type { RenderedMail } from './render-account'
 /** Marca da plataforma nos e-mails que ainda não pertencem a uma conta. */
 export const PLATFORM_MAIL_BRAND: Brand = { name: 'Agenda Flui', color: '#0B6E66' }
 
+/** Frase que todo e-mail de acesso traz: quem entra na equipe usa o app no dia a dia. */
+export const APP_LINE = 'Baixe o app Agenda Flui para ver sua agenda no celular.'
+
 const saudacao = (nome: string): string => `Olá, ${limpo(nome)}.`
 
 /** Convite do dono: o link leva à tela de definir a senha. O token só aparece dentro do link. */
@@ -20,6 +23,7 @@ export function renderOwnerInvite(i: { ownerName: string; businessName: string; 
     paragraphs: [
       saudacao(i.ownerName),
       `A conta ${conta} foi criada para você no Agenda Flui. Escolha sua senha para entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
+      APP_LINE,
       'Se você não esperava este e-mail, ignore-o: nada será feito sem a sua senha.',
     ],
     action: { label: 'Escolher minha senha', href: i.link },
@@ -35,6 +39,7 @@ export function renderAccessGranted(i: { ownerName: string; businessName: string
     paragraphs: [
       saudacao(i.ownerName),
       `Você agora tem acesso a ${conta} no Agenda Flui. Entre com o seu e-mail e a senha que você já usa. Se tiver mais de uma conta, escolha ${conta} na lista.`,
+      APP_LINE,
       'Se você não esperava este acesso, fale com o suporte do Agenda Flui.',
     ],
     action: { label: `Entrar em ${conta}`, href: i.entryLink },
@@ -50,6 +55,7 @@ export function renderMemberInvite(i: { name: string; businessName: string; role
     paragraphs: [
       saudacao(i.name),
       `Você foi adicionado à equipe de ${conta} no Agenda Flui, como ${limpo(i.roleLabel)}. Escolha sua senha para entrar. O link vale por ${i.ttlDays} dias e só pode ser usado uma vez.`,
+      APP_LINE,
       'Se você não esperava este e-mail, ignore-o: nada será feito sem a sua senha.',
     ],
     action: { label: 'Escolher minha senha', href: i.link },

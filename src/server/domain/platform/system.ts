@@ -5,8 +5,12 @@ import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import { auditPlatform } from '@/server/domain/audit'
 import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
+import { emailChannelKind, getEmailChannel, type EmailChannelKind } from '@/server/notifications/channels'
+import { ChannelError, isSafeRecipient, type ChannelErrorCode } from '@/server/notifications/channels/types'
+import { renderTestEmail } from '@/server/notifications/render-account'
+import { PLATFORM_MAIL_BRAND } from '@/server/notifications/render-invite'
 import { SCHEDULER_KINDS } from '@/server/notifications/scheduler-runs'
-import { addMinutes } from '@/server/time'
+import { addMinutes, toIsoInstant } from '@/server/time'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
@@ -146,4 +150,43 @@ export async function retryFailedNotification(actor: PlatformAdminActor, notific
       metadata: { kind: aviso.kind, channel: aviso.channel, previousError: aviso.lastError, previousAttempts: aviso.attempts },
     })
   })
+}
+
+export type TestEmailResult = { ok: boolean; channel: EmailChannelKind; error: ChannelErrorCode | null; to: string }
+
+/**
+ * Manda um e-mail de teste ao e-mail do próprio admin, para conferir o canal de envio. Devolve o resultado (nunca lança por
+ * falha de envio) e audita `system.test_email` só com `ok`, canal e código do erro: sem destinatário, corpo nem mensagem do provedor.
+ */
+export async function sendTestEmail(actor: PlatformAdminActor, now: Date): Promise<TestEmailResult> {
+  assertPlatformAdmin(actor)
+  const admin = await prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
+    return tx.platformAdmin.findUniqueOrThrow({ where: { id: actor.adminId }, select: { name: true, email: true } })
+  })
+  const channelKind = emailChannelKind()
+  const channel = getEmailChannel()
+  let error: ChannelErrorCode | null = null
+  if (!channel) error = 'not_configured'
+  else if (!isSafeRecipient(admin.email)) error = 'invalid_recipient'
+  else {
+    try {
+      await channel.send({ to: admin.email, fromName: PLATFORM_MAIL_BRAND.name, ...renderTestEmail(PLATFORM_MAIL_BRAND, { adminName: admin.name }) })
+    } catch (err) {
+      // Só o código curto: a mensagem do provedor pode trazer o endereço.
+      error = err instanceof ChannelError ? err.code : 'channel_error'
+    }
+  }
+  const result: TestEmailResult = { ok: error === null, channel: channel ? channelKind : 'none', error, to: admin.email }
+  await prisma.$transaction(async (tx) => {
+    await requireActiveAdmin(tx, actor)
+    await auditPlatform(tx, actor, {
+      businessId: null,
+      action: 'system.test_email',
+      targetType: 'system',
+      targetId: actor.adminId,
+      metadata: { ok: result.ok, channel: result.channel, error: result.error, at: toIsoInstant(now) },
+    })
+  })
+  return result
 }

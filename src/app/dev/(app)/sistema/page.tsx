@@ -8,7 +8,8 @@ import { DevFrame } from '../DevFrame'
 import { HorariosNota } from '../_lib/HorariosNota'
 import { quando, tamanho } from '../_lib/format'
 import { ExecucoesTable, FalhasTable, TabelasTable } from './SistemaTables'
-import { tentarDeNovo } from './actions'
+import { EmailDeTeste } from './EmailDeTeste'
+import { enviarEmailDeTeste, tentarDeNovo } from './actions'
 
 export const metadata: Metadata = { title: 'Sistema | Agenda Flui' }
 
@@ -52,6 +53,12 @@ export default async function SistemaPage() {
             <StatNumber size="md" label="Descartados em 24 h" value={queue.skipped24h} />
           </div>
           <p className="af-section__help">Mais antigo pendente: {queue.oldestPendingAt ? quando(queue.oldestPendingAt) : 'nenhum'}.</p>
+        </Card>
+
+        <Card className="af-listpanel">
+          <h2 className="af-section__title">E-mail</h2>
+          <p className="af-section__help">Manda uma mensagem de teste para o seu e-mail de admin e mostra se o envio funcionou.</p>
+          <EmailDeTeste acao={enviarEmailDeTeste} />
         </Card>
 
         <Card className="af-listpanel">

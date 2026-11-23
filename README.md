@@ -75,7 +75,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 - A API serve só aos apps próprios: não há chave. Mande a conta no cabeçalho `X-Business` (o `slug`, ex.: `patas-e-cia`).
   No navegador, só as origens de `APP_WEB_ORIGINS` recebem CORS (localhost é liberado fora de produção).
 - Em desenvolvimento, e-mails caem em `.local/mail` e pushes em `.local/push`.
-- Variáveis (veja `.env.example`): `APP_WEB_ORIGINS`, `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
+- Variáveis (veja `.env.example`): `APP_WEB_ORIGINS`, `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `RESEND_API_KEY`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
 - `npm run worker:once` roda uma rodada de envio de avisos e termina.
 
 ## Comandos
