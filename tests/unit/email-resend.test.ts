@@ -22,7 +22,7 @@ describe('canal Resend', () => {
     expect(cab.get('authorization')).toBe(`Bearer ${CHAVE}`)
     expect(cab.get('content-type')).toMatch(/application\/json/)
     expect(JSON.parse(String(init?.body))).toEqual({
-      from: 'Patas Felizes <contato@exemplo.com>',
+      from: '"Patas Felizes" <contato@exemplo.com>',
       to: ['maria@exemplo.test'],
       subject: msg.subject,
       text: msg.text,
@@ -31,10 +31,19 @@ describe('canal Resend', () => {
     expect(init?.signal).toBeInstanceOf(AbortSignal)
   })
 
-  test('sem fromName usa o remetente de MAIL_FROM como veio', async () => {
+  test('nome do remetente com vírgula ou aspas vai entre aspas (aspas internas nunca passam)', async () => {
+    const f = respostaFalsa(200)
+    await createResendChannel(CHAVE, 'Agenda Flui <contato@exemplo.com>', f).send({ ...msg, fromName: 'Barbearia do Zé, Centro' })
+    await createResendChannel(CHAVE, 'Agenda Flui <contato@exemplo.com>', f).send({ ...msg, fromName: 'Studio "Home"' })
+    const de = (i: number) => (JSON.parse(String(f.mock.calls[i]?.[1]?.body)) as { from: string }).from
+    expect(de(0)).toBe('"Barbearia do Zé, Centro" <contato@exemplo.com>')
+    expect(de(1)).toBe('"Studio  Home" <contato@exemplo.com>')
+  })
+
+  test('sem fromName usa o remetente de MAIL_FROM (nome entre aspas)', async () => {
     const f = respostaFalsa(200)
     await createResendChannel(CHAVE, 'Agenda Flui <contato@exemplo.com>', f).send(msg)
-    expect(JSON.parse(String(f.mock.calls[0]?.[1]?.body)).from).toBe('Agenda Flui <contato@exemplo.com>')
+    expect(JSON.parse(String(f.mock.calls[0]?.[1]?.body)).from).toBe('"Agenda Flui" <contato@exemplo.com>')
   })
 
   test('4xx e 5xx viram ChannelError channel_error sem o corpo da resposta', async () => {

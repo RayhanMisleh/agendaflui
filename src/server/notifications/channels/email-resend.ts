@@ -20,7 +20,7 @@ export function createResendChannel(apiKey: string, from: string, fetchImpl: typ
         resposta = await fetchImpl(ENDERECO_DA_API, {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from: name ? `${name} <${address}>` : address, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
+          body: JSON.stringify({ from: name ? `"${name.replace(/(["\\])/g, '\\$1')}" <${address}>` : address, to: [msg.to], subject: msg.subject, text: msg.text, html: msg.html }),
           signal: AbortSignal.timeout(TEMPO_LIMITE_MS),
         })
       } catch (err) {
