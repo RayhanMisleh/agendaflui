@@ -444,7 +444,7 @@
     width: 9rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-chip);
-    background: #fff;
+    background: var(--surface);
     overflow: hidden;
   }
   .af-custlink__qr svg {
