@@ -1,7 +1,9 @@
 'use client'
 import { useRouter } from 'next/navigation'
 import { Avatar, DataList, StatusDot } from '@/ui/components'
-import type { DataColumn } from '@/ui/components'
+import type { DataColumn, StateTone } from '@/ui/components'
+import { ACCESS_STATUS_LABEL } from '@/server/domain/team/access-status'
+import type { AccessStatus } from '@/server/domain/team/access-status'
 
 export type EquipeLinha = {
   id: string
@@ -10,15 +12,16 @@ export type EquipeLinha = {
   servicos: string[]
   ativo: boolean
   papel: string | null
-  acesso: 'ativo' | 'convite' | 'desativado' | 'sem'
+  acesso: AccessStatus
 }
 
-const ACESSO = {
-  ativo: { tone: 'success', label: 'Acesso ativo' },
-  convite: { tone: 'warning', label: 'Convite enviado' },
-  desativado: { tone: 'neutral', label: 'Acesso desativado' },
-  sem: { tone: 'neutral', label: 'Sem acesso ao painel' },
-} as const
+const ACESSO_TOM: Record<AccessStatus, StateTone> = {
+  active: 'success',
+  invited: 'warning',
+  invite_failed: 'danger',
+  inactive: 'neutral',
+  none: 'neutral',
+}
 
 /** A lista da equipe: a linha inteira abre a ficha. */
 export function EquipeTabela({ linhas, vazio }: { linhas: EquipeLinha[]; vazio: React.ReactNode }) {
@@ -40,7 +43,7 @@ export function EquipeTabela({ linhas, vazio }: { linhas: EquipeLinha[]; vazio: 
     {
       key: 'acesso',
       header: 'Acesso',
-      cell: (p) => <StatusDot tone={ACESSO[p.acesso].tone} label={ACESSO[p.acesso].label} {...(p.papel ? { detail: p.papel } : {})} />,
+      cell: (p) => <StatusDot tone={ACESSO_TOM[p.acesso]} label={ACCESS_STATUS_LABEL[p.acesso]} {...(p.papel ? { detail: p.papel } : {})} />,
     },
   ]
   return <DataList label="Equipe" columns={colunas} rows={linhas} rowKey={(p) => p.id} empty={vazio} stack="lg" onRowClick={(p) => router.push(`/equipe/${p.id}`)} />

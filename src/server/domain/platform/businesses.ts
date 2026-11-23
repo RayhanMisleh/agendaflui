@@ -8,7 +8,7 @@ import { Prisma } from '@/server/db/generated/client'
 import type { BusinessStatus } from '@/server/db/generated/client'
 import { normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
 import { DomainError, isUniqueViolation, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
-import { exigirSemOutraLoja, outraLoja, violouUmaLoja } from '@/server/domain/platform/access-core'
+import { exigirSemOutraLoja, marcarEnvio, outraLoja, violouUmaLoja } from '@/server/domain/platform/access-core'
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
@@ -449,8 +449,9 @@ export async function createBusiness(
           }
         }
         await exigirSemOutraLoja(tx, usuario.id, conta.id, 'owner.email')
+        let vinculo: { id: string }
         try {
-          await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' } })
+          vinculo = await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' }, select: { id: true } })
         } catch (err) {
           if (violouUmaLoja(err)) throw outraLoja('owner.email')
           throw err
@@ -461,7 +462,7 @@ export async function createBusiness(
           ownerUserId: usuario.id,
           ownerExisting: existente,
         })
-        return { businessId: conta.id, userId: usuario.id, ownerName: usuario.name, existing: existente, token: convite?.token ?? null }
+        return { businessId: conta.id, membershipId: vinculo.id, userId: usuario.id, ownerName: usuario.name, existing: existente, token: convite?.token ?? null }
       })
       const business = await lerDetalhe(feito.businessId)
       const emailSent = await enviarEmailDoDono({
@@ -470,6 +471,7 @@ export async function createBusiness(
         businessName: business.name,
         token: feito.token,
       })
+      await marcarEnvio(feito.membershipId, emailSent, now)
       return { business, owner: { userId: feito.userId, existing: feito.existing }, emailSent }
     } catch (err) {
       // Outro cadastro criou o mesmo usuário no meio do caminho: uma nova tentativa o encontra e só cria o vínculo.

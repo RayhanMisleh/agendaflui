@@ -5,6 +5,7 @@ import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
 import { OUTRA_LOJA_MESSAGE } from '@/server/domain/platform/access-core'
 import {
+  addTeamMember,
   changeAccessRole,
   inviteAccess,
   listAccess,
@@ -15,7 +16,7 @@ import {
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const AGORA = new Date('2026-11-17T12:00:00.000Z')
@@ -548,5 +549,96 @@ describe('uma loja por login da equipe', () => {
     const user = await makeUser()
     await makeMembership(businessId, user.id, 'MANAGER')
     await expect(makeMembership(await outraLoja(), user.id, 'MANAGER')).rejects.toMatchObject({ code: 'P2002' })
+  })
+})
+
+describe('addTeamMember: cadastro num passo e situação do convite', () => {
+  const membroDe = async (email: string) => prisma.membership.findFirstOrThrow({ where: { businessId, user: { email } }, include: { professionals: true } })
+
+  test('cria ficha, vínculo e convite numa transação e manda o e-mail', async () => {
+    const servico = await makeService(businessId, { name: 'Banho' })
+    const antes = await makeProfessional(businessId, { name: 'Antiga' })
+    const m = await addTeamMember(dono, { name: 'Duda Lima', email: 'Duda@Exemplo.test', role: 'PROFESSIONAL' })
+    expect(m).toMatchObject({ name: 'Duda Lima', email: 'duda@exemplo.test', role: 'PROFESSIONAL', active: true, hasPassword: false, inviteMailFailed: false })
+    expect(m.professionalId).not.toBeNull()
+    const vinculo = await membroDe('duda@exemplo.test')
+    expect(vinculo.professionals).toHaveLength(1)
+    const ficha = await prisma.professional.findUniqueOrThrow({ where: { id: m.professionalId ?? '' }, include: { services: true } })
+    expect(ficha).toMatchObject({ name: 'Duda Lima', membershipId: vinculo.id, commissionBps: 0, active: true })
+    expect(ficha.displayOrder).toBeGreaterThan(antes.displayOrder)
+    expect(ficha.services.map((s) => s.serviceId)).toEqual([servico.id])
+    expect(mailTo('duda@exemplo.test')).toHaveLength(1)
+    expect(mailTo('duda@exemplo.test')[0]?.text).toContain('/definir-senha/')
+    expect((await membroDe('duda@exemplo.test')).inviteMailFailedAt).toBeNull()
+  })
+
+  test('gerente também ganha a ficha e o convite', async () => {
+    const m = await addTeamMember(dono, { name: 'Gil Gerente', email: 'gil@exemplo.test', role: 'MANAGER' })
+    expect(m).toMatchObject({ role: 'MANAGER', inviteMailFailed: false })
+    expect(m.professionalId).not.toBeNull()
+  })
+
+  test('com o envio falhando o cadastro fica e inviteMailFailed é true, na lista também', async () => {
+    mail.failing = true
+    const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
+    expect(m.inviteMailFailed).toBe(true)
+    expect(m.professionalId).not.toBeNull()
+    expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).not.toBeNull()
+    expect((await listAccess(dono)).find((x) => x.membershipId === m.membershipId)?.inviteMailFailed).toBe(true)
+  })
+
+  test('sem canal de e-mail configurado conta como convite não enviado', async () => {
+    mail.uninstall()
+    const m = await addTeamMember(dono, { name: 'Fia Reis', email: 'fia@exemplo.test', role: 'PROFESSIONAL' })
+    expect(m.inviteMailFailed).toBe(true)
+  })
+
+  test('reenviar com sucesso limpa a falha; reenviar falhando mantém', async () => {
+    mail.failing = true
+    const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
+    await resendAccessInvite(dono, m.membershipId)
+    expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).not.toBeNull()
+    mail.failing = false
+    await resendAccessInvite(dono, m.membershipId)
+    expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).toBeNull()
+    expect((await listAccess(dono)).find((x) => x.membershipId === m.membershipId)?.inviteMailFailed).toBe(false)
+  })
+
+  test('e-mail de outra loja: conflict, nem ficha nem vínculo nem usuário novo', async () => {
+    const outra = await makeBusiness()
+    const alheio = await makeUser({ email: 'alheio@exemplo.test' })
+    await makeMembership(outra.id, alheio.id, 'MANAGER')
+    const fichas = await prisma.professional.count({ where: { businessId } })
+    const e = await domainError(addTeamMember(dono, { name: 'Alheio', email: 'alheio@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(fichas)
+    expect(await prisma.membership.count({ where: { businessId, userId: alheio.id } })).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  test('a mesma pessoa duas vezes: conflict e a segunda ficha não fica', async () => {
+    await addTeamMember(dono, { name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' })
+    const fichas = await prisma.professional.count({ where: { businessId } })
+    expect((await domainError(addTeamMember(dono, { name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('conflict')
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(fichas)
+  })
+
+  test('profissional não cadastra ninguém: forbidden', async () => {
+    expect((await domainError(addTeamMember(profissional, { name: 'X', email: 'x@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('forbidden')
+    expect(await prisma.user.count({ where: { email: 'x@exemplo.test' } })).toBe(0)
+  })
+
+  test('papel OWNER (ou desconhecido) em addTeamMember: validation no campo role', async () => {
+    for (const role of ['OWNER', 'ADMIN'] as const) {
+      const e = await domainError(addTeamMember(dono, { name: 'X', email: 'x@exemplo.test', role: role as 'MANAGER' }))
+      expect(e.code).toBe('validation')
+      expect(Object.keys(e.fields ?? {})).toEqual(['role'])
+    }
+    expect(await prisma.user.count({ where: { email: 'x@exemplo.test' } })).toBe(0)
+  })
+
+  test('e-mail vazio ou inválido: validation no campo email', async () => {
+    const e = await domainError(addTeamMember(dono, { name: 'X', email: '', role: 'PROFESSIONAL' }))
+    expect(Object.keys(e.fields ?? {})).toContain('email')
   })
 })

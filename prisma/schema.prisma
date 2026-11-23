@@ -455,6 +455,8 @@ model Membership {
   userId     String         @map("user_id") @db.Uuid
   role       MembershipRole
   active     Boolean        @default(true)
+  // Instante em que o e-mail de convite não foi aceito pelo canal; NULL quando saiu (ou ainda não houve envio).
+  inviteMailFailedAt DateTime? @map("invite_mail_failed_at") @db.Timestamptz(3)
   createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 

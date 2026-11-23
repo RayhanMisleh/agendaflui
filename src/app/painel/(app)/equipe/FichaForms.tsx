@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { MailCheck, Trash2, UserCheck, UserX } from 'lucide-react'
+import { MailCheck, MailWarning, Trash2, UserCheck, UserX } from 'lucide-react'
 import { Button, Checkbox, ConfirmDialog, EmptyHint, Field, Input, Select, Textarea, WeekScheduleEditor } from '@/ui/components'
 import type { WeekValue } from '@/ui/components'
+import { ACCESS_STATUS_LABEL } from '@/server/domain/team/access-status'
+import type { AccessStatus } from '@/server/domain/team/access-status'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
@@ -12,7 +14,7 @@ import {
   arquivarProfissional,
   bloquearHorario,
   convidarAcesso,
-  criarProfissional,
+  cadastrarNaEquipe,
   mudarPapelAcesso,
   redefinirSenhaAcesso,
   reenviarConviteAcesso,
@@ -64,25 +66,27 @@ export function DadosForm({ id, name, bio, commission, active, termo }: { id: st
   )
 }
 
-/** Cria a ficha: nome, apresentação, comissão e serviços. Depois de criar, abre a ficha. */
-export function NovoProfissionalForm({ servicos, singular }: { servicos: ServicoMarca[]; singular: string }) {
+const ROTULOS_CADASTRO = { name: 'Nome', email: 'E-mail', role: 'Papel' }
+
+/** Cadastro num passo: nome, e-mail e papel criam a ficha, o acesso e o convite. Depois de cadastrar, abre a ficha. */
+export function NovoProfissionalForm({ singular }: { singular: string }) {
   return (
-    <PainelForm action={criarProfissional} submit={`Cadastrar ${singular.toLowerCase()}`} labels={ROTULOS_DADOS}>
+    <PainelForm action={cadastrarNaEquipe} initial={estado({ role: 'PROFESSIONAL' })} submit="Cadastrar e enviar convite" labels={ROTULOS_CADASTRO}>
       {(state) => (
         <>
+          <p className="af-section__help">A pessoa recebe um e-mail para escolher a própria senha e entrar no painel e no app. Serviços, expediente e comissão você ajusta na ficha.</p>
           <Field label="Nome" error={state.fields.name}>
             <Input name="name" defaultValue={state.values.name ?? ''} maxLength={80} autoComplete="off" required />
           </Field>
-          <Field label="Apresentação" hint="Opcional." error={state.fields.bio}>
-            <Textarea name="bio" defaultValue={state.values.bio ?? ''} maxLength={500} rows={3} />
+          <Field label="E-mail" hint="O convite chega neste endereço." error={state.fields.email}>
+            <Input type="email" name="email" defaultValue={state.values.email ?? ''} autoComplete="off" required />
           </Field>
-          <Field label="Comissão (%)" hint="Por exemplo 30 ou 12,5. Pode ser 0." error={state.fields.commission}>
-            <Input name="commission" inputMode="decimal" defaultValue={state.values.commission ?? '0'} autoComplete="off" />
+          <Field label="Papel" error={state.fields.role}>
+            <Select name="role" defaultValue={state.values.role ?? 'PROFESSIONAL'}>
+              <option value="PROFESSIONAL">{singular}: vê a própria agenda</option>
+              <option value="MANAGER">Gerente: cuida da equipe, dos serviços e dos clientes</option>
+            </Select>
           </Field>
-          <fieldset className="af-iconpick">
-            <legend className="af-field__label">Serviços que faz</legend>
-            <ListaDeServicos servicos={servicos.map((s) => ({ ...s, does: true }))} />
-          </fieldset>
         </>
       )}
     </PainelForm>
@@ -183,7 +187,7 @@ export function BloqueioForm({ id, hoje }: { id: string; hoje: string }) {
   )
 }
 
-export type AcessoDados = { membershipId: string; email: string; name: string; role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL'; active: boolean; pending: boolean }
+export type AcessoDados = { membershipId: string; email: string; name: string; role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL'; status: AccessStatus }
 
 /** Convida a pessoa para entrar no painel, ligando o acesso a esta ficha. */
 export function ConviteForm({ id, nome, podeConvidarDono, termo }: { id: string; nome: string; podeConvidarDono: boolean; termo: string }) {
@@ -215,7 +219,10 @@ export function ConviteForm({ id, nome, podeConvidarDono, termo }: { id: string;
 /** O acesso ligado: papel, desativar, reenviar convite e redefinir a senha. */
 export function AcessoGestao({ acesso, suporte, podeDono, termo, nomeFicha }: { acesso: AcessoDados; suporte: boolean; podeDono: boolean; termo: string; nomeFicha: string }) {
   const [desativando, setDesativando] = useState(false)
-  const situacao = !acesso.active ? 'Desativado' : acesso.pending ? 'Convite enviado, esperando a senha' : 'Ativo'
+  const ativo = acesso.status !== 'inactive'
+  const convitePendente = acesso.status === 'invited' || acesso.status === 'invite_failed'
+  const falhou = acesso.status === 'invite_failed'
+  const situacao = acesso.status === 'invited' ? 'Convite enviado, esperando a senha' : ACCESS_STATUS_LABEL[acesso.status]
   return (
     <div className="af-careful">
       <div className="af-careful__row">
@@ -242,12 +249,12 @@ export function AcessoGestao({ acesso, suporte, podeDono, termo, nomeFicha }: { 
       </PainelForm>
       <div className="af-careful__row">
         <div className="af-careful__text">
-          <span className="af-careful__title">{acesso.active ? 'Desativar acesso' : 'Reativar acesso'}</span>
+          <span className="af-careful__title">{ativo ? 'Desativar acesso' : 'Reativar acesso'}</span>
           <span className="af-careful__help">
-            {acesso.active ? `${nomeFicha} sai do painel e do app na hora, em todos os aparelhos. A ficha continua.` : `${nomeFicha} volta a poder entrar com a senha que já tem.`}
+            {ativo ? `${nomeFicha} sai do painel e do app na hora, em todos os aparelhos. A ficha continua.` : `${nomeFicha} volta a poder entrar com a senha que já tem.`}
           </span>
         </div>
-        {acesso.active ? (
+        {ativo ? (
           <Button variant="secondary" icon={<UserX size={16} />} onClick={() => setDesativando(true)}>
             Desativar acesso
           </Button>
@@ -257,18 +264,22 @@ export function AcessoGestao({ acesso, suporte, podeDono, termo, nomeFicha }: { 
           </AcaoDeLinha>
         )}
       </div>
-      {acesso.active && acesso.pending ? (
+      {ativo && convitePendente ? (
         <div className="af-careful__row">
           <div className="af-careful__text">
-            <span className="af-careful__title">Reenviar convite</span>
-            <span className="af-careful__help">Manda um convite novo para {acesso.email}. O anterior deixa de valer.</span>
+            <span className="af-careful__title">{falhou ? 'Convite não enviado' : 'Reenviar convite'}</span>
+            <span className="af-careful__help">
+              {falhou
+                ? `O e-mail para ${acesso.email} não saiu, mas o cadastro ficou salvo. Confira o endereço e reenvie o convite.`
+                : `Manda um convite novo para ${acesso.email}. O anterior deixa de valer.`}
+            </span>
           </div>
-          <AcaoDeLinha action={reenviarConviteAcesso} campos={{ membershipId: acesso.membershipId }} icon={<MailCheck size={16} />} size="md" showOk>
+          <AcaoDeLinha action={reenviarConviteAcesso} campos={{ membershipId: acesso.membershipId }} icon={falhou ? <MailWarning size={16} /> : <MailCheck size={16} />} variant={falhou ? 'primary' : 'secondary'} size="md" showOk>
             Reenviar convite
           </AcaoDeLinha>
         </div>
       ) : null}
-      {acesso.active && !acesso.pending ? (
+      {ativo && !convitePendente ? (
         <div className="af-careful__row">
           <div className="af-careful__text">
             <span className="af-careful__title">Senha</span>

@@ -134,6 +134,13 @@ describe('createBusiness', () => {
     expect(r.emailSent).toBe(false)
     expect(await prisma.business.count()).toBe(1)
     expect(await prisma.userToken.count()).toBe(1)
+    // O vínculo do dono guarda que o convite não saiu (a ficha e a lista mostram "Convite não enviado").
+    expect((await prisma.membership.findFirstOrThrow({ where: { businessId: r.business.id } })).inviteMailFailedAt).not.toBeNull()
+  })
+
+  test('com o e-mail enviado, o vínculo do dono não fica marcado', async () => {
+    const r = await createBusiness(actor, base)
+    expect((await prisma.membership.findFirstOrThrow({ where: { businessId: r.business.id } })).inviteMailFailedAt).toBeNull()
   })
 
   test('sem canal de e-mail configurado, emailSent é falso', async () => {

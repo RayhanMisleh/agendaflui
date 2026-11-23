@@ -31,7 +31,7 @@ import {
   arquivarProfissional,
   bloquearHorario,
   convidarAcesso,
-  criarProfissional,
+  cadastrarNaEquipe,
   mudarPapelAcesso,
   redefinirSenhaAcesso,
   removerBloqueio,
@@ -145,13 +145,51 @@ describe('dados e comissão', () => {
     }
   })
 
-  test('cria o profissional com os serviços marcados e vai para a ficha', async () => {
-    const banho = await makeService(businessId, { name: 'Banho' })
-    await makeService(businessId, { name: 'Tosa' })
-    await expect(criarProfissional(ini, form({ name: 'Duda', bio: '', commission: '30', serviceIds: [banho.id] }))).rejects.toThrow(/NEXT_REDIRECT \/equipe\//)
-    const p = await prisma.professional.findFirstOrThrow({ where: { businessId }, include: { services: true } })
-    expect(p).toMatchObject({ name: 'Duda', commissionBps: 3000 })
-    expect(p.services.map((s) => s.serviceId)).toEqual([banho.id])
+  test('cadastrarNaEquipe grava ficha, acesso e convite e vai para a ficha nova', async () => {
+    const r = cadastrarNaEquipe(ini, form({ name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' }))
+    await expect(r).rejects.toThrow(/NEXT_REDIRECT \/equipe\//)
+    const p = await prisma.professional.findFirstOrThrow({ where: { businessId } })
+    expect(p.name).toBe('Duda')
+    const vinculo = await prisma.membership.findFirstOrThrow({ where: { id: p.membershipId ?? '' }, include: { user: true } })
+    expect(vinculo.user.email).toBe('duda@exemplo.test')
+    expect(mail.sent.filter((m) => m.to === 'duda@exemplo.test')).toHaveLength(1)
+  })
+
+  test('cadastrarNaEquipe redireciona para a ficha criada', async () => {
+    const e = await cadastrarNaEquipe(ini, form({ name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' })).then(() => null, (x: Error) => x)
+    const p = await prisma.professional.findFirstOrThrow({ where: { businessId } })
+    expect(e?.message).toBe(`NEXT_REDIRECT /equipe/${p.id}`)
+  })
+
+  test('cadastrarNaEquipe sem e-mail volta erro no campo email e não grava nada', async () => {
+    const r = await cadastrarNaEquipe(ini, form({ name: 'Duda', email: '', role: 'PROFESSIONAL' }))
+    expect(r.ok).toBe(false)
+    expect(Object.keys(r.fields)).toContain('email')
+    expect(r.values.name).toBe('Duda')
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(0)
+  })
+
+  test('cadastrarNaEquipe com e-mail de outra loja volta a frase no campo email', async () => {
+    const outra = await makeBusiness()
+    const alheio = await makeUser({ email: 'alheio@exemplo.test' })
+    await makeMembership(outra.id, alheio.id, 'MANAGER')
+    const r = await cadastrarNaEquipe(ini, form({ name: 'Alheio', email: 'alheio@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(r.ok).toBe(false)
+    expect(r.fields.email).toMatch(/outra loja/)
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(0)
+  })
+
+  test('papel de dono não passa por cadastrarNaEquipe', async () => {
+    const r = await cadastrarNaEquipe(ini, form({ name: 'Duda', email: 'duda@exemplo.test', role: 'OWNER' }))
+    expect(r.ok).toBe(false)
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(0)
+  })
+
+  test('profissional não cadastra ninguém', async () => {
+    const eu = await comoProfissional('Ana')
+    guards.requireTenant.mockResolvedValue(eu.ctx)
+    const r = await cadastrarNaEquipe(ini, form({ name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(r.message).toBe(NEGADO)
   })
 
   test('salva os serviços que a pessoa faz', async () => {

@@ -23,7 +23,7 @@ export default async function EquipePage() {
     servicos: r.serviceNames,
     ativo: r.professional.active === true,
     papel: r.access ? roleLabel(r.access.role, terms.professionalSingular) : null,
-    acesso: r.access ? (!r.access.active ? 'desativado' : r.access.pending ? 'convite' : 'ativo') : 'sem',
+    acesso: r.access?.status ?? 'none',
   }))
 
   return (
