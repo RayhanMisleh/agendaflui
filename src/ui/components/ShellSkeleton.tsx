@@ -76,7 +76,8 @@ function Corpo({ variant }: { variant: ShellSkeletonVariant }) {
  */
 export function ShellSkeleton({ variant }: { variant: ShellSkeletonVariant }) {
   return (
-    <div role="status" aria-busy="true" aria-label="Carregando" className="af-shell af-shell--skeleton">
+    <div role="status" className="af-shell af-shell--skeleton">
+      <span className="af-sr">Carregando</span>
       <div className="af-shell__frame">
         <div className="af-shell__side">
           <div className="af-shell__top">

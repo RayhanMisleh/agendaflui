@@ -94,6 +94,16 @@ describe('entrada da equipe', () => {
     expect(jsonObject(me.json).role).toBe('MANAGER')
   })
 
+  test('o login recusa Origin de fora com 403 e não tenta a senha', async () => {
+    const c = await novaConta()
+    await membro(c, 'OWNER', 'dono-origem@exemplo.test')
+    const r = await callRoute(
+      login,
+      apiRequest('POST', `${BASE}/login`, { origin: 'https://site-de-fora.example', body: { email: 'dono-origem@exemplo.test', password: SENHA }, headers: { 'x-forwarded-for': outroIp() } }),
+    )
+    expect(r.status).toBe(403)
+  })
+
   test('X-Business de outra loja é ignorado: entra na loja do próprio vínculo', async () => {
     const c = await novaConta()
     const outra = await novaConta()

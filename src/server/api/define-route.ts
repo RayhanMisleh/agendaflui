@@ -330,8 +330,9 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
       if (origin !== null) {
         cors = { vary: 'Origin' }
         if (originAllowed(origin, appWebOrigins())) cors = corsHeaders(origin)
-        // Rota pública responde a qualquer um, só sem CORS para origem de fora; rota de conta recusa a origem de fora.
-        else if (def.auth !== 'none') throw origemNegada()
+        // Rota pública responde a qualquer um, só sem CORS para origem de fora; rota de conta (e a de credencial, pública
+        // mas com limite próprio, como o login da equipe) recusa a origem de fora.
+        else if (def.auth !== 'none' || def.limit !== undefined) throw origemNegada()
       }
 
       const info: RequestInfo = requestMeta(request)

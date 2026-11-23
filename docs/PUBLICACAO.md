@@ -44,6 +44,10 @@ O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS 
 (até cerca de 60 s), confere fuso/travas/`btree_gist`, roda `prisma migrate deploy` (duas instâncias juntas são seguras: o
 Prisma usa trava consultiva do Postgres) e inicia o Next, repassando `SIGTERM`. `MIGRATE_ON_START=false` pula a migração.
 
+Se uma migração falhar, a partida para e as seguintes dão `P3009`. Corrija a causa (os dados que a migração recusou),
+rode `prisma migrate resolve --rolled-back <nome-da-migração>` e suba de novo. As migrações de 2026-11-23 (remoção da
+venda antiga e `um_vinculo_ativo`) rodam em transação: ao falhar, o banco volta ao estado anterior.
+
 ## Retenção
 
 O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias, uso da API com mais de 400 dias

@@ -17,13 +17,15 @@ test.each(ROTAS_COM_DADOS)('%s tem loading.tsx com ShellSkeleton', async (rota) 
   expect(readFileSync(arquivo, 'utf8')).toContain('ShellSkeleton')
   const { default: Loading } = (await import(/* @vite-ignore */ arquivo)) as { default: () => React.JSX.Element }
   render(<Loading />)
-  expect(screen.getByRole('status', { name: 'Carregando' })).toHaveAttribute('aria-busy', 'true')
+  expect(screen.getByRole('status')).toHaveTextContent('Carregando')
 })
 
 test.each(['dashboard', 'list', 'detail', 'planner'] as const)('ShellSkeleton %s anuncia carregamento', (variant) => {
   render(<ShellSkeleton variant={variant} />)
-  const estado = screen.getByRole('status', { name: 'Carregando' })
-  expect(estado).toHaveAttribute('aria-busy', 'true')
+  const estado = screen.getByRole('status')
+  expect(estado).toHaveTextContent('Carregando')
+  expect(estado).not.toHaveAttribute('aria-busy')
+  expect(estado.querySelector('.af-sr')).toHaveTextContent('Carregando')
   expect(estado.querySelector('.af-shell__side')).not.toBeNull()
   expect(estado.querySelectorAll('.af-skel').length).toBeGreaterThan(2)
 })
