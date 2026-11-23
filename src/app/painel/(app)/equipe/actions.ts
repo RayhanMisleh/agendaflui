@@ -8,7 +8,7 @@ import { createTimeBlock, deleteTimeBlock, previewTimeBlock } from '@/server/dom
 import { setWeekSchedule } from '@/server/domain/team/working-hours'
 import type { DayRanges, WeekSchedule } from '@/server/domain/team/working-hours'
 import { WEEKDAYS, isLocalDate, isLocalTime, parseMinuteLabel, toInstant } from '@/server/time'
-import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
+import { conviteNaoEnviado, erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
 import { DomainError } from '@/server/domain/errors'
 import { parsePercentBps } from '@/shared/percent'
@@ -254,12 +254,12 @@ export const reenviarConviteAcesso = tenantAction(
   'manage_team',
   (fd) => ler(fd, ['membershipId']),
   async (ctx, v) => {
-    await resendAccessInvite(ctx, v.membershipId ?? '')
+    const { inviteMailFailed } = await resendAccessInvite(ctx, v.membershipId ?? '')
     // A situação (enviado ou não) vem do banco: a ficha e a lista se atualizam e mostram o que aconteceu com o e-mail.
     atualizarPainel()
-    return 'Convite reenviado.'
+    return inviteMailFailed
   },
-  (mensagem, v) => feito(mensagem, v),
+  (falhou, v) => (falhou ? conviteNaoEnviado(v) : feito('Convite reenviado.', v)),
 )
 
 export const redefinirSenhaAcesso = tenantAction(

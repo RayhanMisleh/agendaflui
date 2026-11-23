@@ -39,3 +39,13 @@ export function renomear(err: unknown, mapa: Record<string, string>): unknown {
 export function feito(mensagem: string, v: Campos, extra: Campos = {}): EstadoCampos {
   return { ok: true, message: mensagem, fields: {}, values: { ...v, ...extra } }
 }
+
+/** O convite foi gerado, mas o e-mail não saiu: aviso (não é sucesso) com o que fazer, para o botão de reenviar ficar à mão. */
+export function conviteNaoEnviado(v: Campos): EstadoCampos {
+  return {
+    ok: false,
+    message: 'Convite não enviado. O cadastro ficou salvo, mas o e-mail não saiu. Confira o endereço e reenvie o convite.',
+    fields: {},
+    values: v,
+  }
+}

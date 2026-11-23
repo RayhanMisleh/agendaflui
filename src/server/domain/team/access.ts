@@ -74,8 +74,8 @@ export async function setAccessActive(ctx: TenantContext, membershipId: string, 
   )
 }
 
-/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. */
-export async function resendAccessInvite(ctx: TenantContext, membershipId: string): Promise<void> {
+/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Diz se o e-mail saiu. */
+export async function resendAccessInvite(ctx: TenantContext, membershipId: string): Promise<{ inviteMailFailed: boolean }> {
   authorize(ctx, 'manage_team')
   return reenviarConvite(comoConta(ctx), ctx.businessId, membershipId, ctx.clock())
 }

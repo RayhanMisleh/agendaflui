@@ -60,8 +60,8 @@ export async function setMemberActive(
   return alterarVinculo(comoAdmin(actor), await contaDoVinculo(membershipId), membershipId, (atual) => ({ role: atual.role, active }), now)
 }
 
-/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Só para acesso ativo. */
-export async function resendInvite(actor: PlatformAdminActor, membershipId: string, now: Date = new Date()): Promise<void> {
+/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Só para acesso ativo. Diz se o e-mail saiu. */
+export async function resendInvite(actor: PlatformAdminActor, membershipId: string, now: Date = new Date()): Promise<{ inviteMailFailed: boolean }> {
   assertPlatformAdmin(actor)
   return reenviarConvite(comoAdmin(actor), await contaDoVinculo(membershipId), membershipId, now)
 }

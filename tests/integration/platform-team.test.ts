@@ -291,6 +291,14 @@ describe('resendInvite', () => {
     expect(await prisma.auditLog.count({ where: { businessId, action: 'team.invite_resent' } })).toBe(1)
   })
 
+  test('devolve se o e-mail saiu: falha do canal vira inviteMailFailed true e a coluna fica marcada', async () => {
+    const m = await inviteMember(actor, businessId, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' }, AGORA)
+    expect(await resendInvite(actor, m.membershipId, AGORA)).toEqual({ inviteMailFailed: false })
+    mail.failing = true
+    expect(await resendInvite(actor, m.membershipId, AGORA)).toEqual({ inviteMailFailed: true })
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: m.membershipId } })).inviteMailFailedAt).not.toBeNull()
+  })
+
   test('quem já tem senha ou está desativado não recebe convite: conflict', async () => {
     const { membership } = await novoVinculo('MANAGER')
     expect((await domainError(resendInvite(actor, membership.id, AGORA))).code).toBe('conflict')

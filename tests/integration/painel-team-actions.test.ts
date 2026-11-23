@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi 
 import type { TenantContext } from '@/server/auth/actor'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
+import { addTeamMember } from '@/server/domain/team/access'
 import { getTeamSheet } from '@/server/domain/team/sheet'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
@@ -34,6 +35,7 @@ import {
   cadastrarNaEquipe,
   mudarPapelAcesso,
   redefinirSenhaAcesso,
+  reenviarConviteAcesso,
   removerBloqueio,
   salvarDadosProfissional,
   salvarExpediente,
@@ -382,6 +384,18 @@ describe('acessos', () => {
     expect(vinculo).toMatchObject({ role: 'PROFESSIONAL', active: true, businessId })
     expect(vinculo.user.email).toBe('caio@exemplo.com')
     expect(mail.sent.filter((m) => m.to === 'caio@exemplo.com')).toHaveLength(1)
+  })
+
+  test('reenviar convite: com o e-mail saindo confirma; falhando diz "Convite não enviado" e o cadastro fica', async () => {
+    const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
+    const ok = await reenviarConviteAcesso(ini, form({ membershipId: m.membershipId }))
+    expect(ok).toMatchObject({ ok: true, message: 'Convite reenviado.' })
+    mail.failing = true
+    const falha = await reenviarConviteAcesso(ini, form({ membershipId: m.membershipId }))
+    expect(falha.ok).toBe(false)
+    expect(falha.message).toMatch(/^Convite não enviado/)
+    expect(falha.message).not.toMatch(/reenviado/)
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: m.membershipId } })).inviteMailFailedAt).not.toBeNull()
   })
 
   test('gerente não convida dono; profissional não convida ninguém', async () => {

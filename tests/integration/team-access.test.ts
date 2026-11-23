@@ -596,10 +596,10 @@ describe('addTeamMember: cadastro num passo e situação do convite', () => {
   test('reenviar com sucesso limpa a falha; reenviar falhando mantém', async () => {
     mail.failing = true
     const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
-    await resendAccessInvite(dono, m.membershipId)
+    expect(await resendAccessInvite(dono, m.membershipId)).toEqual({ inviteMailFailed: true })
     expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).not.toBeNull()
     mail.failing = false
-    await resendAccessInvite(dono, m.membershipId)
+    expect(await resendAccessInvite(dono, m.membershipId)).toEqual({ inviteMailFailed: false })
     expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).toBeNull()
     expect((await listAccess(dono)).find((x) => x.membershipId === m.membershipId)?.inviteMailFailed).toBe(false)
   })

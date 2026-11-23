@@ -14,9 +14,17 @@ vi.mock('@/server/storage/storage', async (original) => {
   const real = await original<typeof import('@/server/storage/storage')>()
   return { ...real, getStorage: () => disco.storage ?? real.getStorage() }
 })
+const canal = vi.hoisted(() => ({ falha: false }))
 vi.mock('@/server/notifications/channels', async (original) => {
   const real = await original<typeof import('@/server/notifications/channels')>()
-  return { ...real, getEmailChannel: () => ({ send: vi.fn(async () => undefined) }) }
+  return {
+    ...real,
+    getEmailChannel: () => ({
+      send: vi.fn(async () => {
+        if (canal.falha) throw new Error('falha de envio simulada')
+      }),
+    }),
+  }
 })
 
 import {
@@ -283,7 +291,21 @@ describe('equipe', () => {
     expect(r.ok).toBe(false)
     expect(r.message).toMatch(/já definiu a senha/)
     const pendente = await makeMembership(conta.id, (await makeUser({ password: null })).id, 'MANAGER')
-    expect((await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))).ok).toBe(true)
+    const enviado = await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))
+    expect(enviado).toMatchObject({ ok: true, message: 'Convite reenviado.' })
+  })
+
+  test('reenviar convite com o e-mail falhando diz "Convite não enviado", não "reenviado"', async () => {
+    const conta = await makeBusiness()
+    const pendente = await makeMembership(conta.id, (await makeUser({ password: null })).id, 'MANAGER')
+    canal.falha = true
+    try {
+      const r = await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))
+      expect(r.ok).toBe(false)
+      expect(r.message).toMatch(/^Convite não enviado/)
+    } finally {
+      canal.falha = false
+    }
   })
 })
 

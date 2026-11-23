@@ -1,6 +1,6 @@
 'use client'
 import { useActionState, useState } from 'react'
-import { ConfirmDialog, DataList, EmptyState, Button, Field, Input, Select, StatusBadge } from '@/ui/components'
+import { ConfirmDialog, DataList, EmptyState, Button, Field, Input, Select, StatusBadge, StatusDot } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import { estadoInicial } from './forms'
 import type { AcaoConta } from './forms'
@@ -15,6 +15,8 @@ export type Membro = {
   role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL'
   active: boolean
   hasPassword: boolean
+  /** O último e-mail de convite não saiu (vem do banco). */
+  inviteMailFailed: boolean
   lastLogin: string | null
 }
 
@@ -167,7 +169,13 @@ export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Mem
       cell: (m) => (
         <span className="af-teamstate">
           <StatusBadge tone={m.active ? 'confirmed' : 'neutral'}>{m.active ? 'Ativo' : 'Desativado'}</StatusBadge>
-          {m.active && !m.hasPassword ? <span className="af-account__slug">Convite pendente</span> : null}
+          {m.active && !m.hasPassword ? (
+            m.inviteMailFailed ? (
+              <StatusDot tone="danger" label="Convite não enviado" />
+            ) : (
+              <span className="af-account__slug">Convite pendente</span>
+            )
+          ) : null}
         </span>
       ),
     },

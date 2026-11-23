@@ -471,8 +471,11 @@ const MEMBRO = {
   user: { select: { id: true, name: true, email: true, passwordHash: true } },
 } satisfies Prisma.MembershipSelect
 
-/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Só para acesso ativo. */
-export async function reenviarConvite(autor: Autor, businessId: string, membershipId: string, now: Date): Promise<void> {
+/**
+ * Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Só para acesso ativo. Devolve se o e-mail
+ * saiu: `inviteMailFailed` é `true` quando o canal não aceitou (o convite novo existe, mas ninguém o recebeu).
+ */
+export async function reenviarConvite(autor: Autor, businessId: string, membershipId: string, now: Date): Promise<{ inviteMailFailed: boolean }> {
   if (autor.kind === 'admin') assertPlatformAdmin(autor.actor)
   if (!UUID.test(membershipId) || !UUID.test(businessId)) throw vinculoInexistente()
   const feito = await prisma.$transaction(async (tx) => {
@@ -502,6 +505,7 @@ export async function reenviarConvite(autor: Autor, businessId: string, membersh
     }),
   )
   await marcarEnvio(membershipId, enviado, now)
+  return { inviteMailFailed: !enviado }
 }
 
 /**
