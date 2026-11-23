@@ -2,8 +2,6 @@ import type { Metadata } from 'next'
 import { Card } from '@/ui/components'
 import { getCustomization } from '@/server/domain/platform/customization'
 import { RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
-import { timeZoneChoices } from '@/server/time'
-import { FUSOS } from '../../nova/fields'
 import { carregarConta } from '../_data'
 import { salvarAvisos, salvarRegras } from '../actions'
 import { tiposDeAviso } from '@/app/_lib/avisos'
@@ -14,9 +12,7 @@ export const metadata: Metadata = { title: 'Regras da conta | AgendaFlui' }
 export default async function RegrasPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { admin, conta } = await carregarConta(id)
-  const { rules, timeZone, notifications } = await getCustomization(admin, conta.id)
-  const { top, rest } = timeZoneChoices(FUSOS.map((f) => f.value))
-  const fusos = { top: FUSOS.filter((f) => top.includes(f.value)), rest }
+  const { rules, notifications } = await getCustomization(admin, conta.id)
   const lista = tiposDeAviso()
   const avisos: Record<string, string> = { version: String(rules.version) }
   for (const a of lista) {
@@ -27,11 +23,10 @@ export default async function RegrasPage({ params }: { params: Promise<{ id: str
   return (
     <>
       <Card className="af-listpanel">
-        <h2 className="af-section__title">Regras de agenda e fuso</h2>
+        <h2 className="af-section__title">Regras de agenda</h2>
         <RegrasForm
           key={rules.version}
           action={salvarRegras.bind(null, conta.id)}
-          fusos={fusos}
           grades={SLOT_STEPS}
           limites={RULE_LIMITS}
           valores={{
@@ -41,7 +36,6 @@ export default async function RegrasPage({ params }: { params: Promise<{ id: str
             customerChangeWindowMin: String(rules.customerChangeWindowMin),
             bufferMin: String(rules.bufferMin),
             autoConfirm: rules.autoConfirm ? 'on' : '',
-            timeZone,
             version: String(rules.version),
           }}
         />

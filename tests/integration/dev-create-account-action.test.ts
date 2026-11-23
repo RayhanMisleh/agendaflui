@@ -43,19 +43,13 @@ function formulario(extra: Record<string, string> = {}): FormData {
   const base: Record<string, string> = {
     name: 'Pata Viva',
     slug: 'pata-viva',
-    timeZone: 'America/Sao_Paulo',
-    legalName: '',
     document: '',
     contactEmail: '',
     contactPhone: '',
-    internalNotes: '',
     displayName: 'Pata Viva Pet Shop',
     primary: '#2f6b4f',
     accent: '#E8833A',
     material: 'LINEN',
-    paper: 'CREAM',
-    fontPair: 'FRIENDLY',
-    loginMessage: 'Bem-vindo de volta.',
     professionalSingular: 'Tosador',
     professionalPlural: 'Tosadores',
     customerSingular: 'Tutor',
@@ -122,7 +116,6 @@ describe('criar conta pela ação do assistente', () => {
     expect(conta.branding?.displayName).toBe('Pata Viva Pet Shop')
     expect(conta.branding?.primaryColor).toBe('#2F6B4F')
     expect(conta.branding?.coverMaterial).toBe('LINEN')
-    expect(conta.branding?.paperTone).toBe('CREAM')
     expect(conta.settings?.termProfessionalSingular).toBe('Tosador')
     expect(conta.settings?.termClub).toBe('Clube Pata')
     expect(conta.settings?.slotStepMin).toBe(30)

@@ -143,14 +143,14 @@ describe('audit em transação', () => {
 })
 
 describe('Business em tenantDb: campos permitidos', () => {
-  test('situação, slug, fuso e observações internas lançam; name funciona', async () => {
+  test('situação, slug, fuso e chave de busca lançam; name funciona', async () => {
     const a = await makeBusiness()
     const ctx = await makeCtx(a)
     for (const data of [
       { status: 'SUSPENDED' as const },
       { slug: 'outro' },
       { timezone: 'America/Manaus' },
-      { internalNotes: 'x' },
+      { searchName: 'x' },
     ]) {
       await expect(ctx.db.business.update({ where: { id: a.id }, data })).rejects.toThrow(TenantViolationError)
       await expect(ctx.db.business.updateMany({ data })).rejects.toThrow(TenantViolationError)

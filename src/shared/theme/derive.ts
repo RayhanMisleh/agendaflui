@@ -3,14 +3,10 @@ import { contrastRatio, hexToOklch, mix, normalizeHex, oklchToHex } from './colo
 // Mesmos valores dos enums do Prisma; declarados aqui porque src/shared não importa de src/server (nem de src/ui).
 // Os valores gravados no banco não mudam: só o sentido na tela (ver `labels.ts`).
 export type CoverMaterial = 'LEATHER' | 'LINEN' | 'WOOD' | 'ENAMEL'
-export type PaperTone = 'WHITE' | 'CREAM' | 'GRAY'
-export type FontPair = 'CLASSIC' | 'MODERN' | 'FRIENDLY'
 export type ThemeScheme = 'day' | 'night'
 
 /** Opções curadas (listas fechadas): o formulário e a validação do servidor usam estas mesmas. */
 export const COVER_MATERIALS = ['LEATHER', 'LINEN', 'WOOD', 'ENAMEL'] as const satisfies readonly CoverMaterial[]
-export const PAPER_TONES = ['WHITE', 'CREAM', 'GRAY'] as const satisfies readonly PaperTone[]
-export const FONT_PAIRS = ['CLASSIC', 'MODERN', 'FRIENDLY'] as const satisfies readonly FontPair[]
 
 /**
  * Sinais objetivos do motor, na ordem em que saem:
@@ -42,8 +38,6 @@ export type BrandInput = {
   primary: string
   accent: string
   material: CoverMaterial
-  paper: PaperTone
-  fontPair: FontPair
   /** `day` (padrão) é o painel do negócio; `night` é o tema escuro da marca (painel dev). */
   scheme?: ThemeScheme
 }
@@ -62,7 +56,6 @@ export type ThemeTokens = {
   vars: Record<ThemeVar, string>
   scheme: ThemeScheme
   material: 'leather' | 'linen' | 'wood' | 'enamel'
-  fontPair: 'classic' | 'modern' | 'friendly'
   warnings: string[]
   /** Os mesmos avisos como códigos estáveis (para a prévia e para testes). */
   signals: ThemeWarning[]
@@ -97,20 +90,11 @@ const NIGHT = {
   onBrand: '#062421',
 } as const
 
-const FONTS: Record<FontPair, { display: string; sans: string }> = {
-  CLASSIC: {
-    display: "var(--font-bricolage, 'Bricolage Grotesque'), var(--font-figtree, Figtree), system-ui, sans-serif",
-    sans: 'var(--font-figtree, Figtree), system-ui, sans-serif',
-  },
-  MODERN: {
-    display: "var(--font-display-modern, 'Schibsted Grotesk'), system-ui, sans-serif",
-    sans: 'var(--font-figtree, Figtree), system-ui, sans-serif',
-  },
-  FRIENDLY: {
-    display: "var(--font-display-friendly, Fredoka), 'Trebuchet MS', sans-serif",
-    sans: 'var(--font-figtree, Figtree), system-ui, sans-serif',
-  },
-}
+// O par de fontes da marca Agenda Flui é fixo para toda conta: Bricolage Grotesque nos títulos, Figtree no texto.
+const FONT = {
+  display: "var(--font-bricolage, 'Bricolage Grotesque'), var(--font-figtree, Figtree), system-ui, sans-serif",
+  sans: 'var(--font-figtree, Figtree), system-ui, sans-serif',
+} as const
 
 type Tone = { l?: number; dl?: number; c?: number; cMax?: number; dh?: number }
 
@@ -172,14 +156,12 @@ function foam(brand: string): string {
 }
 
 type Ground = { ground: string; surface: string; line: string }
-function groundFor(paper: PaperTone, brand: string): Ground {
-  if (paper === 'WHITE') return { ground: WHITE, surface: WHITE, line: mix(DAY.line, INK, 0.12) }
-  if (paper === 'GRAY') return { ground: '#F4F5F5', surface: WHITE, line: '#D9DDDD' }
+/** Fundo fixo "Espuma": quase branco, com um sopro da cor da conta. */
+function groundFor(brand: string): Ground {
   return { ground: foam(brand), surface: WHITE, line: DAY.line }
 }
 
 const MATERIALS = { LEATHER: 'leather', LINEN: 'linen', WOOD: 'wood', ENAMEL: 'enamel' } as const
-const FONT_NAMES = { CLASSIC: 'classic', MODERN: 'modern', FRIENDLY: 'friendly' } as const
 
 type Palette = {
   brand: string
@@ -272,7 +254,7 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
       onBrand = WHITE
       textAdjusted = true
     }
-    ground = groundFor(input.paper, brand)
+    ground = groundFor(brand)
   }
 
   const tint = tintOf(brand, night)
@@ -300,7 +282,6 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
   const side = sidebar(input.material, palette, primary)
   if (input.material === 'LINEN' && contrastRatio(side['--side-bg'], ground.ground) < SIDEBAR_GROUND_MIN_CONTRAST) signals.push('sidebar_near_ground')
 
-  const font = FONTS[input.fontPair]
   const vars: ThemeTokens['vars'] = {
     '--brand': brand,
     '--brand-strong': strong,
@@ -320,15 +301,14 @@ export function deriveTheme(input: BrandInput): ThemeTokens {
     '--danger': night ? NIGHT.danger : DAY.danger,
     '--danger-tint': night ? NIGHT.dangerTint : DAY.dangerTint,
     ...side,
-    '--font-display': font.display,
-    '--font-sans': font.sans,
+    '--font-display': FONT.display,
+    '--font-sans': FONT.sans,
   }
 
   return {
     vars,
     scheme,
     material: MATERIALS[input.material],
-    fontPair: FONT_NAMES[input.fontPair],
     warnings: signals.map((s) => THEME_WARNING_TEXT[s]),
     signals,
   }

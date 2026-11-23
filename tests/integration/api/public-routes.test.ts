@@ -36,7 +36,7 @@ describe('GET /v1/business', () => {
     expect(chavesDe(r.json).sort()).toEqual(
       [
         'id', 'slug', 'name', 'timeZone',
-        'brand', 'brand.logoUrl', 'brand.symbolUrl', 'brand.primary', 'brand.accent', 'brand.material', 'brand.paper', 'brand.fontPair', 'brand.tokens',
+        'brand', 'brand.logoUrl', 'brand.symbolUrl', 'brand.primary', 'brand.accent', 'brand.material', 'brand.tokens',
         'terms', 'terms.professional', 'terms.professional.singular', 'terms.professional.plural',
         'terms.customer', 'terms.customer.singular', 'terms.customer.plural',
         'terms.points', 'terms.points.singular', 'terms.points.plural', 'terms.club',
@@ -44,7 +44,7 @@ describe('GET /v1/business', () => {
         'rules', 'rules.slotStepMin', 'rules.minLeadMin', 'rules.maxAdvanceDays', 'rules.customerChangeWindowMin',
       ].sort(),
     )
-    for (const proibido of ['nota-interna-secreta', '12.345.678', 'contato-interno@', '5511999990000', 'internalNotes', 'document', 'passwordHash']) {
+    for (const proibido of ['12.345.678', 'contato-interno@', '5511999990000', 'internalNotes', 'legalName', 'document', 'passwordHash']) {
       expect(r.text, proibido).not.toContain(proibido)
     }
   })

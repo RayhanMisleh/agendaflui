@@ -7,7 +7,7 @@ import { replaceBrandImage } from '@/server/domain/platform/brand-image'
 import { displayNameSchema, readTerms, termsOf, updateTermsOf, type Terms } from '@/server/domain/settings/terms'
 import { staleSettings } from '@/server/domain/settings/versioned'
 import { uploadUrl } from '@/server/storage/images'
-import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
+import type { CoverMaterial } from '@/shared/theme/derive'
 
 export type BusinessProfile = {
   name: string
@@ -148,13 +148,11 @@ export function updateTermsAsOwner(ctx: TenantContext, version: number, input: T
   return updateTermsOf(ctx, input, parse(versionSchema, version))
 }
 
-/** O visual da conta como o painel dev gravou: o dono só vê (e troca a logo); cores, barra lateral, fundo e fontes são do painel dev. */
+/** O visual da conta como o painel dev gravou: o dono só vê (e troca a logo); cores e barra lateral são do painel dev. */
 export type BusinessAppearance = {
   primary: string
   accent: string
   material: CoverMaterial
-  paper: PaperTone
-  fontPair: FontPair
   logoUrl: string | null
 }
 
@@ -163,9 +161,9 @@ export async function getBusinessAppearance(ctx: TenantContext): Promise<Busines
   const m = orNotFound(
     await ctx.db.businessBranding.findUnique({
       where: { businessId: ctx.businessId },
-      select: { primaryColor: true, accentColor: true, coverMaterial: true, paperTone: true, fontPair: true, logo: { select: { path: true } } },
+      select: { primaryColor: true, accentColor: true, coverMaterial: true, logo: { select: { path: true } } },
     }),
     'Marca da conta',
   )
-  return { primary: m.primaryColor, accent: m.accentColor, material: m.coverMaterial, paper: m.paperTone, fontPair: m.fontPair, logoUrl: uploadUrl(m.logo) }
+  return { primary: m.primaryColor, accent: m.accentColor, material: m.coverMaterial, logoUrl: uploadUrl(m.logo) }
 }

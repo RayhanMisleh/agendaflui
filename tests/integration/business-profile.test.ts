@@ -141,9 +141,6 @@ describe('dados do negócio', () => {
       primary: marca.primaryColor,
       accent: marca.accentColor,
       material: marca.coverMaterial,
-      paper: marca.paperTone,
-      fontPair: marca.fontPair,
-      loginMessage: marca.loginMessage,
     }
     await updateBrand(admin, b.id, marca.version, entrada)
     const dono = await domainError(updateBusinessProfile(ctx, lida.version, { name: lida.name, contactEmail: lida.contactEmail, contactPhone: '11999990000' }))

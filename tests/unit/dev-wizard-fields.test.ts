@@ -17,7 +17,7 @@ test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 
 test('campos do domínio com nome diferente caem na etapa certa (owner.email)', () => {
   expect(stepOfField('owner.email')).toBe(5)
   expect(stepOfField('owner.name')).toBe(5)
-  expect(stepOfField('timeZone')).toBe(0)
+  expect(stepOfField('timeZone')).toBeNull()
 })
 
 test('firstStepWithError devolve a primeira etapa com erro, pela ordem das etapas e não dos campos', () => {

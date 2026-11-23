@@ -41,7 +41,7 @@ test('StepRail: sem JavaScript os itens são âncoras para a seção de cada eta
 
 test('SidebarStylePicker: grupo de opções com rótulo, uma marcada, nome para o formulário', async () => {
   const onChange = vi.fn()
-  render(<SidebarStylePicker name="material" value="LEATHER" onChange={onChange} primary="#7A1F2B" accent="#E0A030" paper="CREAM" fontPair="CLASSIC" />)
+  render(<SidebarStylePicker name="material" value="LEATHER" onChange={onChange} primary="#7A1F2B" accent="#E0A030" />)
   expect(screen.getByRole('radiogroup', { name: 'Barra lateral' })).toBeInTheDocument()
   expect(screen.getAllByRole('radio')).toHaveLength(4)
   expect(screen.getByRole('radio', { name: 'Cheia' })).toBeChecked()
@@ -51,7 +51,7 @@ test('SidebarStylePicker: grupo de opções com rótulo, uma marcada, nome para 
 })
 
 test('SidebarStylePicker: cada opção tem miniatura e descrição ligada por aria-describedby', () => {
-  const { container } = render(<SidebarStylePicker name="material" value="LINEN" onChange={() => {}} primary="#0B6E66" accent="#F2A93B" paper="CREAM" fontPair="CLASSIC" />)
+  const { container } = render(<SidebarStylePicker name="material" value="LINEN" onChange={() => {}} primary="#0B6E66" accent="#F2A93B" />)
   expect(container.querySelectorAll('.af-sidepick__thumb')).toHaveLength(4)
   expect(screen.getByRole('radio', { name: 'Suave' })).toBeChecked()
   expect(screen.getByRole('radio', { name: 'Clara' })).toHaveAccessibleDescription('Branca, com o item ativo em tom suave.')

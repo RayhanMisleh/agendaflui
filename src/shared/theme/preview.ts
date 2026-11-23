@@ -1,6 +1,6 @@
 import { deriveTheme, type BrandInput, type ThemeTokens, type ThemeWarning } from './derive'
 
-export { COVER_MATERIALS, FONT_PAIRS, PAPER_TONES, SIDEBAR_GROUND_MIN_CONTRAST } from './derive'
+export { COVER_MATERIALS, SIDEBAR_GROUND_MIN_CONTRAST } from './derive'
 export type { ThemeWarning } from './derive'
 
 type ThemeInput = BrandInput

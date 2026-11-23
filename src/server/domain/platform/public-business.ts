@@ -19,8 +19,6 @@ export type PublicBusiness = {
     primary: string
     accent: string
     material: 'LEATHER' | 'LINEN' | 'WOOD' | 'ENAMEL'
-    paper: 'WHITE' | 'CREAM' | 'GRAY'
-    fontPair: 'CLASSIC' | 'MODERN' | 'FRIENDLY'
     /** Variáveis de tema derivadas da marca (`--brand`, `--accent` …), prontas para o app aplicar. */
     tokens: Record<string, string>
   }
@@ -29,7 +27,7 @@ export type PublicBusiness = {
   rules: { slotStepMin: number; minLeadMin: number; maxAdvanceDays: number; customerChangeWindowMin: number }
 }
 
-// Seleção explícita: documento, contato, observações internas e situação da conta nunca são lidos.
+// Seleção explícita: documento, contato e situação da conta nunca são lidos.
 const SELECAO = {
   id: true,
   slug: true,
@@ -41,8 +39,6 @@ const SELECAO = {
       primaryColor: true,
       accentColor: true,
       coverMaterial: true,
-      paperTone: true,
-      fontPair: true,
       logo: { select: { path: true } },
       symbol: { select: { path: true } },
     },
@@ -74,8 +70,6 @@ export async function getPublicBusiness(businessId: string): Promise<PublicBusin
     primary: branding.primaryColor,
     accent: branding.accentColor,
     material: branding.coverMaterial,
-    paper: branding.paperTone,
-    fontPair: branding.fontPair,
   })
   return {
     id: row.id,
@@ -88,8 +82,6 @@ export async function getPublicBusiness(businessId: string): Promise<PublicBusin
       primary: branding.primaryColor,
       accent: branding.accentColor,
       material: branding.coverMaterial,
-      paper: branding.paperTone,
-      fontPair: branding.fontPair,
       tokens: { ...theme.vars },
     },
     terms: {

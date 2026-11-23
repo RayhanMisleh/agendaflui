@@ -37,7 +37,7 @@ const FONT = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 /** Cores da moldura, tiradas do tema da conta (os mesmos tokens do painel): cabeçalho na cor da conta com `on-brand`. */
 function palette(color: string) {
   const valid = COR_VALIDA.test(color) ? color : COR_PADRAO
-  const { vars } = deriveTheme({ primary: valid, accent: '#F2A93B', material: 'LEATHER', paper: 'CREAM', fontPair: 'CLASSIC' })
+  const { vars } = deriveTheme({ primary: valid, accent: '#F2A93B', material: 'LEATHER' })
   return {
     bg: vars['--brand'],
     fg: vars['--on-brand'],

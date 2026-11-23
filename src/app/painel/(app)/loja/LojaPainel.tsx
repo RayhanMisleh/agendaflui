@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Archive, ArrowDown, ArrowUp, Package, Pencil } from 'lucide-react'
-import { Button, Checkbox, ConfirmDialog, DataList, EmptyState, Field, Input, LinkButton, Sheet, StatusDot, Textarea } from '@/ui/components'
+import { Button, Checkbox, ConfirmDialog, DataList, EmptyState, Field, Input, LinkButton, MaskedInput, Sheet, StatusDot, Textarea } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import { formatInt, formatMoney } from '@/ui/format'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
@@ -297,7 +297,7 @@ export function ConfiguracoesForm({ dados, mercadoPago, frenet }: { dados: Confi
             <h2 className="af-section__title">Entrega pelos Correios e transportadoras</h2>
             <Checkbox id="loja-entrega" name="shippingEnabled" label="Entregar os pedidos na casa do cliente" defaultChecked={v.shippingEnabled === 'on'} />
             <Field label="CEP de origem" hint="De onde saem os pedidos. Obrigatório para ligar a entrega." error={state.fields.originPostalCode}>
-              <Input id="loja-cep" name="originPostalCode" inputMode="numeric" autoComplete="off" maxLength={9} defaultValue={v.originPostalCode ?? ''} />
+              <MaskedInput mask="cep" id="loja-cep" name="originPostalCode" autoComplete="off" defaultValue={v.originPostalCode ?? ''} />
             </Field>
             <p className="af-section__help">Pacote padrão: vale para os produtos que não têm medidas próprias.</p>
             <div className="af-formgrid">

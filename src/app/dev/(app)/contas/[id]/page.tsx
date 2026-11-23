@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { StatNumber, Card } from '@/ui/components'
 import { DomainError } from '@/server/domain/errors'
+import { formatPhone } from '@/server/domain/customers/contact'
 import { getAccountMetrics } from '@/server/domain/platform/metrics'
 import { formatBrl } from '@/server/notifications/render'
 import { HorariosNota } from '../../_lib/HorariosNota'
@@ -76,11 +77,9 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
             version: String(conta.version),
             name: conta.name,
             slug: conta.slug,
-            legalName: conta.legalName ?? '',
             document: conta.document ?? '',
             contactEmail: conta.contactEmail ?? '',
-            contactPhone: conta.contactPhone ?? '',
-            internalNotes: conta.internalNotes ?? '',
+            contactPhone: conta.contactPhone ? formatPhone(conta.contactPhone) : '',
           }}
         />
       </Card>

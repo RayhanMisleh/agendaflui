@@ -34,7 +34,6 @@ afterEach(() => mail.uninstall())
 const base = {
   name: 'Barbearia Central',
   slug: 'central',
-  timeZone: 'america/manaus',
   owner: { name: 'João Silva', email: 'Joao@Exemplo.test' },
 }
 
@@ -49,7 +48,7 @@ const UUID_INEXISTENTE = '00000000-0000-4000-8000-000000000000'
 describe('createBusiness', () => {
   test('dono novo: usuário sem senha, vínculo OWNER, convite só com hash e e-mail com o link', async () => {
     const r = await createBusiness(actor, base)
-    expect(r.business).toMatchObject({ name: 'Barbearia Central', slug: 'central', status: 'ACTIVE', timeZone: 'America/Manaus', version: 1 })
+    expect(r.business).toMatchObject({ name: 'Barbearia Central', slug: 'central', status: 'ACTIVE', timeZone: 'America/Sao_Paulo', version: 1 })
     expect(r.business.entryUrl).toBe('http://painel.localhost:3000/entrar/central')
     expect(r.business.ownerName).toBe('João Silva')
     expect(r.owner.existing).toBe(false)
@@ -174,12 +173,20 @@ describe('createBusiness', () => {
     expect(await prisma.business.count()).toBe(1)
   })
 
-  test('fuso: grava o nome canônico e recusa fuso inexistente', async () => {
+  test('fuso: toda conta nova grava America/Sao_Paulo', async () => {
     const r = await createBusiness(actor, base)
-    expect((await prisma.business.findUniqueOrThrow({ where: { id: r.business.id } })).timezone).toBe('America/Manaus')
-    const e = await domainError(createBusiness(actor, { ...base, slug: 'outra', timeZone: 'Marte/Olimpo' }))
-    expect(e.code).toBe('validation')
-    expect(e.fields).toHaveProperty('timeZone')
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: r.business.id } })).timezone).toBe('America/Sao_Paulo')
+  })
+
+  test('telefone e documento: com ou sem pontuação dão o mesmo valor gravado', async () => {
+    const a = await createBusiness(actor, { ...base, contactPhone: '(92) 99999-0000', document: '529.982.247-25' })
+    const b = await createBusiness(actor, { ...base, slug: 'sem-pontos', contactPhone: '92999990000', document: '52998224725', owner: { name: 'B', email: 'b@exemplo.test' } })
+    expect(a.business.contactPhone).toBe('5592999990000')
+    expect(b.business.contactPhone).toBe('5592999990000')
+    expect(a.business.document).toBe('52998224725')
+    expect(b.business.document).toBe('52998224725')
+    const fora = await createBusiness(actor, { ...base, slug: 'fora', contactPhone: '+49 151 1234 5678', owner: { name: 'F', email: 'f@exemplo.test' } })
+    expect(fora.business.contactPhone).toBe('4915112345678')
   })
 
   test('documento: CNPJ e CPF válidos passam (só dígitos); dígito errado falha', async () => {
@@ -208,7 +215,7 @@ describe('createBusiness', () => {
   })
 
   test('grava auditoria com o admin como autor', async () => {
-    const r = await createBusiness(actor, { ...base, internalNotes: 'cliente indicado' })
+    const r = await createBusiness(actor, base)
     const linha = await prisma.auditLog.findFirstOrThrow({ where: { action: 'business.created' } })
     expect(linha).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: adminId, businessId: r.business.id, targetType: 'business', targetId: r.business.id })
   })
@@ -267,9 +274,9 @@ describe('listBusinesses e getBusinessDetail', () => {
   })
 
   test('detalhe devolve dados, versão e módulos; id inexistente é not_found', async () => {
-    const r = await createBusiness(actor, { ...base, legalName: 'Central LTDA', contactEmail: 'contato@central.test', contactPhone: '5592999990000', internalNotes: 'nota' })
+    const r = await createBusiness(actor, { ...base, contactEmail: 'contato@central.test', contactPhone: '5592999990000' })
     const d = await getBusinessDetail(actor, r.business.id)
-    expect(d).toMatchObject({ legalName: 'Central LTDA', contactEmail: 'contato@central.test', contactPhone: '5592999990000', internalNotes: 'nota', version: 1, timeZone: 'America/Manaus' })
+    expect(d).toMatchObject({ contactEmail: 'contato@central.test', contactPhone: '5592999990000', version: 1, timeZone: 'America/Sao_Paulo' })
     expect((await domainError(getBusinessDetail(actor, UUID_INEXISTENTE))).code).toBe('not_found')
     expect((await domainError(getBusinessDetail(actor, 'nao-e-uuid'))).code).toBe('not_found')
   })
@@ -278,19 +285,19 @@ describe('listBusinesses e getBusinessDetail', () => {
 describe('updateBusinessData', () => {
   test('grava, incrementa a versão e devolve o novo link quando o slug muda', async () => {
     const r = await createBusiness(actor, base)
-    const d = await updateBusinessData(actor, r.business.id, 1, { name: 'Central Nova', slug: 'central-nova', legalName: 'CN LTDA' })
-    expect(d).toMatchObject({ name: 'Central Nova', slug: 'central-nova', legalName: 'CN LTDA', version: 2 })
+    const d = await updateBusinessData(actor, r.business.id, 1, { name: 'Central Nova', slug: 'central-nova' })
+    expect(d).toMatchObject({ name: 'Central Nova', slug: 'central-nova', version: 2 })
     expect(d.entryUrl).toBe('http://painel.localhost:3000/entrar/central-nova')
     const linha = await prisma.auditLog.findFirstOrThrow({ where: { action: 'business.updated' } })
     expect(linha.actorId).toBe(adminId)
-    expect(linha.metadata).toMatchObject({ fields: ['legalName', 'name', 'slug'] })
+    expect(linha.metadata).toMatchObject({ fields: ['name', 'slug'] })
   })
 
   test('campo ausente fica como está; null limpa o campo', async () => {
-    const r = await createBusiness(actor, { ...base, legalName: 'A', internalNotes: 'N' })
-    const d = await updateBusinessData(actor, r.business.id, 1, { internalNotes: null })
-    expect(d.internalNotes).toBeNull()
-    expect(d.legalName).toBe('A')
+    const r = await createBusiness(actor, { ...base, contactEmail: 'a@exemplo.test', document: '52998224725' })
+    const d = await updateBusinessData(actor, r.business.id, 1, { document: null })
+    expect(d.document).toBeNull()
+    expect(d.contactEmail).toBe('a@exemplo.test')
     expect(d.name).toBe('Barbearia Central')
   })
 

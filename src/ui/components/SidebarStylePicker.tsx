@@ -1,7 +1,7 @@
 'use client'
 import { useId } from 'react'
 import { previewTheme } from '@/shared/theme/preview'
-import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
+import type { CoverMaterial } from '@/shared/theme/derive'
 import { SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { themeAttrs } from '../theme/ThemeScope'
 import { cx } from './cx'
@@ -16,8 +16,6 @@ export function SidebarStylePicker({
   onChange,
   primary,
   accent,
-  paper,
-  fontPair,
   className,
 }: {
   name?: string
@@ -25,8 +23,6 @@ export function SidebarStylePicker({
   onChange: (m: CoverMaterial) => void
   primary: string
   accent: string
-  paper: PaperTone
-  fontPair: FontPair
   className?: string
 }) {
   const uid = useId()
@@ -38,7 +34,7 @@ export function SidebarStylePicker({
       <div className="af-sidepick__grid">
         {SIDEBAR_OPTIONS.map((m) => {
           // Cada miniatura usa as variáveis da conta com o estilo de barra dela.
-          const { theme } = previewTheme({ primary, accent, material: m.value, paper, fontPair })
+          const { theme } = previewTheme({ primary, accent, material: m.value })
           return (
             <div key={m.value} className="af-sidepick__opt">
               <input

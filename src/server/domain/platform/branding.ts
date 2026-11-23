@@ -12,11 +12,10 @@ export type PublicBrand = {
   logoUrl: string | null
   symbolUrl: string | null
   loginImageUrl: string | null
-  loginMessage: string | null
   theme: ThemeTokens
 }
 
-// Seleção explícita: observações internas, documento e contato da conta nunca são lidos.
+// Seleção explícita: documento e contato da conta nunca são lidos.
 const SELECAO = {
   id: true,
   slug: true,
@@ -24,12 +23,9 @@ const SELECAO = {
   branding: {
     select: {
       displayName: true,
-      loginMessage: true,
       primaryColor: true,
       accentColor: true,
       coverMaterial: true,
-      paperTone: true,
-      fontPair: true,
       logo: { select: { path: true } },
       symbol: { select: { path: true } },
       loginImage: { select: { path: true } },
@@ -49,13 +45,10 @@ function paraMarca(linha: Linha | null): PublicBrand | null {
     logoUrl: uploadUrl(marca.logo),
     symbolUrl: uploadUrl(marca.symbol),
     loginImageUrl: uploadUrl(marca.loginImage),
-    loginMessage: marca.loginMessage,
     theme: deriveTheme({
       primary: marca.primaryColor,
       accent: marca.accentColor,
       material: marca.coverMaterial,
-      paper: marca.paperTone,
-      fontPair: marca.fontPair,
     }),
   }
 }

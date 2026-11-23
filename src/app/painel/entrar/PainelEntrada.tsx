@@ -8,7 +8,6 @@ type Marca = {
   logoUrl: string | null
   symbolUrl: string | null
   loginImageUrl: string | null
-  loginMessage: string | null
   platform?: boolean
   theme: ThemeTokens
 }
@@ -19,9 +18,8 @@ export function PainelEntrada({ marca, senhaNova = false }: { marca: Marca; senh
     <EntryScreen
       theme={marca.theme}
       brand={marca}
-      // O nome (ou a logo) da conta já está no topo do bloco: a frase grande convida a entrar e a mensagem da conta vem embaixo, sem repetir o nome nem a saudação dela.
+      // O nome (ou a logo) da conta já está no topo do bloco: a frase grande só convida a entrar, sem repetir o nome nem a saudação dela.
       headline={marca.platform ? 'A agenda que flui.' : 'Veja como está o seu dia.'}
-      lede={marca.platform ? null : marca.loginMessage}
       title="Entrar na agenda"
       message={senhaNova ? 'Senha nova salva. Entre com ela.' : 'Use o e-mail e a senha da sua conta.'}
       testId="painel-entry"

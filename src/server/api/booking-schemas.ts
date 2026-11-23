@@ -88,8 +88,6 @@ export const businessSchema = z.object({
     primary: z.string(),
     accent: z.string(),
     material: z.enum(['LEATHER', 'LINEN', 'WOOD', 'ENAMEL']),
-    paper: z.enum(['WHITE', 'CREAM', 'GRAY']),
-    fontPair: z.enum(['CLASSIC', 'MODERN', 'FRIENDLY']),
     tokens: z.record(z.string(), z.string()),
   }),
   terms: z.object({

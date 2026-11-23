@@ -5,7 +5,7 @@ import { makeBusiness, makeUpload } from '../setup/factories'
 
 beforeEach(resetDb)
 
-const CHAVES_DA_MARCA = ['businessId', 'loginImageUrl', 'loginMessage', 'logoUrl', 'name', 'slug', 'symbolUrl', 'theme']
+const CHAVES_DA_MARCA = ['businessId', 'loginImageUrl', 'logoUrl', 'name', 'slug', 'symbolUrl', 'theme']
 
 test('devolve o tema derivado das cores gravadas', async () => {
   const b = await makeBusiness({
@@ -17,9 +17,6 @@ test('devolve o tema derivado das cores gravadas', async () => {
         primaryColor: '#2F6B4F',
         accentColor: '#E8833A',
         coverMaterial: 'LINEN',
-        paperTone: 'CREAM',
-        fontPair: 'FRIENDLY',
-        loginMessage: 'Bem-vindo de volta.',
       },
     },
   })
@@ -27,9 +24,7 @@ test('devolve o tema derivado das cores gravadas', async () => {
   expect(marca).not.toBeNull()
   expect(marca?.businessId).toBe(b.id)
   expect(marca?.name).toBe('Pet Bonito')
-  expect(marca?.loginMessage).toBe('Bem-vindo de volta.')
   expect(marca?.theme.material).toBe('linen')
-  expect(marca?.theme.fontPair).toBe('friendly')
   expect(marca?.theme.vars['--surface']).toBe('#FFFFFF')
   expect(marca?.theme.vars['--ground']).toMatch(/^#F[0-9A-F]{5}$/)
   expect(marca?.theme.vars['--ground']).not.toBe('#FFFFFF')
@@ -64,7 +59,6 @@ test('logoUrl é null sem upload e /arquivos/... com upload', async () => {
 test('a marca pública só tem os campos declarados, sem dados internos da conta', async () => {
   await makeBusiness({
     slug: 'sigilo',
-    internalNotes: 'cliente difícil, não renovar',
     document: '12.345.678/0001-90',
     email: 'contato@sigilo.test',
     phone: '11999990000',
@@ -72,7 +66,7 @@ test('a marca pública só tem os campos declarados, sem dados internos da conta
   const marca = await getPublicBrandBySlug('sigilo')
   expect(Object.keys(marca ?? {}).sort()).toEqual(CHAVES_DA_MARCA)
   const texto = JSON.stringify(marca)
-  for (const segredo of ['cliente difícil', '12.345.678', 'contato@sigilo.test', '11999990000']) {
+  for (const segredo of ['12.345.678', 'contato@sigilo.test', '11999990000']) {
     expect(texto).not.toContain(segredo)
   }
 })

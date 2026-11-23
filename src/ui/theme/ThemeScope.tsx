@@ -9,13 +9,11 @@ export function themeAttrs(theme: ThemeTokens): {
   style: CSSProperties & ThemeTokens['vars']
   'data-theme': ''
   'data-scheme': ThemeTokens['scheme']
-  'data-font': ThemeTokens['fontPair']
 } {
   return {
     style: { ...theme.vars },
     'data-theme': '',
     'data-scheme': theme.scheme,
-    'data-font': theme.fontPair,
   }
 }
 

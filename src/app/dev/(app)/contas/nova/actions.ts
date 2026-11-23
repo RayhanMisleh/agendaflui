@@ -23,12 +23,9 @@ function dadosDaConta(v: WizardData) {
   return {
     name: v.name,
     slug: v.slug,
-    timeZone: v.timeZone,
-    ...(vazio(v.legalName) ? {} : { legalName: v.legalName }),
     ...(vazio(v.document) ? {} : { document: v.document }),
     ...(vazio(v.contactEmail) ? {} : { contactEmail: v.contactEmail }),
     ...(vazio(v.contactPhone) ? {} : { contactPhone: v.contactPhone }),
-    ...(vazio(v.internalNotes) ? {} : { internalNotes: v.internalNotes }),
     owner: { name: v.ownerName, email: v.ownerEmail },
   }
 }
@@ -51,9 +48,6 @@ function marcaDe(v: WizardData): BrandInput {
     primary: v.primary,
     accent: v.accent,
     material: v.material,
-    paper: v.paper,
-    fontPair: v.fontPair,
-    loginMessage: vazio(v.loginMessage) ? null : v.loginMessage,
   }
 }
 
@@ -96,7 +90,7 @@ function regrasDe(v: WizardData): Partial<SchedulingRules> {
 }
 
 const PENDENCIA = {
-  marca: 'A marca (cores, material e fontes) não foi salva',
+  marca: 'A marca (cores e barra lateral) não foi salva',
   termos: 'Os termos não foram salvos',
   modulos: 'Os módulos não foram salvos',
   regras: 'As regras de agenda não foram salvas',

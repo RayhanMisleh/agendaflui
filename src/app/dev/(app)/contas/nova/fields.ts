@@ -1,24 +1,18 @@
-import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
+import type { CoverMaterial } from '@/shared/theme/derive'
 
 /** Tudo o que o assistente de nova conta guarda, em texto (como vem do formulário) e caixas marcadas. */
 export type WizardValues = {
   // Dados
   name: string
   slug: string
-  timeZone: string
-  legalName: string
   document: string
   contactEmail: string
   contactPhone: string
-  internalNotes: string
   // Marca
   displayName: string
   primary: string
   accent: string
   material: CoverMaterial
-  paper: PaperTone
-  fontPair: FontPair
-  loginMessage: string
   // Termos
   professionalSingular: string
   professionalPlural: string
@@ -68,19 +62,13 @@ export type WizardData = WizardValues & { result?: WizardResult | undefined }
 export const EMPTY_VALUES: WizardValues = {
   name: '',
   slug: '',
-  timeZone: 'America/Sao_Paulo',
-  legalName: '',
   document: '',
   contactEmail: '',
   contactPhone: '',
-  internalNotes: '',
   displayName: '',
   primary: '#0B6E66',
   accent: '#F2A93B',
   material: 'LEATHER',
-  paper: 'CREAM',
-  fontPair: 'CLASSIC',
-  loginMessage: '',
   professionalSingular: 'Profissional',
   professionalPlural: 'Profissionais',
   customerSingular: 'Cliente',
@@ -107,8 +95,8 @@ export const EMPTY_VALUES: WizardValues = {
 export type StepId = 'dados' | 'marca' | 'termos' | 'modulos' | 'regras' | 'dono' | 'chave'
 
 export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly string[] }> = [
-  { id: 'dados', label: 'Dados', fields: ['name', 'slug', 'timeZone', 'legalName', 'document', 'contactEmail', 'contactPhone', 'internalNotes'] },
-  { id: 'marca', label: 'Marca', fields: ['displayName', 'primary', 'accent', 'material', 'paper', 'fontPair', 'loginMessage'] },
+  { id: 'dados', label: 'Dados', fields: ['name', 'slug', 'document', 'contactEmail', 'contactPhone'] },
+  { id: 'marca', label: 'Marca', fields: ['displayName', 'primary', 'accent', 'material'] },
   {
     id: 'termos',
     label: 'Termos',
@@ -195,21 +183,6 @@ export const TERM_PRESETS: ReadonlyArray<{ label: string; terms: TermSet }> = [
     label: 'Estúdio',
     terms: { professionalSingular: 'Instrutor', professionalPlural: 'Instrutores', customerSingular: 'Aluno', customerPlural: 'Alunos', pointsSingular: 'Ponto', pointsPlural: 'Pontos', club: 'Clube' },
   },
-]
-
-/** Fusos do Brasil, do mais usado ao menos usado. O domínio confere o valor de qualquer jeito. */
-export const FUSOS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'America/Sao_Paulo', label: 'Brasília (São Paulo, Rio, Belo Horizonte)' },
-  { value: 'America/Manaus', label: 'Amazonas (Manaus)' },
-  { value: 'America/Cuiaba', label: 'Mato Grosso (Cuiabá)' },
-  { value: 'America/Campo_Grande', label: 'Mato Grosso do Sul (Campo Grande)' },
-  { value: 'America/Fortaleza', label: 'Nordeste (Fortaleza)' },
-  { value: 'America/Recife', label: 'Pernambuco (Recife)' },
-  { value: 'America/Bahia', label: 'Bahia (Salvador)' },
-  { value: 'America/Belem', label: 'Pará (Belém)' },
-  { value: 'America/Porto_Velho', label: 'Rondônia (Porto Velho)' },
-  { value: 'America/Rio_Branco', label: 'Acre (Rio Branco)' },
-  { value: 'America/Noronha', label: 'Fernando de Noronha' },
 ]
 
 /** "Pata Viva Pet Shop" vira "pata-viva-pet-shop": sugestão de identificador, sem acento e com hífens. */

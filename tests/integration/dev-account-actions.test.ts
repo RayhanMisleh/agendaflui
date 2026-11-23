@@ -77,22 +77,22 @@ const MSG_CONFLITO = 'Outra pessoa alterou esta conta. Recarregue para ver a ver
 describe('dados da conta', () => {
   test('versão antiga devolve o conflito e mantém o que foi digitado, sem gravar', async () => {
     const conta = await makeBusiness({ name: 'Original' })
-    const campos = { version: String(conta.version), name: 'Digitado A', slug: conta.slug, legalName: '', document: '', contactEmail: '', contactPhone: '', internalNotes: '' }
+    const campos = { version: String(conta.version), name: 'Digitado A', slug: conta.slug, document: '', contactEmail: '', contactPhone: '' }
     const a = await salvarDados(conta.id, ini, form(campos))
     expect(a.ok).toBe(true)
     expect(a.values.version).toBe(String(conta.version + 1))
     // Segunda pessoa, ainda com a versão antiga.
-    const b = await salvarDados(conta.id, ini, form({ ...campos, name: 'Digitado B', internalNotes: 'nota minha' }))
+    const b = await salvarDados(conta.id, ini, form({ ...campos, name: 'Digitado B', contactEmail: 'b@exemplo.test' }))
     expect(b.ok).toBe(false)
     expect(b.message).toBe(MSG_CONFLITO)
     expect(b.values.name).toBe('Digitado B')
-    expect(b.values.internalNotes).toBe('nota minha')
+    expect(b.values.contactEmail).toBe('b@exemplo.test')
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).name).toBe('Digitado A')
   })
 
   test('erro de campo volta no campo, com o valor digitado', async () => {
     const conta = await makeBusiness()
-    const e = await salvarDados(conta.id, ini, form({ version: String(conta.version), name: conta.name, slug: 'Slug Inválido!', legalName: '', document: '', contactEmail: '', contactPhone: '', internalNotes: '' }))
+    const e = await salvarDados(conta.id, ini, form({ version: String(conta.version), name: conta.name, slug: 'Slug Inválido!', document: '', contactEmail: '', contactPhone: '' }))
     expect(e.ok).toBe(false)
     expect(e.fields.slug).toBeTruthy()
     expect(e.values.slug).toBe('Slug Inválido!')
@@ -126,7 +126,7 @@ describe('marca', () => {
   test('salva a marca com a versão do servidor e devolve a versão nova; versão antiga é conflito com o digitado', async () => {
     const conta = await makeBusiness()
     const marca = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: conta.id } })
-    const campos = { version: String(marca.version), displayName: 'Nova Marca', primary: '#2f6b4f', accent: '#E8833A', material: 'LINEN', paper: 'CREAM', fontPair: 'FRIENDLY', loginMessage: 'Oi' }
+    const campos = { version: String(marca.version), displayName: 'Nova Marca', primary: '#2f6b4f', accent: '#E8833A', material: 'LINEN' }
     const ok = await salvarMarca(conta.id, ini, form(campos))
     expect(ok.ok).toBe(true)
     expect(Number(ok.values.version)).toBe(marca.version + 1)
@@ -141,7 +141,7 @@ describe('marca', () => {
 
 describe('versão das configurações nas gravações do painel dev', () => {
   const termos = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' }
-  const regras = { slotStepMin: '15', minLeadMin: '60', maxAdvanceDays: '30', customerChangeWindowMin: '120', bufferMin: '0', timeZone: 'America/Sao_Paulo' }
+  const regras = { slotStepMin: '15', minLeadMin: '60', maxAdvanceDays: '30', customerChangeWindowMin: '120', bufferMin: '0' }
   const versao = async (businessId: string) => (await prisma.businessSettings.findUniqueOrThrow({ where: { businessId } })).version
 
   test('termos: o dono muda um termo; o admin, com a versão antiga, recebe conflito e o termo do dono continua', async () => {
@@ -213,22 +213,23 @@ describe('termos, módulos, regras e avisos', () => {
     expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: true, store: true, loyalty: true, banners: false })
   })
 
-  test('regras e fuso gravam juntos; valor fora do limite erra no campo; campo em branco é recusado', async () => {
+  test('regras gravam e o fuso da conta não muda; valor fora do limite erra no campo; campo em branco é recusado', async () => {
     const conta = await makeBusiness()
-    const base = { slotStepMin: '30', minLeadMin: '90', maxAdvanceDays: '45', customerChangeWindowMin: '180', bufferMin: '10', timeZone: 'America/Manaus', autoConfirm: 'on' }
+    const base = { slotStepMin: '30', minLeadMin: '90', maxAdvanceDays: '45', customerChangeWindowMin: '180', bufferMin: '10', autoConfirm: 'on' }
     const ok = await salvarRegras(conta.id, ini, form({ ...base, version: '1' }))
     expect(ok.ok).toBe(true)
     expect(ok.values.version).toBe('2')
     expect(await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ slotStepMin: 30, bufferMin: 10, autoConfirm: true })
-    expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).timezone).toBe('America/Manaus')
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).timezone).toBe('America/Sao_Paulo')
     const alto = await salvarRegras(conta.id, ini, form({ ...base, maxAdvanceDays: '999', version: '2' }))
     expect(alto.ok).toBe(false)
     expect(alto.fields.maxAdvanceDays).toBeTruthy()
     const branco = await salvarRegras(conta.id, ini, form({ ...base, minLeadMin: '', version: '2' }))
     expect(branco.ok).toBe(false)
     expect(branco.fields.minLeadMin).toBeTruthy()
-    const fuso = await salvarRegras(conta.id, ini, form({ ...base, timeZone: 'Marte/Olimpo', version: '2' }))
-    expect(fuso.fields.timeZone).toBeTruthy()
+    // Um `timeZone` enviado à mão é ignorado: o fuso é fixo.
+    await salvarRegras(conta.id, ini, form({ ...base, timeZone: 'Asia/Tokyo', version: '2' }))
+    expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).timezone).toBe('America/Sao_Paulo')
   })
 
   test('avisos: caixa desmarcada desliga o canal daquele tipo', async () => {

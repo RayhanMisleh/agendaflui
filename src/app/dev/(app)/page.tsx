@@ -70,8 +70,8 @@ export default async function VisaoGeralPage() {
         {o.skippedAccounts > 0 ? (
           <p className="af-wizard__note" role="note">
             {o.skippedAccounts === 1
-              ? '1 conta ficou fora dos números porque o fuso horário dela está inválido. Corrija o fuso na página da conta.'
-              : `${formatInt(o.skippedAccounts)} contas ficaram fora dos números porque o fuso horário delas está inválido. Corrija o fuso na página de cada conta.`}
+              ? '1 conta ficou fora dos números porque o fuso horário dela está inválido.'
+              : `${formatInt(o.skippedAccounts)} contas ficaram fora dos números porque o fuso horário delas está inválido.`}
           </p>
         ) : null}
 

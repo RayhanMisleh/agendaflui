@@ -1,10 +1,9 @@
 import { describe, expect, test } from 'vitest'
 import { contrastRatio } from '@/shared/theme/color'
 import { deriveTheme, THEME_WARNING_TEXT } from '@/shared/theme/derive'
-import { FONT_PAIRS, previewTheme, SIDEBAR_GROUND_MIN_CONTRAST, type ThemeWarning } from '@/shared/theme/preview'
+import { previewTheme, SIDEBAR_GROUND_MIN_CONTRAST, type ThemeWarning } from '@/shared/theme/preview'
 
-const base = { primary: '#0b6e66', accent: '#f2a93b', material: 'LEATHER', paper: 'CREAM', fontPair: 'CLASSIC' } as const
-const PAPERS = ['WHITE', 'CREAM', 'GRAY'] as const
+const base = { primary: '#0b6e66', accent: '#f2a93b', material: 'LEATHER' } as const
 const MATERIALS = ['LEATHER', 'LINEN', 'WOOD', 'ENAMEL'] as const
 const EXTREMAS = [
   ['branco puro', '#ffffff'],
@@ -23,18 +22,16 @@ const PARES: [string, string][] = [
 
 describe('previewTheme: cores extremas', () => {
   test.each(EXTREMAS)('%s como cor da conta e como destaque: todo par texto/fundo passa de 4,5', (_nome, cor) => {
-    for (const paper of PAPERS) {
-      for (const material of MATERIALS) {
-        for (const entrada of [
-          { ...base, paper, material, primary: cor },
-          { ...base, paper, material, accent: cor },
-          { ...base, paper, material, primary: cor, accent: cor },
-        ]) {
-          const { tokens } = previewTheme(entrada)
-          for (const [fg, bg] of PARES) {
-            expect(tokens[fg], fg).toBeTruthy()
-            expect(contrastRatio(tokens[fg] ?? '', tokens[bg] ?? ''), `${fg} sobre ${bg}`).toBeGreaterThanOrEqual(4.5)
-          }
+    for (const material of MATERIALS) {
+      for (const entrada of [
+        { ...base, material, primary: cor },
+        { ...base, material, accent: cor },
+        { ...base, material, primary: cor, accent: cor },
+      ]) {
+        const { tokens } = previewTheme(entrada)
+        for (const [fg, bg] of PARES) {
+          expect(tokens[fg], fg).toBeTruthy()
+          expect(contrastRatio(tokens[fg] ?? '', tokens[bg] ?? ''), `${fg} sobre ${bg}`).toBeGreaterThanOrEqual(4.5)
         }
       }
     }
@@ -81,23 +78,21 @@ describe('previewTheme: barra lateral contra o fundo', () => {
     expect(SIDEBAR_GROUND_MIN_CONTRAST).toBe(1.15)
   })
 
-  test.each(PAPERS)('barra Clara (branca de propósito, separada do fundo pela borda) sobre o fundo %s não avisa', (paper) => {
-    expect(previewTheme({ ...base, paper, material: 'ENAMEL' }).warnings).not.toContain('sidebar_near_ground')
+  test('barra Clara (branca de propósito, separada do fundo pela borda) não avisa', () => {
+    expect(previewTheme({ ...base, material: 'ENAMEL' }).warnings).not.toContain('sidebar_near_ground')
   })
 
   test('barra Suave só avisa quando a Bolha fica perto do fundo', () => {
-    for (const paper of PAPERS) {
-      for (const primary of ['#0b6e66', '#7a1f2b', '#3f51b5']) {
-        const t = deriveTheme({ ...base, paper, primary, material: 'LINEN' })
-        const perto = contrastRatio(t.vars['--side-bg'], t.vars['--ground']) < SIDEBAR_GROUND_MIN_CONTRAST
-        expect(previewTheme({ ...base, paper, primary, material: 'LINEN' }).warnings.includes('sidebar_near_ground'), `${primary} ${paper}`).toBe(perto)
-      }
+    for (const primary of ['#0b6e66', '#7a1f2b', '#3f51b5']) {
+      const t = deriveTheme({ ...base, primary, material: 'LINEN' })
+      const perto = contrastRatio(t.vars['--side-bg'], t.vars['--ground']) < SIDEBAR_GROUND_MIN_CONTRAST
+      expect(previewTheme({ ...base, primary, material: 'LINEN' }).warnings.includes('sidebar_near_ground'), primary).toBe(perto)
     }
   })
 
   test('barras Cheia e Noite com cor comum nunca avisam', () => {
     for (const material of ['LEATHER', 'WOOD'] as const) {
-      for (const paper of PAPERS) expect(previewTheme({ ...base, paper, material }).warnings).toEqual([])
+      expect(previewTheme({ ...base, material }).warnings).toEqual([])
     }
   })
 
@@ -108,7 +103,7 @@ describe('previewTheme: barra lateral contra o fundo', () => {
 
 describe('previewTheme: cores comuns', () => {
   test.each(['#0e4f5c', '#7a1f2b', '#2f6b4f', '#3f51b5', '#c2185b'])('%s sem avisos com barra Cheia', (primary) => {
-    for (const paper of PAPERS) expect(previewTheme({ ...base, primary, paper }).warnings).toEqual([])
+    expect(previewTheme({ ...base, primary }).warnings).toEqual([])
   })
 
   test('a marca Agenda Flui padrão não avisa nada', () => {
@@ -117,13 +112,13 @@ describe('previewTheme: cores comuns', () => {
 })
 
 describe('previewTheme: mesmos tokens do painel', () => {
-  test('tokens são exatamente as variáveis do deriveTheme e `theme` traz material, fonte e esquema', () => {
-    const entrada = { ...base, primary: '#7a1f2b', material: 'LEATHER', paper: 'CREAM', fontPair: 'MODERN' } as const
+  test('tokens são exatamente as variáveis do deriveTheme e `theme` traz material e esquema', () => {
+    const entrada = { ...base, primary: '#7a1f2b', material: 'LEATHER' } as const
     const r = previewTheme(entrada)
     const painel = deriveTheme(entrada)
     expect(r.tokens).toEqual(painel.vars)
     expect(r.theme).toEqual(painel)
-    expect([r.theme.material, r.theme.fontPair, r.theme.scheme]).toEqual(['leather', 'modern', 'day'])
+    expect([r.theme.material, r.theme.scheme]).toEqual(['leather', 'day'])
   })
 
   test('aceita maiúsculas e minúsculas e é determinística', () => {
@@ -139,8 +134,4 @@ describe('previewTheme: mesmos tokens do painel', () => {
     expect(previewTheme({ ...base, accent: '#FFF' }).warnings).toEqual(['invalid_color'])
     expect(previewTheme({ ...base, primary: 'x', accent: 'y' }).warnings).toEqual(['invalid_color'])
   })
-})
-
-test('a lista de pares de fontes está declarada', () => {
-  expect([...FONT_PAIRS]).toEqual(['CLASSIC', 'MODERN', 'FRIENDLY'])
 })

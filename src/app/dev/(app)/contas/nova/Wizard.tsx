@@ -13,40 +13,34 @@ import {
   FormErrors,
   Input,
   LinkButton,
+  MaskedInput,
   SidebarStylePicker,
   Card,
   Select,
   SecretBox,
   StatusBadge,
   StepRail,
-  Textarea,
   useHydrated,
 } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
-import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL } from '@/shared/theme/labels'
+import { ACCENT_FIELD_LABEL, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL } from '@/shared/theme/labels'
 import type { FormState } from '@/app/_lib/form-state'
 import type { LimitesDeRegras } from '../[id]/FormsConta'
 import { criarConta } from './actions'
-import { FUSOS, STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
+import { STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
 import type { WizardData, WizardResult, WizardValues } from './fields'
 
 const ROTULOS: Record<string, string> = {
   name: 'Nome da conta',
   slug: 'Identificador',
-  timeZone: 'Fuso horário',
-  legalName: 'Razão social',
   document: 'CPF ou CNPJ',
   contactEmail: 'E-mail de contato',
   contactPhone: 'Telefone',
-  internalNotes: 'Observações internas',
   displayName: 'Nome de exibição',
   primary: PRIMARY_FIELD_LABEL,
   accent: ACCENT_FIELD_LABEL,
   material: SIDEBAR_FIELD_LABEL,
-  paper: GROUND_FIELD_LABEL,
-  fontPair: FONT_PAIR_FIELD_LABEL,
-  loginMessage: 'Mensagem da tela de entrada',
   professionalSingular: 'Profissional (singular)',
   professionalPlural: 'Profissional (plural)',
   customerSingular: 'Cliente (singular)',
@@ -177,34 +171,19 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
                   spellCheck={false}
                 />
               </Field>
-              <Field label="Fuso horário" hint="Os horários da agenda seguem este fuso." error={erro('timeZone')}>
-                <Select name="timeZone" value={v.timeZone} onChange={texto('timeZone')}>
-                  {FUSOS.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
               <Field label="E-mail de contato (opcional)" error={erro('contactEmail')}>
                 <Input name="contactEmail" type="email" inputMode="email" value={v.contactEmail} onChange={texto('contactEmail')} autoComplete="off" />
               </Field>
               <Field label="Telefone (opcional)" error={erro('contactPhone')}>
-                <Input name="contactPhone" type="tel" inputMode="tel" value={v.contactPhone} onChange={texto('contactPhone')} autoComplete="off" />
-              </Field>
-              <Field label="Razão social (opcional)" error={erro('legalName')}>
-                <Input name="legalName" value={v.legalName} onChange={texto('legalName')} autoComplete="off" />
+                <MaskedInput mask="phone" name="contactPhone" value={v.contactPhone} onChange={texto('contactPhone')} />
               </Field>
               <Field label="CPF ou CNPJ (opcional)" error={erro('document')}>
-                <Input name="document" value={v.document} onChange={texto('document')} autoComplete="off" inputMode="text" />
+                <MaskedInput mask="document" name="document" value={v.document} onChange={texto('document')} />
               </Field>
             </div>
-            <Field label="Observações internas (opcional)" hint="Só a equipe da plataforma vê." error={erro('internalNotes')}>
-              <Textarea name="internalNotes" value={v.internalNotes} onChange={texto('internalNotes')} rows={3} />
-            </Field>
           </Etapa>
 
-          <Etapa i={1} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Marca" ajuda="Cores, barra lateral, fundo e fonte. A prévia ao lado muda na hora, sem enviar nada.">
+          <Etapa i={1} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Marca" ajuda="Cores e barra lateral. A prévia ao lado muda na hora, sem enviar nada.">
             <div className="af-wizard__grid">
               <Field label="Nome de exibição" hint="Aparece na barra lateral do painel e nos e-mails." error={erro('displayName')}>
                 <Input
@@ -229,32 +208,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               onChange={(m) => set('material', m)}
               primary={v.primary}
               accent={v.accent}
-              paper={v.paper}
-              fontPair={v.fontPair}
             />
-            <div className="af-wizard__grid">
-              <Field label={GROUND_FIELD_LABEL} hint={GROUND_OPTIONS.find((o) => o.value === v.paper)?.hint} error={erro('paper')}>
-                <Select name="paper" value={v.paper} onChange={texto('paper')}>
-                  {GROUND_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label={FONT_PAIR_FIELD_LABEL} hint={FONT_PAIR_OPTIONS.find((o) => o.value === v.fontPair)?.hint} error={erro('fontPair')}>
-                <Select name="fontPair" value={v.fontPair} onChange={texto('fontPair')}>
-                  {FONT_PAIR_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            </div>
-            <Field label="Mensagem da tela de entrada (opcional)" hint="Uma frase de boas-vindas acima do formulário de entrada." error={erro('loginMessage')}>
-              <Textarea name="loginMessage" value={v.loginMessage} onChange={texto('loginMessage')} rows={2} />
-            </Field>
           </Etapa>
 
           <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Termos" ajuda="Como esta conta chama as pessoas e os pontos. Aparecem nas telas, nos e-mails e na API.">
@@ -398,7 +352,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
           <FoldablePreview className="af-wizard__aside">
             <BrandPreview
               businessName={v.displayName || v.name}
-              brand={{ primary: v.primary, accent: v.accent, material: v.material, paper: v.paper, fontPair: v.fontPair }}
+              brand={{ primary: v.primary, accent: v.accent, material: v.material }}
               terms={v}
             />
           </FoldablePreview>

@@ -79,8 +79,8 @@ describe('códigos da URL nunca leem o protótipo do objeto', () => {
   })
 
   test('?faltou= traduz só os códigos conhecidos, ignora o resto e não repete', () => {
-    expect(traduzirFaltou('marca,termos')).toEqual(['a marca (cores, material e fontes)', 'os termos'])
-    expect(traduzirFaltou('constructor,__proto__,toString,marca,marca')).toEqual(['a marca (cores, material e fontes)'])
+    expect(traduzirFaltou('marca,termos')).toEqual(['a marca (cores e barra lateral)', 'os termos'])
+    expect(traduzirFaltou('constructor,__proto__,toString,marca,marca')).toEqual(['a marca (cores e barra lateral)'])
     expect(traduzirFaltou('')).toEqual([])
   })
 

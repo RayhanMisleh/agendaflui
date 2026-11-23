@@ -37,7 +37,7 @@ export default async function MarcaPage({
   return (
     <>
       <Card className="af-listpanel">
-        <h2 className="af-section__title">Cores, material e fonte</h2>
+        <h2 className="af-section__title">Cores e barra lateral</h2>
         <MarcaForm
           action={salvarMarca.bind(null, conta.id)}
           valores={{
@@ -46,9 +46,6 @@ export default async function MarcaPage({
             primary: brand.primary,
             accent: brand.accent,
             material: brand.material,
-            paper: brand.paper,
-            fontPair: brand.fontPair,
-            loginMessage: brand.loginMessage ?? '',
           }}
           termos={terms}
           logoUrl={brand.logoUrl}

@@ -16,7 +16,7 @@ beforeEach(async () => {
 })
 
 const setup = {
-  brand: { displayName: 'Pata Viva', primary: '#2F6B4F', accent: '#E8833A', material: 'LINEN', paper: 'CREAM', fontPair: 'FRIENDLY', loginMessage: null },
+  brand: { displayName: 'Pata Viva', primary: '#2F6B4F', accent: '#E8833A', material: 'LINEN' },
   terms: { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' },
   modules: { loyalty: true, banners: false, store: true, vouchers: true },
   rules: { slotStepMin: 30, minLeadMin: 60, maxAdvanceDays: 60, customerChangeWindowMin: 120, bufferMin: 0, autoConfirm: true },
@@ -29,13 +29,13 @@ describe('validateAccountSetup usa os mesmos esquemas das funções de escrita',
 
   test('cada regra devolve o erro no campo certo, e vários erros vêm juntos', () => {
     const ruim = {
-      brand: { ...setup.brand, displayName: '<b>x</b>', primary: 'vermelho', loginMessage: 'x'.repeat(281) },
+      brand: { ...setup.brand, displayName: '<b>x</b>', primary: 'vermelho' },
       terms: { ...setup.terms, club: '', professionalSingular: 'x'.repeat(31) },
       modules: { loyalty: false, banners: false, store: false, vouchers: true },
       rules: { ...setup.rules, slotStepMin: 7, bufferMin: 3 },
     }
     const e = validateAccountSetup(ruim as never)
-    expect(Object.keys(e).sort()).toEqual(['bufferMin', 'club', 'displayName', 'loginMessage', 'primary', 'professionalSingular', 'slotStepMin', 'store', 'vouchers'])
+    expect(Object.keys(e).sort()).toEqual(['bufferMin', 'club', 'displayName', 'primary', 'professionalSingular', 'slotStepMin', 'store', 'vouchers'])
     expect(e.vouchers).toMatch(/Loja/)
     expect(e.primary).toMatch(/#rrggbb/)
   })
@@ -49,12 +49,12 @@ describe('validateAccountSetup usa os mesmos esquemas das funções de escrita',
 })
 
 describe('validateNewBusiness e validateApiKeyName', () => {
-  const novo = { name: 'Pata Viva', slug: 'pata-viva', timeZone: 'America/Sao_Paulo', owner: { name: 'Marina', email: 'marina@exemplo.test' } }
+  const novo = { name: 'Pata Viva', slug: 'pata-viva', owner: { name: 'Marina', email: 'marina@exemplo.test' } }
 
-  test('dados válidos não têm erro; slug, fuso e e-mail do dono ruins aparecem nos campos', () => {
+  test('dados válidos não têm erro; slug e e-mail do dono ruins aparecem nos campos', () => {
     expect(validateNewBusiness(novo)).toEqual({})
-    const e = validateNewBusiness({ ...novo, slug: 'A', timeZone: 'Marte/Olympus', owner: { name: '', email: 'sem-arroba' } })
-    expect(Object.keys(e).sort()).toEqual(['owner.email', 'owner.name', 'slug', 'timeZone'])
+    const e = validateNewBusiness({ ...novo, slug: 'A', owner: { name: '', email: 'sem-arroba' } })
+    expect(Object.keys(e).sort()).toEqual(['owner.email', 'owner.name', 'slug'])
   })
 
   test('nome da chave: de 1 a 80 caracteres', () => {

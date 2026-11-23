@@ -10,18 +10,18 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     id: 'patas',
     label: 'Patas & Cia',
     name: 'Patas & Cia',
-    brand: { primary: '#2F7D5B', accent: '#F29A4B', material: 'LEATHER', paper: 'CREAM', fontPair: 'FRIENDLY' },
+    brand: { primary: '#2F7D5B', accent: '#F29A4B', material: 'LEATHER' },
   },
   {
     id: 'navalha',
     label: 'Navalha de Ouro',
     name: 'Navalha de Ouro',
-    brand: { primary: '#243B6B', accent: '#E3A72F', material: 'WOOD', paper: 'WHITE', fontPair: 'MODERN' },
+    brand: { primary: '#243B6B', accent: '#E3A72F', material: 'WOOD' },
   },
   {
     id: 'estudio',
     label: 'Estúdio Maré',
     name: 'Estúdio Maré',
-    brand: { primary: '#7A3E8E', accent: '#F2B84B', material: 'LINEN', paper: 'WHITE', fontPair: 'CLASSIC' },
+    brand: { primary: '#7A3E8E', accent: '#F2B84B', material: 'LINEN' },
   },
 ]

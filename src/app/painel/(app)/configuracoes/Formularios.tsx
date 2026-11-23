@@ -1,6 +1,6 @@
 'use client'
 import { Trash2 } from 'lucide-react'
-import { Checkbox, CopyButton, EmptyHint, Field, Input, Select } from '@/ui/components'
+import { Checkbox, CopyButton, EmptyHint, Field, Input, MaskedInput, Select } from '@/ui/components'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
@@ -40,7 +40,7 @@ export function NegocioForm({ version, name, contactEmail, contactPhone, entryUr
                 <Input name="contactEmail" type="email" inputMode="email" defaultValue={state.values.contactEmail ?? ''} autoComplete="off" />
               </Field>
               <Field label="Telefone de contato" hint="Com DDD. Fora do Brasil, comece com + e o código do país." error={state.fields.contactPhone}>
-                <Input name="contactPhone" type="tel" inputMode="tel" defaultValue={state.values.contactPhone ?? ''} autoComplete="off" />
+                <MaskedInput mask="phone" name="contactPhone" defaultValue={state.values.contactPhone ?? ''} />
               </Field>
             </div>
           </>

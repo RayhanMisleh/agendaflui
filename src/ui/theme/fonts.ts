@@ -1,4 +1,3 @@
-import { Fredoka, Schibsted_Grotesk } from 'next/font/google'
 import localFont from 'next/font/local'
 
 // O par da marca Agenda Flui, auto-hospedado (arquivos variáveis em ./fonts): Bricolage Grotesque nos títulos, Figtree no texto.
@@ -14,9 +13,6 @@ const figtree = localFont({
   display: 'swap',
   variable: '--font-figtree',
 })
-// Os outros dois pares (`MODERN` e `FRIENDLY`) só trocam a fonte dos títulos; o texto segue em Figtree.
-const modern = Schibsted_Grotesk({ subsets: ['latin'], display: 'swap', variable: '--font-display-modern' })
-const friendly = Fredoka({ subsets: ['latin'], display: 'swap', variable: '--font-display-friendly' })
 
 /** Classes para o <html>. `--font-display` e `--font-sans` vêm do tema da conta (`deriveTheme`) e usam estas variáveis. */
-export const fontVariables: string = [bricolage, figtree, modern, friendly].map((f) => f.variable).join(' ')
+export const fontVariables: string = [bricolage, figtree].map((f) => f.variable).join(' ')

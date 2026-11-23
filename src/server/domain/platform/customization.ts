@@ -22,19 +22,12 @@ import {
 import {
   applyTerms,
   displayNameSchema,
-  MSG_CONTROLE,
-  MSG_JUNCAO,
-  MSG_MARCACAO,
-  SEM_CONTROLE_EXCETO_LINHA,
-  SEM_JUNCAO_SOLTA,
-  SEM_MARCACAO,
   termsOf,
   termsSchema,
   type Terms,
 } from '@/server/domain/settings/terms'
 import { uploadUrl } from '@/server/storage/images'
-import { canonicalTimeZone } from '@/server/time'
-import { COVER_MATERIALS, FONT_PAIRS, PAPER_TONES, type CoverMaterial, type FontPair, type PaperTone } from '@/shared/theme/derive'
+import { COVER_MATERIALS, type CoverMaterial } from '@/shared/theme/derive'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
@@ -43,9 +36,6 @@ export type BrandInput = {
   primary: string
   accent: string
   material: CoverMaterial
-  paper: PaperTone
-  fontPair: FontPair
-  loginMessage: string | null
 }
 
 export type BrandView = BrandInput & {
@@ -101,17 +91,6 @@ const marcaSchema = z.strictObject({
   primary: cor,
   accent: cor,
   material: z.enum(COVER_MATERIALS, { error: 'Escolha uma das barras laterais da lista.' }),
-  paper: z.enum(PAPER_TONES, { error: 'Escolha um dos fundos da lista.' }),
-  fontPair: z.enum(FONT_PAIRS, { error: 'Escolha um dos pares de fontes da lista.' }),
-  loginMessage: z
-    .string()
-    .trim()
-    .max(280, 'Use no máximo 280 caracteres.')
-    .refine(SEM_MARCACAO, MSG_MARCACAO)
-    .refine(SEM_CONTROLE_EXCETO_LINHA, MSG_CONTROLE)
-    .refine(SEM_JUNCAO_SOLTA, MSG_JUNCAO)
-    .transform((v) => (v === '' ? null : v))
-    .nullable(),
 })
 
 const SELECAO_MARCA = {
@@ -119,9 +98,6 @@ const SELECAO_MARCA = {
   primaryColor: true,
   accentColor: true,
   coverMaterial: true,
-  paperTone: true,
-  fontPair: true,
-  loginMessage: true,
   version: true,
   logo: { select: { path: true } },
   symbol: { select: { path: true } },
@@ -135,9 +111,6 @@ function paraMarca(b: Prisma.BusinessBrandingGetPayload<{ select: typeof SELECAO
     primary: b.primaryColor,
     accent: b.accentColor,
     material: b.coverMaterial,
-    paper: b.paperTone,
-    fontPair: b.fontPair,
-    loginMessage: b.loginMessage,
     logoUrl: uploadUrl(b.logo),
     symbolUrl: uploadUrl(b.symbol),
     faviconUrl: uploadUrl(b.favicon),
@@ -156,14 +129,12 @@ const CAMPOS_MARCA = [
   ['primary', 'primaryColor'],
   ['accent', 'accentColor'],
   ['material', 'coverMaterial'],
-  ['paper', 'paperTone'],
-  ['fontPair', 'fontPair'],
 ] as const
 
 /**
  * Grava a marca. O UPDATE é uma instrução só, condicionada à versão lida: quem grava sobre uma versão antiga recebe
  * `conflict` (`stale_version`). Sem mudança nenhuma, devolve a marca atual sem gravar, sem auditar e sem subir a versão.
- * A auditoria guarda `{ from, to }` só dos campos que mudaram; da mensagem de entrada, só que mudou (não o texto).
+ * A auditoria guarda `{ from, to }` só dos campos que mudaram.
  * As imagens têm o seu próprio caminho (`setBrandImage`) e não mexem na versão.
  */
 export async function updateBrand(actor: PlatformAdminActor, businessId: string, version: number, input: BrandInput): Promise<BrandView> {
@@ -178,8 +149,7 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
     for (const [campo, coluna] of CAMPOS_MARCA) {
       if (atual[coluna] !== i[campo]) changes[campo] = { from: atual[coluna], to: i[campo] }
     }
-    const mensagemMudou = atual.loginMessage !== i.loginMessage
-    if (Object.keys(changes).length === 0 && !mensagemMudou) return
+    if (Object.keys(changes).length === 0) return
     // O nome de exibição também é do dono (Configurações > Negócio), cuja versão é a do negócio: quem leu antes recebe conflito.
     if (changes.displayName) await tx.business.update({ where: { id: businessId }, data: { version: { increment: 1 } } })
     const r = await tx.businessBranding.updateMany({
@@ -189,9 +159,6 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
         primaryColor: i.primary,
         accentColor: i.accent,
         coverMaterial: i.material,
-        paperTone: i.paper,
-        fontPair: i.fontPair,
-        loginMessage: i.loginMessage,
         version: { increment: 1 },
       },
     })
@@ -200,7 +167,7 @@ export async function updateBrand(actor: PlatformAdminActor, businessId: string,
         reason: 'stale_version',
       })
     }
-    await auditar(tx, actor, 'brand.updated', businessId, { changes, ...(mensagemMudou ? { loginMessageChanged: true } : {}) })
+    await auditar(tx, actor, 'brand.updated', businessId, { changes })
   })
   return lerMarca(businessId)
 }
@@ -306,44 +273,24 @@ export function validateAccountSetup(input: { brand: BrandInput; terms: Terms; m
 
 // ---------------------------------------------------------------- regras, fuso e avisos
 
-/** Fuso em forma canônica, ou `validation` com o campo `timeZone`. */
-function fusoCanonico(valor: string): string {
-  try {
-    return canonicalTimeZone(valor)
-  } catch (e) {
-    const msg = e instanceof DomainError ? e.message : 'Informe um fuso horário válido.'
-    throw new DomainError('validation', msg, { fields: { timeZone: msg } })
-  }
-}
-
 /**
- * Regras de agenda (mesmo esquema de validação e mesma ação de auditoria do dono, com o admin como autor) e fuso, numa
- * transação só: tudo ou nada. Trocar o fuso não mexe nos agendamentos: os instantes ficam os mesmos e os rótulos locais
- * passam a ser calculados no fuso novo. A auditoria do fuso guarda o de antes e o de depois.
+ * Regras de agenda (mesmo esquema de validação e mesma ação de auditoria do dono, com o admin como autor). O fuso é fixo
+ * (`America/Sao_Paulo`) e não se altera aqui; o retorno traz o fuso gravado na conta.
  */
 export async function updateRulesAsAdmin(
   actor: PlatformAdminActor,
   businessId: string,
-  input: Partial<SchedulingRules> & { timeZone?: string },
+  input: Partial<SchedulingRules>,
   version?: number,
 ): Promise<{ rules: SchedulingRulesView; timeZone: string }> {
   exigirAdmin(actor)
   idValido(businessId)
-  const { timeZone, ...pedido } = input
-  const novoFuso = timeZone === undefined ? undefined : fusoCanonico(timeZone)
   const ctx = await createPlatformAdminContext({ businessId, actor })
-  const regras = parseSchedulingRules(pedido)
+  const regras = parseSchedulingRules(input)
   await prisma.$transaction(async (tx) => {
     await requireActiveAdmin(tx, actor)
-    // Mesma gravação do dono (`applySchedulingRules`); só o fuso é exclusivo do admin e entra na mesma transação.
+    // Mesma gravação do dono (`applySchedulingRules`).
     await applySchedulingRules(ctx, tx, regras, Object.keys(regras).length > 0 ? version : undefined)
-    if (novoFuso !== undefined) {
-      const conta = orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { timezone: true } }), 'Conta')
-      if (conta.timezone !== novoFuso) {
-        await tx.business.update({ where: { id: businessId }, data: { timezone: novoFuso } })
-        await auditar(tx, actor, 'business.timezone_changed', businessId, { from: conta.timezone, to: novoFuso })
-      }
-    }
   })
   const [rules, conta] = await Promise.all([
     getSchedulingRules(ctx),

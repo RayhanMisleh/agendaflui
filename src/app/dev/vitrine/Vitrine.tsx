@@ -231,7 +231,7 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
           </Spec>
           <Spec title="Cor e barra lateral" note="A conta escolhe a cor dela no lugar da Água. A barra tem quatro estilos.">
             <ColorField label="Cor da conta" value={cor} onChange={setCor} />
-            <SidebarStylePicker value={barra} onChange={setBarra} primary={account.brand.primary} accent={account.brand.accent} paper={account.brand.paper} fontPair={account.brand.fontPair} />
+            <SidebarStylePicker value={barra} onChange={setBarra} primary={account.brand.primary} accent={account.brand.accent} />
           </Spec>
         </div>
       </section>

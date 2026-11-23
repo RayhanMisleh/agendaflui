@@ -10,7 +10,7 @@ import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { getSchedulingRules, RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
 import { addDays, todayIn } from '@/server/time'
 import { BrandPreview, Button, Card, EmptyHint, NavTabs } from '@/ui/components'
-import { ACCENT_FIELD_LABEL, FONT_PAIR_FIELD_LABEL, FONT_PAIR_OPTIONS, GROUND_FIELD_LABEL, GROUND_OPTIONS, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
+import { ACCENT_FIELD_LABEL, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
@@ -126,16 +126,8 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             <dt>{SIDEBAR_FIELD_LABEL}</dt>
             <dd>{labelOf(SIDEBAR_OPTIONS, a.material)}</dd>
           </div>
-          <div>
-            <dt>{GROUND_FIELD_LABEL}</dt>
-            <dd>{labelOf(GROUND_OPTIONS, a.paper)}</dd>
-          </div>
-          <div>
-            <dt>{FONT_PAIR_FIELD_LABEL}</dt>
-            <dd>{labelOf(FONT_PAIR_OPTIONS, a.fontPair)}</dd>
-          </div>
         </dl>
-        <p className="af-section__help">As cores, a barra lateral, o fundo e as fontes são ajustados pela equipe do AgendaFlui. Para mudar, fale com o suporte.</p>
+        <p className="af-section__help">As cores e a barra lateral são ajustados pela equipe do AgendaFlui. Para mudar, fale com o suporte.</p>
         <BrandPreview businessName={perfil.name} brand={a} terms={terms} />
       </Card>
     )

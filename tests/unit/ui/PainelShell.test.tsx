@@ -61,7 +61,6 @@ test('supportAction aparece dentro da faixa e só com a faixa', () => {
 test('o tema chega ao elemento raiz', () => {
   render(<PainelShell {...base}>x</PainelShell>)
   const root = screen.getByTestId('painel-shell')
-  expect(root).toHaveAttribute('data-font', theme.fontPair)
   expect(root).toHaveAttribute('data-scheme', 'day')
   expect(root.style.getPropertyValue('--brand').toUpperCase()).toBe(theme.vars['--brand'])
 })

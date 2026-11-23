@@ -4,8 +4,8 @@ import { ThemeScope } from '@/ui/theme/ThemeScope'
 import { deriveTheme } from '@/ui/theme/derive'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 
-test('aplica as variáveis da marca, o esquema e a fonte no div', () => {
-  const theme = deriveTheme({ ...AGENDAFLUI_BRAND, material: 'WOOD', fontPair: 'MODERN' })
+test('aplica as variáveis da marca, e o esquema no div', () => {
+  const theme = deriveTheme({ ...AGENDAFLUI_BRAND, material: 'WOOD' })
   const { container } = render(
     <ThemeScope theme={theme} className="x">
       <span>oi</span>
@@ -15,7 +15,6 @@ test('aplica as variáveis da marca, o esquema e a fonte no div', () => {
   expect(div.getAttribute('data-theme')).toBe('')
   expect(div.getAttribute('data-scheme')).toBe('day')
   expect(div.hasAttribute('data-material')).toBe(false)
-  expect(div.getAttribute('data-font')).toBe('modern')
   expect(div.className).toBe('x')
   expect(div.style.getPropertyValue('--brand').toUpperCase()).toBe(theme.vars['--brand'])
   expect(div.style.getPropertyValue('--side-bg').toUpperCase()).toBe(theme.vars['--side-bg'])

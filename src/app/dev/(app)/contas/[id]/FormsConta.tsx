@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { useId } from 'react'
-import { Checkbox, Field, Input, Select, Textarea } from '@/ui/components'
+import { Checkbox, Field, Input, MaskedInput, Select } from '@/ui/components'
 import { ContaForm } from './ContaForm'
 import { estadoInicial } from './forms'
 import type { AcaoConta, Campos } from './forms'
@@ -23,18 +23,12 @@ export function DadosForm({ action, valores }: { action: AcaoConta; valores: Cam
               <Input name="contactEmail" type="email" inputMode="email" defaultValue={v.contactEmail} autoComplete="off" />
             </Field>
             <Field label="Telefone" error={fields.contactPhone}>
-              <Input name="contactPhone" type="tel" inputMode="tel" defaultValue={v.contactPhone} autoComplete="off" />
-            </Field>
-            <Field label="Razão social" error={fields.legalName}>
-              <Input name="legalName" defaultValue={v.legalName} autoComplete="off" />
+              <MaskedInput mask="phone" name="contactPhone" defaultValue={v.contactPhone} />
             </Field>
             <Field label="CPF ou CNPJ" error={fields.document}>
-              <Input name="document" defaultValue={v.document} autoComplete="off" />
+              <MaskedInput mask="document" name="document" defaultValue={v.document} />
             </Field>
           </div>
-          <Field label="Observações internas" hint="Só a equipe da plataforma vê." error={fields.internalNotes}>
-            <Textarea name="internalNotes" defaultValue={v.internalNotes} rows={3} />
-          </Field>
         </>
       )}
     </ContaForm>
@@ -136,18 +130,16 @@ function ModulosCampos({ v, erroVouchers, businessId, uso }: { v: Campos; erroVo
   )
 }
 
-export type FusosParaLista = { top: Array<{ value: string; label: string }>; rest: string[] }
-
 /** Grades e limites das regras, lidos do domínio pela página (a tela não repete número de regra). */
 export type LimitesDeRegras = {
   grades: readonly number[]
   limites: { minLeadMin: { min: number; max: number }; maxAdvanceDays: { min: number; max: number }; customerChangeWindowMin: { min: number; max: number }; bufferMin: { min: number; max: number; step: number } }
 }
 
-/** Regras de agenda e fuso. A lista de fusos põe os do Brasil no topo e deixa os demais num grupo à parte. */
-export function RegrasForm({ action, valores, fusos, grades, limites }: { action: AcaoConta; valores: Campos; fusos: FusosParaLista } & LimitesDeRegras) {
+/** Regras de agenda. O fuso é fixo (America/Sao_Paulo) e não aparece aqui. */
+export function RegrasForm({ action, valores, grades, limites }: { action: AcaoConta; valores: Campos } & LimitesDeRegras) {
   return (
-    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar regras e fuso">
+    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar regras">
       {({ values: v, fields }) => (
         <>
           <div className="af-wizard__grid">
@@ -171,28 +163,6 @@ export function RegrasForm({ action, valores, fusos, grades, limites }: { action
             </Field>
             <Field label="Prazo para o cliente mudar (minutos)" hint="Até quanto tempo antes o cliente pode remarcar ou cancelar." error={fields.customerChangeWindowMin}>
               <Input name="customerChangeWindowMin" type="number" inputMode="numeric" min={limites.customerChangeWindowMin.min} max={limites.customerChangeWindowMin.max} defaultValue={v.customerChangeWindowMin} />
-            </Field>
-            <Field
-              label="Fuso horário"
-              hint="Trocar o fuso não muda os agendamentos: os instantes ficam, e os horários passam a ser mostrados no fuso novo."
-              error={fields.timeZone}
-            >
-              <Select name="timeZone" defaultValue={v.timeZone}>
-                <optgroup label="Brasil">
-                  {fusos.top.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.label}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label="Outros fusos">
-                  {fusos.rest.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </optgroup>
-              </Select>
             </Field>
           </div>
           <Checkbox name="autoConfirm" label="Confirmar os agendamentos sozinho" defaultChecked={v.autoConfirm === 'on'} />

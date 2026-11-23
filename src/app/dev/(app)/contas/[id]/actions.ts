@@ -74,7 +74,7 @@ function origens(texto: string): string[] {
 
 // ---------------------------------------------------------------- dados e situação
 
-const DADOS = ['version', 'name', 'slug', 'legalName', 'document', 'contactEmail', 'contactPhone', 'internalNotes'] as const
+const DADOS = ['version', 'name', 'slug', 'document', 'contactEmail', 'contactPhone'] as const
 
 /** Edita os dados cadastrais com a versão que a página leu; versão velha é conflito e o que foi digitado fica na tela. */
 export const salvarDados = porConta(
@@ -99,7 +99,7 @@ export const arquivarConta = situacao('ARCHIVED', 'Conta arquivada.')
 
 // ---------------------------------------------------------------- marca
 
-const MARCA = ['version', 'displayName', 'primary', 'accent', 'material', 'paper', 'fontPair', 'loginMessage'] as const
+const MARCA = ['version', 'displayName', 'primary', 'accent', 'material'] as const
 
 export const salvarMarca = porConta(
   { nomes: MARCA },
@@ -109,9 +109,6 @@ export const salvarMarca = porConta(
       primary: v.primary ?? '',
       accent: v.accent ?? '',
       material: v.material ?? '',
-      paper: v.paper ?? '',
-      fontPair: v.fontPair ?? '',
-      loginMessage: (v.loginMessage ?? '').trim() === '' ? null : (v.loginMessage ?? ''),
     }
     // O domínio confere cada valor; o tipo só deixa de reclamar da lista de opções.
     return comVersao(updateBrand(admin, v.businessId ?? '', Number(v.version), entrada as BrandInput))
@@ -166,21 +163,20 @@ export const salvarModulos = porConta(
 const NUMEROS_REGRAS = ['slotStepMin', 'minLeadMin', 'maxAdvanceDays', 'customerChangeWindowMin', 'bufferMin'] as const
 
 export const salvarRegras = porConta(
-  { nomes: ['version', 'timeZone', ...NUMEROS_REGRAS], caixas: ['autoConfirm'] },
+  { nomes: ['version', ...NUMEROS_REGRAS], caixas: ['autoConfirm'] },
   async (admin, v) => {
     naoVazio(v, NUMEROS_REGRAS)
-    const regras: Partial<SchedulingRules> & { timeZone: string } = {
+    const regras: Partial<SchedulingRules> = {
       slotStepMin: Number(v.slotStepMin),
       minLeadMin: Number(v.minLeadMin),
       maxAdvanceDays: Number(v.maxAdvanceDays),
       customerChangeWindowMin: Number(v.customerChangeWindowMin),
       bufferMin: Number(v.bufferMin),
       autoConfirm: v.autoConfirm === 'on',
-      timeZone: v.timeZone ?? '',
     }
     return comVersao(updateRulesAsAdmin(admin, v.businessId ?? '', regras, Number(v.version)))
   },
-  (r, v) => feitoNaConta('Regras e fuso salvos.', v, { version: String(r.rules.version) }),
+  (r, v) => feitoNaConta('Regras salvas.', v, { version: String(r.rules.version) }),
 )
 
 const TIPOS_DE_AVISO = Object.keys(DEFAULT_NOTIFICATION_SETTINGS)

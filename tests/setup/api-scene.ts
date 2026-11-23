@@ -33,7 +33,6 @@ export type Cena = {
 export async function montarCena(o: { timeZone?: string } = {}): Promise<Cena> {
   const business = await makeBusiness({
     ...(o.timeZone ? { timezone: o.timeZone } : {}),
-    internalNotes: 'nota-interna-secreta',
     document: '12.345.678/0001-90',
     email: 'contato-interno@exemplo.test',
     phone: '5511999990000',

@@ -12,7 +12,7 @@ import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
 import type { Modules } from '@/shared/modules'
-import { canonicalTimeZone, fromIsoInstant, toIsoInstant } from '@/server/time'
+import { fromIsoInstant, toIsoInstant } from '@/server/time'
 
 export type { BusinessStatus }
 
@@ -31,12 +31,10 @@ export type BusinessRow = {
 
 export type BusinessDetail = BusinessRow & {
   version: number
-  legalName: string | null
   document: string | null
   contactEmail: string | null
   contactPhone: string | null
   timeZone: string
-  internalNotes: string | null
   modules: Modules
 }
 
@@ -55,6 +53,8 @@ const SLUGS_RESERVADOS: readonly string[] = [
   'admin',
   'www',
 ]
+/** Toda conta usa este fuso (fixo); a coluna `businesses.timezone` continua sendo lida pela agenda. */
+const FUSO_PADRAO = 'America/Sao_Paulo'
 const LIMITE_PADRAO = 50
 const LIMITE_MAXIMO = 100
 const MSG_SLUG = 'Use de 3 a 40 letras minúsculas, números ou hífens, sem hífen no começo nem no fim.'
@@ -100,13 +100,6 @@ function documentoValido(d: string): boolean {
   return false
 }
 
-const texto = (max: number) =>
-  z
-    .string()
-    .trim()
-    .max(max, `Use no máximo ${max} caracteres.`)
-    .transform((v) => (v === '' ? null : v))
-
 const documentoSchema = z
   .string()
   .transform((v, ctx) => {
@@ -143,29 +136,17 @@ const telefoneOpcional = z
     }
   })
 
-const fusoSchema = z.string().transform((v, ctx) => {
-  try {
-    return canonicalTimeZone(v)
-  } catch (e) {
-    ctx.addIssue({ code: 'custom', message: e instanceof DomainError ? e.message : 'Informe um fuso horário válido.' })
-    return z.NEVER
-  }
-})
-
 const nomeSchema = z.string().trim().min(1, 'Informe o nome da conta.').max(120, 'Use no máximo 120 caracteres.')
 
 const camposOpcionais = {
-  legalName: texto(160).nullable().optional(),
   document: documentoSchema.nullable().optional(),
   contactEmail: emailOpcional.nullable().optional(),
   contactPhone: telefoneOpcional.nullable().optional(),
-  internalNotes: texto(2000).nullable().optional(),
 }
 
 const criarSchema = z.object({
   name: nomeSchema,
   slug: slugSchema,
-  timeZone: fusoSchema,
   ...camposOpcionais,
   owner: z.object({
     name: nomeSchema,
@@ -240,12 +221,10 @@ function paraLinha(b: LinhaBruta): BusinessRow {
 const SELECAO_DETALHE = {
   ...SELECAO_LINHA,
   version: true,
-  legalName: true,
   document: true,
   email: true,
   phone: true,
   timezone: true,
-  internalNotes: true,
   modules: { select: { loyalty: true, banners: true, store: true, vouchers: true } },
 } satisfies Prisma.BusinessSelect
 
@@ -255,12 +234,10 @@ function paraDetalhe(b: DetalheBruto): BusinessDetail {
   return {
     ...paraLinha(b),
     version: b.version,
-    legalName: b.legalName,
     document: b.document,
     contactEmail: b.email,
     contactPhone: b.phone,
     timeZone: b.timezone,
-    internalNotes: b.internalNotes,
     modules: b.modules ?? { loyalty: false, banners: false, store: false, vouchers: false },
   }
 }
@@ -430,12 +407,9 @@ export async function createBusiness(
   input: {
     name: string
     slug: string
-    timeZone: string
-    legalName?: string
     document?: string
     contactEmail?: string
     contactPhone?: string
-    internalNotes?: string
     owner: { name: string; email: string }
   },
   now: Date = new Date(),
@@ -453,12 +427,10 @@ export async function createBusiness(
               slug: i.slug,
               name: i.name,
               searchName: searchKey(i.name),
-              timezone: i.timeZone,
-              legalName: i.legalName ?? null,
+              timezone: FUSO_PADRAO,
               document: i.document ?? null,
               email: i.contactEmail ?? null,
               phone: i.contactPhone ?? null,
-              internalNotes: i.internalNotes ?? null,
               branding: { create: { displayName: i.name } },
               modules: { create: {} },
               settings: { create: {} },
@@ -520,11 +492,9 @@ export async function updateBusinessData(
   patch: Partial<{
     name: string
     slug: string
-    legalName: string | null
     document: string | null
     contactEmail: string | null
     contactPhone: string | null
-    internalNotes: string | null
   }>,
 ): Promise<BusinessDetail> {
   exigirAdmin(actor)
@@ -537,11 +507,9 @@ export async function updateBusinessData(
     dados.searchName = searchKey(p.name)
   }
   if (p.slug !== undefined) dados.slug = p.slug
-  if (p.legalName !== undefined) dados.legalName = p.legalName
   if (p.document !== undefined) dados.document = p.document
   if (p.contactEmail !== undefined) dados.email = p.contactEmail
   if (p.contactPhone !== undefined) dados.phone = p.contactPhone
-  if (p.internalNotes !== undefined) dados.internalNotes = p.internalNotes
   const campos = Object.keys(p).filter((k) => (p as Record<string, unknown>)[k] !== undefined).sort()
   const stale = () =>
     new DomainError('conflict', 'Outra pessoa alterou esta conta enquanto você editava. Recarregue a página e refaça a alteração.', {

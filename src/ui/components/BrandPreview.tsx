@@ -3,7 +3,7 @@ import { previewTheme } from '@/shared/theme/preview'
 import { labelOf, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { themeAttrs } from '../theme/ThemeScope'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
-import type { CoverMaterial, FontPair, PaperTone } from '@/shared/theme/derive'
+import type { CoverMaterial } from '@/shared/theme/derive'
 import { Bubbles } from './Bubbles'
 import { StatusBadge } from './StatusBadge'
 import { cx } from './cx'
@@ -19,8 +19,6 @@ export type PreviewBrand = {
   primary: string
   accent: string
   material: CoverMaterial
-  paper: PaperTone
-  fontPair: FontPair
   logoUrl?: string | null
 }
 
@@ -49,7 +47,7 @@ export function BrandPreview({
     <div role="group" aria-label={`Prévia do painel de ${nome}`} className={cx('af-bp', className)}>
       <p className="af-sr">
         Miniatura do painel com a barra lateral {labelOf(SIDEBAR_OPTIONS, brand.material).toLowerCase()}.
-        Ela muda sozinha quando você troca as cores, a barra lateral, o fundo, a fonte ou os termos.
+        Ela muda sozinha quando você troca as cores, a barra lateral ou os termos.
       </p>
       <div data-testid="brand-preview" className="af-bp__scope" {...themeAttrs(theme)}>
         <div data-testid="brand-preview-mock" aria-hidden="true" inert className="af-bp__window">

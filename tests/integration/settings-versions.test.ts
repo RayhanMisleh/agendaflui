@@ -109,13 +109,12 @@ describe('versão das configurações', () => {
     })
   })
 
-  test('o fuso continua só do admin e vai na mesma transação das regras (versão antiga desfaz o fuso)', async () => {
-    const e = await domainError(updateRulesAsAdmin(admin, biz.id, { timeZone: 'Asia/Tokyo', bufferMin: 5 }, 7))
+  test('versão antiga nas regras do admin: conflict e nada gravado', async () => {
+    const e = await domainError(updateRulesAsAdmin(admin, biz.id, { bufferMin: 5 }, 7))
     expect(stale(e)).toEqual(['conflict', 'stale_version'])
-    expect((await prisma.business.findUniqueOrThrow({ where: { id: biz.id } })).timezone).toBe('America/Sao_Paulo')
     expect(await prisma.auditLog.count({ where: { businessId: biz.id } })).toBe(0)
-    const ok = await updateRulesAsAdmin(admin, biz.id, { timeZone: 'Asia/Tokyo', bufferMin: 5 }, 1)
-    expect([ok.timeZone, ok.rules.version]).toEqual(['Asia/Tokyo', 2])
+    const ok = await updateRulesAsAdmin(admin, biz.id, { bufferMin: 5 }, 1)
+    expect(ok.rules.version).toBe(2)
   })
 
   test('o dono não tem como mandar fuso por updateSchedulingRules', async () => {

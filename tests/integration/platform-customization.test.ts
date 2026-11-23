@@ -26,12 +26,8 @@ import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
   ctxWithRole,
-  makeAppointment,
   makeBusiness,
-  makeCustomer,
   makePlatformAdmin,
-  makeProfessional,
-  makeService,
 } from '../setup/factories'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
@@ -61,9 +57,6 @@ const brand: BrandInput = {
   primary: '#7A1F2B',
   accent: '#F2A93B',
   material: 'WOOD',
-  paper: 'GRAY',
-  fontPair: 'MODERN',
-  loginMessage: 'Bem-vindo de volta.',
 }
 
 const png = (width: number, height: number) =>
@@ -143,9 +136,6 @@ describe('getCustomization', () => {
       primary: '#0B6E66',
       accent: '#F2A93B',
       material: 'LEATHER',
-      paper: 'CREAM',
-      fontPair: 'CLASSIC',
-      loginMessage: null,
       logoUrl: null,
       symbolUrl: null,
       faviconUrl: null,
@@ -182,21 +172,17 @@ describe('updateBrand', () => {
     const r = await updateBrand(actor, biz.id, 1, { ...brand, primary: '#7a1f2b', accent: '#f2a93b' })
     expect(r).toMatchObject({ ...brand, primary: '#7A1F2B', accent: '#F2A93B', version: 2 })
     const linha = await prisma.businessBranding.findUniqueOrThrow({ where: { businessId: biz.id } })
-    expect([linha.primaryColor, linha.coverMaterial, linha.paperTone, linha.fontPair]).toEqual(['#7A1F2B', 'WOOD', 'GRAY', 'MODERN'])
+    expect([linha.primaryColor, linha.coverMaterial]).toEqual(['#7A1F2B', 'WOOD'])
     const [log] = await auditoria('brand.updated')
     expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: actor.adminId, onBehalf: false })
-    // Só o que mudou, com antes e depois (o destaque só mudou de caixa, então não entra); a mensagem não vai por extenso.
+    // Só o que mudou, com antes e depois (o destaque só mudou de caixa, então não entra).
     expect(log?.metadata).toEqual({
       changes: {
         displayName: { from: `Conta ${biz.slug}`, to: 'Barbearia Central' },
         primary: { from: '#0B6E66', to: '#7A1F2B' },
         material: { from: 'LEATHER', to: 'WOOD' },
-        paper: { from: 'CREAM', to: 'GRAY' },
-        fontPair: { from: 'CLASSIC', to: 'MODERN' },
       },
-      loginMessageChanged: true,
     })
-    expect(JSON.stringify(log?.metadata)).not.toContain('Bem-vindo')
   })
 
   test('gravar sem mudar nada não cria auditoria nem sobe a versão e devolve a marca atual', async () => {
@@ -207,29 +193,17 @@ describe('updateBrand', () => {
     expect((await getCustomization(actor, biz.id)).brand.version).toBe(2)
   })
 
-  test('só a mensagem mudou: a auditoria diz que mudou, sem o texto', async () => {
-    await updateBrand(actor, biz.id, 1, brand)
-    await updateBrand(actor, biz.id, 2, { ...brand, loginMessage: 'Texto novo secreto' })
-    const logs = await auditoria('brand.updated')
-    expect(logs[1]?.metadata).toEqual({ changes: {}, loginMessageChanged: true })
-  })
-
-  test('caracteres de controle e < > em texto são recusados; quebra de linha só na mensagem', async () => {
+  test('caracteres de controle e < > no nome de exibição são recusados', async () => {
     const casos: [Partial<BrandInput>, string][] = [
       [{ displayName: 'Nome\u0000' }, 'displayName'],
       [{ displayName: 'Nome\nlinha' }, 'displayName'],
       [{ displayName: 'Nome\u200b' }, 'displayName'],
-      [{ loginMessage: 'oi\u0007' }, 'loginMessage'],
-      [{ loginMessage: 'oi <b>' }, 'loginMessage'],
-      [{ loginMessage: 'oi > você' }, 'loginMessage'],
     ]
     for (const [troca, campo] of casos) {
       const e = await domainError(updateBrand(actor, biz.id, 1, { ...brand, ...troca }))
       expect(e.code, campo).toBe('validation')
       expect(Object.keys(e.fields ?? {}), campo).toContain(campo)
     }
-    const r = await updateBrand(actor, biz.id, 1, { ...brand, loginMessage: 'Linha um\nLinha dois' })
-    expect(r.loginMessage).toBe('Linha um\nLinha dois')
   })
 
   test('o painel da conta serve exatamente os tokens da prévia', async () => {
@@ -257,14 +231,11 @@ describe('updateBrand', () => {
     expect(linha.primaryColor).toBe('#0B6E66')
   })
 
-  test('par de fontes, material e papel fora da lista, nome vazio e mensagem longa são recusados', async () => {
+  test('material fora da lista e nome de exibição vazio ou com marcação são recusados', async () => {
     const casos: [Partial<Record<keyof BrandInput, unknown>>, string][] = [
-      [{ fontPair: 'COMIC' }, 'fontPair'],
       [{ material: 'PLASTIC' }, 'material'],
-      [{ paper: 'BLACK' }, 'paper'],
       [{ displayName: '  ' }, 'displayName'],
       [{ displayName: 'A<b>' }, 'displayName'],
-      [{ loginMessage: 'x'.repeat(281) }, 'loginMessage'],
     ]
     for (const [troca, campo] of casos) {
       const e = await domainError(updateBrand(actor, biz.id, 1, { ...brand, ...troca } as BrandInput))
@@ -273,9 +244,11 @@ describe('updateBrand', () => {
     }
   })
 
-  test('mensagem vazia vira null', async () => {
-    const r = await updateBrand(actor, biz.id, 1, { ...brand, loginMessage: '   ' })
-    expect(r.loginMessage).toBeNull()
+  test('campos removidos da marca (fundo, fontes, mensagem de entrada) são recusados', async () => {
+    for (const extra of [{ paper: 'GRAY' }, { fontPair: 'MODERN' }, { loginMessage: 'oi' }]) {
+      const e = await domainError(updateBrand(actor, biz.id, 1, { ...brand, ...extra } as BrandInput))
+      expect(e.code).toBe('validation')
+    }
   })
 
   test('versão antiga: conflict com stale_version, sem sobrescrever', async () => {
@@ -613,52 +586,12 @@ describe('regras, fuso e avisos pelo admin', () => {
     expect((await updateRulesAsAdmin(actor, b.id, { bufferMin: 15 })).rules.bufferMin).toBe(15)
   })
 
-  test('trocar o fuso grava o fuso canônico e a auditoria com antes e depois', async () => {
-    const r = await updateRulesAsAdmin(actor, biz.id, { timeZone: 'america/manaus' })
-    expect(r.timeZone).toBe('America/Manaus')
-    expect((await prisma.business.findUniqueOrThrow({ where: { id: biz.id } })).timezone).toBe('America/Manaus')
-    const [log] = await auditoria('business.timezone_changed')
-    expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: actor.adminId })
-    expect(log?.metadata).toMatchObject({ from: 'America/Sao_Paulo', to: 'America/Manaus' })
-  })
-
-  test('fuso inválido é recusado e nada muda, nem as regras enviadas junto', async () => {
-    const e = await domainError(updateRulesAsAdmin(actor, biz.id, { timeZone: 'Marte/Olimpo', bufferMin: 20 }))
+  test('o fuso é fixo: pedir outro fuso é recusado e nada muda, nem as regras enviadas junto', async () => {
+    const e = await domainError(updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo', bufferMin: 20 } as never))
     expect(e.code).toBe('validation')
-    expect(e.fields?.['timeZone']).toBeTruthy()
-    expect((await getCustomization(actor, biz.id)).rules.bufferMin).toBe(0)
-    expect(await auditoria('business.timezone_changed')).toHaveLength(0)
-  })
-
-  test('tudo ou nada: regra inválida com fuso válido não grava o fuso; fuso inválido com regra válida não grava a regra', async () => {
-    await domainError(updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo', slotStepMin: 7 }))
-    await domainError(updateRulesAsAdmin(actor, biz.id, { timeZone: 'Marte/Olimpo', bufferMin: 25 }))
     const c = await getCustomization(actor, biz.id)
-    expect([c.timeZone, c.rules.slotStepMin, c.rules.bufferMin]).toEqual(['America/Sao_Paulo', 15, 0])
+    expect([c.timeZone, c.rules.bufferMin]).toEqual(['America/Sao_Paulo', 0])
     expect(await prisma.auditLog.count({ where: { businessId: biz.id } })).toBe(0)
-  })
-
-  test('regras e fuso válidos juntos gravam os dois e auditam os dois', async () => {
-    const r = await updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo', bufferMin: 25 })
-    expect([r.timeZone, r.rules.bufferMin]).toEqual(['Asia/Tokyo', 25])
-    expect(await auditoria('scheduling_rules.updated')).toHaveLength(1)
-    expect(await auditoria('business.timezone_changed')).toHaveLength(1)
-  })
-
-  test('mesmo fuso: sem auditoria de troca', async () => {
-    await updateRulesAsAdmin(actor, biz.id, { timeZone: 'America/Sao_Paulo' })
-    expect(await auditoria('business.timezone_changed')).toHaveLength(0)
-  })
-
-  test('trocar o fuso com agendamentos futuros é permitido e os instantes não mudam', async () => {
-    const servico = await makeService(biz.id)
-    const profissional = await makeProfessional(biz.id, { serviceIds: [servico.id] })
-    const cliente = await makeCustomer(biz.id)
-    const inicio = new Date(Date.now() + 3 * 24 * 3600 * 1000)
-    const ag = await makeAppointment(biz.id, { customerId: cliente.id, professionalId: profissional.id, serviceId: servico.id, startsAt: inicio })
-    await updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo' })
-    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: ag.id } })).startsAt.getTime()).toBe(inicio.getTime())
-    expect((await getCustomization(actor, biz.id)).timeZone).toBe('Asia/Tokyo')
   })
 
   test('sem nada para mudar devolve o estado atual', async () => {
@@ -697,7 +630,6 @@ describe('admin desativado com o objeto de ator antigo', () => {
       () => updateTerms(actor, biz.id, { ...termos, club: 'Clube Novo' }),
       () => updateModules(actor, biz.id, { loyalty: true, banners: false, store: false, vouchers: false }),
       () => updateRulesAsAdmin(actor, biz.id, { bufferMin: 5 }),
-      () => updateRulesAsAdmin(actor, biz.id, { timeZone: 'Asia/Tokyo' }),
       () => updateNotificationsAsAdmin(actor, biz.id, { APPOINTMENT_CONFIRMED: { email: false, push: false } } as never),
       () => setBrandImage(actor, biz.id, 'logo', null),
     ]
@@ -708,19 +640,17 @@ describe('admin desativado com o objeto de ator antigo', () => {
 })
 
 describe('texto com emoji composto', () => {
-  test('o caractere de junção (U+200D) vale em nome de exibição, termos e mensagem; os demais caracteres de controle seguem recusados', async () => {
+  test('o caractere de junção (U+200D) vale em nome de exibição e termos; os demais caracteres de controle seguem recusados', async () => {
     const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'
     const v = (await getCustomization(actor, biz.id)).brand.version
-    const marca = await updateBrand(actor, biz.id, v, { ...brand, displayName: `${familia} Casa`, loginMessage: `Olá ${familia}\nVolte sempre.` })
+    const marca = await updateBrand(actor, biz.id, v, { ...brand, displayName: `${familia} Casa` })
     expect(marca.displayName).toBe(`${familia} Casa`)
-    expect(marca.loginMessage).toBe(`Olá ${familia}\nVolte sempre.`)
     expect((await updateTerms(actor, biz.id, { ...termos, club: `Clube ${familia}` })).club).toBe(`Clube ${familia}`)
 
     for (const ruim of ['a\u200Bb', 'a\tb', 'a\u0000b', 'a\u202Eb']) {
       expect((await domainError(updateBrand(actor, biz.id, marca.version, { ...brand, displayName: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
       expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
     }
-    expect((await domainError(updateBrand(actor, biz.id, marca.version, { ...brand, loginMessage: 'a\u200Bb' }))).code).toBe('validation')
   })
 })
 
@@ -729,13 +659,12 @@ describe('texto só de caractere invisível', () => {
   const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'
   const bandeira = '\u{1F3F3}\uFE0F\u200D\u{1F308}'
 
-  test('junção de emoji solta (só ela, no início, no fim, repetida ou junto de espaço) é recusada em nome, termos e mensagem', async () => {
+  test('junção de emoji solta (só ela, no início, no fim, repetida ou junto de espaço) é recusada em nome e termos', async () => {
     const v = (await getCustomization(actor, biz.id)).brand.version
     for (const ruim of [ZWJ, ZWJ + ZWJ, 'a' + ZWJ, ZWJ + 'a', 'Pet' + ZWJ, 'a' + ZWJ + ZWJ + 'b', 'a ' + ZWJ + ' b']) {
       const rotulo = JSON.stringify(ruim)
       expect((await domainError(updateBrand(actor, biz.id, v, { ...brand, displayName: ruim }))).code, rotulo).toBe('validation')
       expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, rotulo).toBe('validation')
-      expect((await domainError(updateBrand(actor, biz.id, v, { ...brand, loginMessage: ruim }))).code, rotulo).toBe('validation')
     }
   })
 
