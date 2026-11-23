@@ -160,29 +160,31 @@ export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; val
   return (
     <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar avisos">
       {({ values: v }) => (
-        <table className="af-matrix">
-          <caption className="af-sr">Avisos por tipo e canal</caption>
-          <thead>
-            <tr>
-              <th scope="col">Aviso</th>
-              <th scope="col">E-mail</th>
-              <th scope="col">Push</th>
-            </tr>
-          </thead>
-          <tbody>
-            {avisos.map((a) => (
-              <tr key={a.kind}>
-                <th scope="row">{a.label}</th>
-                <td>
-                  <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={v[`${a.kind}__email`] === 'on'} />
-                </td>
-                <td>
-                  <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: push</span>} defaultChecked={v[`${a.kind}__push`] === 'on'} />
-                </td>
+        <div className="af-matrix__scroll">
+          <table className="af-matrix">
+            <caption className="af-sr">Avisos por tipo e canal</caption>
+            <thead>
+              <tr>
+                <th scope="col">Aviso</th>
+                <th scope="col">E-mail</th>
+                <th scope="col">Push</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {avisos.map((a) => (
+                <tr key={a.kind}>
+                  <th scope="row">{a.label}</th>
+                  <td>
+                    <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={v[`${a.kind}__email`] === 'on'} />
+                  </td>
+                  <td>
+                    <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: push</span>} defaultChecked={v[`${a.kind}__push`] === 'on'} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </ContaForm>
   )

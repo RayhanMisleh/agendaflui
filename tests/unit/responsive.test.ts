@@ -10,8 +10,8 @@ function arquivos(dir: string, ext: RegExp): string[] {
   })
 }
 
-/** Telas varridas: o painel do negócio (a varredura do painel dev entra na Tarefa 16). */
-const TELAS = ['src/app/painel']
+/** Telas varridas: o painel do negócio (T15) e o painel dev (T16). */
+const TELAS = ['src/app/painel', 'src/app/dev']
 
 /**
  * `<table>` que pode ficar fora do DataList, com o motivo (Ruling A8): a matriz de permissões e avisos é uma grade de
@@ -19,6 +19,7 @@ const TELAS = ['src/app/painel']
  */
 const TABELAS_PERMITIDAS: Record<string, string> = {
   'src/app/painel/(app)/configuracoes/Formularios.tsx': 'matriz de avisos por canal, com rolagem em contêiner',
+  'src/app/dev/(app)/contas/[id]/FormsConta.tsx': 'matriz de avisos por canal, com rolagem em contêiner',
 }
 
 describe('tabelas das telas', () => {
