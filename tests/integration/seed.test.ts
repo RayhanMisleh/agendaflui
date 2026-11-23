@@ -53,7 +53,7 @@ describe('contas e acessos', () => {
     })
     expect(patas.timezone).toBe('America/Sao_Paulo')
     expect(patas.branding).toMatchObject({ primaryColor: '#2F7D5B', accentColor: '#F29A4B', coverMaterial: 'LEATHER' })
-    expect(patas.settings).toMatchObject({ termProfessionalPlural: 'Tosadores', termCustomerPlural: 'Tutores', termPointsPlural: 'Patinhas' })
+    expect(patas.settings).toMatchObject({ termProfessionalPlural: 'Tosadores', termCustomerPlural: 'Clientes', termPointsPlural: 'Patinhas' })
     expect(patas.modules).toMatchObject({ loyalty: true, banners: true, store: false })
     const navalha = await prisma.business.findUniqueOrThrow({
       where: { slug: 'navalha-de-ouro' },

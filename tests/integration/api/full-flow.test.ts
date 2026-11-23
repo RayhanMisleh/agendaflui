@@ -81,7 +81,7 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   expect(conta.status).toBe(200)
   const termos = jsonObject(jsonObject(conta.json).terms)
   expect(jsonObject(termos.professional).singular).toBe('Tosador')
-  expect(jsonObject(termos.customer).singular).toBe('Tutor')
+  expect(jsonObject(termos.customer).singular).toBe('Cliente')
   expect(jsonObject(conta.json).slug).toBe('patas-e-cia')
 
   // 3. Cadastro, código lido do e-mail, confirmação e tokens.

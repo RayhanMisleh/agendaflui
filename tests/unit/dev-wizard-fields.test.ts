@@ -44,7 +44,7 @@ test('as sugestões por ramo só preenchem termos (nunca marca, dono ou regras)'
   expect(TERM_PRESETS.map((p) => p.label)).toEqual(['Barbearia', 'Pet shop', 'Clínica', 'Estúdio'])
   const pet = TERM_PRESETS.find((p) => p.label === 'Pet shop')!
   expect(pet.terms.professionalSingular).toBe('Tosador')
-  expect(pet.terms.customerSingular).toBe('Tutor')
+  expect(pet.terms.customerSingular).toBe('Cliente')
   expect(Object.keys(pet.terms).sort()).toEqual(
     ['club', 'customerPlural', 'customerSingular', 'pointsPlural', 'pointsSingular', 'professionalPlural', 'professionalSingular'],
   )

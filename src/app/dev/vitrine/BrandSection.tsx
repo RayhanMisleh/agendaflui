@@ -17,13 +17,13 @@ const COLORS: ReadonlyArray<{ token: string; name: string; use: string }> = [
 ]
 
 const SCALE: ReadonlyArray<{ cls: string; label: string; sample: string }> = [
-  { cls: 'af-display', label: 'Título grande · 64', sample: 'Banho marcado, tutor tranquilo.' },
+  { cls: 'af-display', label: 'Título grande · 64', sample: 'Banho marcado, cliente tranquilo.' },
   { cls: 'af-h1', label: 'Título 1 · 44', sample: 'Sua agenda enche sozinha.' },
   { cls: 'af-h2', label: 'Título 2 · 32', sample: 'Do link na bio ao pet cheiroso' },
   { cls: 'af-h3', label: 'Título 3 · 22', sample: 'Monte seus serviços' },
-  { cls: 'vt-body-lg', label: 'Texto grande · 19', sample: 'O tutor escolhe o serviço e o horário pelo seu link, sem ligar.' },
+  { cls: 'vt-body-lg', label: 'Texto grande · 19', sample: 'O cliente escolhe o serviço e o horário pelo seu link, sem ligar.' },
   { cls: 'vt-body', label: 'Texto · 16', sample: 'Lembrete automático na véspera, com botão para confirmar ou remarcar.' },
-  { cls: 'vt-small', label: 'Texto pequeno · 14', sample: 'Sem instalar nada. Funciona no celular do tutor e no computador do balcão.' },
+  { cls: 'vt-small', label: 'Texto pequeno · 14', sample: 'Sem instalar nada. Funciona no celular do cliente e no computador do balcão.' },
 ]
 
 function Block({ title, children }: { title: string; children: ReactNode }) {

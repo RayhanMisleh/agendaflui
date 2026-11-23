@@ -113,7 +113,7 @@ function Avisos() {
       <Button onClick={() => toast({ tone: 'success', message: 'Banho agendado para as 10:00.' })}>Sucesso</Button>
       <Button onClick={() => toast({ tone: 'warning', message: 'Esse horário já tem outro banho.' })}>Atenção</Button>
       <Button onClick={() => toast({ tone: 'danger', message: 'Não foi possível salvar. Tente de novo.' })}>Erro</Button>
-      <Button onClick={() => toast({ message: 'Lembrete enviado ao tutor.' })}>Neutro</Button>
+      <Button onClick={() => toast({ message: 'Lembrete enviado ao cliente.' })}>Neutro</Button>
     </div>
   )
 }
@@ -223,7 +223,7 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
               clearHref="/dev/vitrine"
               placeholder="Nome, pet ou telefone"
             />
-            <Checkbox label="Avisar o tutor quando o pet estiver pronto" checked={chk} onChange={(e) => setChk(e.target.checked)} />
+            <Checkbox label="Avisar o cliente quando o pet estiver pronto" checked={chk} onChange={(e) => setChk(e.target.checked)} />
             <Checkbox label="Opção desabilitada" disabled />
             <Switch checked={sw} onCheckedChange={setSw} label="Lembrete no WhatsApp na véspera" />
             <Switch checked={false} disabled onCheckedChange={() => {}} label="Fidelidade (em breve)" />
@@ -298,7 +298,7 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
               }
             >
               <Field label="Cliente">
-                <Input placeholder="Nome do tutor ou do pet" />
+                <Input placeholder="Nome do cliente ou do pet" />
               </Field>
             </Dialog>
             <ConfirmDialog
@@ -433,7 +433,7 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
           <Spec title="Prévia do painel" note="A miniatura muda com a conta, a cor e o estilo da barra." wide>
             <BrandPreview
               brand={{ ...account.brand, material: barra, primary: cor && /^#[0-9a-fA-F]{6}$/.test(cor) ? cor : account.brand.primary }}
-              terms={{ professionalSingular: 'Banhista', professionalPlural: 'Banhistas', customerSingular: 'Tutor', customerPlural: 'Tutores' }}
+              terms={{ professionalSingular: 'Banhista', professionalPlural: 'Banhistas', customerSingular: 'Cliente', customerPlural: 'Clientes' }}
               businessName={account.name}
             />
           </Spec>

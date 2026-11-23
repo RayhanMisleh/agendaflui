@@ -163,7 +163,7 @@ export const TERM_PRESETS: ReadonlyArray<{ label: string; terms: TermSet }> = [
   },
   {
     label: 'Pet shop',
-    terms: { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' },
+    terms: { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Cliente', customerPlural: 'Clientes', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' },
   },
   {
     label: 'Clínica',

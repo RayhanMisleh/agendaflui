@@ -5,7 +5,7 @@ import type { NavItem } from './nav'
 
 /**
  * Os destinos do painel do negócio para quem tem cada capacidade, na ordem do desenho. O rótulo de Clientes e de
- * Equipe segue os termos da conta ("Tutores", "Tosadores"). Quem só vê os próprios números lê "Meus números", e quem não
+ * Equipe segue os termos da conta ("Clientes", "Tosadores"). Quem só vê os próprios números lê "Meus números", e quem não
  * gerencia as configurações da conta chega ao seu perfil por "Meu perfil" (mesma rota). Os módulos opcionais (Fidelidade,
  * Banners, Loja) entram depois de Serviços, cada um só com o módulo ligado E a capacidade de gerenciá-lo.
  */

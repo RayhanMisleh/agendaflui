@@ -216,8 +216,8 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       {
         professionalSingular: 'Profissional',
         professionalPlural: 'Profissionais',
-        customerSingular: 'Tutor',
-        customerPlural: 'Tutores',
+        customerSingular: 'Cliente',
+        customerPlural: 'Clientes',
         pointsSingular: 'Patinha',
         pointsPlural: 'Patinhas',
         club: 'Clube Patudo',

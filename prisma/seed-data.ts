@@ -170,8 +170,8 @@ export const DEMO_CONTAS = [
     termos: {
       termProfessionalSingular: 'Tosador',
       termProfessionalPlural: 'Tosadores',
-      termCustomerSingular: 'Tutor',
-      termCustomerPlural: 'Tutores',
+      termCustomerSingular: 'Cliente',
+      termCustomerPlural: 'Clientes',
       termPointsSingular: 'Patinha',
       termPointsPlural: 'Patinhas',
     },
