@@ -9,7 +9,7 @@ const skip = (reason: string) => ({ action: 'skip', reason })
 
 type Caso = { nome: string; n: ReturnType<typeof loaded>; esperado: ReturnType<typeof skip> | typeof SEND; now?: Date }
 
-const desligado = (kind: string, canal: 'email' | 'push') => {
+const desligado = (kind: string, canal: 'email') => {
   const base = loaded()
   return { ...base.business.enabled, [kind]: { ...base.business.enabled['APPOINTMENT_CONFIRMED'], [canal]: false } }
 }
@@ -19,16 +19,10 @@ const casos: Caso[] = [
   { nome: 'conta suspensa', n: loaded({ business: { status: 'SUSPENDED' } }), esperado: skip('business_inactive') },
   { nome: 'conta arquivada', n: loaded({ business: { status: 'ARCHIVED' } }), esperado: skip('business_inactive') },
   { nome: 'tipo desligado para e-mail', n: loaded({ business: { enabled: desligado('APPOINTMENT_CONFIRMED', 'email') } }), esperado: skip('disabled_by_business') },
-  { nome: 'tipo desligado só para push não atrapalha o e-mail', n: loaded({ business: { enabled: desligado('APPOINTMENT_CONFIRMED', 'push') } }), esperado: SEND },
-  { nome: 'tipo desligado para push', n: loaded({ channel: 'PUSH', business: { enabled: desligado('APPOINTMENT_CONFIRMED', 'push') } }), esperado: skip('disabled_by_business') },
   { nome: 'destinatário apagado', n: loaded({ recipient: null }), esperado: skip('recipient_gone') },
   { nome: 'cliente arquivado ou anonimizado', n: loaded({ recipient: { active: false } }), esperado: skip('recipient_gone') },
   { nome: 'cliente desligou e-mail', n: loaded({ recipient: { allowEmail: false } }), esperado: skip('disabled_by_recipient') },
-  { nome: 'cliente desligou push', n: loaded({ channel: 'PUSH', recipient: { allowPush: false } }), esperado: skip('disabled_by_recipient') },
-  { nome: 'cliente desligou só push: e-mail sai', n: loaded({ recipient: { allowPush: false } }), esperado: SEND },
   { nome: 'cliente sem e-mail', n: loaded({ recipient: { email: null } }), esperado: skip('no_email') },
-  { nome: 'push com dispositivo envia', n: loaded({ channel: 'PUSH' }), esperado: SEND },
-  { nome: 'push sem dispositivo', n: loaded({ channel: 'PUSH', recipient: { pushTokens: [] } }), esperado: skip('no_device') },
   {
     nome: 'membro com vínculo inativo',
     n: loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', active: false } }),
@@ -203,7 +197,6 @@ const casos: Caso[] = [
 const observador = (kind: 'STAFF_NEW_APPOINTMENT' | 'STAFF_APPOINTMENT_RESCHEDULED' | 'STAFF_APPOINTMENT_CANCELED', o: Parameters<typeof loaded>[0] = {}) =>
   loaded({
     kind,
-    channel: 'PUSH',
     payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: null, audience: 'watcher' },
     // O observador não é o profissional do atendimento (m-1).
     recipient: { kind: 'member', id: 'm-dono', watchesAll: true },

@@ -35,8 +35,6 @@ export type LoadedRecipient = {
   email: string | null
   active: boolean
   allowEmail: boolean
-  allowPush: boolean
-  pushTokens: string[]
   /** Vínculo ativo, dono ou gerente, com a preferência de avisos de toda a loja ligada (vale para as linhas de observador). */
   watchesAll: boolean
 }
@@ -71,18 +69,13 @@ export function parsePayload(raw: unknown): LoadedPayload {
 }
 
 async function loadRecipient(
-  n: { businessId: string; channel: NotificationChannel; customerId: string | null; membershipId: string | null },
+  n: { businessId: string; customerId: string | null; membershipId: string | null },
 ): Promise<LoadedRecipient | null> {
   const { businessId } = n
-  const tokens = async (owner: { customerId: string } | { membershipId: string }): Promise<string[]> => {
-    if (n.channel !== 'PUSH') return []
-    const devices = await prisma.device.findMany({ where: { businessId, ...owner }, select: { pushToken: true }, orderBy: { id: 'asc' } })
-    return devices.map((d) => d.pushToken)
-  }
   if (n.customerId) {
     const c = await prisma.customer.findFirst({
       where: { id: n.customerId, businessId },
-      select: { id: true, name: true, email: true, archivedAt: true, anonymizedAt: true, notifyEmailAppointments: true, notifyPushAppointments: true },
+      select: { id: true, name: true, email: true, archivedAt: true, anonymizedAt: true, notifyEmailAppointments: true },
     })
     if (!c) return null
     return {
@@ -92,8 +85,6 @@ async function loadRecipient(
       email: c.email,
       active: c.archivedAt === null && c.anonymizedAt === null,
       allowEmail: c.notifyEmailAppointments,
-      allowPush: c.notifyPushAppointments,
-      pushTokens: await tokens({ customerId: c.id }),
       watchesAll: false,
     }
   }
@@ -110,8 +101,6 @@ async function loadRecipient(
       email: m.user.email,
       active: m.active,
       allowEmail: true,
-      allowPush: true,
-      pushTokens: await tokens({ membershipId: m.id }),
       watchesAll: m.active && (m.role === 'OWNER' || m.role === 'MANAGER') && m.notifyAllAppointments,
     }
   }

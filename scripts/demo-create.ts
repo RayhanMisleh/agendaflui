@@ -227,12 +227,12 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   // ---- 2. Configuração (avisos, termos, logo) -------------------------------------------------------------------
   await secao('configuracao', async () => {
     // Avisos para a equipe usariam os e-mails fictícios da equipe: desligados. Os avisos ao cliente ficam ligados, mas os
-    // clientes não têm e-mail nem aparelho cadastrado, então nada sai (e a fila é descartada no fim).
+    // clientes não têm e-mail cadastrado, então nada sai (e a fila é descartada no fim).
     await d.avisos.updateNotificationSettings(ctx, {
-      STAFF_NEW_APPOINTMENT: { email: false, push: false },
-      STAFF_APPOINTMENT_CANCELED: { email: false, push: false },
-      STAFF_APPOINTMENT_RESCHEDULED: { email: false, push: false },
-      PROFESSIONAL_FREE_EARLY: { email: false, push: false },
+      STAFF_NEW_APPOINTMENT: { email: false },
+      STAFF_APPOINTMENT_CANCELED: { email: false },
+      STAFF_APPOINTMENT_RESCHEDULED: { email: false },
+      PROFESSIONAL_FREE_EARLY: { email: false },
     })
     const { version } = await d.termos.readTerms(ctx)
     await d.termos.updateTermsOf(

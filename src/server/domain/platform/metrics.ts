@@ -4,8 +4,7 @@ import { assertPlatformAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
 import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
-import { addMinutes, fromEpochMs, isValidTimeZone, localPeriods, startOfUtcHour, type LocalPeriods } from '@/server/time'
-import { usageSummary } from './api-usage'
+import { addMinutes, fromEpochMs, isValidTimeZone, localPeriods, type LocalPeriods } from '@/server/time'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
@@ -43,8 +42,6 @@ export type Overview = {
   revenueCents: { month: Trend }
   /** Volume da loja no mês, só das contas com o módulo Loja ligado (`accounts` é quantas são). */
   store: { accounts: number; paidOrders: Trend; revenueCents: Trend }
-  appUsers: { activeToday: number; activeMonth: number }
-  api: { requests24h: number; errors24h: number }
   notifications: { pending: number; failed24h: number }
   quietAccounts: { id: string; name: string; lastActivityAt: Date | null }[]
 }
@@ -56,7 +53,6 @@ export type AccountMetrics = {
   /** Pedidos pagos e receita da loja no mês; `null` quando a conta não tem o módulo Loja ligado. */
   store: { paidOrders: Trend; revenueCents: Trend } | null
   team: { active: number; professionals: number }
-  appUsers: { activeMonth: number }
   lastActivityAt: Date | null
 }
 
@@ -159,21 +155,6 @@ async function storeAggregate(windows: Windows, scope: Prisma.Sql): Promise<Stor
   return { accounts: num(only(accounts)['n']), paidOrders: trend(r, 'ord'), revenueCents: trend(r, 'rev') }
 }
 
-async function appUsersAggregate(windows: Windows, scope: Prisma.Sql): Promise<{ today: number; month: number }> {
-  const { lo, hi } = bounds(windows, 'month')
-  const active = (a: string, b: string) => `((t.created_at >= w.${a} AND t.created_at < w.${b}) OR (t.used_at >= w.${a} AND t.used_at < w.${b}))`
-  const rows = await prisma.$queryRaw<Row[]>(Prisma.sql`
-    SELECT count(DISTINCT t.customer_id) FILTER (WHERE ${Prisma.raw(active('t0', 't1'))}) AS today,
-           count(DISTINCT t.customer_id) FILTER (WHERE ${Prisma.raw(active('m0', 'm1'))}) AS month
-    FROM refresh_tokens t
-    JOIN businesses b ON b.id = t.business_id
-    JOIN ${windowsTable(windows)} ON w.tz = b.timezone
-    WHERE t.subject = 'CUSTOMER' AND t.customer_id IS NOT NULL AND ${scope}
-      AND ((t.created_at >= ${lo} AND t.created_at < ${hi}) OR (t.used_at >= ${lo} AND t.used_at < ${hi}))`)
-  const r = only(rows)
-  return { today: num(r['today']), month: num(r['month']) }
-}
-
 const ZERO: Trend = { current: 0, previous: 0, previousSamePeriod: 0 }
 const NO_STORE: StoreResult = { accounts: 0, paidOrders: ZERO, revenueCents: ZERO }
 
@@ -200,7 +181,7 @@ export async function getOverview(actor: PlatformAdminActor, now: Date): Promise
     return apptResult(only(rows))
   }
 
-  const [accountRows, appt, cust, users, store, usage, notif, quiet] = await Promise.all([
+  const [accountRows, appt, cust, store, notif, quiet] = await Promise.all([
     prisma.$queryRaw<Row[]>(Prisma.sql`
       SELECT count(*) FILTER (WHERE status = 'ACTIVE') AS active,
              count(*) FILTER (WHERE status = 'SUSPENDED') AS suspended,
@@ -209,10 +190,7 @@ export async function getOverview(actor: PlatformAdminActor, now: Date): Promise
       FROM businesses`),
     apptWindowed(),
     windows.length === 0 ? Promise.resolve<CustomerResult>({ total: 0, newMonth: ZERO }) : customerAggregate(windows, live),
-    windows.length === 0 ? Promise.resolve({ today: 0, month: 0 }) : appUsersAggregate(windows, live),
     windows.length === 0 ? Promise.resolve(NO_STORE) : storeAggregate(windows, live),
-    // As 24 horas cheias que terminam na hora atual.
-    usageSummary(actor, { from: addMinutes(startOfUtcHour(now), -23 * 60), to: addMinutes(now, 1) }),
     prisma.$queryRaw<Row[]>(Prisma.sql`
       SELECT count(*) FILTER (WHERE status = 'PENDING') AS pending,
              count(*) FILTER (WHERE status = 'FAILED' AND updated_at >= ${since24h}) AS failed
@@ -237,11 +215,6 @@ export async function getOverview(actor: PlatformAdminActor, now: Date): Promise
     customers: { total: cust.total, newMonth: cust.newMonth },
     revenueCents: { month: appt.revenue },
     store,
-    appUsers: { activeToday: users.today, activeMonth: users.month },
-    api: {
-      requests24h: usage.reduce((soma, r) => soma + r.count, 0),
-      errors24h: usage.reduce((soma, r) => soma + r.errorCount, 0),
-    },
     notifications: { pending: num(n['pending']), failed24h: num(n['failed']) },
     quietAccounts: quiet.map((q) => ({ id: q.id, name: q.name, lastActivityAt: q.last })),
   }
@@ -258,7 +231,7 @@ export async function getAccountMetrics(actor: PlatformAdminActor, businessId: s
   const next7dEnd = addMinutes(now, 7 * DAY_MIN)
   const statusCols = STATUSES.map((s) => `count(*) FILTER (WHERE a.status = '${s}' AND ${inWin('a.starts_at', 'm0', 'm1')}) AS st_${s.toLowerCase()}`).join(',\n   ')
 
-  const [apptRows, cust, users, store, team, professionals, last] = await Promise.all([
+  const [apptRows, cust, store, team, professionals, last] = await Promise.all([
     prisma.$queryRaw<Row[]>(Prisma.sql`
       SELECT ${Prisma.raw(APPT_COLS)},
         count(*) FILTER (WHERE a.status IN ('PENDING', 'CONFIRMED') AND a.starts_at >= ${now} AND a.starts_at < ${next7dEnd}) AS next7d,
@@ -270,7 +243,6 @@ export async function getAccountMetrics(actor: PlatformAdminActor, businessId: s
         AND ((a.starts_at >= ${lo} AND a.starts_at < ${hi}) OR (a.status = 'COMPLETED' AND a.ends_at >= ${lo} AND a.ends_at < ${hi})
              OR (a.starts_at >= ${now} AND a.starts_at < ${next7dEnd}))`),
     customerAggregate(windows, scope),
-    appUsersAggregate(windows, scope),
     storeAggregate(windows, scope),
     prisma.membership.count({ where: { businessId: id, active: true } }),
     prisma.professional.count({ where: { businessId: id, active: true, archivedAt: null } }),
@@ -290,7 +262,6 @@ export async function getAccountMetrics(actor: PlatformAdminActor, businessId: s
     revenueCents: { month: appt.revenue },
     store: store.accounts > 0 ? { paidOrders: store.paidOrders, revenueCents: store.revenueCents } : null,
     team: { active: team, professionals },
-    appUsers: { activeMonth: users.month },
     lastActivityAt: last._max.createdAt,
   }
 }

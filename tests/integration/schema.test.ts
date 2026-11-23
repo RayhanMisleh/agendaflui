@@ -269,3 +269,28 @@ describe('restrições no banco', () => {
     expect(await prisma.upload.findUnique({ where: { id: u.id } })).toBeNull()
   })
 })
+
+describe('sem API do app, push nem métricas de uso', () => {
+  test('as tabelas api_usage_hourly, refresh_tokens e devices não existem', async () => {
+    const r = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name IN ('api_usage_hourly', 'refresh_tokens', 'devices')`
+    expect(r).toEqual([])
+  })
+
+  test('o canal de aviso só tem e-mail e o cliente não tem colunas de push', async () => {
+    const canais = await prisma.$queryRaw<{ v: string }[]>`SELECT unnest(enum_range(NULL::notification_channel))::text AS v`
+    expect(canais.map((c) => c.v)).toEqual(['EMAIL'])
+    const colunas = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name FROM information_schema.columns WHERE table_name = 'customers' AND column_name LIKE 'notify_push%'`
+    expect(colunas).toEqual([])
+  })
+
+  test('scheduler_runs_kind_check recusa usage_flush e aceita as tarefas atuais', async () => {
+    const agora = new Date()
+    await expect(prisma.schedulerRun.create({ data: { kind: 'usage_flush', startedAt: agora, ok: true } })).rejects.toThrow()
+    for (const kind of ['notifications', 'cleanup', 'store', 'retention']) {
+      await prisma.schedulerRun.create({ data: { kind, startedAt: agora, ok: true } })
+    }
+  })
+})

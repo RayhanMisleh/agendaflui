@@ -179,11 +179,11 @@ export const salvarRegras = porConta(
 
 const TIPOS_DE_AVISO = Object.keys(DEFAULT_NOTIFICATION_SETTINGS)
 
-/** Os avisos chegam como uma caixa por tipo e canal (`TIPO__email`, `TIPO__push`); caixa desmarcada desliga. */
+/** Os avisos chegam como uma caixa por tipo (`TIPO__email`); caixa desmarcada desliga. */
 export const salvarAvisos = porConta(
-  { nomes: ['version'], caixas: TIPOS_DE_AVISO.flatMap((k) => [`${k}__email`, `${k}__push`]) },
+  { nomes: ['version'], caixas: TIPOS_DE_AVISO.map((k) => `${k}__email`) },
   async (admin, v) => {
-    const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on', push: v[`${k}__push`] === 'on' }]))
+    const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on' }]))
     const businessId = v.businessId ?? ''
     await comVersao(updateNotificationsAsAdmin(admin, businessId, todos as NotificationSettings, Number(v.version)))
     return versaoDasConfiguracoes(admin, businessId)

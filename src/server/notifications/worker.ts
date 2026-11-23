@@ -20,7 +20,7 @@ const DEFAULT_LIMIT = 50
 const MAX_ATTEMPTS = 5
 /** Espera até a nova tentativa depois da 1ª, 2ª, 3ª e 4ª falha, em minutos. */
 const RETRY_MINUTES = [1, 5, 15, 60]
-/** Teto de um envio (o Expo tem o seu de 10 s por lote); bem abaixo da reserva de 2 minutos. */
+/** Teto de um envio; bem abaixo da reserva de 2 minutos. */
 const SEND_TIMEOUT_MS = 30_000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -31,7 +31,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, limit]).finally(() => clearTimeout(timer))
 }
 
-/** Só o código curto entra no banco: a mensagem do provedor pode ter e-mail ou token. */
+/** Só o código curto entra no banco: a mensagem do provedor pode ter e-mail. */
 function codeOf(err: unknown): ChannelErrorCode {
   return err instanceof ChannelError ? err.code : 'channel_error'
 }
@@ -63,34 +63,14 @@ async function deliver(n: LoadedNotification, channels: Channels): Promise<Outco
   const recipient = n.recipient
   if (!recipient) return { kind: 'skipped', reason: 'recipient_gone' }
   const rendered = renderNotification(n)
-  if (n.channel === 'EMAIL') {
-    if (!channels.email) return { kind: 'failed', code: 'not_configured', retry: false }
-    if (!recipient.email || !isSafeRecipient(recipient.email)) return { kind: 'failed', code: 'invalid_recipient', retry: false }
-    try {
-      await withTimeout(channels.email.send({ ...rendered.email, to: recipient.email, fromName: n.business.name }), SEND_TIMEOUT_MS)
-      return { kind: 'sent' }
-    } catch (err) {
-      return { kind: 'failed', code: codeOf(err), retry: true }
-    }
-  }
-  if (!channels.push) return { kind: 'failed', code: 'not_configured', retry: false }
-  let invalidTokens: string[]
+  if (!channels.email) return { kind: 'failed', code: 'not_configured', retry: false }
+  if (!recipient.email || !isSafeRecipient(recipient.email)) return { kind: 'failed', code: 'invalid_recipient', retry: false }
   try {
-    invalidTokens = (await withTimeout(channels.push.send({ ...rendered.push, tokens: recipient.pushTokens }), SEND_TIMEOUT_MS)).invalidTokens
+    await withTimeout(channels.email.send({ ...rendered.email, to: recipient.email, fromName: n.business.name }), SEND_TIMEOUT_MS)
+    return { kind: 'sent' }
   } catch (err) {
     return { kind: 'failed', code: codeOf(err), retry: true }
   }
-  // Fora do `try` do envio: o push já saiu, e falha na limpeza não pode reagendá-lo.
-  if (invalidTokens.length > 0) {
-    try {
-      await prisma.device.deleteMany({ where: { businessId: n.businessId, pushToken: { in: invalidTokens } } })
-    } catch (err) {
-      console.error(`[avisos] erro ao apagar tokens inválidos: ${err instanceof Error ? err.name : 'desconhecido'}`)
-    }
-  }
-  // Todos os tokens eram mortos: nada chegou a ninguém.
-  if (recipient.pushTokens.every((t) => invalidTokens.includes(t))) return { kind: 'skipped', reason: 'no_device' }
-  return { kind: 'sent' }
 }
 
 async function handle(row: Claimed, now: () => Date, channels: Channels, total: RoundResult): Promise<void> {

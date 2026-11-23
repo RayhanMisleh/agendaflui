@@ -1,18 +1,15 @@
 import 'server-only'
 import { DEFAULT_MAIL_FROM, env } from '@/server/env'
-import { createExpoChannel } from './push-expo'
-import { createPushFileChannel, PUSH_DIR } from './push-file'
 import { createFileChannel, MAIL_DIR } from './email-file'
 import { createResendChannel } from './email-resend'
 import { createSmtpChannel } from './email-smtp'
-import type { EmailChannel, PushChannel } from './types'
+import type { EmailChannel } from './types'
 
 type ChannelEnv = {
   NODE_ENV: string
   SMTP_URL?: string | undefined
   RESEND_API_KEY?: string | undefined
   MAIL_FROM?: string | undefined
-  EXPO_ACCESS_TOKEN?: string | undefined
 }
 
 // `undefined`: sem substituição (vale a regra do ambiente); `null`: força "nenhum canal"; canal: vale esse.
@@ -65,22 +62,9 @@ export function getEmailChannel(source: ChannelEnv = env): EmailChannel | null {
   return smtp.channel
 }
 
-let pushFile: PushChannel | undefined
-let expo: { token: string | undefined; channel: PushChannel } | undefined
+export type Channels = { email: EmailChannel | null }
 
-/** Canal de push do ambiente. Teste: nenhum. Desenvolvimento: JSON em `.local/push`. Produção: Expo. */
-export function getPushChannel(source: ChannelEnv = env): PushChannel | null {
-  if (source.NODE_ENV === 'test') return null
-  if (source.NODE_ENV === 'development') return (pushFile ??= createPushFileChannel(PUSH_DIR))
-  if (expo?.token !== source.EXPO_ACCESS_TOKEN || expo === undefined) {
-    expo = { token: source.EXPO_ACCESS_TOKEN, channel: createExpoChannel({ accessToken: source.EXPO_ACCESS_TOKEN }) }
-  }
-  return expo.channel
-}
-
-export type Channels = { email: EmailChannel | null; push: PushChannel | null }
-
-/** Os dois canais do ambiente. `null` = não configurado (quem envia falha a linha com `not_configured`). */
+/** Os canais do ambiente. `null` = não configurado (quem envia falha a linha com `not_configured`). */
 export function getChannels(source: ChannelEnv = env): Channels {
-  return { email: getEmailChannel(source), push: getPushChannel(source) }
+  return { email: getEmailChannel(source) }
 }

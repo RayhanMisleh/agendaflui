@@ -18,8 +18,6 @@ export const TENANT_MODELS: Modelos = [
   'Appointment',
   'AppointmentItem',
   'Notification',
-  'RefreshToken',
-  'Device',
   'VerificationCode',
   'LoyaltyTransaction',
   'Prize',
@@ -55,5 +53,4 @@ export const PLATFORM_MODELS: Modelos = [
   'Session',
   'UserToken',
   'RateLimitBucket',
-  'ApiUsageHourly',
 ]

@@ -57,18 +57,16 @@ describe('shouldRunInProcess', () => {
 })
 
 describe('register', () => {
-  test('com WORKER_ENABLED=false o agendador sobe só para as métricas (sem avisos nem limpeza)', async () => {
+  test('com WORKER_ENABLED=false o agendador não sobe', async () => {
     ambiente({ WORKER_ENABLED: 'false' })
     await register()
-    expect(start).toHaveBeenCalledTimes(1)
-    expect(start).toHaveBeenCalledWith({ worker: false })
+    expect(start).not.toHaveBeenCalled()
   })
 
   test('no runtime Node com o agendador ligado, inicia uma vez', async () => {
     ambiente({ WORKER_ENABLED: 'true' })
     await register()
     expect(start).toHaveBeenCalledTimes(1)
-    expect(start).toHaveBeenCalledWith({ worker: true })
   })
 
   test('no runtime edge não inicia nem valida nada', async () => {

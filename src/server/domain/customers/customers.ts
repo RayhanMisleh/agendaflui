@@ -458,9 +458,7 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
       // Cancela depois de anonimizar: o cliente já não recebe aviso nenhum.
       const canceled = await cancelOpenAppointmentsOfCustomer(tx, ctx, open, CANCEL_REASON)
       await cancelPendingForCustomer(tx, id)
-      // Sessões, dispositivos e códigos de verificação (guardados pelo e-mail) do cliente saem junto.
-      await tx.refreshToken.deleteMany({ where: { customerId: id } })
-      await tx.device.deleteMany({ where: { customerId: id } })
+      // Códigos de verificação (guardados pelo e-mail) do cliente saem junto.
       if (current.email !== null) await tx.verificationCode.deleteMany({ where: { email: current.email } })
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
       await audit(

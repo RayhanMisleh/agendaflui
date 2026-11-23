@@ -3,7 +3,7 @@ import { can } from '@/server/auth/capabilities'
 import { DomainError } from '@/server/domain/errors'
 
 /**
- * Liga ou desliga, no PRÓPRIO vínculo, o recebimento (por push) dos avisos de todos os agendamentos da loja feitos pelos
+ * Liga ou desliga, no PRÓPRIO vínculo, o recebimento (por e-mail) dos avisos de todos os agendamentos da loja feitos pelos
  * clientes. Só quem vê todas as agendas (dono e gerente) pode; o profissional recebe `forbidden`. O papel e a situação do
  * vínculo entram no `where`, então um rebaixamento ou desativação no meio do caminho também não grava.
  */

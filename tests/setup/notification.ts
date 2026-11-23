@@ -35,7 +35,7 @@ export function loaded(o: Overrides = {}): LoadedNotification {
           'APPOINTMENT_CONFIRMED', 'APPOINTMENT_CANCELED', 'APPOINTMENT_RESCHEDULED', 'APPOINTMENT_REMINDER_24H',
           'APPOINTMENT_REMINDER_1H', 'APPOINTMENT_COMPLETED', 'PROFESSIONAL_FREE_EARLY', 'STAFF_NEW_APPOINTMENT',
           'STAFF_APPOINTMENT_CANCELED', 'STAFF_APPOINTMENT_RESCHEDULED', 'APPOINTMENT_REQUESTED',
-        ].map((k) => [k, { email: true, push: true }]),
+        ].map((k) => [k, { email: true }]),
       ) as LoadedNotification['business']['enabled'],
     },
     appointment: {
@@ -57,8 +57,6 @@ export function loaded(o: Overrides = {}): LoadedNotification {
       email: 'maria@exemplo.test',
       active: true,
       allowEmail: true,
-      allowPush: true,
-      pushTokens: ['ExponentPushToken[aaa]'],
       watchesAll: false,
     },
   }

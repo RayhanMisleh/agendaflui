@@ -36,7 +36,7 @@ beforeEach(async () => {
 afterEach(() => mail.uninstall())
 
 function tokenDoEmail(i = mail.sent.length - 1): string {
-  const m = /\/definir-senha\/([A-Za-z0-9_-]+)/.exec(mail.sent[i]?.text ?? '')
+  const m = /\/convite\/([A-Za-z0-9_-]+)/.exec(mail.sent[i]?.text ?? '')
   if (!m?.[1]) throw new Error('O e-mail não traz o link de definir senha.')
   return m[1]
 }
@@ -50,19 +50,6 @@ async function novoVinculo(role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', businessI
 async function novaSessao(userId: string, activeBusinessId: string | null) {
   return prisma.session.create({
     data: { userId, activeBusinessId, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) },
-  })
-}
-
-async function novoRefresh(membershipId: string) {
-  return prisma.refreshToken.create({
-    data: {
-      businessId,
-      subject: 'MEMBER',
-      membershipId,
-      familyId: randomUUID(),
-      tokenHash: hashToken(randomUUID()),
-      expiresAt: addMinutes(AGORA, 600),
-    },
   })
 }
 
@@ -97,7 +84,7 @@ describe('inviteMember', () => {
     expect(depois.name).toBe('Carla Dias')
     expect(await prisma.userToken.count({ where: { userId: user.id } })).toBe(0)
     expect(mail.sent).toHaveLength(1)
-    expect(mail.sent[0]?.text).not.toContain('/definir-senha/')
+    expect(mail.sent[0]?.text).not.toContain('/convite/')
     expect(mail.sent[0]?.text).toContain('/entrar')
     expect(mail.sent[0]?.text).not.toMatch(/\/entrar\//)
   })
@@ -218,7 +205,7 @@ describe('último dono ativo', () => {
 })
 
 describe('desativar e rebaixar', () => {
-  test('desativar revoga as sessões do painel da conta ativa e os tokens do app; outras contas ficam', async () => {
+  test('desativar revoga as sessões do painel da conta ativa; outras contas ficam', async () => {
     await novoVinculo('OWNER')
     const { user, membership } = await novoVinculo('MANAGER')
     const outra = await makeBusiness()
@@ -226,7 +213,6 @@ describe('desativar e rebaixar', () => {
     const semConta = await novaSessao(user.id, null)
     const emOutra = await novaSessao(user.id, outra.id)
     const doOutro = await novaSessao((await makeUser()).id, businessId)
-    const refresh = await novoRefresh(membership.id)
 
     const r = await setMemberActive(actor, membership.id, false)
     expect(r.active).toBe(false)
@@ -235,39 +221,33 @@ describe('desativar e rebaixar', () => {
     expect(await revogada(semConta.id)).toBe(false)
     expect(await revogada(emOutra.id)).toBe(false)
     expect(await revogada(doOutro.id)).toBe(false)
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: refresh.id } })).revokedAt).not.toBeNull()
     const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId, action: 'team.member_deactivated' } })
     expect(log).toMatchObject({ actorId: adminId, targetId: membership.id })
   })
 
-  test('reativar não ressuscita sessão nem token', async () => {
+  test('reativar não ressuscita a sessão', async () => {
     await novoVinculo('OWNER')
     const { user, membership } = await novoVinculo('PROFESSIONAL')
     const sessao = await novaSessao(user.id, businessId)
-    const refresh = await novoRefresh(membership.id)
     await setMemberActive(actor, membership.id, false)
     const r = await setMemberActive(actor, membership.id, true)
     expect(r.active).toBe(true)
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessao.id } })).revokedAt).not.toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: refresh.id } })).revokedAt).not.toBeNull()
     expect(await prisma.auditLog.count({ where: { businessId, action: 'team.member_activated' } })).toBe(1)
   })
 
-  test('rebaixar o papel derruba sessões e tokens; promover não', async () => {
+  test('rebaixar o papel derruba sessões; promover não', async () => {
     await novoVinculo('OWNER')
     const { user, membership } = await novoVinculo('MANAGER')
     const sessao = await novaSessao(user.id, businessId)
-    const refresh = await novoRefresh(membership.id)
 
     const promovido = await changeMemberRole(actor, membership.id, 'OWNER')
     expect(promovido.role).toBe('OWNER')
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessao.id } })).revokedAt).toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: refresh.id } })).revokedAt).toBeNull()
 
     const rebaixado = await changeMemberRole(actor, membership.id, 'PROFESSIONAL')
     expect(rebaixado.role).toBe('PROFESSIONAL')
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessao.id } })).revokedAt).not.toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: refresh.id } })).revokedAt).not.toBeNull()
     const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId, action: 'team.role_changed', metadata: { path: ['to'], equals: 'PROFESSIONAL' } } })
     expect(log.metadata).toMatchObject({ from: 'OWNER', to: 'PROFESSIONAL' })
   })

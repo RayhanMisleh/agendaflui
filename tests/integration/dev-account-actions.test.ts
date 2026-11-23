@@ -181,12 +181,12 @@ describe('versão das configurações nas gravações do painel dev', () => {
     const conta = await makeBusiness()
     const dono = await makeCtx(conta)
     const lida = await versao(conta.id)
-    await updateNotificationSettings(dono, { APPOINTMENT_CONFIRMED: { push: false } }, lida)
-    const r = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__push: 'on', version: String(lida) }))
+    await updateNotificationSettings(dono, { APPOINTMENT_CONFIRMED: { email: false } }, lida)
+    const r = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__email: 'on', version: String(lida) }))
     expect(r.ok).toBe(false)
     expect(r.message).toBe(MSG_CONFLITO)
-    const n = (await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).notifications as Record<string, { email: boolean; push: boolean }>
-    expect(n.APPOINTMENT_CONFIRMED?.push).toBe(false)
+    const n = (await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).notifications as Record<string, { email: boolean }>
+    expect(n.APPOINTMENT_CONFIRMED?.email).toBe(false)
     expect(n.APPOINTMENT_CANCELED?.email).toBe(true)
     const ok = await salvarAvisos(conta.id, ini, form({ APPOINTMENT_CONFIRMED__email: 'on', version: String(lida + 1) }))
     expect(ok.ok).toBe(true)
@@ -232,15 +232,15 @@ describe('termos, módulos, regras e avisos', () => {
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).timezone).toBe('America/Sao_Paulo')
   })
 
-  test('avisos: caixa desmarcada desliga o canal daquele tipo', async () => {
+  test('avisos: caixa desmarcada desliga o e-mail daquele tipo', async () => {
     const conta = await makeBusiness()
-    const r = await salvarAvisos(conta.id, ini, form({ version: '1', APPOINTMENT_CONFIRMED__email: 'on', APPOINTMENT_CANCELED__push: 'on' }))
+    const r = await salvarAvisos(conta.id, ini, form({ version: '1', APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(r.ok).toBe(true)
     const s = await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })
-    const n = s.notifications as Record<string, { email: boolean; push: boolean }>
-    expect(n.APPOINTMENT_CONFIRMED).toEqual({ email: true, push: false })
-    expect(n.APPOINTMENT_CANCELED).toEqual({ email: false, push: true })
-    expect(n.STAFF_NEW_APPOINTMENT).toEqual({ email: false, push: false })
+    const n = s.notifications as Record<string, { email: boolean }>
+    expect(n.APPOINTMENT_CONFIRMED).toEqual({ email: true })
+    expect(n.APPOINTMENT_CANCELED).toEqual({ email: false })
+    expect(n.STAFF_NEW_APPOINTMENT).toEqual({ email: false })
   })
 })
 

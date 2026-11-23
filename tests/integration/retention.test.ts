@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, test } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { RETENTION_DAYS, runRetention } from '@/server/db/retention'
-import { addMinutes, fromIsoInstant, startOfUtcHour } from '@/server/time'
+import { addMinutes, fromIsoInstant } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makeCustomer } from '../setup/factories'
 
@@ -28,8 +28,8 @@ async function aviso(businessId: string, customerId: string, status: 'PENDING' |
 }
 
 describe('prazos', () => {
-  test('ficam num lugar só: 90 dias de avisos, 400 de uso da API e 2 anos de auditoria', () => {
-    expect(RETENTION_DAYS).toEqual({ notifications: 90, apiUsage: 400, audit: 730 })
+  test('ficam num lugar só: 90 dias de avisos e 2 anos de auditoria', () => {
+    expect(RETENTION_DAYS).toEqual({ notifications: 90, audit: 730 })
   })
 })
 
@@ -48,30 +48,6 @@ describe('runRetention', () => {
     const restam = (await prisma.notification.findMany()).map((n) => n.id).sort()
     expect(restam).toEqual([pendenteVelho.id, recente.id, naBorda.id].sort())
     expect(restam).not.toContain(velhos[0]?.id)
-  })
-
-  test('apaga o uso da API com mais de 400 dias', async () => {
-    const b = await makeBusiness()
-    const linha = (dias: number) =>
-      prisma.apiUsageHourly.create({
-        data: {
-          businessId: b.id,
-          route: 'GET /v1/services',
-          hour: startOfUtcHour(diasAtras(dias)),
-          count: 1,
-          errorCount: 0,
-          totalMs: 5n,
-          maxMs: 5,
-        },
-      })
-    const velha = await linha(401)
-    const recente = await linha(399)
-
-    const r = await runRetention(NOW)
-
-    expect(r.uso).toBe(1)
-    expect(await prisma.apiUsageHourly.findUnique({ where: { id: velha.id } })).toBeNull()
-    expect(await prisma.apiUsageHourly.findUnique({ where: { id: recente.id } })).not.toBeNull()
   })
 
   test('apaga a auditoria com mais de 2 anos', async () => {
@@ -105,14 +81,14 @@ describe('runRetention', () => {
   })
 
   test('sem nada para apagar devolve zeros', async () => {
-    expect(await runRetention(NOW)).toEqual({ avisos: 0, uso: 0, auditoria: 0 })
+    expect(await runRetention(NOW)).toEqual({ avisos: 0, auditoria: 0 })
   })
 })
 
 describe('registro da execução', () => {
   test('o banco aceita a tarefa retention em scheduler_runs', async () => {
     const agora = NOW
-    await prisma.schedulerRun.create({ data: { kind: 'retention', startedAt: agora, finishedAt: agora, ok: true, summary: 'avisos 0, uso 0, auditoria 0' } })
+    await prisma.schedulerRun.create({ data: { kind: 'retention', startedAt: agora, finishedAt: agora, ok: true, summary: 'avisos 0, auditoria 0' } })
     expect(await prisma.schedulerRun.count({ where: { kind: 'retention' } })).toBe(1)
   })
 })

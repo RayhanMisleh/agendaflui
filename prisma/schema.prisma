@@ -164,7 +164,6 @@ enum NotificationKind {
 
 enum NotificationChannel {
   EMAIL
-  PUSH
 
   @@map("notification_channel")
 }
@@ -184,21 +183,6 @@ enum CustomerOrigin {
   PANEL
 
   @@map("customer_origin")
-}
-
-enum TokenSubject {
-  CUSTOMER
-  MEMBER
-
-  @@map("token_subject")
-}
-
-enum DevicePlatform {
-  IOS
-  ANDROID
-  WEB
-
-  @@map("device_platform")
 }
 
 enum VerificationPurpose {
@@ -262,10 +246,10 @@ model SupportHandoff {
   @@map("support_handoffs")
 }
 
-/// Uma execução do agendador (avisos, limpeza, métricas de uso). Tabela da plataforma: sem dado de conta nem pessoal no resumo.
+/// Uma execução do agendador (avisos, limpeza, loja, retenção). Tabela da plataforma: sem dado de conta nem pessoal no resumo.
 model SchedulerRun {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  /// `notifications`, `cleanup`, `usage_flush`, `store` ou `retention` (lista fechada por CHECK no banco).
+  /// `notifications`, `cleanup`, `store` ou `retention` (lista fechada por CHECK no banco).
   kind       String
   startedAt  DateTime  @map("started_at") @db.Timestamptz(3)
   finishedAt DateTime? @map("finished_at") @db.Timestamptz(3)
@@ -331,9 +315,6 @@ model Business {
   payments             Payment[]
   orderItems           OrderItem[]
   notifications        Notification[]
-  apiUsage             ApiUsageHourly[]
-  refreshTokens        RefreshToken[]
-  devices              Device[]
   verificationCodes    VerificationCode[]
   supportHandoffs      SupportHandoff[]
 
@@ -467,8 +448,6 @@ model Membership {
 
   professionals Professional[]
   notifications Notification[]
-  refreshTokens RefreshToken[]
-  devices       Device[]
 
   @@unique([businessId, id])
   @@unique([businessId, userId])
@@ -581,9 +560,7 @@ model Customer {
   birthDate               DateTime?      @map("birth_date") @db.Date
   notes                   String?
   isClubMember            Boolean        @default(false) @map("is_club_member")
-  notifyPushAppointments  Boolean        @default(true) @map("notify_push_appointments")
   notifyEmailAppointments Boolean        @default(true) @map("notify_email_appointments")
-  notifyPushMarketing     Boolean        @default(true) @map("notify_push_marketing")
   notifyEmailMarketing    Boolean        @default(false) @map("notify_email_marketing")
   origin                  CustomerOrigin
   archivedAt              DateTime?      @map("archived_at") @db.Timestamptz(3)
@@ -596,8 +573,6 @@ model Customer {
 
   appointments  Appointment[]
   notifications Notification[]
-  refreshTokens RefreshToken[]
-  devices       Device[]
 
   loyaltyTransactions LoyaltyTransaction[]
   prizeRedemptions    PrizeRedemption[]
@@ -846,57 +821,6 @@ model Notification {
   @@map("notifications")
 }
 
-model RefreshToken {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId   String       @map("business_id") @db.Uuid
-  subject      TokenSubject
-  customerId   String?      @map("customer_id") @db.Uuid
-  membershipId String?      @map("membership_id") @db.Uuid
-  familyId     String       @map("family_id") @db.Uuid
-  tokenHash    String       @unique @map("token_hash")
-  expiresAt    DateTime     @map("expires_at") @db.Timestamptz(3)
-  usedAt       DateTime?    @map("used_at") @db.Timestamptz(3)
-  revokedAt    DateTime?    @map("revoked_at") @db.Timestamptz(3)
-  ip           String?
-  userAgent    String?      @map("user_agent")
-  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
-
-  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  membership Membership? @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, id])
-  @@index([businessId, familyId])
-  @@index([createdAt])
-  @@index([usedAt])
-  @@index([customerId])
-  @@index([membershipId])
-  @@map("refresh_tokens")
-}
-
-model Device {
-  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId   String         @map("business_id") @db.Uuid
-  customerId   String?        @map("customer_id") @db.Uuid
-  membershipId String?        @map("membership_id") @db.Uuid
-  platform     DevicePlatform
-  pushToken    String         @map("push_token")
-  lastSeenAt   DateTime       @map("last_seen_at") @db.Timestamptz(3)
-  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
-
-  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  membership Membership? @relation(fields: [membershipId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, id])
-  @@unique([businessId, pushToken])
-  @@index([customerId])
-  @@index([membershipId])
-  @@map("devices")
-}
-
 model VerificationCode {
   id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId String              @map("business_id") @db.Uuid
@@ -925,26 +849,6 @@ model RateLimitBucket {
 
   @@index([windowStart])
   @@map("rate_limit_buckets")
-}
-
-model ApiUsageHourly {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String   @map("business_id") @db.Uuid
-  route      String
-  hour       DateTime @db.Timestamptz(3)
-  count      Int
-  errorCount Int      @map("error_count")
-  totalMs    BigInt   @map("total_ms")
-  maxMs      Int      @map("max_ms")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
-
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, route, hour])
-  @@index([businessId, hour])
-  @@index([hour])
-  @@map("api_usage_hourly")
 }
 
 /// Razão de pontos do cliente: o saldo é SEMPRE a soma desta tabela (não existe coluna de saldo). Só se acrescenta linha.

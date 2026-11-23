@@ -180,14 +180,13 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
     for (const a of lista) {
       const canais = settings[a.kind as keyof typeof settings]
       valores[`${a.kind}__email`] = caixa(canais.email)
-      valores[`${a.kind}__push`] = caixa(canais.push)
     }
     corpo = (
       <Card as="section" aria-labelledby="cfg-titulo" className="af-settings__section">
         <h2 id="cfg-titulo" className="af-section__title">
           Avisos
         </h2>
-        <p className="af-section__help">Desmarcar um canal para de mandar aquele aviso por ele.</p>
+        <p className="af-section__help">Desmarcar um aviso para de mandar aquele e-mail.</p>
         <AvisosForm version={version} valores={valores} avisos={lista} />
       </Card>
     )

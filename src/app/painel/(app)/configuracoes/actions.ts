@@ -77,12 +77,12 @@ export const salvarRegras = tenantAction(
 
 const TIPOS_DE_AVISO = Object.keys(DEFAULT_NOTIFICATION_SETTINGS)
 
-/** Uma caixa por tipo e canal (`TIPO__email`, `TIPO__push`); caixa desmarcada desliga. */
+/** Uma caixa por tipo (`TIPO__email`); caixa desmarcada desliga. */
 export const salvarAvisos = tenantAction(
   'manage_settings',
-  (fd) => ler(fd, ['version'], TIPOS_DE_AVISO.flatMap((k) => [`${k}__email`, `${k}__push`])),
+  (fd) => ler(fd, ['version'], TIPOS_DE_AVISO.map((k) => `${k}__email`)),
   async (ctx, v) => {
-    const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on', push: v[`${k}__push`] === 'on' }]))
+    const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on' }]))
     try {
       await updateNotificationSettings(ctx, todos as NotificationSettings, versao(v))
     } catch (err) {

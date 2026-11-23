@@ -1,6 +1,6 @@
 import { prisma } from '@/server/db/client'
 import type { NotificationKind } from '@/server/db/generated/client'
-import type { EmailMessage, PushMessage } from '@/server/notifications/channels/types'
+import type { EmailMessage } from '@/server/notifications/channels/types'
 import { processDueNotifications } from '@/server/notifications/worker'
 import { addMinutes } from '@/server/time'
 import { seed, type SeedEnv } from '../../../prisma/seed'
@@ -15,29 +15,19 @@ const AGORA = new Date('2026-11-16T16:00:00Z')
 
 type Fake = {
   emails: EmailMessage[]
-  pushes: PushMessage[]
-  channels: { email: { send(m: EmailMessage): Promise<void> } | null; push: { send(m: PushMessage): Promise<{ invalidTokens: string[] }> } | null }
+  channels: { email: { send(m: EmailMessage): Promise<void> } | null }
   failEmail: Error | null
-  invalid: string[]
 }
 
 function fake(): Fake {
   const f: Fake = {
     emails: [],
-    pushes: [],
     failEmail: null,
-    invalid: [],
     channels: {
       email: {
         async send(m) {
           if (f.failEmail) throw f.failEmail
           f.emails.push(m)
-        },
-      },
-      push: {
-        async send(m) {
-          f.pushes.push(m)
-          return { invalidTokens: m.tokens.filter((t) => f.invalid.includes(t)) }
         },
       },
     },
@@ -61,9 +51,9 @@ async function cena(o: { inicio?: Date } = {}) {
 
 type Cena = Awaited<ReturnType<typeof cena>>
 
-async function aviso(c: Cena, o: { kind?: NotificationKind; channel?: 'EMAIL' | 'PUSH'; scheduledFor?: Date; key?: string; membership?: boolean } = {}) {
+async function aviso(c: Cena, o: { kind?: NotificationKind; scheduledFor?: Date; key?: string; membership?: boolean } = {}) {
   const kind = o.kind ?? 'APPOINTMENT_CONFIRMED'
-  const channel = o.channel ?? 'EMAIL'
+  const channel = 'EMAIL' as const
   return prisma.notification.create({
     data: {
       businessId: c.business.id,
@@ -98,20 +88,6 @@ describe('processDueNotifications', () => {
     const de_novo = await processDueNotifications({ now: addMinutes(AGORA, 10), channels: f.channels })
     expect(de_novo).toEqual({ sent: 0, skipped: 0, failed: 0, retried: 0 })
     expect(f.emails).toHaveLength(1)
-  })
-
-  test('push vai para os dispositivos do cliente, com título, texto e dados', async () => {
-    const c = await cena()
-    await prisma.device.createMany({
-      data: ['t1', 't2'].map((t) => ({ businessId: c.business.id, customerId: c.cliente.id, platform: 'IOS' as const, pushToken: `ExponentPushToken[${t}]`, lastSeenAt: AGORA })),
-    })
-    const n = await aviso(c, { channel: 'PUSH' })
-    const f = fake()
-    await processDueNotifications({ now: AGORA, channels: f.channels })
-    expect(f.pushes).toHaveLength(1)
-    expect([...f.pushes[0]!.tokens].sort()).toEqual(['ExponentPushToken[t1]', 'ExponentPushToken[t2]'])
-    expect(f.pushes[0]!.data).toMatchObject({ kind: 'APPOINTMENT_CONFIRMED', appointmentId: c.agendamento.id })
-    expect((await reload(n.id)).status).toBe('SENT')
   })
 
   test('aviso para a equipe usa o e-mail do usuário do vínculo', async () => {
@@ -188,7 +164,7 @@ describe('processDueNotifications', () => {
   test('canal não configurado: FAILED not_configured de uma vez, sem nova tentativa', async () => {
     const c = await cena()
     const n = await aviso(c)
-    expect(await processDueNotifications({ now: AGORA, channels: { email: null, push: null } })).toEqual({ sent: 0, skipped: 0, failed: 1, retried: 0 })
+    expect(await processDueNotifications({ now: AGORA, channels: { email: null } })).toEqual({ sent: 0, skipped: 0, failed: 1, retried: 0 })
     expect(await reload(n.id)).toMatchObject({ status: 'FAILED', lastError: 'not_configured', attempts: 1 })
   })
 
@@ -200,43 +176,6 @@ describe('processDueNotifications', () => {
     await processDueNotifications({ now: AGORA, channels: f.channels })
     expect(await reload(n.id)).toMatchObject({ status: 'FAILED', lastError: 'invalid_recipient' })
     expect(f.emails).toEqual([])
-  })
-
-  test('token de push inválido devolvido pelo canal é apagado dos aparelhos', async () => {
-    const c = await cena()
-    await prisma.device.createMany({
-      data: ['bom', 'ruim'].map((t) => ({ businessId: c.business.id, customerId: c.cliente.id, platform: 'ANDROID' as const, pushToken: `ExponentPushToken[${t}]`, lastSeenAt: AGORA })),
-    })
-    const n = await aviso(c, { channel: 'PUSH' })
-    const f = fake()
-    f.invalid = ['ExponentPushToken[ruim]']
-    await processDueNotifications({ now: AGORA, channels: f.channels })
-    expect((await prisma.device.findMany()).map((d) => d.pushToken)).toEqual(['ExponentPushToken[bom]'])
-    expect((await reload(n.id)).status).toBe('SENT')
-  })
-
-  test('se todos os tokens eram inválidos, nada chegou: SKIPPED no_device', async () => {
-    const c = await cena()
-    await prisma.device.create({ data: { businessId: c.business.id, customerId: c.cliente.id, platform: 'IOS', pushToken: 'ExponentPushToken[ruim]', lastSeenAt: AGORA } })
-    const n = await aviso(c, { channel: 'PUSH' })
-    const f = fake()
-    f.invalid = ['ExponentPushToken[ruim]']
-    await processDueNotifications({ now: AGORA, channels: f.channels })
-    expect(await reload(n.id)).toMatchObject({ status: 'SKIPPED', skipReason: 'no_device' })
-    expect(await prisma.device.count()).toBe(0)
-  })
-
-  test('token de outra conta nunca é apagado', async () => {
-    const c = await cena()
-    const outra = await makeBusiness()
-    const alheio = await makeCustomer(outra.id)
-    await prisma.device.create({ data: { businessId: outra.id, customerId: alheio.id, platform: 'IOS', pushToken: 'ExponentPushToken[ruim]', lastSeenAt: AGORA } })
-    await prisma.device.create({ data: { businessId: c.business.id, customerId: c.cliente.id, platform: 'IOS', pushToken: 'ExponentPushToken[ruim]', lastSeenAt: AGORA } })
-    await aviso(c, { channel: 'PUSH' })
-    const f = fake()
-    f.invalid = ['ExponentPushToken[ruim]']
-    await processDueNotifications({ now: AGORA, channels: f.channels })
-    expect(await prisma.device.count({ where: { businessId: outra.id } })).toBe(1)
   })
 
   test('duas rodadas simultâneas enviam cada linha uma única vez', async () => {
@@ -355,49 +294,6 @@ describe('processDueNotifications', () => {
     expect(chamadas).toBe(4)
     expect(await reload(n.id)).toMatchObject({ status: 'SKIPPED' })
     expect(['late', 'past']).toContain((await reload(n.id)).skipReason)
-  })
-
-  test('push vai para os aparelhos do vínculo do membro', async () => {
-    const c = await cena()
-    await prisma.device.create({ data: { businessId: c.business.id, membershipId: c.vinculo.id, platform: 'ANDROID', pushToken: 'ExponentPushToken[membro]', lastSeenAt: AGORA } })
-    await prisma.device.create({ data: { businessId: c.business.id, customerId: c.cliente.id, platform: 'ANDROID', pushToken: 'ExponentPushToken[cliente]', lastSeenAt: AGORA } })
-    const n = await aviso(c, { kind: 'STAFF_NEW_APPOINTMENT', channel: 'PUSH', membership: true })
-    const f = fake()
-    await processDueNotifications({ now: AGORA, channels: f.channels })
-    expect(f.pushes.map((p) => p.tokens)).toEqual([['ExponentPushToken[membro]']])
-    expect((await reload(n.id)).status).toBe('SENT')
-  })
-
-  test('push sem canal configurado: FAILED not_configured sem nova tentativa', async () => {
-    const c = await cena()
-    await prisma.device.create({ data: { businessId: c.business.id, customerId: c.cliente.id, platform: 'IOS', pushToken: 'ExponentPushToken[a]', lastSeenAt: AGORA } })
-    const n = await aviso(c, { channel: 'PUSH' })
-    const f = fake()
-    expect(await processDueNotifications({ now: AGORA, channels: { ...f.channels, push: null } })).toEqual({ sent: 0, skipped: 0, failed: 1, retried: 0 })
-    expect(await reload(n.id)).toMatchObject({ status: 'FAILED', lastError: 'not_configured' })
-  })
-
-  test('falha ao apagar tokens inválidos não reagenda um push que já saiu; o erro é registrado só pelo nome', async () => {
-    const c = await cena()
-    await prisma.device.createMany({
-      data: ['bom', 'ruim'].map((t) => ({ businessId: c.business.id, customerId: c.cliente.id, platform: 'IOS' as const, pushToken: `ExponentPushToken[${t}]`, lastSeenAt: AGORA })),
-    })
-    const n = await aviso(c, { channel: 'PUSH' })
-    const f = fake()
-    f.invalid = ['ExponentPushToken[ruim]']
-    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const apagar = vi.spyOn(prisma.device, 'deleteMany').mockRejectedValue(new TypeError('falha com ExponentPushToken[ruim]'))
-    try {
-      expect(await processDueNotifications({ now: AGORA, channels: f.channels })).toEqual({ sent: 1, skipped: 0, failed: 0, retried: 0 })
-    } finally {
-      apagar.mockRestore()
-      const texto = JSON.stringify(log.mock.calls)
-      log.mockRestore()
-      expect(texto).toContain('TypeError')
-      expect(texto).not.toContain('ExponentPushToken')
-    }
-    expect(await reload(n.id)).toMatchObject({ status: 'SENT', attempts: 0 })
-    expect(f.pushes).toHaveLength(1)
   })
 
   test('conta que sumiu entre a reserva e a recarga: SKIPPED gone, contado como descartado', async () => {

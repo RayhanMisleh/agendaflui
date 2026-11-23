@@ -93,68 +93,6 @@ describe('startScheduler', () => {
   })
 })
 
-describe('startScheduler: métricas de uso', () => {
-  test('grava a métrica a cada 30 segundos, uma execução por vez', async () => {
-    vi.useFakeTimers()
-    let ativas = 0
-    let maximo = 0
-    const flush = vi.fn(async () => {
-      ativas += 1
-      maximo = Math.max(maximo, ativas)
-      await sleep(45_000)
-      ativas -= 1
-      return 0
-    })
-    const s = startScheduler({ record: noRecord, run: async () => undefined, cleanup: async () => undefined, flush })
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(flush).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(flush).toHaveBeenCalledTimes(1)
-    await vi.advanceTimersByTimeAsync(30_000)
-    expect(flush).toHaveBeenCalledTimes(2)
-    expect(maximo).toBe(1)
-    s.stop()
-    await vi.advanceTimersByTimeAsync(120_000)
-    expect(flush).toHaveBeenCalledTimes(2)
-  })
-
-  test('com worker: false só as métricas rodam (nem avisos nem limpeza)', async () => {
-    vi.useFakeTimers()
-    const run = vi.fn(async () => undefined)
-    const cleanup = vi.fn(async () => undefined)
-    const flush = vi.fn(async () => 0)
-    const s = startScheduler({ record: noRecord, worker: false, run, cleanup, flush })
-    await vi.advanceTimersByTimeAsync(60_000 * 3)
-    expect(run).not.toHaveBeenCalled()
-    expect(cleanup).not.toHaveBeenCalled()
-    expect(flush).toHaveBeenCalledTimes(6)
-    s.stop()
-  })
-
-  test('erro ao gravar a métrica não para o agendador', async () => {
-    vi.useFakeTimers()
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const flush = vi.fn(async () => {
-      throw new Error('banco caiu')
-    })
-    const s = startScheduler({ record: noRecord, run: async () => undefined, cleanup: async () => undefined, flush })
-    await vi.advanceTimersByTimeAsync(95_000)
-    expect(flush).toHaveBeenCalledTimes(3)
-    s.stop()
-  })
-
-  test('shutdown faz um último flush e não espera além do teto de tempo', async () => {
-    vi.useFakeTimers()
-    const flush = vi.fn(() => new Promise<number>(() => undefined))
-    const s = startScheduler({ record: noRecord, run: async () => undefined, cleanup: async () => undefined, flush })
-    const fim = s.shutdown()
-    await vi.advanceTimersByTimeAsync(5_000)
-    await fim
-    expect(flush).toHaveBeenCalledTimes(1)
-    s.stop()
-  })
-})
-
 describe('startScheduler: registro das execuções', () => {
   type Gravada = { kind: string; ok: boolean; summary: string; startedAt: Date; finishedAt: Date }
 
@@ -167,7 +105,7 @@ describe('startScheduler: registro das execuções', () => {
     run.mockResolvedValueOnce({ sent: 2, skipped: 0, failed: 1, retried: 0, email: 'maria@exemplo.test' })
     run.mockRejectedValueOnce(new TypeError('maria@exemplo.test'))
     const cleanup = vi.fn(async () => ({ limites: 3, passagens: 1 }))
-    const s = startScheduler({ run, cleanup, flush: async () => 0, record })
+    const s = startScheduler({ run, cleanup, record })
     await vi.advanceTimersByTimeAsync(2_500)
     await vi.advanceTimersByTimeAsync(60_000)
     s.stop()
@@ -186,7 +124,7 @@ describe('startScheduler: registro das execuções', () => {
     const gravadas: Gravada[] = []
     const sweep = vi.fn()
     sweep.mockResolvedValueOnce({ synced: 0, expired: 0 }).mockResolvedValueOnce({ synced: 2, expired: 1 }).mockRejectedValueOnce(new TypeError('maria@exemplo.test')).mockResolvedValue({ synced: 0, expired: 0 })
-    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, sweep, flush: async () => 0, record: async (r) => void gravadas.push(r) })
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, sweep, record: async (r) => void gravadas.push(r) })
     await vi.advanceTimersByTimeAsync(2_500 + 60_000 * 3)
     s.stop()
     expect(sweep).toHaveBeenCalledTimes(4)
@@ -206,7 +144,6 @@ describe('startScheduler: registro das execuções', () => {
       cleanup: async () => {
         throw new RangeError('segredo@x.y')
       },
-      flush: async () => 0,
       record: async (r) => void gravadas.push(r),
     })
     await vi.advanceTimersByTimeAsync(2_500)
@@ -214,27 +151,11 @@ describe('startScheduler: registro das execuções', () => {
     expect(gravadas.find((g) => g.kind === 'cleanup')).toMatchObject({ ok: false, summary: 'erro: RangeError' })
   })
 
-  test('as métricas de uso só gravam execução quando gravaram linhas ou falharam', async () => {
-    vi.useFakeTimers()
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    const gravadas: Gravada[] = []
-    const flush = vi.fn()
-    flush.mockResolvedValueOnce(0).mockResolvedValueOnce(4).mockRejectedValueOnce(new Error('banco caiu')).mockResolvedValue(0)
-    const s = startScheduler({ worker: false, run: async () => undefined, cleanup: async () => undefined, flush, record: async (r) => void gravadas.push(r) })
-    await vi.advanceTimersByTimeAsync(30_000 * 5)
-    s.stop()
-    expect(flush).toHaveBeenCalledTimes(5)
-    expect(gravadas.map((g) => [g.kind, g.ok, g.summary])).toEqual([
-      ['usage_flush', true, 'linhas 4'],
-      ['usage_flush', false, 'erro: Error'],
-    ])
-  })
-
   test('falha ao gravar a execução é registrada só pelo nome e não derruba a rodada', async () => {
     vi.useFakeTimers()
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const run = vi.fn(async () => ({ sent: 1 }))
-    const s = startScheduler({ run, cleanup: async () => undefined, flush: async () => 0, record: async () => { throw new TypeError('maria@exemplo.test') } })
+    const s = startScheduler({ run, cleanup: async () => undefined, record: async () => { throw new TypeError('maria@exemplo.test') } })
     await vi.advanceTimersByTimeAsync(130_000)
     s.stop()
     expect(run.mock.calls.length).toBeGreaterThanOrEqual(2)
@@ -249,7 +170,7 @@ describe('startScheduler: registro que não responde', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const run = vi.fn(async () => ({ sent: 1 }))
     const cleanup = vi.fn(async () => undefined)
-    const s = startScheduler({ run, cleanup, flush: async () => 0, record: () => new Promise<void>(() => undefined) })
+    const s = startScheduler({ run, cleanup, record: () => new Promise<void>(() => undefined) })
     await vi.advanceTimersByTimeAsync(2_500)
     expect(cleanup).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(60_000 * 3)
@@ -264,7 +185,7 @@ describe('startScheduler: retenção diária', () => {
     vi.useFakeTimers()
     const gravadas: Gravada[] = []
     const retention = vi.fn(async () => ({ avisos: 5, uso: 0, auditoria: 1 }))
-    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, retention, flush: async () => 0, record: async (r) => void gravadas.push(r) })
+    const s = startScheduler({ run: async () => undefined, cleanup: async () => undefined, retention, record: async (r) => void gravadas.push(r) })
     await vi.advanceTimersByTimeAsync(2_500)
     expect(retention).toHaveBeenCalledTimes(1)
     await vi.advanceTimersByTimeAsync(60 * 60_000 * 23)
@@ -273,8 +194,8 @@ describe('startScheduler: retenção diária', () => {
     expect(retention).toHaveBeenCalledTimes(2)
     s.stop()
     expect(gravadas.filter((g) => g.kind === 'retention').map((g) => [g.ok, g.summary])).toEqual([
-      [true, 'avisos 5, uso 0, auditoria 1'],
-      [true, 'avisos 5, uso 0, auditoria 1'],
+      [true, 'avisos 5, auditoria 1'],
+      [true, 'avisos 5, auditoria 1'],
     ])
   })
 
@@ -289,7 +210,6 @@ describe('startScheduler: retenção diária', () => {
       retention: async () => {
         throw new RangeError('segredo@x.y')
       },
-      flush: async () => 0,
       record: async (r) => void gravadas.push(r),
     })
     await vi.advanceTimersByTimeAsync(2_500)

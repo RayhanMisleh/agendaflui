@@ -4,8 +4,8 @@ import { failureSummary, summarize } from '@/server/notifications/scheduler-runs
 describe('summarize', () => {
   test('só contagens conhecidas, com rótulo em português e na ordem em que vêm', () => {
     expect(summarize({ sent: 3, skipped: 1, failed: 0, retried: 2 })).toBe('enviados 3, ignorados 1, falhas 0, novas tentativas 2')
-    expect(summarize({ limites: 5, codigos: 0, tokens: 1, execucoes: 2, passagens: 4 })).toBe(
-      'limites 5, códigos 0, tokens 1, execuções 2, passagens 4',
+    expect(summarize({ limites: 5, codigos: 0, execucoes: 2, passagens: 4 })).toBe(
+      'limites 5, códigos 0, execuções 2, passagens 4',
     )
   })
 
@@ -36,7 +36,7 @@ describe('failureSummary', () => {
 })
 
 describe('summarize da retenção', () => {
-  test('rotula avisos, uso e auditoria', () => {
-    expect(summarize({ avisos: 3, uso: 2, auditoria: 1 })).toBe('avisos 3, uso 2, auditoria 1')
+  test('rotula avisos e auditoria', () => {
+    expect(summarize({ avisos: 3, auditoria: 1 })).toBe('avisos 3, auditoria 1')
   })
 })

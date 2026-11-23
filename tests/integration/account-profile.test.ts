@@ -33,11 +33,6 @@ beforeEach(async () => {
 const sessao = (token: string, uid = userId) =>
   prisma.session.create({ data: { userId: uid, activeBusinessId: businessId, tokenHash: hashToken(token), expiresAt: addMinutes(AGORA, 600) } })
 
-const refresh = (membershipId: string, b = businessId) =>
-  prisma.refreshToken.create({
-    data: { businessId: b, subject: 'MEMBER', membershipId, familyId: randomUUID(), tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) },
-  })
-
 describe('getOwnAccountProfile', () => {
   test('devolve nome, e-mail, papel, ficha de profissional e a foto pelo ajudante de URL do painel', async () => {
     const upload = await makeUpload(null)
@@ -77,17 +72,12 @@ describe('updateOwnAccountProfile', () => {
 })
 
 describe('changeOwnAccountPassword', () => {
-  test('com a senha certa mantém só a sessão do token passado e derruba as outras sessões e os tokens do app de todos os vínculos', async () => {
-    const outra = (await makeBusiness()).id
-    const segundo = await prisma.membership.create({ data: { businessId: outra, userId, role: 'PROFESSIONAL', active: false } })
+  test('com a senha certa mantém só a sessão do token passado e derruba as outras sessões', async () => {
     const atual = await sessao('token-atual')
     const outraSessao = await sessao('token-outro-aparelho')
-    const tokenAqui = await refresh(memberOf(ctx).membershipId)
-    const tokenOutra = await refresh(segundo.id, outra)
     const colega = await makeUser()
-    const mColega = await makeMembership(businessId, colega.id, 'PROFESSIONAL')
+    await makeMembership(businessId, colega.id, 'PROFESSIONAL')
     const sessaoColega = await sessao('token-colega', colega.id)
-    const tokenColega = await refresh(mColega.id)
 
     await changeOwnAccountPassword(ctx, { current: SENHA, next: 'senha-nova-bem-longa' }, 'token-atual')
 
@@ -96,10 +86,7 @@ describe('changeOwnAccountPassword', () => {
     expect(hash).not.toContain('senha-nova')
     expect((await prisma.session.findUniqueOrThrow({ where: { id: atual.id } })).revokedAt).toBeNull()
     expect((await prisma.session.findUniqueOrThrow({ where: { id: outraSessao.id } })).revokedAt).not.toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenAqui.id } })).revokedAt).not.toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenOutra.id } })).revokedAt).not.toBeNull()
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessaoColega.id } })).revokedAt).toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenColega.id } })).revokedAt).toBeNull()
     const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId, action: 'account.password_changed' } })
     expect(JSON.stringify(log)).not.toContain('senha-nova')
   })

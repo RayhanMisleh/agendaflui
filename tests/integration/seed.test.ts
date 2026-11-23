@@ -117,7 +117,6 @@ describe('dados do painel dev', () => {
     return {
       admins: await prisma.platformAdmin.count(),
       contas: await prisma.business.count(),
-      uso: await prisma.apiUsageHourly.count(),
       execucoes: await prisma.schedulerRun.count(),
       falhos: await prisma.notification.count({ where: { status: 'FAILED' } }),
       auditoria: await prisma.auditLog.count(),
@@ -140,25 +139,6 @@ describe('dados do painel dev', () => {
     expect(suspensas.map((b) => b.slug)).toEqual(['estudio-sol-nascente'])
     expect(await prisma.business.count({ where: { status: 'ACTIVE' } })).toBe(2)
     expect(await prisma.auditLog.count({ where: { action: 'business.status_changed' } })).toBe(1)
-  })
-
-  test('o uso da API cobre as últimas 48 horas cheias, em várias rotas, com alguns erros', async () => {
-    await seed(prisma, ENV, { now: NOW })
-    const linhas = await prisma.apiUsageHourly.findMany({ include: { business: true } })
-    expect(linhas.length).toBeGreaterThan(100)
-    for (const l of linhas) {
-      expect(SLUGS).toContain(l.business.slug)
-      expect(l.hour.getTime() % 3_600_000).toBe(0)
-      expect(l.hour.getTime()).toBeLessThan(NOW.getTime())
-      expect(l.hour.getTime()).toBeGreaterThanOrEqual(NOW.getTime() - 49 * 3_600_000)
-      expect(l.errorCount).toBeLessThanOrEqual(l.count)
-      expect(l.maxMs).toBeGreaterThan(0)
-      expect(Number(l.totalMs)).toBeGreaterThanOrEqual(l.maxMs)
-    }
-    expect(new Set(linhas.map((l) => l.route)).size).toBeGreaterThanOrEqual(4)
-    expect(new Set(linhas.map((l) => l.businessId)).size).toBe(2)
-    expect(linhas.some((l) => l.errorCount > 0)).toBe(true)
-    expect(new Set(linhas.map((l) => l.hour.getTime())).size).toBe(48)
   })
 
   test('há cerca de dez execuções do agendador, uma com falha e só com tipos e resumos conhecidos', async () => {
@@ -188,7 +168,7 @@ describe('dados do painel dev', () => {
     const antes = await contagens()
     await seed(prisma, ENV, { now: NOW })
     expect(await contagens()).toEqual(antes)
-    expect(antes.uso).toBeGreaterThan(0)
+    expect(antes.execucoes).toBeGreaterThan(0)
   })
 
   test('uma conta suspensa que o admin reativou não é suspensa de novo', async () => {
@@ -207,15 +187,6 @@ describe('dados do painel dev', () => {
     await seed(prisma, ENV, { now: NOW })
     expect((await prisma.business.findUniqueOrThrow({ where: { id: conta.id } })).status).toBe('SUSPENDED')
     expect(await prisma.auditLog.count({ where: { businessId: conta.id, action: 'business.status_changed', actorType: 'PLATFORM_ADMIN' } })).toBe(1)
-  })
-
-  test('o uso de demonstração existe para cada conta de demonstração ativa, uma linha por conta, rota e hora', async () => {
-    await seed(prisma, ENV, { now: NOW })
-    const grupos = await prisma.apiUsageHourly.groupBy({ by: ['businessId', 'route', 'hour'], _count: true })
-    expect(grupos.every((g) => g._count === 1)).toBe(true)
-    const donas = await prisma.business.findMany({ where: { id: { in: [...new Set(grupos.map((g) => g.businessId))] } }, select: { slug: true } })
-    expect(donas.map((b) => b.slug).sort()).toEqual([...SLUGS].sort())
-    expect(await prisma.schedulerRun.count()).toBeGreaterThan(0)
   })
 })
 

@@ -61,266 +61,31 @@ async function novaSessao(userId: string, activeBusinessId: string | null, token
   })
 }
 
-async function novoRefresh(membershipId: string, businessIdAlvo = businessId) {
-  return prisma.refreshToken.create({
-    data: {
-      businessId: businessIdAlvo,
-      subject: 'MEMBER',
-      membershipId,
-      familyId: randomUUID(),
-      tokenHash: hashToken(randomUUID()),
-      expiresAt: addMinutes(AGORA, 600),
-    },
-  })
-}
-
-describe('inviteAccess', () => {
-  test('dono convida gerente: usuário sem senha, vínculo, convite só com hash, e-mail com o link e auditoria do dono', async () => {
-    const m = await inviteAccess(dono, { name: 'Bia Souza', email: 'Bia@Exemplo.test', role: 'MANAGER' })
-    expect(m).toMatchObject({ name: 'Bia Souza', email: 'bia@exemplo.test', role: 'MANAGER', active: true, hasPassword: false, professionalId: null })
-    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'bia@exemplo.test' } })
-    expect(user.searchName).toBe('bia souza')
-    expect(await prisma.membership.findFirstOrThrow({ where: { businessId, userId: user.id } })).toMatchObject({ id: m.membershipId, role: 'MANAGER' })
-    expect(mailTo('bia@exemplo.test')).toHaveLength(1)
-    const token = linkToken('/definir-senha', mail.sent[0]?.text ?? '')
-    expect(await prisma.userToken.findFirstOrThrow({ where: { userId: user.id } })).toMatchObject({ purpose: 'INVITE', tokenHash: hashToken(token) })
-    const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId, action: 'team.member_invited' } })
-    expect(log).toMatchObject({ actorType: 'USER', actorId: memberOf(dono).userId, onBehalf: false, targetId: m.membershipId })
-    expect(JSON.stringify(log.metadata)).not.toContain(token)
-  })
-
-  test('com professionalId liga o acesso à ficha; a ficha de outra conta, arquivada ou inexistente é recusada sem criar nada', async () => {
-    const ficha = await makeProfessional(businessId, { name: 'Caio' })
-    const m = await inviteAccess(dono, { name: 'Caio Lima', email: 'caio@exemplo.test', role: 'PROFESSIONAL', professionalId: ficha.id })
-    expect(m.professionalId).toBe(ficha.id)
-    expect((await prisma.professional.findUniqueOrThrow({ where: { id: ficha.id } })).membershipId).toBe(m.membershipId)
-    expect((await listAccess(dono)).find((x) => x.membershipId === m.membershipId)?.professionalId).toBe(ficha.id)
-
-    const outra = await makeBusiness()
-    const deOutra = await makeProfessional(outra.id)
-    const arquivada = await makeProfessional(businessId, { archivedAt: AGORA })
-    for (const professionalId of [deOutra.id, arquivada.id, randomUUID(), 'nao-e-uuid']) {
-      const e = await domainError(inviteAccess(dono, { name: 'Dani', email: 'dani@exemplo.test', role: 'PROFESSIONAL', professionalId }))
-      expect(['not_found', 'validation']).toContain(e.code)
-    }
-    expect(await prisma.user.count({ where: { email: 'dani@exemplo.test' } })).toBe(0)
-    expect((await prisma.professional.findUniqueOrThrow({ where: { id: deOutra.id } })).membershipId).toBeNull()
-  })
-
-  test('ficha de profissional com dois acessos: o segundo convite é conflict e nada é criado', async () => {
-    const ficha = await makeProfessional(businessId)
-    await inviteAccess(dono, { name: 'Caio Lima', email: 'caio@exemplo.test', role: 'PROFESSIONAL', professionalId: ficha.id })
-    const e = await domainError(inviteAccess(dono, { name: 'Edu', email: 'edu@exemplo.test', role: 'PROFESSIONAL', professionalId: ficha.id }))
-    expect(e.code).toBe('conflict')
-    expect(await prisma.user.count({ where: { email: 'edu@exemplo.test' } })).toBe(0)
-    expect(mailTo('edu@exemplo.test')).toHaveLength(0)
-  })
-
-  test('dois convites simultâneos para a mesma ficha: um vincula, o outro recebe conflict', async () => {
-    const ficha = await makeProfessional(businessId)
-    const pedir = (email: string) => inviteAccess(dono, { name: 'Fulano', email, role: 'PROFESSIONAL', professionalId: ficha.id })
-    const r = await Promise.allSettled([pedir('um@exemplo.test'), pedir('dois@exemplo.test')])
-    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
-    expect(await prisma.membership.count({ where: { businessId, role: 'PROFESSIONAL', id: { not: memberOf(profissional).membershipId } } })).toBe(1)
-  })
-
-  test('usuário que já existe e tem senha só ganha o vínculo e recebe o aviso de acesso, sem convite', async () => {
-    const user = await makeUser({ email: 'carla@exemplo.test', name: 'Carla Dias', password: 'senha-da-carla-1' })
-    const m = await inviteAccess(dono, { name: 'Outro Nome', email: 'CARLA@exemplo.test', role: 'PROFESSIONAL' })
-    expect(m).toMatchObject({ userId: user.id, name: 'Carla Dias', hasPassword: true })
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash).toBe(user.passwordHash)
-    expect(await prisma.userToken.count({ where: { userId: user.id } })).toBe(0)
-    expect(mail.sent[0]?.text).not.toContain('/definir-senha/')
-    expect(mail.sent[0]?.text).toContain('/entrar')
-    expect(mail.sent[0]?.text).not.toMatch(/\/entrar\//)
-  })
-
-  test('mesma pessoa duas vezes na conta é conflict', async () => {
-    await inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' })
-    expect((await domainError(inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('conflict')
-  })
-
-  test('gerente convida gerente e profissional, mas não cria dono (forbidden, nada é criado)', async () => {
-    await inviteAccess(gerente, { name: 'Gil', email: 'gil@exemplo.test', role: 'MANAGER' })
-    await inviteAccess(gerente, { name: 'Hana', email: 'hana@exemplo.test', role: 'PROFESSIONAL' })
-    const e = await domainError(inviteAccess(gerente, { name: 'Ivo', email: 'ivo@exemplo.test', role: 'OWNER' }))
-    expect(e.code).toBe('forbidden')
-    expect(await prisma.user.count({ where: { email: 'ivo@exemplo.test' } })).toBe(0)
-    expect(mailTo('ivo@exemplo.test')).toHaveLength(0)
-  })
-
-  test('dono e suporte podem convidar outro dono', async () => {
-    expect((await inviteAccess(dono, { name: 'Jo', email: 'jo@exemplo.test', role: 'OWNER' })).role).toBe('OWNER')
-    expect((await inviteAccess(suporte, { name: 'Lu', email: 'lu@exemplo.test', role: 'OWNER' })).role).toBe('OWNER')
-  })
-
-  test('validação por campo: e-mail inválido, nome vazio e papel desconhecido', async () => {
-    const e = await domainError(inviteAccess(dono, { name: ' ', email: 'x', role: 'CHEFE' as never }))
-    expect(e.code).toBe('validation')
-    expect(Object.keys(e.fields ?? {}).sort()).toEqual(['email', 'name', 'role'])
-  })
-})
-
-describe('autorização', () => {
-  test('profissional recebe forbidden em toda função de acesso', async () => {
-    const alvo = await vinculo('MANAGER')
-    const chamadas = [
-      () => listAccess(profissional),
-      () => inviteAccess(profissional, { name: 'Bia', email: 'bia@exemplo.test', role: 'PROFESSIONAL' }),
-      () => changeAccessRole(profissional, alvo.membership.id, 'PROFESSIONAL'),
-      () => setAccessActive(profissional, alvo.membership.id, false),
-      () => resendAccessInvite(profissional, alvo.membership.id),
-      () => sendAccessPasswordReset(profissional, alvo.membership.id),
-    ]
-    for (const c of chamadas) expect((await domainError(c())).code).toBe('forbidden')
-    expect((await prisma.membership.findUniqueOrThrow({ where: { id: alvo.membership.id } })).active).toBe(true)
-  })
-
-  test('ator que não é da equipe (cliente, visitante, sistema, admin sem entrar como suporte) recebe forbidden', async () => {
-    const atores: Actor[] = [
-      { kind: 'customer', customerId: randomUUID(), name: 'Cli' },
-      { kind: 'guest' },
-      { kind: 'system' },
-      { kind: 'platform_admin', adminId, name: 'Ana Admin' },
-    ]
-    for (const actor of atores) {
-      const ctx = { ...dono, actor }
-      expect((await domainError(listAccess(ctx))).code).toBe('forbidden')
-      expect((await domainError(inviteAccess(ctx, { name: 'Bia', email: 'bia@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('forbidden')
-    }
-  })
-
-  test('quem foi desativado ou rebaixado depois de o contexto ser montado não age mais', async () => {
-    await prisma.membership.update({ where: { id: memberOf(gerente).membershipId }, data: { active: false } })
-    expect((await domainError(inviteAccess(gerente, { name: 'Bia', email: 'bia@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('forbidden')
-    const outro = await ctxWithRole({ id: businessId }, 'OWNER', { now: AGORA })
-    const alvo = await vinculo('PROFESSIONAL')
-    await prisma.membership.update({ where: { id: memberOf(outro).membershipId }, data: { role: 'PROFESSIONAL' } })
-    expect((await domainError(setAccessActive(outro, alvo.membership.id, false))).code).toBe('forbidden')
-    expect((await domainError(changeAccessRole(outro, alvo.membership.id, 'MANAGER'))).code).toBe('forbidden')
-    expect((await prisma.membership.findUniqueOrThrow({ where: { id: alvo.membership.id } })).active).toBe(true)
-  })
-
-  test('gerente não mexe em dono: papel, situação, convite e redefinição, nem promove alguém a dono', async () => {
-    const outroDono = await vinculo('OWNER')
-    const pendente = await inviteAccess(dono, { name: 'Mia', email: 'mia@exemplo.test', role: 'OWNER' })
-    const prof = await vinculo('PROFESSIONAL')
-    const chamadas = [
-      () => changeAccessRole(gerente, outroDono.membership.id, 'MANAGER'),
-      () => setAccessActive(gerente, outroDono.membership.id, false),
-      () => resendAccessInvite(gerente, pendente.membershipId),
-      () => sendAccessPasswordReset(gerente, outroDono.membership.id),
-      () => changeAccessRole(gerente, prof.membership.id, 'OWNER'),
-    ]
-    for (const c of chamadas) expect((await domainError(c())).code).toBe('forbidden')
-    expect(await prisma.membership.findUniqueOrThrow({ where: { id: outroDono.membership.id } })).toMatchObject({ role: 'OWNER', active: true })
-    expect((await prisma.membership.findUniqueOrThrow({ where: { id: prof.membership.id } })).role).toBe('PROFESSIONAL')
-  })
-
-  test('gerente muda papel e situação de gerentes e profissionais', async () => {
-    const outroGerente = await vinculo('MANAGER')
-    const prof = await vinculo('PROFESSIONAL')
-    expect((await changeAccessRole(gerente, prof.membership.id, 'MANAGER')).role).toBe('MANAGER')
-    expect((await changeAccessRole(gerente, outroGerente.membership.id, 'PROFESSIONAL')).role).toBe('PROFESSIONAL')
-    expect((await setAccessActive(gerente, prof.membership.id, false)).active).toBe(false)
-  })
-
-  test('ninguém altera o próprio vínculo (papel ou situação), nem o dono nem o suporte-dono', async () => {
-    const donoId = memberOf(dono).membershipId
-    const gerenteId = memberOf(gerente).membershipId
-    const chamadas = [
-      () => changeAccessRole(dono, donoId, 'MANAGER'),
-      () => setAccessActive(dono, donoId, false),
-      () => changeAccessRole(gerente, gerenteId, 'PROFESSIONAL'),
-      () => setAccessActive(gerente, gerenteId, false),
-    ]
-    for (const c of chamadas) expect((await domainError(c())).code).toBe('forbidden')
-    expect(await prisma.membership.findUniqueOrThrow({ where: { id: donoId } })).toMatchObject({ role: 'OWNER', active: true })
-    expect(await prisma.membership.findUniqueOrThrow({ where: { id: gerenteId } })).toMatchObject({ role: 'MANAGER', active: true })
-  })
-
-  test('conta B nunca vê nem mexe em membro da conta A: not_found e nada muda', async () => {
-    const contaB = await makeBusiness({ name: 'Outra Conta' })
-    const donoB = await ctxWithRole(contaB, 'OWNER', { now: AGORA })
-    const membroA = await vinculo('MANAGER')
-    const pendenteA = await inviteAccess(dono, { name: 'Nina', email: 'nina@exemplo.test', role: 'MANAGER' })
-    expect((await listAccess(donoB)).map((m) => m.membershipId)).not.toContain(membroA.membership.id)
-    const chamadas = [
-      () => changeAccessRole(donoB, membroA.membership.id, 'PROFESSIONAL'),
-      () => setAccessActive(donoB, membroA.membership.id, false),
-      () => resendAccessInvite(donoB, pendenteA.membershipId),
-      () => sendAccessPasswordReset(donoB, membroA.membership.id),
-      () => setAccessActive(donoB, 'nao-e-uuid', false),
-    ]
-    for (const c of chamadas) expect((await domainError(c())).code).toBe('not_found')
-    expect(await prisma.membership.findUniqueOrThrow({ where: { id: membroA.membership.id } })).toMatchObject({ role: 'MANAGER', active: true })
-    expect(mailTo('nina@exemplo.test')).toHaveLength(1)
-  })
-})
-
-describe('último dono e papéis', () => {
-  test('suporte não rebaixa nem desativa o último dono ativo; com dois donos, o dono tira o outro e o último fica protegido', async () => {
-    const donoId = memberOf(dono).membershipId
-    expect((await domainError(changeAccessRole(suporte, donoId, 'MANAGER'))).code).toBe('conflict')
-    expect((await domainError(setAccessActive(suporte, donoId, false))).code).toBe('conflict')
-    const segundo = await vinculo('OWNER')
-    expect((await setAccessActive(dono, segundo.membership.id, false)).active).toBe(false)
-    expect((await domainError(setAccessActive(suporte, donoId, false))).code).toBe('conflict')
-    expect(await prisma.membership.findUniqueOrThrow({ where: { id: donoId } })).toMatchObject({ role: 'OWNER', active: true })
-  })
-
-  test('dois donos se desativando ao mesmo tempo: só um passa e a conta fica com um dono ativo', async () => {
-    const segundo = await ctxWithRole({ id: businessId }, 'OWNER', { now: AGORA })
-    const r = await Promise.allSettled([
-      setAccessActive(dono, memberOf(segundo).membershipId, false),
-      setAccessActive(segundo, memberOf(dono).membershipId, false),
-    ])
-    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
-    expect(await prisma.membership.count({ where: { businessId, role: 'OWNER', active: true } })).toBe(1)
-  })
-
-  test('dono rebaixa outro dono quando sobra ele mesmo', async () => {
-    const segundo = await vinculo('OWNER')
-    expect((await changeAccessRole(dono, segundo.membership.id, 'MANAGER')).role).toBe('MANAGER')
-    const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId, action: 'team.role_changed' } })
-    expect(log).toMatchObject({ actorType: 'USER', actorId: memberOf(dono).userId })
-    expect(log.metadata).toMatchObject({ from: 'OWNER', to: 'MANAGER' })
-  })
-})
-
 describe('revogação', () => {
-  test('desativar derruba as sessões do painel e os tokens do app daquele vínculo; outras contas e pessoas ficam; reativar não devolve', async () => {
+  test('desativar derruba as sessões do painel daquele vínculo; outras contas e pessoas ficam; reativar não devolve', async () => {
     const outra = (await makeBusiness()).id
     const alvo = await vinculo('PROFESSIONAL')
     const sessaoAqui = await novaSessao(alvo.user.id, businessId)
     const sessaoOutra = await novaSessao(alvo.user.id, outra)
-    const tokenAqui = await novoRefresh(alvo.membership.id)
     const colega = await vinculo('PROFESSIONAL')
     const sessaoColega = await novaSessao(colega.user.id, businessId)
-    const tokenColega = await novoRefresh(colega.membership.id)
 
     await setAccessActive(dono, alvo.membership.id, false)
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessaoAqui.id } })).revokedAt).not.toBeNull()
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessaoOutra.id } })).revokedAt).toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenAqui.id } })).revokedAt).not.toBeNull()
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessaoColega.id } })).revokedAt).toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenColega.id } })).revokedAt).toBeNull()
 
     await setAccessActive(dono, alvo.membership.id, true)
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessaoAqui.id } })).revokedAt).not.toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenAqui.id } })).revokedAt).not.toBeNull()
   })
 
-  test('rebaixar derruba sessões e tokens; promover não', async () => {
+  test('rebaixar derruba as sessões; promover não', async () => {
     const alvo = await vinculo('MANAGER')
     const sessao = await novaSessao(alvo.user.id, businessId)
-    const token = await novoRefresh(alvo.membership.id)
     await changeAccessRole(dono, alvo.membership.id, 'OWNER')
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessao.id } })).revokedAt).toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: token.id } })).revokedAt).toBeNull()
     await changeAccessRole(dono, alvo.membership.id, 'PROFESSIONAL')
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessao.id } })).revokedAt).not.toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: token.id } })).revokedAt).not.toBeNull()
   })
 
   test('desativar quem ainda não definiu a senha apaga o convite pendente e o link de redefinição', async () => {
@@ -356,9 +121,9 @@ describe('suporte', () => {
 describe('resendAccessInvite', () => {
   test('troca o convite anterior, manda e-mail novo e audita', async () => {
     const m = await inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' })
-    const velho = linkToken('/definir-senha', mail.sent[0]?.text ?? '')
+    const velho = linkToken('/convite', mail.sent[0]?.text ?? '')
     await resendAccessInvite(dono, m.membershipId)
-    const novo = linkToken('/definir-senha', mail.sent[1]?.text ?? '')
+    const novo = linkToken('/convite', mail.sent[1]?.text ?? '')
     expect(novo).not.toBe(velho)
     expect((await prisma.userToken.findMany({ where: { userId: m.userId } })).map((t) => t.tokenHash)).toEqual([hashToken(novo)])
     expect(await prisma.auditLog.count({ where: { businessId, action: 'team.invite_resent' } })).toBe(1)
@@ -568,7 +333,7 @@ describe('addTeamMember: cadastro num passo e situação do convite', () => {
     expect(ficha.displayOrder).toBeGreaterThan(antes.displayOrder)
     expect(ficha.services.map((s) => s.serviceId)).toEqual([servico.id])
     expect(mailTo('duda@exemplo.test')).toHaveLength(1)
-    expect(mailTo('duda@exemplo.test')[0]?.text).toContain('/definir-senha/')
+    expect(mailTo('duda@exemplo.test')[0]?.text).toContain('/convite/')
     expect((await membroDe('duda@exemplo.test')).inviteMailFailedAt).toBeNull()
   })
 

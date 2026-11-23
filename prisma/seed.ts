@@ -11,14 +11,13 @@ import {
   DEMO_CONTAS,
   DEMO_CONTA_SUSPENSA,
   DEMO_EXECUCOES,
-  DEMO_ROTAS_USO,
   demoEmail, type DemoAgenda,
   type DemoModulos,
   type DemoPapel,
 } from './seed-data'
 import { planejarAgenda } from './seed-plan'
 import sharp from 'sharp'
-import { addDays, addMinutes, fromEpochMs, startOfUtcHour, todayIn } from '../src/server/time'
+import { addDays, addMinutes, fromEpochMs, todayIn } from '../src/server/time'
 
 /** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD). */
 export type SeedEnv = Record<string, string | undefined>
@@ -97,41 +96,6 @@ async function contaSuspensa(prisma: PrismaClient, ator: AdminAtor, donoId: stri
     },
   })
   await setBusinessStatus(ator, negocio.id, 'SUSPENDED', { confirmName: c.nome }, now)
-}
-
-/**
- * Uso da API das últimas 48 horas cheias, por conta de demonstração e rota, no formato que `recordUsage` acumula. Valores
- * determinísticos (sem sorteio); só quando a tabela está vazia, porque `writeUsageRows` soma em vez de substituir.
- */
-async function usoDeDemonstracao(prisma: PrismaClient, contas: { slug: string; id: string }[], now: Date): Promise<void> {
-  if ((await prisma.apiUsageHourly.count()) > 0) return
-  const { writeUsageRows } = await import('../src/server/domain/platform/api-usage')
-  const fimDaHora = startOfUtcHour(now)
-  const linhas = []
-  const ordenadas = [...contas].sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0))
-  for (const [c, conta] of ordenadas.entries()) {
-    for (let h = 1; h <= 48; h++) {
-      // Mais tráfego de dia que de madrugada (hora UTC; é só um desenho plausível).
-      const hora = addMinutes(fimDaHora, -60 * h)
-      const hDia = (hora.getTime() / 3_600_000) % 24
-      const carga = hDia >= 11 && hDia <= 23 ? 3 : 1
-      for (const [r, rota] of DEMO_ROTAS_USO.entries()) {
-        const count = rota.peso * carga + ((h * 7 + r * 3 + c) % 5)
-        const errorCount = (h + r * 5 + c) % 13 === 0 ? 1 + (h % 2) : 0
-        const totalMs = count * rota.ms + ((h * 13) % 30)
-        linhas.push({
-          businessId: conta.id,
-          route: rota.rota,
-          hour: hora,
-          count,
-          errorCount: Math.min(errorCount, count),
-          totalMs,
-          maxMs: Math.min(totalMs, rota.ms * 3 + ((h * 11) % 40)),
-        })
-      }
-    }
-  }
-  await writeUsageRows(linhas)
 }
 
 /** Execuções do agendador no formato de `recordSchedulerRun` (uma com falha); só quando a tabela está vazia. */
@@ -510,7 +474,6 @@ export async function seed(
   if (patas) await avisoComFalha(prisma, patas.id, now)
   await execucoesDeDemonstracao(prisma, now)
 
-  await usoDeDemonstracao(prisma, contas, now)
   return { emails, agenda }
 }
 

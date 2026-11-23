@@ -54,7 +54,7 @@ describe('versão das configurações', () => {
   test('gravação sem versão informada grava e sobe (chamadores antigos)', async () => {
     const dono = await makeCtx(biz)
     expect((await updateSchedulingRules(dono, { slotStepMin: 30 })).version).toBe(2)
-    await updateNotificationSettings(dono, { APPOINTMENT_CANCELED: { push: false } })
+    await updateNotificationSettings(dono, { APPOINTMENT_CANCELED: { email: false } })
     expect(await versaoDasConfig()).toBe(3)
   })
 
@@ -94,7 +94,7 @@ describe('versão das configurações', () => {
     await updateTermsAsOwner(dono, 2, { ...TERMOS, club: 'Dono' })
     expect(stale(await domainError(updateTerms(admin, biz.id, { ...TERMOS, club: 'Admin' }, 2)))).toEqual(['conflict', 'stale_version'])
     expect(stale(await domainError(updateRulesAsAdmin(admin, biz.id, { bufferMin: 5 }, 2)))).toEqual(['conflict', 'stale_version'])
-    const avisos = { ...(await getNotificationSettingsView(dono)).settings, APPOINTMENT_REMINDER_1H: { email: false, push: true } }
+    const avisos = { ...(await getNotificationSettingsView(dono)).settings, APPOINTMENT_REMINDER_1H: { email: false } }
     expect(stale(await domainError(updateNotificationsAsAdmin(admin, biz.id, avisos, 2)))).toEqual(['conflict', 'stale_version'])
   })
 
@@ -128,7 +128,7 @@ describe('versão das configurações', () => {
     expect((await updateSchedulingRules(gerente, { bufferMin: 5 }, 1)).version).toBe(2)
     const prof = await ctxWithRole(biz, 'PROFESSIONAL')
     expect((await domainError(updateSchedulingRules(prof, { bufferMin: 10 }, 2))).code).toBe('forbidden')
-    expect((await domainError(updateNotificationSettings(prof, { APPOINTMENT_REMINDER_1H: { push: false } }, 2))).code).toBe('forbidden')
+    expect((await domainError(updateNotificationSettings(prof, { APPOINTMENT_REMINDER_1H: { email: false } }, 2))).code).toBe('forbidden')
   })
 
   test('duas gravações com a mesma versão ao mesmo tempo: uma entra, a outra recebe stale_version', async () => {

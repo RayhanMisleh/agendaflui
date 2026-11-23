@@ -140,7 +140,7 @@ describe('requestPanelPasswordReset', () => {
     const { user } = await pessoa({ password: null })
     await pedir(user.email)
     expect(mail.sent).toHaveLength(1)
-    expect(mail.sent[0]?.text).toContain('/definir-senha/')
+    expect(mail.sent[0]?.text).toContain('/convite/')
     expect(mail.sent[0]?.text).not.toContain('/redefinir-senha/')
     expect(await prisma.userToken.findMany({ where: { userId: user.id } })).toMatchObject([{ purpose: 'INVITE' }])
   })
@@ -243,40 +243,22 @@ describe('resetPanelPassword', () => {
     expect([await verifyPassword(hash, 'senha-nova-um-1234'), await verifyPassword(hash, 'senha-nova-dois-1234')].filter(Boolean)).toHaveLength(1)
   })
 
-  test('derruba todas as sessões do painel da pessoa (de qualquer conta) e os tokens do app de todos os vínculos; os dos outros ficam', async () => {
+  test('derruba todas as sessões do painel da pessoa (de qualquer conta); as dos outros ficam', async () => {
     const outra = (await makeBusiness()).id
-    const { user, membership } = await pessoa()
-    const segundoVinculo = await prisma.membership.create({ data: { businessId: outra, userId: user.id, role: 'PROFESSIONAL', active: false } })
-    const inativo = await prisma.membership.create({ data: { businessId: (await makeBusiness()).id, userId: user.id, role: 'PROFESSIONAL', active: false } })
+    const { user } = await pessoa()
     const sessoes = await Promise.all(
       [businessId, outra, null].map((b) =>
         prisma.session.create({ data: { userId: user.id, activeBusinessId: b, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) } }),
-      ),
-    )
-    const tokens = await Promise.all(
-      [
-        { b: businessId, m: membership.id },
-        { b: outra, m: segundoVinculo.id },
-        { b: inativo.businessId, m: inativo.id },
-      ].map((x) =>
-        prisma.refreshToken.create({
-          data: { businessId: x.b, subject: 'MEMBER', membershipId: x.m, familyId: randomUUID(), tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) },
-        }),
       ),
     )
     const colega = await pessoa({ role: 'PROFESSIONAL' })
     const sessaoColega = await prisma.session.create({
       data: { userId: colega.user.id, activeBusinessId: businessId, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) },
     })
-    const tokenColega = await prisma.refreshToken.create({
-      data: { businessId, subject: 'MEMBER', membershipId: colega.membership.id, familyId: randomUUID(), tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) },
-    })
     const token = await emitido(user.email)
     await resetPanelPassword({ token, password: 'senha-nova-bem-longa' }, META, addMinutes(AGORA, 2))
     for (const s of sessoes) expect((await prisma.session.findUniqueOrThrow({ where: { id: s.id } })).revokedAt).not.toBeNull()
-    for (const t of tokens) expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: t.id } })).revokedAt).not.toBeNull()
     expect((await prisma.session.findUniqueOrThrow({ where: { id: sessaoColega.id } })).revokedAt).toBeNull()
-    expect((await prisma.refreshToken.findUniqueOrThrow({ where: { id: tokenColega.id } })).revokedAt).toBeNull()
   })
 
   test('quem perdeu todos os vínculos ativos depois do pedido não consegue usar o link', async () => {

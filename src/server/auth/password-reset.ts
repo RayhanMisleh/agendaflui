@@ -77,21 +77,13 @@ export async function issuePanelPasswordReset(
 }
 
 /**
- * Revoga as sessões do painel do usuário (todas, de qualquer conta, menos a do token indicado) e os tokens do app de todos
- * os vínculos dele, ativos ou não. Chame depois de `lockUserAccess` (as travas dos vínculos já estão na transação).
+ * Revoga as sessões do painel do usuário (todas, de qualquer conta, menos a do token indicado). Chame depois de `lockUserAccess` (as travas dos vínculos já estão na transação).
  */
 export async function revokeUserAccess(tx: ResetTx, userId: string, now: Date, keepSessionToken?: string): Promise<void> {
-  const vinculos = await tx.membership.findMany({ where: { userId }, select: { id: true } })
   await tx.session.updateMany({
     where: { userId, revokedAt: null, ...(keepSessionToken ? { NOT: { tokenHash: hashToken(keepSessionToken) } } : {}) },
     data: { revokedAt: now },
   })
-  if (vinculos.length > 0) {
-    await tx.refreshToken.updateMany({
-      where: { membershipId: { in: vinculos.map((v) => v.id) }, revokedAt: null },
-      data: { revokedAt: now },
-    })
-  }
 }
 
 const pedidoSchema = z.object({

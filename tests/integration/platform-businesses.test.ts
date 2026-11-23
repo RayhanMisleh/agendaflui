@@ -40,7 +40,7 @@ const base = {
 }
 
 function tokenDoEmail(i = mail.sent.length - 1): string {
-  const m = /\/definir-senha\/([A-Za-z0-9_-]+)/.exec(mail.sent[i]?.text ?? '')
+  const m = /\/convite\/([A-Za-z0-9_-]+)/.exec(mail.sent[i]?.text ?? '')
   if (!m?.[1]) throw new Error('O e-mail não traz o link de definir senha.')
   return m[1]
 }
@@ -70,7 +70,7 @@ describe('createBusiness', () => {
     expect(convite.usedAt).toBeNull()
     expect(mail.sent).toHaveLength(1)
     expect(mail.sent[0]).toMatchObject({ to: 'joao@exemplo.test' })
-    expect(mail.sent[0]?.text).toContain(`http://painel.localhost:3000/definir-senha/${token}`)
+    expect(mail.sent[0]?.text).toContain(`http://app.localhost:3000/convite/${token}`)
     expect(mail.sent[0]?.text).toContain('Barbearia Central')
   })
 
@@ -110,8 +110,8 @@ describe('createBusiness', () => {
     expect(mail.sent).toHaveLength(1)
     expect(mail.sent[0]?.to).toBe('helena@exemplo.test')
     expect(mail.sent[0]?.text).toContain('Barbearia Central')
-    expect(mail.sent[0]?.text).not.toContain('definir-senha')
-    expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar')
+    expect(mail.sent[0]?.text).not.toContain('convite')
+    expect(mail.sent[0]?.text).toContain('http://app.localhost:3000/entrar')
     expect(mail.sent[0]?.text).not.toContain('/entrar/central')
   })
 
@@ -126,7 +126,7 @@ describe('createBusiness', () => {
     const convites = await prisma.userToken.findMany({ where: { userId: pendente.id } })
     expect(convites).toHaveLength(1)
     expect(convites[0]?.tokenHash).toBe(hashToken(token))
-    expect(mail.sent[0]?.text).toContain('/definir-senha/')
+    expect(mail.sent[0]?.text).toContain('/convite/')
   })
 
   test('falha no envio não desfaz a conta e aparece no retorno', async () => {

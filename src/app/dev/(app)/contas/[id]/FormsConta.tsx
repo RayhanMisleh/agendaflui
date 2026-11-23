@@ -155,19 +155,18 @@ export function RegrasForm({ action, valores, grades, limites }: { action: AcaoC
   )
 }
 
-/** Avisos por tipo e canal: uma caixa por combinação, com o nome completo para leitor de tela. */
+/** Avisos por tipo: uma caixa de e-mail por aviso, com o nome completo para leitor de tela. */
 export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; valores: Campos; avisos: Array<{ kind: string; label: string }> }) {
   return (
     <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar avisos">
       {({ values: v }) => (
         <div className="af-matrix__scroll">
           <table className="af-matrix">
-            <caption className="af-sr">Avisos por tipo e canal</caption>
+            <caption className="af-sr">Avisos por tipo</caption>
             <thead>
               <tr>
                 <th scope="col">Aviso</th>
                 <th scope="col">E-mail</th>
-                <th scope="col">Push</th>
               </tr>
             </thead>
             <tbody>
@@ -176,9 +175,6 @@ export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; val
                   <th scope="row">{a.label}</th>
                   <td>
                     <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={v[`${a.kind}__email`] === 'on'} />
-                  </td>
-                  <td>
-                    <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: push</span>} defaultChecked={v[`${a.kind}__push`] === 'on'} />
                   </td>
                 </tr>
               ))}

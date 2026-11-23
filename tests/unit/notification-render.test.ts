@@ -20,9 +20,9 @@ function one(kind: NotificationKind) {
 }
 
 describe('renderNotification', () => {
-  test.each(KINDS)('%s: assunto, texto, HTML e push sem sobras de modelo, na hora de Manaus', (kind) => {
+  test.each(KINDS)('%s: assunto, texto e HTML sem sobras de modelo, na hora de Manaus', (kind) => {
     const r = renderNotification(one(kind))
-    for (const t of [r.email.subject, r.email.text, r.email.html, r.push.title, r.push.body]) {
+    for (const t of [r.email.subject, r.email.text, r.email.html]) {
       expect(t).not.toContain('undefined')
       expect(t).not.toContain('null')
       expect(t).not.toMatch(/\{|\}/)
@@ -35,8 +35,6 @@ describe('renderNotification', () => {
     expect(r.email.text).not.toContain('19:00')
     expect(r.email.html).toContain('lang="pt-BR"')
     expect(r.email.html).not.toMatch(/<img|https?:\/\//)
-    expect(r.push.data['kind']).toBe(kind)
-    expect(r.push.data['appointmentId']).toBe('a-1')
   })
 
   test('confirmado: serviços, profissional com o termo da conta, total em reais, prazo e nome do negócio', () => {
@@ -67,36 +65,28 @@ describe('renderNotification', () => {
     const para = (kind: NotificationKind, audience: string | null) =>
       loaded({
         kind,
-        channel: 'PUSH',
         recipient: { kind: 'member', id: 'm-dono' },
         appointment: { status: kind === 'STAFF_APPOINTMENT_CANCELED' ? 'CANCELED' : 'CONFIRMED', cancelReason: kind === 'STAFF_APPOINTMENT_CANCELED' ? 'Cliente desistiu' : null },
         payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: null, audience },
       })
 
-    test.each(STAFF_KINDS)('%s: o push do observador diz de qual profissional é o atendimento', (kind) => {
+    test.each(STAFF_KINDS)('%s: o e-mail do observador diz de qual profissional é o atendimento', (kind) => {
       const r = renderNotification(para(kind, 'watcher'))
-      expect(r.push.body).toContain('com Ana')
-      expect(r.push.body).toContain('Maria Souza')
-      expect(r.push.body).toContain('16/11/2026')
-      expect(r.push.body).not.toMatch(/undefined|null/)
+      expect(r.email.text).toContain('Tosador: Ana')
+      expect(r.email.text).toContain('Maria Souza')
+      expect(r.email.text).toContain('16/11/2026')
+      expect(r.email.text).not.toMatch(/undefined|null/)
     })
 
-    test.each(STAFF_KINDS)('%s: o push do próprio profissional continua sem o nome dele', (kind) => {
+    test.each(STAFF_KINDS)('%s: o e-mail do próprio profissional continua sem o nome dele', (kind) => {
       const r = renderNotification(para(kind, null))
-      expect(r.push.body).not.toContain('Ana')
-      expect(r.push.body).toContain('Maria Souza')
+      expect(r.email.text).not.toContain('Ana')
+      expect(r.email.text).toContain('Maria Souza')
     })
 
-    test('o motivo do cancelamento continua no push do observador', () => {
+    test('o motivo do cancelamento continua no e-mail do observador', () => {
       const r = renderNotification(para('STAFF_APPOINTMENT_CANCELED', 'watcher'))
-      expect(r.push.body).toContain('Motivo: Cliente desistiu')
-    })
-
-    test('o texto do e-mail não muda para o observador', () => {
-      const comNome = renderNotification(para('STAFF_NEW_APPOINTMENT', 'watcher'))
-      const semNome = renderNotification(para('STAFF_NEW_APPOINTMENT', null))
-      expect(comNome.email).toEqual(semNome.email)
-      expect(comNome.push.title).toBe(semNome.push.title)
+      expect(r.email.text).toContain('Motivo: Cliente desistiu')
     })
   })
 
@@ -105,7 +95,6 @@ describe('renderNotification', () => {
     const r = renderNotification(n)
     expect(r.email.text).toContain('Motivo: Profissional doente')
     expect(r.email.html).toContain('Profissional doente')
-    expect(r.push.body).toContain('Profissional doente')
   })
 
   test('cancelamento sem motivo não menciona motivo', () => {
