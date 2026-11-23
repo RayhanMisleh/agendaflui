@@ -107,7 +107,7 @@ pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca e
 ## Fila de avisos e agendador interno
 
 Avisos (e-mail e push) entram em `notifications` na mesma transação do fato que os gerou
-(`domain/notifications/outbox.ts`). O envio (`src/server/notifications/`) reserva linhas com `FOR UPDATE SKIP LOCKED` por 2
+(`domain/notifications/outbox.ts`). Dono e gerente podem ligar, no app (`PATCH /v1/staff/me`), os avisos de toda a loja: linhas só de push, marcadas `audience: 'watcher'`, que o envio confere de novo contra o papel e a preferência. O envio (`src/server/notifications/`) reserva linhas com `FOR UPDATE SKIP LOCKED` por 2
 minutos (`claim.ts`), decide, renderiza e entrega por canal (`channels/`: SMTP e Expo; arquivos em `.local/` em
 desenvolvimento), com até 5 tentativas e espera crescente. A garantia é "pelo menos uma vez".
 

@@ -15,7 +15,7 @@ function one(kind: NotificationKind) {
     kind,
     ...(staff ? { recipient: { kind: 'member' as const, id: 'm-1' } } : {}),
     appointment: { status: kind === 'APPOINTMENT_CANCELED' || kind === 'STAFF_APPOINTMENT_CANCELED' ? 'CANCELED' : 'CONFIRMED' },
-    payload: { startsAt: INICIO.toISOString(), previousStartsAt: '2026-11-15T19:00:00.000Z', reason: null },
+    payload: { startsAt: INICIO.toISOString(), previousStartsAt: '2026-11-15T19:00:00.000Z', reason: null, audience: null },
   })
 }
 
@@ -79,7 +79,7 @@ describe('renderNotification', () => {
     const n = loaded({
       kind: 'STAFF_APPOINTMENT_CANCELED',
       recipient: { kind: 'member', id: 'm-old' },
-      payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: 'moved' },
+      payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: 'moved', audience: null },
     })
     const r = renderNotification(n)
     expect(r.email.subject).toMatch(/passou para outro|transferido/i)

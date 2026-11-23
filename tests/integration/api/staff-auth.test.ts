@@ -4,7 +4,7 @@ import { POST as customerRefresh } from '@/app/api/v1/auth/customer/refresh/rout
 import { POST as login } from '@/app/api/v1/auth/staff/login/route'
 import { POST as logout } from '@/app/api/v1/auth/staff/logout/route'
 import { POST as refresh } from '@/app/api/v1/auth/staff/refresh/route'
-import { GET as staffMe } from '@/app/api/v1/staff/me/route'
+import { GET as staffMe, PATCH as staffMePatch } from '@/app/api/v1/staff/me/route'
 import { defineRoute, type RouteHandler } from '@/server/api/define-route'
 import { issueTokens, verifyAccessToken } from '@/server/auth/api-tokens'
 import { CAPABILITIES } from '@/server/auth/capabilities'
@@ -136,6 +136,7 @@ describe('entrada da equipe', () => {
       roleLabel: 'Dono',
       professionalId: null,
       capabilities: [...CAPABILITIES],
+      notifyAllAppointments: false,
     })
   })
 
@@ -161,6 +162,43 @@ describe('entrada da equipe', () => {
         else expect(capabilities).toContain(nome)
       }
     }
+  })
+
+  test('PATCH staff/me liga e desliga a preferência de avisos de toda a loja; GET devolve o valor, no banco fica só no próprio vínculo', async () => {
+    const c = await novaConta()
+    const dono = await membro(c, 'OWNER', 'dono@exemplo.test')
+    const gerente = await membro(c, 'MANAGER', 'gerente@exemplo.test')
+    const { accessToken } = tokensDe((await entrar(c, 'dono@exemplo.test', SENHA)).json)
+    const ligar = (valor: unknown, token = accessToken) =>
+      callRoute(staffMePatch, apiRequest('PATCH', '/v1/staff/me', { business: c.slug, token, body: { notifyAllAppointments: valor }, headers: { 'x-forwarded-for': outroIp() } }))
+    const r = await ligar(true)
+    expect(r.status).toBe(200)
+    expect(jsonObject(r.json)).toMatchObject({ membershipId: dono.membership.id, role: 'OWNER', notifyAllAppointments: true })
+    expect(jsonObject((await eu(c, accessToken)).json).notifyAllAppointments).toBe(true)
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: dono.membership.id } })).notifyAllAppointments).toBe(true)
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: gerente.membership.id } })).notifyAllAppointments).toBe(false)
+    expect(jsonObject((await ligar(false)).json).notifyAllAppointments).toBe(false)
+    expect((await ligar('sim')).status).toBe(422)
+  })
+
+  test('o gerente também liga a preferência', async () => {
+    const c = await novaConta()
+    await membro(c, 'MANAGER', 'gerente@exemplo.test')
+    const { accessToken } = tokensDe((await entrar(c, 'gerente@exemplo.test', SENHA)).json)
+    const r = await callRoute(staffMePatch, apiRequest('PATCH', '/v1/staff/me', { business: c.slug, token: accessToken, body: { notifyAllAppointments: true } }))
+    expect(r.status).toBe(200)
+    expect(jsonObject(r.json).notifyAllAppointments).toBe(true)
+  })
+
+  test('profissional tentando ligar a preferência: 403 forbidden, e nada é gravado', async () => {
+    const c = await novaConta()
+    const prof = await membro(c, 'PROFESSIONAL', 'prof@exemplo.test')
+    const { accessToken } = tokensDe((await entrar(c, 'prof@exemplo.test', SENHA)).json)
+    const r = await callRoute(staffMePatch, apiRequest('PATCH', '/v1/staff/me', { business: c.slug, token: accessToken, body: { notifyAllAppointments: true } }))
+    expect(r.status).toBe(403)
+    expect(apiError(r.json).code).toBe('forbidden')
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: prof.membership.id } })).notifyAllAppointments).toBe(false)
+    expect(jsonObject((await eu(c, accessToken)).json).notifyAllAppointments).toBe(false)
   })
 
   test('o profissional tem as 5 básicas, o professionalId ligado e o rótulo com o termo da conta', async () => {

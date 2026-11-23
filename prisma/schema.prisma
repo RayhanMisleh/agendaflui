@@ -457,6 +457,8 @@ model Membership {
   active     Boolean        @default(true)
   // Instante em que o e-mail de convite não foi aceito pelo canal; NULL quando saiu (ou ainda não houve envio).
   inviteMailFailedAt DateTime? @map("invite_mail_failed_at") @db.Timestamptz(3)
+  // Dono ou gerente que quer receber por push os avisos de todos os agendamentos da loja, não só dos próprios.
+  notifyAllAppointments Boolean @default(false) @map("notify_all_appointments")
   createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 

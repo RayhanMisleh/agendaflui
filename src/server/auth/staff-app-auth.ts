@@ -23,6 +23,8 @@ export type StaffProfile = StaffMember & {
   email: string
   roleLabel: string
   capabilities: Capability[]
+  /** Dono ou gerente que recebe por push os avisos de toda a loja (sempre `false` para o profissional). */
+  notifyAllAppointments: boolean
 }
 
 const NIL_UUID = '00000000-0000-0000-0000-000000000000'
@@ -96,6 +98,7 @@ export async function getStaffProfile(ctx: TenantContext): Promise<StaffProfile>
   if (actor.kind !== 'member') throw new DomainError('forbidden', 'Este endereço é só para a equipe da conta.')
   const user = await prisma.user.findUnique({ where: { id: actor.userId }, select: { email: true } })
   const settings = await ctx.db.businessSettings.findFirst({ select: { termProfessionalSingular: true } })
+  const vinculo = await ctx.db.membership.findFirst({ where: { id: actor.membershipId }, select: { notifyAllAppointments: true } })
   return {
     userId: actor.userId,
     membershipId: actor.membershipId,
@@ -105,5 +108,6 @@ export async function getStaffProfile(ctx: TenantContext): Promise<StaffProfile>
     roleLabel: roleLabel(actor.role, settings?.termProfessionalSingular ?? 'Profissional'),
     professionalId: await professionalIdOf(ctx.db, actor.membershipId),
     capabilities: CAPABILITIES.filter((c) => can(actor, c)),
+    notifyAllAppointments: can(actor, 'view_all_agendas') && (vinculo?.notifyAllAppointments ?? false),
   }
 }

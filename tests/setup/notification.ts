@@ -22,7 +22,7 @@ export function loaded(o: Overrides = {}): LoadedNotification {
     channel: 'EMAIL',
     scheduledFor: AGORA,
     attempts: 0,
-    payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: null },
+    payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: null, audience: null },
     business: {
       status: 'ACTIVE',
       name: 'Tosa & Cia',
@@ -59,6 +59,7 @@ export function loaded(o: Overrides = {}): LoadedNotification {
       allowEmail: true,
       allowPush: true,
       pushTokens: ['ExponentPushToken[aaa]'],
+      watchesAll: false,
     },
   }
   return {

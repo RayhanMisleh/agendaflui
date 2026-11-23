@@ -373,6 +373,107 @@ describe('fila ao cancelar, remarcar e concluir', () => {
   })
 })
 
+describe('avisos de toda a loja (observadores)', () => {
+  async function observador(businessId: string, role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', o: { ligado?: boolean; active?: boolean } = {}) {
+    const user = await makeUser()
+    const vinculo = await makeMembership(businessId, user.id, role)
+    await prisma.membership.update({
+      where: { id: vinculo.id },
+      data: { notifyAllAppointments: o.ligado ?? true, ...(o.active === false ? { active: false } : {}) },
+    })
+    return vinculo
+  }
+  const deles = <T extends { membershipId: string | null }>(rows: T[], id: string): T[] => rows.filter((r) => r.membershipId === id)
+
+  test('agendamento do cliente: o profissional recebe nos dois canais e o gerente observador só por push, marcado e com chave própria', async () => {
+    const s = await montar()
+    const gerente = await observador(s.b.id, 'MANAGER')
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    const novos = await fila(s.b.id, { kind: 'STAFF_NEW_APPOINTMENT' })
+    expect(resumo(deles(novos, s.vinculo.id))).toEqual(ambos('STAFF_NEW_APPOINTMENT'))
+    const dele = deles(novos, gerente.id)
+    expect(resumo(dele)).toEqual(['STAFF_NEW_APPOINTMENT/PUSH/PENDING'])
+    expect(dele[0]?.dedupeKey).toBe(`STAFF_NEW_APPOINTMENT:PUSH:${v.id}:w:${gerente.id}`)
+    expect(dele[0]?.payload).toEqual({ appointmentId: v.id, startsAt: QUINTA_10H.toISOString(), audience: 'watcher' })
+    // O aviso do profissional não ganha marca nenhuma.
+    expect(deles(novos, s.vinculo.id).every((r) => r.payload && !('audience' in (r.payload as object)))).toBe(true)
+  })
+
+  test('preferência desligada (padrão), profissional com a coluna ligada e vínculo desativado: ninguém além do profissional recebe', async () => {
+    const s = await montar()
+    const desligado = await observador(s.b.id, 'OWNER', { ligado: false })
+    const profissional = await observador(s.b.id, 'PROFESSIONAL')
+    const inativo = await observador(s.b.id, 'MANAGER', { active: false })
+    await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    const novos = await fila(s.b.id, { kind: 'STAFF_NEW_APPOINTMENT' })
+    expect(resumo(novos)).toEqual(ambos('STAFF_NEW_APPOINTMENT'))
+    for (const v of [desligado, profissional, inativo]) expect(deles(novos, v.id)).toHaveLength(0)
+  })
+
+  test('dono que é o próprio profissional do atendimento recebe um aviso só (nos dois canais, sem cópia de observador)', async () => {
+    const s = await montar({ comVinculo: false })
+    const dono = await observador(s.b.id, 'OWNER')
+    await prisma.professional.update({ where: { id: s.ana.id }, data: { membershipId: dono.id } })
+    await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    const novos = await fila(s.b.id, { kind: 'STAFF_NEW_APPOINTMENT' })
+    expect(resumo(novos)).toEqual(ambos('STAFF_NEW_APPOINTMENT'))
+    expect(novos.every((r) => r.membershipId === dono.id && !r.dedupeKey.includes(':w:'))).toBe(true)
+  })
+
+  test('tipo desligado no push da conta: o observador também não recebe', async () => {
+    const s = await montar()
+    await observador(s.b.id, 'OWNER')
+    await updateNotificationSettings(s.gerente, { STAFF_NEW_APPOINTMENT: { email: true, push: false } })
+    await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    expect(resumo(await fila(s.b.id, { kind: 'STAFF_NEW_APPOINTMENT' }))).toEqual(['STAFF_NEW_APPOINTMENT/EMAIL/PENDING'])
+  })
+
+  test('cancelamento e remarcação pelo cliente também avisam o observador, só por push', async () => {
+    const s = await montar()
+    const dono = await observador(s.b.id, 'OWNER')
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    await rescheduleAppointment(s.clienteCtx, v.id, { startsAt: QUINTA_11H })
+    await cancelAppointment(s.clienteCtx, v.id)
+    const rows = await fila(s.b.id)
+    const dele = deles(rows, dono.id)
+    expect(resumo(dele.filter((r) => r.kind !== 'STAFF_NEW_APPOINTMENT'))).toEqual([
+      'STAFF_APPOINTMENT_CANCELED/PUSH/PENDING',
+      'STAFF_APPOINTMENT_RESCHEDULED/PUSH/PENDING',
+    ])
+    expect(dele.every((r) => r.channel === 'PUSH' && (r.payload as { audience?: string }).audience === 'watcher')).toBe(true)
+    const depois = await prisma.appointment.findUniqueOrThrow({ where: { id: v.id } })
+    expect(dele.find((r) => r.kind === 'STAFF_APPOINTMENT_CANCELED')?.dedupeKey).toBe(`STAFF_APPOINTMENT_CANCELED:PUSH:${v.id}:w:${dono.id}`)
+    expect(dele.find((r) => r.kind === 'STAFF_APPOINTMENT_RESCHEDULED')?.dedupeKey).toMatch(new RegExp(`^STAFF_APPOINTMENT_RESCHEDULED:PUSH:${v.id}:\\d+:w:${dono.id}$`))
+    expect(depois.status).toBe('CANCELED')
+  })
+
+  test('ações da equipe não avisam observador', async () => {
+    const s = await montar()
+    const dono = await observador(s.b.id, 'OWNER')
+    const v = await bookAppointment(s.gerente, { professionalId: s.ana.id, serviceIds: [s.tosa.id], customerId: s.cliente.id, startsAt: QUINTA_10H })
+    await rescheduleAppointment(s.gerente, v.id, { startsAt: QUINTA_11H })
+    await cancelAppointment(s.gerente, v.id)
+    expect(deles(await fila(s.b.id), dono.id)).toHaveLength(0)
+  })
+
+  test('remarcação com troca de profissional: o observador recebe um único aviso (sem o par "moved"), e os dois profissionais seguem como antes', async () => {
+    const s = await montar()
+    const dono = await observador(s.b.id, 'OWNER')
+    const userCaio = await makeUser()
+    const vinculoCaio = await makeMembership(s.b.id, userCaio.id, 'PROFESSIONAL')
+    const caio = await makeProfessional(s.b.id, { name: 'Caio', serviceIds: [s.tosa.id], membershipId: vinculoCaio.id })
+    await makeWorkingHours(s.b.id, caio.id, 'THURSDAY', [MANHA])
+    const v = await bookAppointment(s.clienteCtx, { professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
+    await rescheduleAppointment(s.clienteCtx, v.id, { startsAt: QUINTA_11H, professionalId: caio.id })
+    const rows = await fila(s.b.id)
+    const dele = deles(rows, dono.id).filter((r) => r.payload && JSON.stringify(r.payload).includes('watcher'))
+    expect(resumo(dele.filter((r) => r.kind !== 'STAFF_NEW_APPOINTMENT'))).toEqual(['STAFF_APPOINTMENT_RESCHEDULED/PUSH/PENDING'])
+    expect(dele.filter((r) => r.kind === 'STAFF_APPOINTMENT_CANCELED')).toHaveLength(0)
+    expect(resumo(deles(rows, s.vinculo.id).filter((r) => r.kind === 'STAFF_APPOINTMENT_CANCELED'))).toEqual(ambos('STAFF_APPOINTMENT_CANCELED'))
+    expect(resumo(deles(rows, vinculoCaio.id).filter((r) => r.kind === 'STAFF_NEW_APPOINTMENT'))).toEqual(ambos('STAFF_NEW_APPOINTMENT'))
+  })
+})
+
 describe('cancelPendingForCustomer e cadastro', () => {
   async function comAvisos() {
     const s = await montar()

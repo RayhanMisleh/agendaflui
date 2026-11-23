@@ -67,12 +67,13 @@ type Plan = {
   enabled: Awaited<ReturnType<typeof getNotificationSettings>>
 }
 
-function payloadOf(appt: EventAppointment, startsAt: Date, previousStartsAt?: Date, reason?: 'moved'): Prisma.InputJsonObject {
+function payloadOf(appt: EventAppointment, startsAt: Date, previousStartsAt?: Date, reason?: 'moved', watcher?: boolean): Prisma.InputJsonObject {
   return {
     appointmentId: appt.id,
     startsAt: toIsoInstant(startsAt),
     ...(previousStartsAt ? { previousStartsAt: toIsoInstant(previousStartsAt) } : {}),
     ...(reason ? { reason } : {}),
+    ...(watcher ? { audience: 'watcher' } : {}),
   }
 }
 
@@ -85,20 +86,22 @@ type RowOptions = {
   previousStartsAt?: Date
   /** `moved`: o agendamento passou para outro profissional (o aviso vale mesmo com o agendamento ativo). */
   cause?: 'moved'
+  /** Vínculo do observador (dono ou gerente com os avisos de toda a loja): só push, chave com `:w:<vínculo>` e `audience` no payload. */
+  watcher?: string
 }
 
-/** Uma linha por canal ligado na conta. */
+/** Uma linha por canal ligado na conta (observador: só push). */
 function rowsFor(plan: Plan, kind: NotificationKind, to: Recipient, o: RowOptions): Row[] {
   const toggle = plan.enabled[kind]
-  return CHANNELS.filter((channel) => (channel === 'EMAIL' ? toggle.email : toggle.push)).map((channel) => ({
+  return CHANNELS.filter((channel) => (o.watcher !== undefined && channel === 'EMAIL' ? false : channel === 'EMAIL' ? toggle.email : toggle.push)).map((channel) => ({
     businessId: plan.ctx.businessId,
     kind,
     channel,
     ...to,
     appointmentId: plan.appt.id,
     scheduledFor: o.scheduledFor,
-    payload: payloadOf(plan.appt, o.startsAt ?? plan.appt.startsAt, o.previousStartsAt, o.cause),
-    dedupeKey: `${kind}:${channel}:${plan.appt.id}${o.suffix === undefined ? '' : `:${o.suffix}`}`,
+    payload: payloadOf(plan.appt, o.startsAt ?? plan.appt.startsAt, o.previousStartsAt, o.cause, o.watcher !== undefined),
+    dedupeKey: `${kind}:${channel}:${plan.appt.id}${o.suffix === undefined ? '' : `:${o.suffix}`}${o.watcher === undefined ? '' : `:w:${o.watcher}`}`,
   }))
 }
 
@@ -122,6 +125,17 @@ async function membershipOf(tx: TenantTx, professionalId: string, loaded?: { mem
   if (loaded) return loaded.membershipId
   const professional = await tx.professional.findUnique({ where: { id: professionalId }, select: { membershipId: true } })
   return professional?.membershipId ?? null
+}
+
+/** Donos e gerentes ativos que ligaram os avisos de toda a loja, menos os vínculos que já recebem o aviso como profissional. */
+async function watchersOf(tx: TenantTx, except: (string | null)[]): Promise<string[]> {
+  const skip = except.filter((id): id is string => id !== null)
+  const rows = await tx.membership.findMany({
+    where: { active: true, role: { in: ['OWNER', 'MANAGER'] }, notifyAllAppointments: true, ...(skip.length > 0 ? { id: { notIn: skip } } : {}) },
+    select: { id: true },
+    orderBy: { id: 'asc' },
+  })
+  return rows.map((r) => r.id)
 }
 
 async function cancelPendingReminders(tx: TenantTx, appointmentId: string): Promise<void> {
@@ -195,7 +209,11 @@ export async function enqueueAppointmentEvent(
         reminders = reminderRows(plan)
       }
       if (side === 'customer') {
-        staff('STAFF_NEW_APPOINTMENT', await membershipOf(tx, appt.professionalId, appt.professional), { scheduledFor: now })
+        const professional = await membershipOf(tx, appt.professionalId, appt.professional)
+        staff('STAFF_NEW_APPOINTMENT', professional, { scheduledFor: now })
+        for (const watcher of await watchersOf(tx, [professional])) {
+          staff('STAFF_NEW_APPOINTMENT', watcher, { scheduledFor: now, watcher })
+        }
       }
       break
     }
@@ -211,6 +229,12 @@ export async function enqueueAppointmentEvent(
       }
       if (side === 'customer' || opts.notifyProfessional) {
         staff('STAFF_APPOINTMENT_CANCELED', await membershipOf(tx, appt.professionalId, appt.professional), { scheduledFor: now })
+      }
+      if (side === 'customer') {
+        const professional = await membershipOf(tx, appt.professionalId, appt.professional)
+        for (const watcher of await watchersOf(tx, [professional])) {
+          staff('STAFF_APPOINTMENT_CANCELED', watcher, { scheduledFor: now, watcher })
+        }
       }
       break
     }
@@ -235,6 +259,11 @@ export async function enqueueAppointmentEvent(
             startsAt: opts.previousStartsAt ?? appt.startsAt,
             cause: 'moved',
           })
+        }
+        // Observador: um único aviso de remarcação, mesmo que o profissional tenha trocado (quem perdeu ou ganhou o horário já
+        // recebe o próprio aviso e fica de fora).
+        for (const watcher of await watchersOf(tx, [current, old])) {
+          staff('STAFF_APPOINTMENT_RESCHEDULED', watcher, { scheduledFor: now, suffix: unique, watcher, ...previous })
         }
       }
       if (customerOk) reminders = reminderRows(plan)
