@@ -290,8 +290,10 @@ export type Marcacao = {
 }
 
 export type EntradaDoPlano = {
-  /** Data local (AAAA-MM-DD) de referência: a agenda vai de `ancora - 28` a `ancora + 14`. */
+  /** Data local (AAAA-MM-DD) da primeira rodada: a agenda começa em `ancora - 28`. */
   ancora: string
+  /** Último dia planejado (data local, inclusive), normalmente hoje + 14. Estender `ate` só acrescenta dias ao fim do plano. */
+  ate: string
   fuso: string
   /** Datas sem expediente (fechamentos). */
   fechados: readonly string[]
@@ -304,7 +306,7 @@ type Intervalo = { startMin: number; endMin: number }
 const sobrepoe = (a: Intervalo, b: Intervalo) => a.startMin < b.endMin && b.startMin < a.endMin
 
 /**
- * Distribui as marcações dos 28 dias passados e dos 14 seguintes, em rodízio de profissionais e de clientes (alguns
+ * Distribui as marcações de `ancora - 28` até `ate` (a sequência é determinística e só cresce no fim), em rodízio de profissionais e de clientes (alguns
  * clientes voltam bem mais que outros), sem sobrepor horários de um profissional, de um cliente nem bloqueios.
  */
 export function planejarAgenda(e: EntradaDoPlano): Marcacao[] {
@@ -317,13 +319,15 @@ export function planejarAgenda(e: EntradaDoPlano): Marcacao[] {
     ocupadoProf.set(chave, [...(ocupadoProf.get(chave) ?? []), { startMin: b.startMin, endMin: b.endMin }])
   }
   const marcacoes: Marcacao[] = []
-  for (let delta = -DIAS_PASSADO; delta <= DIAS_FUTURO; delta += 1) {
+  for (let delta = -DIAS_PASSADO; ; delta += 1) {
     const data = addDays(e.ancora, delta)
+    if (data > e.ate) break
     if (e.fechados.includes(data)) continue
     const dia = weekdayOf(data)
     if (!WEEKDAYS.includes(dia)) continue
     // Mais movimento no passado e mais folga nas últimas semanas do futuro.
-    const chance = delta < 0 ? 0.52 : Math.max(0.2, 0.5 - delta * 0.02)
+    // Os 14 primeiros dias depois da âncora (o futuro da primeira rodada) têm a chance de sempre: o plano antigo não muda.
+    const chance = delta < 0 ? 0.52 : delta <= DIAS_FUTURO ? Math.max(0.2, 0.5 - delta * 0.02) : 0.4
     for (const [p, prof] of DEMO_PROFISSIONAIS.entries()) {
       const faixas = prof.expediente[dia] ?? []
       const ja = ocupadoProf.get(`${p}|${data}`) ?? []

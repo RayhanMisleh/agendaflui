@@ -59,7 +59,7 @@ No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Pet Sh
 dono `demo@agendaflui.com.br`) com equipe, 40 clientes, agenda de 4 semanas atrás a 2 semanas à frente, fidelidade,
 banners, loja e vouchers. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
 Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`. A senha do dono é gerada na hora e aparece
-**uma única vez** no terminal, junto do link de entrada. Rodar de novo não duplica nada, completa o que faltar e nunca troca a senha
+**uma única vez** no terminal, junto do link de entrada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) e nunca troca a senha
 (para trocá-la, use a redefinição de senha do painel). O gerente e os profissionais têm e-mails `@demo.agendaflui.com.br`
 com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
 

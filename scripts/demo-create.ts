@@ -16,7 +16,7 @@ import type { PrismaClient } from '../src/server/db/generated/client'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
 import { searchKey } from '../src/server/domain/customers/contact'
 import { hostConfigFromEnv } from '../src/server/hosts'
-import { addDays, addMinutes, minuteToInstant, todayIn } from '../src/server/time'
+import { addDays, addMinutes, fromIsoInstant, minuteToInstant, todayIn } from '../src/server/time'
 import {
   DEMO_BANNERS,
   DEMO_CATEGORIAS,
@@ -35,6 +35,7 @@ import {
   DEMO_SLUG,
   demoEmailEquipe,
   desfechoDe,
+  DIAS_FUTURO,
   planejarAgenda,
 } from './demo-data'
 
@@ -298,7 +299,8 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   const servPorIdx = DEMO_SERVICOS.map((s) => servRows.find((x) => x.name === s.nome)?.id ?? '')
 
   // ---- 5. Agenda -----------------------------------------------------------------------------------------------
-  await secao('agenda', async () => {
+  // Roda em toda rodada: estende o plano até hoje + 14 dias e liquida o que já ficou no passado (só acrescenta).
+  {
     // A âncora fica registrada na primeira rodada: uma rodada retomada refaz exatamente o mesmo plano.
     const inicio = await prisma.auditLog.findFirst({ where: { businessId, action: ACAO_AGENDA }, select: { metadata: true } })
     const gravada = inicio?.metadata && typeof inicio.metadata === 'object' && !Array.isArray(inicio.metadata) ? inicio.metadata['ancora'] : undefined
@@ -323,13 +325,15 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       if (!ja) await d.bloqueios.createTimeBlock(ctx, { professionalId: dono.id, startsAt, endsAt: minuteToInstant(b.data, b.endMin, tz), reason: b.motivo })
     }
 
-    const plano = planejarAgenda({ ancora, fuso: tz, fechados: [feriado], bloqueios: bloqueiosPlano, clubeDosClientes: DEMO_CLIENTES.map((c) => c.clube === true) })
+    const plano = planejarAgenda({ ancora, fuso: tz, fechados: [feriado], bloqueios: bloqueiosPlano, ate: addDays(hoje, DIAS_FUTURO), clubeDosClientes: DEMO_CLIENTES.map((c) => c.clube === true) })
+    const existentes = await ctx.db.appointment.findMany({ select: { id: true, status: true, professionalId: true, startsAt: true } })
+    const porChave = new Map(existentes.map((a) => [`${a.professionalId}|${String(a.startsAt.getTime())}`, a]))
     let n = 0
     for (const m of plano) {
       const prof = profPorIdx[m.profissional]
       const cliente = clientePorIdx[m.cliente]
       if (!prof || !cliente) continue
-      let ag = await ctx.db.appointment.findFirst({ where: { professionalId: prof.id, startsAt: m.startsAt }, select: { id: true, status: true } })
+      let ag: { id: string; status: string } | undefined = porChave.get(`${prof.id}|${String(m.startsAt.getTime())}`)
       if (!ag) {
         relogio.t = now
         const marcado = await d.agendamentos.bookAppointment(ctx, {
@@ -355,8 +359,8 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       }
       n += 1
     }
-    resumo['agendamentos'] = n
-  })
+    relogio.t = now
+  }
 
   // ---- 6. Fidelidade ------------------------------------------------------------------------------------------
   await secao('fidelidade', async () => {
@@ -517,9 +521,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
 
   // ---- 10. Fila de avisos (cru) ---------------------------------------------------------------------------------
   // As marcações e pedidos enfileiraram avisos aos clientes (sem e-mail nem aparelho): nenhum deve tentar sair.
-  await secao('avisos', async () => {
-    await prisma.notification.updateMany({ where: { businessId, status: 'PENDING' }, data: { status: 'SKIPPED', skipReason: 'demonstracao' } })
-  })
+  await prisma.notification.updateMany({ where: { businessId, status: 'PENDING' }, data: { status: 'SKIPPED', skipReason: 'demonstracao' } })
 
   const contar = async () => {
     resumo['clientes'] = await ctx.db.customer.count()
@@ -539,10 +541,15 @@ async function main(): Promise<void> {
   }
   const { prisma } = await import('../src/server/db/client')
   try {
+    // Só para teste local: simula outra data de hoje. Recusado em produção.
+    const simulada = process.env['DEMO_NOW']
+    if (simulada && process.env['NODE_ENV'] === 'production') throw new Error('DEMO_NOW não vale em produção.')
+    const now = simulada ? fromIsoInstant(simulada) : undefined
     const { painel } = hostConfigFromEnv(process.env)
     const esquema = process.env['NODE_ENV'] === 'production' ? 'https' : 'http'
     const link = `${esquema}://${painel}/entrar/${DEMO_SLUG}`
     const r = await criarDemo(prisma, {
+      ...(now ? { now } : {}),
       log: (t) => console.log(t),
       aoCriar: (senha) => {
         console.log('')
