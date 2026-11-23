@@ -8,7 +8,6 @@ export const ACCOUNT_TABS: ReadonlyArray<{ id: string; label: string; path: stri
   { id: 'modulos', label: 'Módulos', path: '/modulos' },
   { id: 'regras', label: 'Regras', path: '/regras' },
   { id: 'equipe', label: 'Equipe', path: '/equipe' },
-  { id: 'chaves', label: 'Chaves', path: '/chaves' },
   { id: 'integracoes', label: 'Integrações', path: '/integracoes' },
   { id: 'auditoria', label: 'Auditoria', path: '/auditoria' },
 ]

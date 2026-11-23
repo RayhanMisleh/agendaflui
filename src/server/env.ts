@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isLocalOrigin, isSyntacticOrigin, webOriginsFromEnv } from './api/cors'
 import { DEFAULT_HOSTS } from './hosts'
 
 const envSchema = z.object({
@@ -11,6 +12,8 @@ const envSchema = z.object({
   DEV_HOST: z.string().min(1).default(DEFAULT_HOSTS.dev),
   PAINEL_HOST: z.string().min(1).default(DEFAULT_HOSTS.painel),
   API_HOST: z.string().min(1).default(DEFAULT_HOSTS.api),
+  // Origens do app web que podem chamar a API pelo navegador (CORS e `returnUrl` do checkout), separadas por vírgula.
+  APP_WEB_ORIGINS: z.string().optional(),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
   // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
   SMTP_URL: z.string().min(1).optional(),
@@ -92,6 +95,19 @@ function problemasDosHosts(source: Record<string, string | undefined>): string[]
   return problemas
 }
 
+/** Cada origem de APP_WEB_ORIGINS bem formada; em produção, só https e nunca local. Os valores nunca entram nas mensagens. */
+function problemasDasOrigens(source: Record<string, string | undefined>, producao: boolean): string[] {
+  const problemas: string[] = []
+  for (const [i, origem] of webOriginsFromEnv(source).origins.entries()) {
+    const n = i + 1
+    if (!isSyntacticOrigin(origem)) problemas.push(`APP_WEB_ORIGINS: a origem nº ${n} precisa ser só esquema e host, ex.: https://app.seudominio.com (sem caminho)`)
+    else if (producao && (!origem.startsWith('https://') || isLocalOrigin(origem))) {
+      problemas.push(`APP_WEB_ORIGINS: em produção a origem nº ${n} precisa ser https e não pode ser local`)
+    }
+  }
+  return problemas
+}
+
 function falhar(problemas: string): never {
   throw new Error(`Variáveis de ambiente inválidas (${problemas}). Confira o arquivo .env com base no .env.example.`)
 }
@@ -102,6 +118,9 @@ export function productionWarnings(config: Env): string[] {
   const avisos: string[] = []
   if (config.TRUSTED_PROXY_HOPS === 0) {
     avisos.push('TRUSTED_PROXY_HOPS=0: sem proxy confiável, limites por IP desligados e auditoria sem IP. Atrás do proxy do Coolify use TRUSTED_PROXY_HOPS=1.')
+  }
+  if (webOriginsFromEnv({ APP_WEB_ORIGINS: config.APP_WEB_ORIGINS }).origins.length === 0) {
+    avisos.push('APP_WEB_ORIGINS vazio: o app web não consegue chamar a API pelo navegador (os apps iOS e Android seguem funcionando).')
   }
   if (config.SMTP_URL === undefined) {
     avisos.push('SMTP_URL ausente: sem envio de e-mail, convites e cadastro pelo app não chegam.')
@@ -142,10 +161,9 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     falhar(problemas)
   }
   const { data } = result
-  if (data.NODE_ENV === 'production' && data.NEXT_PHASE !== FASE_DE_BUILD) {
-    const problemas = problemasDosHosts(source)
-    if (problemas.length > 0) falhar(problemas.join('; '))
-  }
+  const producao = data.NODE_ENV === 'production' && data.NEXT_PHASE !== FASE_DE_BUILD
+  const problemas = [...(producao ? problemasDosHosts(source) : []), ...problemasDasOrigens(source, producao)]
+  if (problemas.length > 0) falhar(problemas.join('; '))
   return { ...data, INTEGRATIONS_MODE: data.INTEGRATIONS_MODE ?? (data.NODE_ENV === 'production' ? 'real' : 'fake') }
 }
 

@@ -7,13 +7,13 @@ import { z } from '@/server/domain/errors'
 export const POST = defineRoute({
   method: 'POST',
   path: '/v1/auth/staff/refresh',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Troca o token de renovação da equipe por um par novo',
   tag: 'Conta da equipe',
   body: z.object({ refreshToken: credentialText }),
   response: z.object({ tokens: tokensSchema }),
-  handler: async ({ key, body, request, now }) => ({
-    tokens: await refreshAppSession('staff', key.businessId, body.refreshToken, requestMeta(request), now),
+  handler: async ({ business, body, request, now }) => ({
+    tokens: await refreshAppSession('staff', business.id, body.refreshToken, requestMeta(request), now),
   }),
 })
 

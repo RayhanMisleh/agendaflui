@@ -73,17 +73,43 @@ describe('startCheckout', () => {
       expect((await prisma.order.findUniqueOrThrow({ where: { id: c.pedido.id } })).checkoutUrl).toBe(r[0]!.checkoutUrl)
     })
 
-    test('returnUrl: só vale com origem liberada na chave; fora dela ou sem lista é validation', async () => {
-      const origens = ['https://app.exemplo.test']
-      const e1 = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://evil.test/pedido', allowedOrigins: origens }))
+    test('returnUrl: só vale com origem da lista webOrigins; fora dela ou sem webOrigins é validation', async () => {
+      const web = { origins: ['https://app.exemplo.test'], allowLocalhost: false }
+      const e1 = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://evil.test/pedido', webOrigins: web }))
       expect(e1.code).toBe('validation')
       expect(e1.fields?.returnUrl).toBeDefined()
       expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/pedido' }))).code).toBe('validation')
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'nao-e-url', allowedOrigins: origens }))).code).toBe('validation')
-      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'javascript:alert(1)', allowedOrigins: origens }))).code).toBe('validation')
+      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'nao-e-url', webOrigins: web }))).code).toBe('validation')
+      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'javascript:alert(1)', webOrigins: web }))).code).toBe('validation')
       expect(c.fake.preferences).toHaveLength(0)
-      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/pedido', allowedOrigins: origens })
+      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/pedido', webOrigins: web })
       expect(c.fake.preferences[0]!.backUrl).toBe('https://app.exemplo.test/pedido')
+    })
+
+    test('returnUrl: origem de fora da lista é validation no campo returnUrl, mesmo com outra origem liberada', async () => {
+      const web = { origins: ['https://app.exemplo.test'], allowLocalhost: false }
+      const e = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://outro.exemplo.test/pedido', webOrigins: web }))
+      expect(e.code).toBe('validation')
+      expect(e.fields?.returnUrl).toBeDefined()
+      expect(c.fake.preferences).toHaveLength(0)
+    })
+
+    test('returnUrl: localhost passa com allowLocalhost e é recusado sem ele', async () => {
+      const recusado = await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'http://localhost:3000/pedidos/1', webOrigins: { origins: [], allowLocalhost: false } }))
+      expect(recusado.code).toBe('validation')
+      expect(recusado.fields?.returnUrl).toBeDefined()
+      expect(c.fake.preferences).toHaveLength(0)
+      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'http://localhost:3000/pedidos/1', webOrigins: { origins: [], allowLocalhost: true } })
+      expect(c.fake.preferences[0]!.backUrl).toBe('http://localhost:3000/pedidos/1')
+    })
+
+    test('returnUrl: sem webOrigins só passa returnUrl nulo ou vazio', async () => {
+      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'http://localhost:3000/x' }))).code).toBe('validation')
+      expect((await domainError(startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: 'https://app.exemplo.test/x' }))).code).toBe('validation')
+      expect(c.fake.preferences).toHaveLength(0)
+      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: null })
+      expect(c.fake.preferences).toHaveLength(1)
+      await startCheckout(c.ctxCliente, c.pedido.id, { returnUrl: '' })
     })
 
     test('pedido vencido, pago, cancelado: invalid_transition, sem chamar o Mercado Pago', async () => {

@@ -8,14 +8,14 @@ import { z } from '@/server/domain/errors'
 export const POST = defineRoute({
   method: 'POST',
   path: '/v1/auth/staff/login',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Entrada da equipe (dono, gerente ou profissional) com e-mail e senha',
   tag: 'Conta da equipe',
   body: z.object({ email: credentialText, password: credentialText }),
   response: z.object({ tokens: tokensSchema, member: staffMemberSchema }),
   limit: LIMITS.authIp,
-  handler: async ({ key, body, request, now }) => {
-    const s = await loginStaff(key.businessId, body, requestMeta(request), now)
+  handler: async ({ business, body, request, now }) => {
+    const s = await loginStaff(business.id, body, requestMeta(request), now)
     return { tokens: s.pair, member: s.member }
   },
 })

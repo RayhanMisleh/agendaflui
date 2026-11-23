@@ -1,7 +1,6 @@
 'use server'
 import { redirect, unstable_rethrow } from 'next/navigation'
 import { DomainError } from '@/server/domain/errors'
-import { createApiKey, validateApiKeyName } from '@/server/domain/platform/api-keys'
 import { createBusiness, validateNewBusiness } from '@/server/domain/platform/businesses'
 import { getCustomization, updateBrand, updateModules, updateRulesAsAdmin, updateTerms, validateAccountSetup } from '@/server/domain/platform/customization'
 import type { BrandInput } from '@/server/domain/platform/customization'
@@ -74,10 +73,6 @@ function conferirAntes(v: WizardData): Record<string, string> {
       rules: regrasDe(v),
     }),
   )
-  if (v.createKey) {
-    const msg = validateApiKeyName(v.keyName)
-    if (msg) erros.keyName = msg
-  }
   return erros
 }
 
@@ -100,7 +95,6 @@ const PENDENCIA = {
   termos: 'Os termos não foram salvos',
   modulos: 'Os módulos não foram salvos',
   regras: 'As regras de agenda não foram salvas',
-  chave: 'A chave de app não foi criada',
 } as const
 
 type Falha = { codigo: keyof typeof PENDENCIA; motivo: string | null }
@@ -149,15 +143,7 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
   await passo(falhas, 'regras', async () => {
     await updateRulesAsAdmin(admin, id, regrasDe(v))
   })
-  let chave: { name: string; secret: string } | null = null
-  if (v.createKey) {
-    await passo(falhas, 'chave', async () => {
-      const k = await createApiKey(admin, { kind: 'ACCOUNT', businessId: id, name: v.keyName.trim() })
-      chave = { name: k.key.name, secret: k.secret }
-    })
-  }
 
-  const feita = chave as { name: string; secret: string } | null
   return {
     createdId: id,
     businessName: criada.business.name,
@@ -166,18 +152,17 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
     ownerExisting: criada.owner.existing,
     emailSent: criada.emailSent,
     pendencias: falhas.map((f) => (f.motivo ? `${PENDENCIA[f.codigo]}: ${f.motivo}` : `${PENDENCIA[f.codigo]}.`)),
-    ...(feita ? { keyName: feita.name, secret: feita.secret } : {}),
     faltou: falhas.map((f) => f.codigo),
   }
 }
 
 function concluir({ faltou, ...resultado }: WizardResult & { faltou: string[] }, v: WizardData): FormState<WizardData> {
-  // Sem segredo para mostrar e com algo faltando: a página da conta é o lugar de completar. O aviso vai por código, nunca o segredo.
-  if (faltou.length > 0 && resultado.secret === undefined) {
+  // Com algo faltando, a página da conta é o lugar de completar. O aviso vai por código.
+  if (faltou.length > 0) {
     redirect(`/contas/${resultado.createdId}?faltou=${faltou.join(',')}`)
   }
   return { ok: true, message: null, fields: {}, values: { ...pickValues(v), result: resultado } }
 }
 
-/** Cria a conta inteira numa ação só: conta e dono, marca, logo, termos, módulos, regras e chave, nesta ordem. */
+/** Cria a conta inteira numa ação só: conta e dono, marca, logo, termos, módulos e regras, nesta ordem. */
 export const criarConta = adminAction<WizardData, WizardResult & { faltou: string[] }>(readValues, executar, concluir)

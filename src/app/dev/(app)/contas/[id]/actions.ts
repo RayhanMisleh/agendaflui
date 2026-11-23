@@ -3,7 +3,6 @@ import { revalidatePath } from 'next/cache'
 import { DomainError } from '@/server/domain/errors'
 import { updateBusinessData, setBusinessStatus } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
-import { createApiKey, listApiKeys, revokeApiKey, updateApiKeyOrigins } from '@/server/domain/platform/api-keys'
 import type { BrandInput } from '@/server/domain/platform/customization'
 import { getCustomization, updateBrand, updateModules, updateNotificationsAsAdmin, updateRulesAsAdmin, updateTerms } from '@/server/domain/platform/customization'
 import { changeMemberRole, inviteMember, listTeam, resendInvite, setMemberActive } from '@/server/domain/platform/team'
@@ -11,7 +10,7 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notifica
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { adminAction } from '../../_lib/action'
-import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
+import { erroDeCampo, feito, ler } from '@/app/_lib/campos'
 import type { PlatformAdminActor } from '../../_lib/action'
 import type { FormState } from '@/app/_lib/form-state'
 import { MSG_CONFLITO } from './forms'
@@ -21,7 +20,7 @@ import type { Campos } from './forms'
  * Ações da página da conta. O primeiro argumento de toda ação é o id da conta, ligado pela página (`acao.bind(null, id)`).
  * Os argumentos ligados trafegam pelo cliente (a referência da ação leva o id junto): eles não são segredo nem prova de
  * nada. A garantia real é o guarda de admin (`requirePlatformAdmin()` em toda execução, por `adminAction`) e a conferência
- * do alvo contra a conta: o item que o formulário escolhe (chave, acesso da equipe) precisa existir NESTA conta, então um
+ * do alvo contra a conta: o item que o formulário escolhe (acesso da equipe) precisa existir NESTA conta, então um
  * formulário nunca mexe em item de outra.
  */
 
@@ -63,13 +62,6 @@ function naoVazio(v: Campos, campos: readonly string[]): void {
   for (const c of campos) {
     if ((v[c] ?? '').trim() === '') throw erroDeCampo(c, 'Informe um número.')
   }
-}
-
-function origens(texto: string): string[] {
-  return texto
-    .split(/[\s,;]+/)
-    .map((o) => o.trim())
-    .filter((o) => o !== '')
 }
 
 // ---------------------------------------------------------------- dados e situação
@@ -245,48 +237,4 @@ export const reenviarConvite = porConta(
     await resendInvite(admin, membro.membershipId)
   },
   (r, v) => feitoNaConta('Convite reenviado.', v),
-)
-
-// ---------------------------------------------------------------- chaves
-
-async function daConta(admin: PlatformAdminActor, businessId: string, keyId: string) {
-  const chave = (await listApiKeys(admin, { businessId })).find((k) => k.id === keyId)
-  if (!chave) throw new DomainError('not_found', 'Chave não encontrada nesta conta. Recarregue a página.')
-  return chave
-}
-
-/** Cria a chave da conta. O segredo volta só neste estado (`values.secret`) e nunca é gravado nem listado. */
-export const criarChave = porConta(
-  { nomes: ['name', 'origins'] },
-  async (admin, v) => {
-    try {
-      return await createApiKey(admin, { kind: 'ACCOUNT', businessId: v.businessId ?? '', name: (v.name ?? '').trim(), allowedOrigins: origens(v.origins ?? '') })
-    } catch (err) {
-      throw renomear(err, { allowedOrigins: 'origins' })
-    }
-  },
-  (r, v) => feitoNaConta('Chave criada.', v, { secret: r.secret, keyName: r.key.name, name: '', origins: '' }),
-)
-
-export const revogarChave = porConta(
-  { nomes: ['keyId', 'confirmName'] },
-  async (admin, v) => {
-    const chave = await daConta(admin, v.businessId ?? '', v.keyId ?? '')
-    if (v.confirmName !== chave.name) throw erroDeCampo('confirmName', 'Digite o nome da chave exatamente como aparece, para confirmar.')
-    await revokeApiKey(admin, chave.id)
-  },
-  (r, v) => feitoNaConta('Chave revogada.', { ...v, confirmName: '' }),
-)
-
-export const editarOrigens = porConta(
-  { nomes: ['keyId', 'origins'] },
-  async (admin, v) => {
-    const chave = await daConta(admin, v.businessId ?? '', v.keyId ?? '')
-    try {
-      return await updateApiKeyOrigins(admin, chave.id, origens(v.origins ?? ''))
-    } catch (err) {
-      throw renomear(err, { allowedOrigins: 'origins' })
-    }
-  },
-  (r, v) => feitoNaConta('Origens salvas.', v),
 )

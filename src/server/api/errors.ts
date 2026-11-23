@@ -1,5 +1,5 @@
 import { AuthError } from '@/server/auth/actor'
-import { ApiAuthError } from '@/server/domain/platform/api-keys'
+import { ApiAuthError } from '@/server/auth/api-auth-error'
 import { DomainError, z, zodFields, type ApiReason, type DomainErrorCode, type DomainReason } from '@/server/domain/errors'
 import { toJson } from './serialize'
 
@@ -71,7 +71,7 @@ function errorBody(code: ApiErrorCode, message: string, extra: Omit<ErrorBody['e
 
 function logInternal(err: unknown, request: Request, requestId: string, route: string): void {
   const e = err instanceof Error ? err : new Error(`Valor lançado que não é Error: ${typeof err}`)
-  // Só o necessário para achar o problema: nunca cabeçalhos, corpo, chave de app nem token.
+  // Só o necessário para achar o problema: nunca cabeçalhos, corpo nem token.
   console.error(
     JSON.stringify({
       level: 'error',

@@ -7,7 +7,6 @@ const FALTOU: Record<string, string> = {
   termos: 'os termos',
   modulos: 'os módulos',
   regras: 'as regras de agenda',
-  chave: 'a chave de app',
 }
 
 const SUPORTE: Record<string, string> = {

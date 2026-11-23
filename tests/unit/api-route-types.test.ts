@@ -7,7 +7,7 @@ import { z } from '@/server/domain/errors'
 const resposta = z.object({ id: z.string() })
 
 describe('tipo do handler por autenticação', () => {
-  test('customer, staff, key e key_or_customer recebem ctx e key sem checagem de nulo; none nada', () => {
+  test('customer, staff, guest e guest_or_customer recebem ctx e business sem checagem de nulo; none nada', () => {
     const cliente = defineRoute({
       method: 'GET',
       path: '/v1/tipos/cliente',
@@ -15,7 +15,7 @@ describe('tipo do handler por autenticação', () => {
       summary: 's',
       tag: 't',
       response: resposta,
-      handler: async ({ ctx, key }) => ({ id: `${ctx.businessId}${key.businessId}${ctx.actor.kind}` }),
+      handler: async ({ ctx, business }) => ({ id: `${ctx.businessId}${business.id}${ctx.actor.kind}` }),
     })
     const equipe = defineRoute({
       method: 'GET',
@@ -24,25 +24,25 @@ describe('tipo do handler por autenticação', () => {
       summary: 's',
       tag: 't',
       response: resposta,
-      handler: async ({ ctx, key }) => ({ id: ctx.businessId + key.businessSlug }),
+      handler: async ({ ctx, business }) => ({ id: ctx.businessId + business.slug }),
     })
-    const porChave = defineRoute({
+    const visitante = defineRoute({
       method: 'GET',
-      path: '/v1/tipos/chave',
-      auth: 'key',
+      path: '/v1/tipos/visitante',
+      auth: 'guest',
       summary: 's',
       tag: 't',
       response: resposta,
-      handler: async ({ ctx, key }) => ({ id: key.businessId + ctx.businessId + ctx.actor.kind }),
+      handler: async ({ ctx, business }) => ({ id: business.id + ctx.businessId + ctx.actor.kind }),
     })
-    const chaveOuCliente = defineRoute({
+    const visitanteOuCliente = defineRoute({
       method: 'GET',
-      path: '/v1/tipos/chave-ou-cliente',
-      auth: 'key_or_customer',
+      path: '/v1/tipos/visitante-ou-cliente',
+      auth: 'guest_or_customer',
       summary: 's',
       tag: 't',
       response: resposta,
-      handler: async ({ ctx, key }) => ({ id: key.businessId + ctx.businessId + ctx.actor.kind }),
+      handler: async ({ ctx, business }) => ({ id: business.id + ctx.businessId + ctx.actor.kind }),
     })
     const publica = defineRoute({
       method: 'GET',
@@ -51,13 +51,16 @@ describe('tipo do handler por autenticação', () => {
       summary: 's',
       tag: 't',
       response: resposta,
-      handler: async ({ key }) => {
-        // @ts-expect-error rota `none` não tem key (o tipo é null)
-        const negado: string = key.businessId
+      handler: async ({ ctx, business }) => {
+        // @ts-expect-error rota `none` não tem business (o tipo é null)
+        const negado: string = business.id
+        // @ts-expect-error rota `none` não tem ctx (o tipo é null)
+        const tambem: string = ctx.businessId
+        void tambem
         return { id: negado }
       },
     })
-    expect([cliente, equipe, porChave, chaveOuCliente, publica].every((h) => typeof h === 'function')).toBe(true)
+    expect([cliente, equipe, visitante, visitanteOuCliente, publica].every((h) => typeof h === 'function')).toBe(true)
   })
 
   test('o handler pode devolver Date e bigint onde o esquema de fio diz texto e número', () => {

@@ -2,7 +2,7 @@ import 'server-only'
 import { prisma } from '@/server/db/client'
 import { tenantDb } from '@/server/db/tenant'
 import { DomainError } from '@/server/domain/errors'
-import { ApiAuthError } from '@/server/domain/platform/api-keys'
+import { ApiAuthError } from '@/server/auth/api-auth-error'
 import type { Actor, Channel, RequestInfo, TenantContext } from './actor'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

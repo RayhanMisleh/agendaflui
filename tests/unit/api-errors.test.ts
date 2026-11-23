@@ -1,11 +1,11 @@
 import { AuthError } from '@/server/auth/actor'
 import { errorResponse } from '@/server/api/errors'
-import { ApiAuthError } from '@/server/domain/platform/api-keys'
+import { ApiAuthError } from '@/server/auth/api-auth-error'
 import { DomainError, z } from '@/server/domain/errors'
 import { fromEpochMs } from '@/server/time'
 import { apiError } from '../setup/api'
 
-const req = new Request('http://api.localhost:3000/v1/x', { method: 'POST', headers: { authorization: 'Bearer segredo', 'x-app-key': 'afk_a_00000000_segredo' } })
+const req = new Request('http://api.localhost:3000/v1/x', { method: 'POST', headers: { authorization: 'Bearer segredo', 'x-business': 'conta-exemplo' } })
 
 async function corpo(res: Response): Promise<unknown> {
   return res.json()
@@ -46,9 +46,9 @@ describe('errorResponse', () => {
 
   test('ApiAuthError: unauthorized 401, forbidden 403, business_unavailable 503, com reason', async () => {
     for (const [code, status] of [['unauthorized', 401], ['forbidden', 403], ['business_unavailable', 503]] as const) {
-      const res = errorResponse(new ApiAuthError(code, 'invalid_app_key', 'Texto.'), req)
+      const res = errorResponse(new ApiAuthError(code, 'unknown_business', 'Texto.'), req)
       expect(res.status).toBe(status)
-      expect(apiError(await corpo(res))).toEqual({ code, reason: 'invalid_app_key', message: 'Texto.' })
+      expect(apiError(await corpo(res))).toEqual({ code, reason: 'unknown_business', message: 'Texto.' })
     }
   })
 
@@ -91,7 +91,6 @@ describe('errorResponse', () => {
       expect(gravado).toContain('POST')
       expect(gravado).toContain('hunter2')
       expect(gravado).not.toContain('segredo')
-      expect(gravado).not.toContain('afk_a_')
     } finally {
       log.mockRestore()
     }

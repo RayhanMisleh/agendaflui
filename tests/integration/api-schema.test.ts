@@ -2,16 +2,12 @@ import { beforeEach, describe, expect, test } from 'vitest'
 import type { Business } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCustomer, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
+import { makeBusiness, makeCustomer, makeMembership, makeUser } from '../setup/factories'
 
 let n = 0
 const un = (): string => `${++n}`
 const depois = (): Date => new Date(Date.now() + 3_600_000)
 
-const chave = (o: Record<string, unknown> = {}) =>
-  prisma.apiKey.create({
-    data: { kind: 'PLATFORM', name: `Chave ${un()}`, prefix: `a${un().padStart(7, '0')}`, keyHash: `hash-${un()}`, ...o },
-  })
 const token = (businessId: string, o: Record<string, unknown> = {}) =>
   prisma.refreshToken.create({
     data: { businessId, subject: 'CUSTOMER', familyId: crypto.randomUUID(), tokenHash: `rt-${un()}`, expiresAt: depois(), ...o },
@@ -25,42 +21,6 @@ let a: Business, b: Business
 beforeEach(async () => {
   await resetDb()
   ;[a, b] = [await makeBusiness(), await makeBusiness()]
-})
-
-describe('api_keys', () => {
-  test('chave ACCOUNT sem conta e PLATFORM com conta são recusadas; as coerentes são aceitas', async () => {
-    await expect(chave({ kind: 'ACCOUNT' })).rejects.toThrow()
-    await expect(chave({ kind: 'PLATFORM', businessId: a.id })).rejects.toThrow()
-    await expect(chave({ kind: 'ACCOUNT', businessId: a.id })).resolves.toBeDefined()
-    const p = await chave({ kind: 'PLATFORM' })
-    expect(p.allowedOrigins).toEqual([])
-  })
-
-  test('allowed_origins nunca é NULL; lista vazia vale', async () => {
-    await expect(chave({ allowedOrigins: [] })).resolves.toBeDefined()
-    const nulo = prisma.$executeRaw`
-      INSERT INTO api_keys (kind, name, prefix, key_hash, allowed_origins, updated_at)
-      VALUES ('PLATFORM', 'Sem origens', 'c0ffee01', 'hash-nulo', NULL, now())`
-    await expect(nulo).rejects.toThrow(/api_keys_allowed_origins_not_null_check/)
-  })
-
-  test('prefixo precisa ter 8 caracteres hexadecimais minúsculos e ser único', async () => {
-    for (const prefix of ['abc', 'ABCDEF01', 'abcdef0g', 'abcdef012']) {
-      await expect(chave({ prefix }), prefix).rejects.toThrow()
-    }
-    await chave({ prefix: 'abcdef01' })
-    await expect(chave({ prefix: 'abcdef01' })).rejects.toThrow()
-  })
-
-  test('apagar a conta apaga a chave dela; apagar o admin que criou mantém a chave', async () => {
-    const admin = await makePlatformAdmin()
-    const doAdmin = await chave({ createdByAdminId: admin.id, prefix: '0000aaaa' })
-    const deConta = await chave({ kind: 'ACCOUNT', businessId: a.id, prefix: '0000bbbb' })
-    await prisma.platformAdmin.delete({ where: { id: admin.id } })
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: doAdmin.id } })).createdByAdminId).toBeNull()
-    await prisma.business.delete({ where: { id: a.id } })
-    expect(await prisma.apiKey.findUnique({ where: { id: deConta.id } })).toBeNull()
-  })
 })
 
 describe('refresh_tokens', () => {
@@ -163,38 +123,35 @@ describe('rate_limit_buckets', () => {
 
 describe('api_usage_hourly', () => {
   const hora = new Date('2026-11-20T10:00:00.000Z')
-  const uso = (apiKeyId: string, o: Record<string, unknown> = {}) =>
+  const uso = (o: Record<string, unknown> = {}) =>
     prisma.apiUsageHourly.create({
-      data: { apiKeyId, businessId: a.id, route: 'GET /v1/services', hour: hora, count: 1, errorCount: 0, totalMs: 10n, maxMs: 10, ...o },
+      data: { businessId: a.id, route: 'GET /v1/services', hour: hora, count: 1, errorCount: 0, totalMs: 10n, maxMs: 10, ...o },
     })
 
-  test('(api_key_id, business_id, route, hour) repetido é recusado; outra rota, hora ou conta é aceita', async () => {
-    const k = await chave()
-    await uso(k.id)
-    await expect(uso(k.id)).rejects.toThrow()
-    await expect(uso(k.id, { route: 'GET /v1/me' })).resolves.toBeDefined()
-    await expect(uso(k.id, { hour: new Date('2026-11-20T11:00:00.000Z') })).resolves.toBeDefined()
-    await expect(uso(k.id, { businessId: b.id })).resolves.toBeDefined()
-    await expect(uso(k.id, { businessId: null })).rejects.toThrow()
+  test('(business_id, route, hour) repetido é recusado; outra rota, hora ou conta é aceita', async () => {
+    await uso()
+    await expect(uso()).rejects.toThrow()
+    await expect(uso({ route: 'GET /v1/me' })).resolves.toBeDefined()
+    await expect(uso({ hour: new Date('2026-11-20T11:00:00.000Z') })).resolves.toBeDefined()
+    await expect(uso({ businessId: b.id })).resolves.toBeDefined()
+    await expect(uso({ businessId: null })).rejects.toThrow()
   })
 
   test('hora fora do início da hora e contadores negativos são recusados', async () => {
-    const k = await chave()
-    await expect(uso(k.id, { hour: new Date('2026-11-20T10:30:00.000Z') })).rejects.toThrow()
+    await expect(uso({ hour: new Date('2026-11-20T10:30:00.000Z') })).rejects.toThrow()
     for (const campo of [{ count: -1 }, { errorCount: -1 }, { totalMs: -1n }, { maxMs: -1 }]) {
-      await expect(uso(k.id, campo), JSON.stringify(campo, (_, v: unknown) => (typeof v === 'bigint' ? Number(v) : v))).rejects.toThrow()
+      await expect(uso(campo), JSON.stringify(campo, (_, v: unknown) => (typeof v === 'bigint' ? Number(v) : v))).rejects.toThrow()
     }
   })
 
   test('a hora é conferida em UTC, qualquer que seja o fuso da sessão do banco', async () => {
-    const k = await chave()
     // SQL cru com o instante explícito em UTC: o cliente Prisma mandaria a hora sem fuso, e o banco a leria no fuso da sessão.
     const naSessao = (fuso: string, hour: string) =>
       prisma.$transaction(async (tx) => {
         await tx.$executeRawUnsafe(`SET LOCAL TIME ZONE '${fuso}'`)
         await tx.$executeRaw`
-          INSERT INTO api_usage_hourly (api_key_id, business_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
-          VALUES (${k.id}::uuid, ${a.id}::uuid, ${`GET /v1/${fuso}`}, ${hour}::timestamptz, 1, 0, 1, 1, now())`
+          INSERT INTO api_usage_hourly (business_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
+          VALUES (${a.id}::uuid, ${`GET /v1/${fuso}`}, ${hour}::timestamptz, 1, 0, 1, 1, now())`
       })
     await expect(naSessao('Asia/Kolkata', '2026-11-20T10:00:00.000Z')).resolves.toBeUndefined()
     await expect(naSessao('America/Sao_Paulo', '2026-11-20T10:00:00.000Z')).resolves.toBeUndefined()
@@ -202,11 +159,12 @@ describe('api_usage_hourly', () => {
     await expect(naSessao('UTC', '2026-11-20T10:00:00.500Z')).rejects.toThrow(/api_usage_hourly_hour_check/)
   })
 
-  test('apagar a chave apaga o uso', async () => {
-    const k = await chave()
-    const u = await uso(k.id)
-    await prisma.apiKey.delete({ where: { id: k.id } })
+  test('apagar a conta apaga o uso dela', async () => {
+    const u = await uso()
+    const outro = await uso({ businessId: b.id })
+    await prisma.business.delete({ where: { id: a.id } })
     expect(await prisma.apiUsageHourly.findUnique({ where: { id: u.id } })).toBeNull()
+    expect(await prisma.apiUsageHourly.findUnique({ where: { id: outro.id } })).not.toBeNull()
   })
 })
 

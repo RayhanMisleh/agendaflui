@@ -62,7 +62,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
           <Field label="Conta" hint={contaNome ? `Conta: ${contaNome}.` : 'Identificador da conta, como estudio-sol. Em branco, todas.'}>
             <Input name="conta" defaultValue={values.conta} maxLength={100} autoComplete="off" spellCheck={false} />
           </Field>
-          <Field label="Ação" hint="Nome exato, como api_key.revoked.">
+          <Field label="Ação" hint="Nome exato, como business.status_changed.">
             <Input name="acao" defaultValue={values.acao} maxLength={100} autoComplete="off" spellCheck={false} />
           </Field>
           <Field label="Quem agiu">

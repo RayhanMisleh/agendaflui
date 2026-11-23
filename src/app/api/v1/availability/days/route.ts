@@ -8,7 +8,7 @@ import { listAvailableDays } from '@/server/domain/scheduling/availability'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/availability/days',
-  auth: 'key_or_customer',
+  auth: 'guest_or_customer',
   summary: 'Quais dias de um intervalo (até 31 dias) têm horário livre para os serviços escolhidos',
   tag: 'Agenda',
   limit: LIMITS.availability,

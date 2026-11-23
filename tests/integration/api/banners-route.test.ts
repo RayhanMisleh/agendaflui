@@ -22,7 +22,7 @@ beforeEach(async () => {
   await prisma.businessModules.update({ where: { businessId: c.business.id }, data: { banners: true } })
 })
 
-const get = (token?: string, key: string | null = c.key) => callRoute(listarBanners, apiRequest('GET', '/v1/banners', { ...(key ? { key } : {}), ...(token ? { token } : {}) }))
+const get = (token?: string, business: string | null = c.business.slug) => callRoute(listarBanners, apiRequest('GET', '/v1/banners', { ...(business ? { business } : {}), ...(token ? { token } : {}) }))
 
 async function noAr(business: { id: string }, title: string, link: string | null = null) {
   const dono = await makeCtx(business)
@@ -51,7 +51,7 @@ describe('GET /v1/banners', () => {
     expect((await get(c.tokenCliente)).status).toBe(200)
   })
 
-  test('exige a chave do app', async () => {
+  test('exige o cabeçalho X-Business (conta desconhecida: 401)', async () => {
     expect((await get(undefined, null)).status).toBe(401)
   })
 

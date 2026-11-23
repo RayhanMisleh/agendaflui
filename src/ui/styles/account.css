@@ -1,6 +1,6 @@
 /*
- * Página da conta e telas de chaves no painel dev (tema noite): cabeçalho da conta, abas, números, formulários, fichas
- * de imagem, equipe, chaves e auditoria. Tudo em cartões com título h3 (22 px, peso 600); só tokens.
+ * Página da conta no painel dev (tema noite): cabeçalho da conta, abas, números, formulários, fichas
+ * de imagem, equipe, integrações e auditoria. Tudo em cartões com título h3 (22 px, peso 600); só tokens.
  */
 @layer components {
   /* ---- Cabeçalho da conta ---- */
@@ -166,78 +166,6 @@
     display: grid;
     gap: 0.25rem;
     justify-items: start;
-  }
-
-  /* ---- Chaves ---- */
-  .af-keys {
-    display: grid;
-    gap: 1.25rem;
-  }
-  .af-keys__title {
-    margin: 0 0 0.75rem;
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: 600;
-    line-height: 1.2;
-  }
-  .af-keys__list {
-    display: grid;
-    gap: 1.25rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .af-keycard {
-    display: grid;
-    gap: 0.875rem;
-    min-width: 0;
-  }
-  .af-keycard__head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1rem;
-  }
-  .af-keycard__name {
-    margin: 0;
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: 600;
-    line-height: 1.2;
-    overflow-wrap: anywhere;
-  }
-  .af-keycard__usage {
-    margin: 0;
-    color: var(--ink);
-    font-size: var(--text-small);
-  }
-  .af-keycard__stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.5rem;
-    margin: 0 0 0.5rem;
-  }
-  .af-keycard__stats dt {
-    color: var(--ink-muted);
-    font-size: 0.75rem;
-  }
-  .af-keycard__stats dd {
-    margin: 0;
-    font-family: var(--font-display);
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-  }
-  .af-keycard__routes {
-    display: grid;
-    gap: 0.25rem;
-    margin: 0;
-    padding-left: 1.25rem;
-  }
-  .af-keycard__routes li {
-    overflow-wrap: anywhere;
   }
 
   /* ---- Integrações: endereço do webhook com o botão de copiar ---- */

@@ -32,11 +32,11 @@ beforeEach(async () => {
 })
 
 const get = (h: Parameters<typeof callRoute>[0], path: string, o: { token?: string; params?: Record<string, string> } = {}) =>
-  callRoute(h, apiRequest('GET', path, { key: c.key, ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
+  callRoute(h, apiRequest('GET', path, { business: c.business.slug, ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
 let chaves = 0
 // O pedido exige `Idempotency-Key`: o `post` manda uma chave nova a cada chamada, salvo `semChave` ou `headers` próprios.
 const post = (h: Parameters<typeof callRoute>[0], path: string, body: unknown, o: { token?: string; headers?: Record<string, string>; params?: Record<string, string>; semChave?: boolean } = {}) =>
-  callRoute(h, apiRequest('POST', path, { key: c.key, ...(o.token ? { token: o.token } : {}), ...(body === undefined ? {} : { body }), headers: { ...(o.semChave ? {} : { 'idempotency-key': `chave-${++chaves}` }), ...(o.headers ?? {}) } }), o.params ?? {})
+  callRoute(h, apiRequest('POST', path, { business: c.business.slug, ...(o.token ? { token: o.token } : {}), ...(body === undefined ? {} : { body }), headers: { ...(o.semChave ? {} : { 'idempotency-key': `chave-${++chaves}` }), ...(o.headers ?? {}) } }), o.params ?? {})
 
 const CONFIG = { pickupEnabled: true, pickupInstructions: 'Na recepção', shippingEnabled: true, originPostalCode: '01310100', defaultPackage: { weightGrams: 1000, lengthCm: 20, heightCm: 10, widthCm: 30 }, paymentWindowMin: 60 }
 
@@ -251,7 +251,7 @@ describe('leitura e cancelamento pela API', () => {
     const { meu } = await dois()
     const outra = await montarCena()
     await prisma.businessModules.update({ where: { businessId: outra.business.id }, data: { store: true } })
-    const r = await callRoute(umPedido, apiRequest('GET', `/v1/store/orders/${meu.id}`, { key: outra.key, token: outra.tokenCliente }), { id: meu.id as string })
+    const r = await callRoute(umPedido, apiRequest('GET', `/v1/store/orders/${meu.id}`, { business: outra.business.slug, token: outra.tokenCliente }), { id: meu.id as string })
     expect(r.status).toBe(404)
   })
 

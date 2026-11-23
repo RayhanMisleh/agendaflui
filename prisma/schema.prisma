@@ -203,13 +203,6 @@ enum CustomerOrigin {
   @@map("customer_origin")
 }
 
-enum ApiKeyKind {
-  ACCOUNT
-  PLATFORM
-
-  @@map("api_key_kind")
-}
-
 enum TokenSubject {
   CUSTOMER
   MEMBER
@@ -244,7 +237,6 @@ model PlatformAdmin {
 
   platformSessions PlatformSession[]
   impersonations   Session[]
-  apiKeys          ApiKey[]
   supportHandoffs  SupportHandoff[]
 
   @@map("platform_admins")
@@ -361,7 +353,6 @@ model Business {
   vouchers             Voucher[]
   voucherCodes         VoucherCode[]
   notifications        Notification[]
-  apiKeys              ApiKey[]
   apiUsage             ApiUsageHourly[]
   refreshTokens        RefreshToken[]
   devices              Device[]
@@ -879,29 +870,6 @@ model Notification {
   @@map("notifications")
 }
 
-model ApiKey {
-  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId       String?      @map("business_id") @db.Uuid
-  kind             ApiKeyKind
-  name             String
-  prefix           String       @unique
-  keyHash          String       @unique @map("key_hash")
-  allowedOrigins   String[]     @default([]) @map("allowed_origins")
-  lastUsedAt       DateTime?    @map("last_used_at") @db.Timestamptz(3)
-  revokedAt        DateTime?    @map("revoked_at") @db.Timestamptz(3)
-  createdByAdminId String?      @map("created_by_admin_id") @db.Uuid
-  createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
-
-  business     Business?       @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  createdBy    PlatformAdmin?  @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
-  usageHourly  ApiUsageHourly[]
-
-  @@index([businessId])
-  @@index([createdByAdminId])
-  @@map("api_keys")
-}
-
 model RefreshToken {
   id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   businessId   String       @map("business_id") @db.Uuid
@@ -985,7 +953,6 @@ model RateLimitBucket {
 
 model ApiUsageHourly {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  apiKeyId   String   @map("api_key_id") @db.Uuid
   businessId String   @map("business_id") @db.Uuid
   route      String
   hour       DateTime @db.Timestamptz(3)
@@ -996,10 +963,9 @@ model ApiUsageHourly {
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  apiKey   ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
-  @@unique([apiKeyId, businessId, route, hour])
+  @@unique([businessId, route, hour])
   @@index([businessId, hour])
   @@index([hour])
   @@map("api_usage_hourly")

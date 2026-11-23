@@ -13,6 +13,7 @@ const base = {
   DEV_HOST: 'dev.exemplo.com',
   PAINEL_HOST: 'painel.exemplo.com',
   API_HOST: 'api.exemplo.com',
+  APP_WEB_ORIGINS: 'https://app.exemplo.com',
   TRUSTED_PROXY_HOPS: '1',
   SMTP_URL: 'smtp://u:senha-secreta@h:587',
   MAIL_FROM: 'A <a@exemplo.com>',

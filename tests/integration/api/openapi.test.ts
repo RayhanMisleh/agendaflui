@@ -361,17 +361,26 @@ describe('documento OpenAPI', () => {
     }
   })
 
-  test('segurança: AppKey e Bearer declarados; rotas de cliente e de equipe pedem Bearer; health e openapi não pedem nada', () => {
+  test('segurança: só Bearer declarado (sem chave de app); rotas de cliente e de equipe pedem Bearer; as demais não pedem nada', () => {
     const esquemas = objeto(objeto(doc.components).securitySchemes)
-    expect(esquemas.AppKey).toMatchObject({ type: 'apiKey', in: 'header', name: 'X-App-Key' })
+    expect(Object.keys(esquemas)).toEqual(['Bearer'])
     expect(esquemas.Bearer).toMatchObject({ type: 'http', scheme: 'bearer' })
+    expect(JSON.stringify(doc)).not.toMatch(/AppKey|X-App-Key/i)
     for (const def of routeDefinitions()) {
       const op = objeto(doc.paths[def.path]?.[def.method.toLowerCase()])
       const exigencias = (op.security as Json[]).map((s) => Object.keys(s))
-      if (def.auth === 'customer' || def.auth === 'staff') expect(exigencias, def.path).toEqual([['AppKey', 'Bearer']])
-      if (def.auth === 'key') expect(exigencias, def.path).toEqual([['AppKey']])
-      if (def.auth === 'key_or_customer') expect(exigencias, def.path).toEqual([['AppKey'], ['AppKey', 'Bearer']])
-      if (def.auth === 'none') expect(exigencias, def.path).toEqual([])
+      if (def.auth === 'customer' || def.auth === 'staff') expect(exigencias, def.path).toEqual([['Bearer']])
+      if (def.auth === 'guest_or_customer') expect(exigencias, def.path).toEqual([[], ['Bearer']])
+      if (def.auth === 'none' || def.auth === 'guest') expect(exigencias, def.path).toEqual([])
+    }
+  })
+
+  test('X-Business é obrigatório nas rotas com conta e não existe nas rotas públicas', () => {
+    for (const def of routeDefinitions()) {
+      const op = objeto(doc.paths[def.path]?.[def.method.toLowerCase()])
+      const cab = ((op.parameters ?? []) as Json[]).find((p) => p.name === 'X-Business')
+      if (def.auth === 'none') expect(cab, def.path).toBeUndefined()
+      else expect(cab, def.path).toMatchObject({ in: 'header', required: true })
     }
   })
 
@@ -482,24 +491,24 @@ describe('contrato: a resposta real segue o esquema do documento', () => {
   }
 
   test('GET /v1/business', async () => {
-    const r = await callRoute(business, apiRequest('GET', '/v1/business', { key: c.key }))
+    const r = await callRoute(business, apiRequest('GET', '/v1/business', { business: c.business.slug }))
     expect(r.status).toBe(200)
     checar('get', '/v1/business', 200, r.json)
   })
 
   test('GET /v1/availability', async () => {
-    const r = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}`, { key: c.key }))
+    const r = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}`, { business: c.business.slug }))
     expect(r.status).toBe(200)
     expect((jsonObject(r.json).slots as unknown[]).length).toBeGreaterThan(0)
     checar('get', '/v1/availability', 200, r.json)
   })
 
   test('POST /v1/appointments (201)', async () => {
-    const disp = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}&professionalId=${c.ana.id}`, { key: c.key }))
+    const disp = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(10)}&serviceIds=${c.banho.id}&professionalId=${c.ana.id}`, { business: c.business.slug }))
     const slot = (jsonObject(disp.json).slots as { startsAt: string }[])[0]
     const r = await callRoute(
       marcar,
-      apiRequest('POST', '/v1/appointments', { key: c.key, token: c.tokenCliente, body: { serviceIds: [c.banho.id], professionalId: c.ana.id, startsAt: slot?.startsAt } }),
+      apiRequest('POST', '/v1/appointments', { business: c.business.slug, token: c.tokenCliente, body: { serviceIds: [c.banho.id], professionalId: c.ana.id, startsAt: slot?.startsAt } }),
     )
     expect(r.status, r.text).toBe(201)
     checar('post', '/v1/appointments', 201, r.json)
@@ -512,17 +521,17 @@ describe('contrato: a resposta real segue o esquema do documento', () => {
     const marcada = await callRoute(
       marcar,
       apiRequest('POST', '/v1/appointments', {
-        key: c.key,
+        business: c.business.slug,
         token: c.tokenCliente,
         body: {
           serviceIds: [c.banho.id],
           professionalId: c.ana.id,
-          startsAt: (jsonObject((await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(2)}&serviceIds=${c.banho.id}&professionalId=${c.ana.id}`, { key: c.key }))).json).slots as { startsAt: string }[])[0]?.startsAt,
+          startsAt: (jsonObject((await callRoute(availability, apiRequest('GET', `/v1/availability?date=${c.dia(2)}&serviceIds=${c.banho.id}&professionalId=${c.ana.id}`, { business: c.business.slug }))).json).slots as { startsAt: string }[])[0]?.startsAt,
         },
       }),
     )
     expect(marcada.status, marcada.text).toBe(201)
-    const r = await callRoute(agenda, apiRequest('GET', `/v1/staff/agenda?from=${c.dia(2)}&to=${c.dia(2)}`, { key: c.key, token }))
+    const r = await callRoute(agenda, apiRequest('GET', `/v1/staff/agenda?from=${c.dia(2)}&to=${c.dia(2)}`, { business: c.business.slug, token }))
     expect(r.status).toBe(200)
     const dias = jsonObject(r.json).days as { professionals: { appointments: unknown[] }[] }[]
     expect(dias[0]?.professionals.some((p) => p.appointments.length > 0)).toBe(true)
@@ -530,7 +539,7 @@ describe('contrato: a resposta real segue o esquema do documento', () => {
   })
 
   test('o validador de contrato reprova de verdade: chave a mais, tipo errado e chave faltando', async () => {
-    const r = await callRoute(business, apiRequest('GET', '/v1/business', { key: c.key }))
+    const r = await callRoute(business, apiRequest('GET', '/v1/business', { business: c.business.slug }))
     const esquema = esquemaDaResposta(doc, 'get', '/v1/business', 200)
     const original = jsonObject(r.json)
     expect(validar(esquema, { ...original, interno: 1 }, doc)).not.toEqual([])
@@ -605,7 +614,7 @@ describe('validador de contrato do próprio teste', () => {
 })
 
 describe('GET /v1/openapi.json', () => {
-  test('responde sem chave, com cache público de 5 minutos, e o corpo é o documento', async () => {
+  test('responde sem conta, com cache público de 5 minutos, e o corpo é o documento', async () => {
     const r = await callRoute(obterOpenApi, apiRequest('GET', '/v1/openapi.json'))
     expect(r.status).toBe(200)
     expect(r.headers.get('cache-control')).toBe('public, max-age=300')
@@ -615,10 +624,20 @@ describe('GET /v1/openapi.json', () => {
     expect(r.json).toEqual(JSON.parse(JSON.stringify(buildOpenApi())))
   })
 
-  test('com Origin válida devolve CORS; as outras respostas da API continuam sem cache', async () => {
-    const r = await callRoute(obterOpenApi, apiRequest('GET', '/v1/openapi.json', { origin: 'https://app.exemplo.test' }))
-    expect(r.headers.get('access-control-allow-origin')).toBe('https://app.exemplo.test')
-    expect(r.headers.get('cache-control')).toBe('public, max-age=300')
+  test('com Origin da lista APP_WEB_ORIGINS devolve CORS; de fora, responde sem CORS; as outras respostas da API continuam sem cache', async () => {
+    const antes = process.env.APP_WEB_ORIGINS
+    process.env.APP_WEB_ORIGINS = 'https://app.exemplo.test'
+    try {
+      const r = await callRoute(obterOpenApi, apiRequest('GET', '/v1/openapi.json', { origin: 'https://app.exemplo.test' }))
+      expect(r.headers.get('access-control-allow-origin')).toBe('https://app.exemplo.test')
+      expect(r.headers.get('cache-control')).toBe('public, max-age=300')
+      const fora = await callRoute(obterOpenApi, apiRequest('GET', '/v1/openapi.json', { origin: 'https://outro.exemplo.test' }))
+      expect(fora.status).toBe(200)
+      expect(fora.headers.get('access-control-allow-origin')).toBeNull()
+    } finally {
+      if (antes === undefined) delete process.env.APP_WEB_ORIGINS
+      else process.env.APP_WEB_ORIGINS = antes
+    }
     const semCache = await callRoute(business, apiRequest('GET', '/v1/business'))
     expect(semCache.headers.get('cache-control')).toBe('no-store')
   })

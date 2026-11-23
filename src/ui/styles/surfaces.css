@@ -340,50 +340,6 @@
     object-fit: cover;
   }
 
-  /* ---- Segredo de uma chave: mostrado uma vez ---- */
-  .af-secret {
-    display: grid;
-    gap: 0.625rem;
-    padding: 1rem;
-    border: 1.5px dashed var(--line);
-    border-radius: var(--radius-card);
-    background-color: var(--surface);
-  }
-  .af-secret__name {
-    color: var(--ink);
-    font-size: var(--text-small);
-    font-weight: 600;
-  }
-  .af-secret__row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .af-secret__code {
-    flex: 1 1 14rem;
-    min-width: 0;
-    padding: 0.625rem 0.75rem;
-    border-radius: var(--radius-chip);
-    background-color: var(--ground);
-    color: var(--ink);
-    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-    font-size: var(--text-small);
-    line-height: 1.5;
-    overflow-wrap: anywhere;
-    user-select: all;
-  }
-  .af-secret__warn {
-    margin: 0;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius-chip);
-    background-color: var(--accent-tint);
-    color: var(--ink);
-    font-size: var(--text-small);
-    font-weight: 600;
-    line-height: var(--text-small-lh);
-  }
-
   /* ---- Miniatura do painel do negócio (BrandPreview) ---- */
   .af-bp {
     display: grid;

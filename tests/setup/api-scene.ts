@@ -2,15 +2,13 @@ import type { Business, Customer, Professional, Service } from '@/server/db/gene
 import { prisma } from '@/server/db/client'
 import { hashPassword } from '@/server/auth/password'
 import { addDays, todayIn, WEEKDAYS } from '@/server/time'
-import { customerToken, makeAppKey } from './api'
+import { customerToken } from './api'
 import { makeBusiness, makeCustomer, makeMembership, makeProfessional, makeService, makeUser, makeWorkingHours } from './factories'
 
 export const SENHA = 'senha-muito-segura-1'
 
 export type Cena = {
   business: Business
-  key: string
-  keyId: string
   banho: Service
   clube: Service
   inativo: Service
@@ -38,7 +36,6 @@ export async function montarCena(o: { timeZone?: string } = {}): Promise<Cena> {
     email: 'contato-interno@exemplo.test',
     phone: '5511999990000',
   })
-  const { secret, id } = await makeAppKey(business.id)
   const banho = await makeService(business.id, { name: 'Banho', durationMin: 60, priceCents: 8000, displayOrder: 1 })
   const clube = await makeService(business.id, { name: 'Corte do clube', durationMin: 30, priceCents: 3000, clubOnly: true, displayOrder: 2 })
   const inativo = await makeService(business.id, { name: 'Serviço parado', active: false, displayOrder: 3 })
@@ -59,8 +56,6 @@ export async function montarCena(o: { timeZone?: string } = {}): Promise<Cena> {
   const timeZone = business.timezone
   return {
     business,
-    key: secret,
-    keyId: id,
     banho,
     clube,
     inativo,

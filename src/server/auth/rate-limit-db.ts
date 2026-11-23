@@ -10,8 +10,8 @@ export const LIMITS = {
   loginEmailIp: { limit: 5, windowSec: 900 },
   loginEmailWide: { limit: 30, windowSec: 900 },
   loginIp: { limit: 20, windowSec: 900 },
-  apiKeyIp: { limit: 120, windowSec: 60 },
-  invalidKeyIp: { limit: 30, windowSec: 60 },
+  /** Limite geral da API do app por IP (ou /64), em todas as rotas com conta. */
+  apiIp: { limit: 120, windowSec: 60 },
   authIp: { limit: 30, windowSec: 900 },
   /** Pedidos de "esqueci a senha" do painel por origem (IP ou /64): cada e-mail tem o seu teto em `codeEmail`. */
   panelResetIp: { limit: 10, windowSec: 900 },
@@ -22,7 +22,7 @@ export const LIMITS = {
   /** Códigos errados por conta e e-mail (os dois propósitos juntos): vale entre códigos sucessivos. */
   codeFailures: { limit: 10, windowSec: 86_400 },
   booking: { limit: 20, windowSec: 60 },
-  /** Resgates de prêmio por pessoa (a rota conta por chave de app e cliente). */
+  /** Resgates de prêmio por pessoa (a rota conta por cliente). */
   redeem: { limit: 10, windowSec: 60 },
   /** Consultas de CEP por pessoa (cada uma chama a ViaCEP). */
   postalCode: { limit: 30, windowSec: 60 },

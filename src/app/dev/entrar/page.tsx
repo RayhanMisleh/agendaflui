@@ -11,7 +11,7 @@ export default function EntrarPage() {
       variant="dev"
       brand={{ name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }}
       headline="Painel da plataforma"
-      lede="Contas, chaves e sistema da Agenda Flui, num lugar só."
+      lede="Contas, admins e sistema da Agenda Flui, num lugar só."
       title="Entrar no painel"
       message="Acesso para quem administra a plataforma."
       testId="dev-entry"

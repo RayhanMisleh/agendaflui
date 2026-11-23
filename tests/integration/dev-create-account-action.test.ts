@@ -10,29 +10,18 @@ vi.mock('@/server/notifications/channels', async (original) => {
   const real = await original<typeof import('@/server/notifications/channels')>()
   return { ...real, getEmailChannel: () => envio }
 })
-const chaves = vi.hoisted(() => ({ falhar: false, regrasFalham: false }))
+const falhas = vi.hoisted(() => ({ regrasFalham: false }))
 vi.mock('@/server/domain/platform/customization', async (original) => {
   const real = await original<typeof import('@/server/domain/platform/customization')>()
   const { DomainError } = await import('@/server/domain/errors')
   return {
     ...real,
     updateRulesAsAdmin: (...args: Parameters<typeof real.updateRulesAsAdmin>) => {
-      if (chaves.regrasFalham) throw new DomainError('validation', 'Motivo claro do domínio.')
+      if (falhas.regrasFalham) throw new DomainError('validation', 'Motivo claro do domínio.')
       return real.updateRulesAsAdmin(...args)
     },
   }
 })
-vi.mock('@/server/domain/platform/api-keys', async (original) => {
-  const real = await original<typeof import('@/server/domain/platform/api-keys')>()
-  return {
-    ...real,
-    createApiKey: (...args: Parameters<typeof real.createApiKey>) => {
-      if (chaves.falhar) throw new Error('banco indisponível; senha=hunter2')
-      return real.createApiKey(...args)
-    },
-  }
-})
-
 import { criarConta } from '@/app/dev/(app)/contas/nova/actions'
 import { EMPTY_VALUES, type WizardData } from '@/app/dev/(app)/contas/nova/fields'
 import type { FormState } from '@/app/_lib/form-state'
@@ -74,8 +63,6 @@ function formulario(extra: Record<string, string> = {}): FormData {
     autoConfirm: 'on',
     ownerName: 'Marina Duarte',
     ownerEmail: 'marina@exemplo.test',
-    createKey: 'on',
-    keyName: 'App Pata Viva',
   }
   const fd = new FormData()
   for (const [k, v] of Object.entries({ ...base, ...extra })) if (v !== '__ausente__') fd.set(k, v)
@@ -95,8 +82,7 @@ async function redirecionamento(p: Promise<unknown>): Promise<string> {
 
 beforeEach(async () => {
   await resetDb()
-  chaves.falhar = false
-  chaves.regrasFalham = false
+  falhas.regrasFalham = false
   envio.send.mockClear()
   const admin = await makePlatformAdmin()
   guards.requirePlatformAdmin.mockResolvedValue({ kind: 'platform_admin', adminId: admin.id, name: admin.name })
@@ -106,12 +92,11 @@ afterEach(() => {
 })
 
 describe('criar conta pela ação do assistente', () => {
-  test('com dados válidos cria conta, marca, termos, módulos, regras, dono e chave; o segredo volta uma vez no estado', async () => {
+  test('com dados válidos cria conta, marca, termos, módulos, regras e dono', async () => {
     const estado = await criarConta(inicial, formulario())
     expect(estado.ok).toBe(true)
     const r = estado.values.result
     expect(r?.pendencias).toEqual([])
-    expect(r?.secret).toMatch(/^afk_a_/)
     expect(r?.entryUrl).toContain('/entrar/pata-viva')
 
     const conta = await prisma.business.findUniqueOrThrow({
@@ -129,18 +114,13 @@ describe('criar conta pela ação do assistente', () => {
     expect(conta.settings?.bufferMin).toBe(10)
     expect(conta.modules).toMatchObject({ loyalty: true, banners: false, store: true, vouchers: true })
     expect(conta.memberships.map((m) => [m.role, m.user.email])).toEqual([['OWNER', 'marina@exemplo.test']])
-    const chave = await prisma.apiKey.findFirstOrThrow({ where: { businessId: conta.id } })
-    expect(chave.name).toBe('App Pata Viva')
-    expect(chave.kind).toBe('ACCOUNT')
-    // O segredo não fica no banco em texto: só o hash.
-    expect(JSON.stringify(chave)).not.toContain(r?.secret ?? 'x')
     expect(envio.send).toHaveBeenCalledTimes(1)
   })
 
-  test('o segredo não volta se o estado for devolvido por erro, e senha/segredo nunca entram em values de erro', async () => {
+  test('erro de validação devolve o estado sem senha nem segredo nos valores', async () => {
     const estado = await criarConta(inicial, formulario({ slug: 'a' }))
     expect(estado.ok).toBe(false)
-    expect(JSON.stringify(estado)).not.toMatch(/afk_/)
+    expect(JSON.stringify(estado)).not.toMatch(/afk_|hunter2/)
   })
 
   test('slug duplicado devolve o erro no campo slug, e a etapa dele é a primeira', async () => {
@@ -152,7 +132,6 @@ describe('criar conta pela ação do assistente', () => {
     expect(estado.values.ownerName).toBe('Marina Duarte')
     const { firstStepWithError } = await import('@/app/dev/(app)/contas/nova/fields')
     expect(firstStepWithError(estado.fields)).toBe(0)
-    expect(await prisma.apiKey.count()).toBe(0)
   })
 
   test('erro de outra etapa (cor, termo, regra, módulos) é recusado ANTES de criar a conta, no campo certo', async () => {
@@ -162,7 +141,6 @@ describe('criar conta pela ação do assistente', () => {
       [{ slotStepMin: '7' }, 'slotStepMin'],
       [{ loyalty: '__ausente__', store: '__ausente__', vouchers: 'on' }, 'vouchers'],
       [{ ownerEmail: 'sem-arroba' }, 'ownerEmail'],
-      [{ keyName: '' }, 'keyName'],
     ]
     for (const [extra, campo] of casos) {
       const estado = await criarConta(inicial, formulario(extra))
@@ -170,23 +148,6 @@ describe('criar conta pela ação do assistente', () => {
       expect(Object.keys(estado.fields), campo).toContain(campo)
     }
     expect(await prisma.business.count()).toBe(0)
-  })
-
-  test('sem chave de app marcada, não cria chave e não há segredo', async () => {
-    const estado = await criarConta(inicial, formulario({ createKey: '__ausente__' }))
-    expect(estado.ok).toBe(true)
-    expect(estado.values.result?.secret).toBeUndefined()
-    expect(await prisma.apiKey.count()).toBe(0)
-  })
-
-  test('falha ao criar a chave depois da conta: redireciona para a página da conta com o aviso do que faltou, sem segredo', async () => {
-    chaves.falhar = true
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-    const destino = await redirecionamento(criarConta(inicial, formulario()))
-    const conta = await prisma.business.findUniqueOrThrow({ where: { slug: 'pata-viva' } })
-    expect(destino).toBe(`/contas/${conta.id}?faltou=chave`)
-    expect(destino).not.toContain('hunter2')
-    expect(await prisma.apiKey.count()).toBe(0)
   })
 
   test('dono que já existe: vincula, não troca a senha e a conta é criada', async () => {
@@ -199,12 +160,11 @@ describe('criar conta pela ação do assistente', () => {
     expect(depois.passwordHash).toBe(antes.passwordHash)
   })
 
-  test('passo depois da criação que falha guarda o motivo do domínio no aviso; o segredo ainda aparece', async () => {
-    chaves.regrasFalham = true
-    const estado = await criarConta(inicial, formulario())
-    expect(estado.ok).toBe(true)
-    expect(estado.values.result?.pendencias).toEqual(['As regras de agenda não foram salvas: Motivo claro do domínio.'])
-    expect(estado.values.result?.secret).toMatch(/^afk_a_/)
+  test('passo depois da criação que falha redireciona para a página da conta com o código do que faltou', async () => {
+    falhas.regrasFalham = true
+    const destino = await redirecionamento(criarConta(inicial, formulario()))
+    const conta = await prisma.business.findUniqueOrThrow({ where: { slug: 'pata-viva' } })
+    expect(destino).toBe(`/contas/${conta.id}?faltou=regras`)
   })
 
   test('um arquivo de logo no formulário é ignorado: a imagem vai pela rota própria, depois de a conta existir', async () => {

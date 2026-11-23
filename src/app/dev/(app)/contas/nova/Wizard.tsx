@@ -16,7 +16,6 @@ import {
   SidebarStylePicker,
   Card,
   Select,
-  SecretBox,
   StatusBadge,
   StepRail,
   Textarea,
@@ -63,7 +62,6 @@ const ROTULOS: Record<string, string> = {
   bufferMin: 'Intervalo entre atendimentos',
   ownerName: 'Nome do dono',
   ownerEmail: 'E-mail do dono',
-  keyName: 'Nome da chave',
 }
 
 type Estado = FormState<WizardData>
@@ -88,7 +86,6 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
   const [visto, setVisto] = useState<Estado>(state)
   const [slugManual, setSlugManual] = useState(() => initial.values.slug !== '' && initial.values.slug !== slugify(initial.values.name))
   const [nomeManual, setNomeManual] = useState(() => initial.values.displayName !== '' && initial.values.displayName !== initial.values.name)
-  const [chaveManual, setChaveManual] = useState(() => initial.values.keyName !== '')
   const tituloRef = useRef<HTMLHeadingElement>(null)
   const primeiraVez = useRef(true)
 
@@ -123,7 +120,6 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
       name: valor,
       ...(slugManual ? {} : { slug: slugify(valor) }),
       ...(nomeManual ? {} : { displayName: valor }),
-      ...(chaveManual ? {} : { keyName: valor.trim() ? `App ${valor.trim()}` : '' }),
     }))
   }
 
@@ -342,25 +338,6 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
                 <Input name="ownerEmail" type="email" inputMode="email" value={v.ownerEmail} onChange={texto('ownerEmail')} autoComplete="off" autoCapitalize="none" spellCheck={false} />
               </Field>
             </div>
-          </Etapa>
-
-          <Etapa i={6} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Chave de app" ajuda="A chave que o aplicativo desta conta usa para falar com a API. O segredo aparece uma única vez, na tela seguinte.">
-            <Checkbox name="createKey" label="Criar a chave de app agora" checked={v.createKey} onChange={(e) => set('createKey', e.target.checked)} />
-            {v.createKey ? (
-              <Field label="Nome da chave" hint="Só para você reconhecer a chave na lista." error={erro('keyName')}>
-                <Input
-                  name="keyName"
-                  value={v.keyName}
-                  onChange={(e) => {
-                    setChaveManual(true)
-                    set('keyName', e.target.value)
-                  }}
-                  autoComplete="off"
-                />
-              </Field>
-            ) : (
-              <p className="af-wizard__note">Sem a chave, o aplicativo ainda não consegue entrar. Você cria uma depois, na página da conta.</p>
-            )}
             <dl className="af-wizard__summary" aria-label="Resumo do que será criado">
               <dt>Conta</dt>
               <dd>{v.name || 'Sem nome ainda'}{v.slug ? ` (${v.slug})` : ''}</dd>
@@ -370,8 +347,6 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <dd>{v.ownerEmail || 'Sem e-mail ainda'}</dd>
               <dt>Módulos</dt>
               <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja', v.vouchers && 'Vouchers'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
-              <dt>Chave de app</dt>
-              <dd>{v.createKey ? 'Sim' : 'Não'}</dd>
             </dl>
           </Etapa>
 
@@ -440,7 +415,7 @@ function Etapa(p: {
   )
 }
 
-/** Tela final: o link de entrada, o estado do convite, o que faltou (se faltou) e o segredo da chave, uma única vez. */
+/** Tela final: o link de entrada, o estado do convite e o que faltou (se faltou). */
 function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => void }) {
   const titulo = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -482,10 +457,6 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
             ? `Enviamos para ${result.ownerEmail} o convite para definir a senha.`
             : `O convite para ${result.ownerEmail} não saiu por e-mail. Reenvie o convite na página da conta.`}
       </p>
-
-      {result.secret ? (
-        <SecretBox name={result.keyName ?? 'Chave de app'} secret={result.secret} />
-      ) : null}
 
       <div className="af-done__actions">
         <LinkButton href={`/contas/${result.createdId}`} variant="primary">

@@ -52,11 +52,9 @@ describe('runRetention', () => {
 
   test('apaga o uso da API com mais de 400 dias', async () => {
     const b = await makeBusiness()
-    const k = await prisma.apiKey.create({ data: { kind: 'PLATFORM', name: 'Chave', prefix: 'a0000001', keyHash: 'hash-1' } })
     const linha = (dias: number) =>
       prisma.apiUsageHourly.create({
         data: {
-          apiKeyId: k.id,
           businessId: b.id,
           route: 'GET /v1/services',
           hour: startOfUtcHour(diasAtras(dias)),

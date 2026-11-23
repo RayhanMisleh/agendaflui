@@ -57,7 +57,6 @@ export const PLATFORM_MODELS: Modelos = [
   'User',
   'Session',
   'UserToken',
-  'ApiKey',
   'RateLimitBucket',
   'ApiUsageHourly',
 ]

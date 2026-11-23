@@ -8,7 +8,7 @@ import { getAvailability } from '@/server/domain/scheduling/availability'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/availability',
-  auth: 'key_or_customer',
+  auth: 'guest_or_customer',
   summary: 'Horários livres de um dia para os serviços escolhidos (com token de cliente vale o clube)',
   tag: 'Agenda',
   limit: LIMITS.availability,

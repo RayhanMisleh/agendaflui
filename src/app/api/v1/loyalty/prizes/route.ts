@@ -6,7 +6,7 @@ import { listPrizes } from '@/server/domain/loyalty/prizes'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/loyalty/prizes',
-  auth: 'key_or_customer',
+  auth: 'guest_or_customer',
   module: 'loyalty',
   summary: 'Prêmios ativos com estoque, na ordem da vitrine. O estoque não é exposto: só `available`',
   tag: 'Fidelidade',

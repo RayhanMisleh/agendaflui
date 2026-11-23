@@ -6,9 +6,8 @@ import { DomainError, parse, z } from '../errors'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
-/** Uma linha de uso já somada: chave, conta, rota e hora cheia (UTC). */
+/** Uma linha de uso já somada: conta, rota e hora cheia (UTC). */
 export type UsageRow = {
-  apiKeyId: string
   businessId: string
   route: string
   hour: Date
@@ -22,22 +21,22 @@ const MAX_RANGE_DAYS = 92
 
 /**
  * Grava as linhas por upsert incremental: soma contagens e tempos e sobe o máximo. As linhas entram em ordem fixa
- * (chave, conta, rota, hora) para que duas instâncias gravando ao mesmo tempo não se travem. Tudo numa transação.
+ * (conta, rota, hora) para que duas instâncias gravando ao mesmo tempo não se travem. Tudo numa transação.
  */
 export async function writeUsageRows(rows: UsageRow[]): Promise<void> {
   if (rows.length === 0) return
   const ordem = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
   const ordenadas = [...rows].sort(
     (a, b) =>
-      ordem(a.apiKeyId, b.apiKeyId) || ordem(a.businessId, b.businessId) || ordem(a.route, b.route) || a.hour.getTime() - b.hour.getTime(),
+      ordem(a.businessId, b.businessId) || ordem(a.route, b.route) || a.hour.getTime() - b.hour.getTime(),
   )
   await prisma.$transaction(
     ordenadas.map(
       (r) => prisma.$executeRaw`
-        INSERT INTO api_usage_hourly (api_key_id, business_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
-        VALUES (${r.apiKeyId}::uuid, ${r.businessId}::uuid, ${r.route}, ${r.hour}::timestamptz, ${r.count}::int, ${r.errorCount}::int,
+        INSERT INTO api_usage_hourly (business_id, route, hour, count, error_count, total_ms, max_ms, updated_at)
+        VALUES (${r.businessId}::uuid, ${r.route}, ${r.hour}::timestamptz, ${r.count}::int, ${r.errorCount}::int,
                 ${r.totalMs}::bigint, ${r.maxMs}::int, now())
-        ON CONFLICT (api_key_id, business_id, route, hour) DO UPDATE SET
+        ON CONFLICT (business_id, route, hour) DO UPDATE SET
           count = api_usage_hourly.count + excluded.count,
           error_count = api_usage_hourly.error_count + excluded.error_count,
           total_ms = api_usage_hourly.total_ms + excluded.total_ms,
@@ -50,7 +49,6 @@ export async function writeUsageRows(rows: UsageRow[]): Promise<void> {
 const resumoSchema = z.object({
   from: z.date(),
   to: z.date(),
-  apiKeyId: z.uuid().optional(),
   businessId: z.uuid().optional(),
 })
 
@@ -79,7 +77,7 @@ function resumir(g: { route: string; _sum: { count: number | null; errorCount: n
 /** Uso da API por rota no intervalo (horas cheias de `from` até antes de `to`), no máximo 92 dias. Só admin da plataforma. */
 export async function usageSummary(
   actor: PlatformAdminActor,
-  q: { from: Date; to: Date; apiKeyId?: string; businessId?: string },
+  q: { from: Date; to: Date; businessId?: string },
 ): Promise<RotaResumida[]> {
   if (actor.kind !== 'platform_admin') throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
   const i = parse(resumoSchema, q)
@@ -88,7 +86,6 @@ export async function usageSummary(
     by: ['route'],
     where: {
       hour: { gte: startOfUtcHour(i.from), lt: i.to },
-      ...(i.apiKeyId !== undefined ? { apiKeyId: i.apiKeyId } : {}),
       ...(i.businessId !== undefined ? { businessId: i.businessId } : {}),
     },
     _sum: { count: true, errorCount: true, totalMs: true },
@@ -96,35 +93,4 @@ export async function usageSummary(
     orderBy: { route: 'asc' },
   })
   return grupos.map(resumir)
-}
-
-const LOTE_CHAVES = 500
-const porChaveSchema = z.object({ from: z.date(), to: z.date(), apiKeyIds: z.array(z.uuid()) })
-
-/**
- * Uso por chave e rota no intervalo, de várias chaves de uma vez (um `groupBy` só, em vez de um por chave). Toda chave pedida
- * aparece no resultado, com lista vazia se não teve uso. Mesmo teto de intervalo de `usageSummary`. Só admin da plataforma.
- */
-export async function usageByKey(
-  actor: PlatformAdminActor,
-  q: { from: Date; to: Date; apiKeyIds: string[] },
-): Promise<Map<string, RotaResumida[]>> {
-  if (actor.kind !== 'platform_admin') throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
-  const i = parse(porChaveSchema, q)
-  conferirIntervalo(i.from, i.to)
-  const ids = [...new Set(i.apiKeyIds)]
-  const resultado = new Map<string, RotaResumida[]>(ids.map((id) => [id, []]))
-  if (ids.length === 0) return resultado
-  // Em lotes de até LOTE_CHAVES ids: a consulta não cresce sem limite, e o resultado soma todos os lotes.
-  for (let inicio = 0; inicio < ids.length; inicio += LOTE_CHAVES) {
-    const grupos = await prisma.apiUsageHourly.groupBy({
-      by: ['apiKeyId', 'route'],
-      where: { hour: { gte: startOfUtcHour(i.from), lt: i.to }, apiKeyId: { in: ids.slice(inicio, inicio + LOTE_CHAVES) } },
-      _sum: { count: true, errorCount: true, totalMs: true },
-      _max: { maxMs: true },
-      orderBy: [{ apiKeyId: 'asc' }, { route: 'asc' }],
-    })
-    for (const g of grupos) resultado.get(g.apiKeyId)?.push(resumir(g))
-  }
-  return resultado
 }

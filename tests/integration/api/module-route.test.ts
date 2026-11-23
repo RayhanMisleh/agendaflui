@@ -3,7 +3,7 @@ import { defineRoute } from '@/server/api/define-route'
 import { buildOpenApi, operation } from '@/server/api/openapi'
 import { prisma } from '@/server/db/client'
 import { z } from '@/server/domain/errors'
-import { apiError, apiRequest, callRoute, jsonObject, makeAppKey } from '../../setup/api'
+import { apiError, apiRequest, callRoute, jsonObject } from '../../setup/api'
 import { resetDb } from '../../setup/db'
 import { makeBusiness } from '../../setup/factories'
 
@@ -16,7 +16,7 @@ let chamadas = 0
 const rota = defineRoute({
   method: 'POST',
   path: '/v1/teste/banners',
-  auth: 'key',
+  auth: 'guest',
   module: 'banners',
   summary: 'Rota de um módulo',
   tag: 'teste',
@@ -33,15 +33,14 @@ beforeEach(async () => {
   await resetDb()
 })
 
-async function chamar(slugKey: string, corpo: unknown) {
-  return callRoute(rota, apiRequest('POST', '/v1/teste/banners', { key: slugKey, body: corpo }))
+async function chamar(slug: string, corpo: unknown) {
+  return callRoute(rota, apiRequest('POST', '/v1/teste/banners', { business: slug, body: corpo }))
 }
 
 describe('rota com `module`', () => {
   test('módulo desligado com corpo inválido devolve 404 module_disabled, nunca 422, sem chamar o handler', async () => {
     const conta = await makeBusiness()
-    const { secret } = await makeAppKey(conta.id)
-    const r = await chamar(secret, {})
+    const r = await chamar(conta.slug, {})
     expect(r.status).toBe(404)
     const erro = apiError(r.json)
     expect(erro.code).toBe('module_disabled')
@@ -52,8 +51,7 @@ describe('rota com `module`', () => {
   test('módulo ligado com corpo inválido devolve 422', async () => {
     const conta = await makeBusiness()
     await prisma.businessModules.update({ where: { businessId: conta.id }, data: { banners: true } })
-    const { secret } = await makeAppKey(conta.id)
-    const r = await chamar(secret, {})
+    const r = await chamar(conta.slug, {})
     expect(r.status).toBe(422)
     expect(chamadas).toBe(0)
   })
@@ -61,8 +59,7 @@ describe('rota com `module`', () => {
   test('módulo ligado com corpo válido roda o handler', async () => {
     const conta = await makeBusiness()
     await prisma.businessModules.update({ where: { businessId: conta.id }, data: { banners: true } })
-    const { secret } = await makeAppKey(conta.id)
-    const r = await chamar(secret, { titulo: 'Oi' })
+    const r = await chamar(conta.slug, { titulo: 'Oi' })
     expect(r.status).toBe(200)
     expect(jsonObject(r.json).ok).toBe(true)
     expect(chamadas).toBe(1)
@@ -71,8 +68,7 @@ describe('rota com `module`', () => {
   test('outro módulo ligado não libera a rota', async () => {
     const conta = await makeBusiness()
     await prisma.businessModules.update({ where: { businessId: conta.id }, data: { store: true } })
-    const { secret } = await makeAppKey(conta.id)
-    expect((await chamar(secret, { titulo: 'Oi' })).status).toBe(404)
+    expect((await chamar(conta.slug, { titulo: 'Oi' })).status).toBe(404)
     expect(chamadas).toBe(0)
   })
 

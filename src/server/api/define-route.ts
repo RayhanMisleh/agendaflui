@@ -1,6 +1,8 @@
 import 'server-only'
 import { verifyAccessToken, type AccessClaims } from '@/server/auth/api-tokens'
 import type { RequestInfo, TenantContext } from '@/server/auth/actor'
+import { ApiAuthError } from '@/server/auth/api-auth-error'
+import { resolveApiBusiness, type ApiBusiness } from '@/server/auth/api-business'
 import { clientIp, ipLimitKeyPart } from '@/server/auth/client-ip'
 import { createMemberContext, sessionInvalid } from '@/server/auth/context'
 import { createCustomerContext } from '@/server/auth/customer-context'
@@ -8,11 +10,10 @@ import { createGuestContext } from '@/server/auth/guest-context'
 import { hitRateLimit, LIMITS, limitKey, type LimitRule } from '@/server/auth/rate-limit-db'
 import { DomainError, z } from '@/server/domain/errors'
 import { requireModule } from '@/server/domain/modules'
-import { ApiAuthError, resolveAppKey, type ResolvedKey } from '@/server/domain/platform/api-keys'
 import { env } from '@/server/env'
 import type { ModuleName } from '@/shared/modules'
 import { checkWireContract } from './contract'
-import { corsHeaders, isSyntacticOrigin, originAllowed, preflightHeaders } from './cors'
+import { appWebOrigins, corsHeaders, originAllowed, preflightHeaders } from './cors'
 import { ApiRateLimitError, BodyTooLargeError, buildResponse, errorResponse } from './errors'
 import { requestMeta } from './request-meta'
 import { toJson } from './serialize'
@@ -30,17 +31,17 @@ import { recordUsage } from './usage'
  */
 
 /**
- * `none`: sem chave. `key`: só a chave de app (o handler recebe o contexto de visitante). `customer` e `staff`: chave mais
- * token do tipo. `key_or_customer`: sem `Authorization` é visitante; com `Authorization` o token precisa ser de cliente válido
- * (nunca rebaixa em silêncio para visitante).
+ * Toda rota, menos `none`, é de uma conta (cabeçalho `X-Business`). `none`: pública, sem conta. `guest`: só a conta (o
+ * handler recebe o contexto de visitante). `customer` e `staff`: conta mais token do tipo. `guest_or_customer`: sem
+ * `Authorization` é visitante; com `Authorization` o token precisa ser de cliente válido (nunca rebaixa em silêncio para visitante).
  */
-export type RouteAuth = 'none' | 'key' | 'key_or_customer' | 'customer' | 'staff'
+export type RouteAuth = 'none' | 'guest' | 'guest_or_customer' | 'customer' | 'staff'
 
 /**
- * O que o handler recebe de `ctx` e `key`, por tipo de autenticação. É o ÚNICO lugar que liga o tipo do contexto ao
- * tipo de autenticação: toda rota com chave tem `ctx` (visitante, cliente ou equipe, conforme o caso).
+ * O que o handler recebe de `ctx` e `business`, por tipo de autenticação. É o ÚNICO lugar que liga o tipo do contexto ao
+ * tipo de autenticação: toda rota com conta tem `ctx` (visitante, cliente ou equipe, conforme o caso).
  */
-export type AuthArgs<A extends RouteAuth> = A extends 'none' ? { ctx: null; key: null } : { ctx: TenantContext; key: ResolvedKey }
+export type AuthArgs<A extends RouteAuth> = A extends 'none' ? { ctx: null; business: null } : { ctx: TenantContext; business: ApiBusiness }
 
 /**
  * O que o handler pode devolver para uma resposta de formato `R`: o próprio `R`, mais `Date` onde o fio diz texto
@@ -84,17 +85,17 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
   status?: 200 | 201 | 202 | 204
   /** Outros status de sucesso que o handler pode escolher com `setStatus` (só documentação para o OpenAPI, e a lista que `setStatus` aceita). */
   alternateStatuses?: readonly (200 | 201 | 202)[]
-  /** Limite da rota, além do limite geral por chave e IP. */
+  /** Limite da rota, além do limite geral por IP. */
   limit?: LimitRule
   /**
-   * Com `'subject'`, o limite da rota conta por chave de app e pessoa autenticada (cliente ou vínculo da equipe, não por IP);
+   * Com `'subject'`, o limite da rota conta por pessoa autenticada (cliente ou vínculo da equipe, não por IP);
    * sem pessoa autenticada (visitante), cai no IP. O limite é conferido depois de validar o token.
    */
   limitBy?: 'subject'
   /** Só documentação (OpenAPI): a rota aceita o cabeçalho `Idempotency-Key`, que o handler repassa ao domínio. `'required'`: o cabeçalho é obrigatório (o handler responde 422 sem ele). */
   idempotent?: true | 'required'
   /**
-   * Módulo opcional que a rota exige. Conferido depois de montar o contexto (chave, limites e token) e ANTES de validar
+   * Módulo opcional que a rota exige. Conferido depois de montar o contexto (conta, limites e token) e ANTES de validar
    * `params`, `query` e `body`: módulo desligado devolve 404 `module_disabled`, nunca 422. Exige `auth` diferente de `none`.
    */
   module?: ModuleName
@@ -207,18 +208,18 @@ function bearerToken(request: Request): string | null {
 }
 
 const origemNegada = (): ApiAuthError =>
-  new ApiAuthError('forbidden', 'origin_not_allowed', 'Esta origem não pode usar a API. Peça ao suporte para liberá-la na chave do app.')
+  new ApiAuthError('forbidden', 'origin_not_allowed', 'Esta origem não pode usar a API. Use o app oficial da AgendaFlui.')
 
 /**
- * Responde o pré-voo CORS (`OPTIONS`). O navegador não manda `X-App-Key` no pré-voo, então ele não resolve a chave:
- * qualquer origem http(s) bem formada recebe os cabeçalhos (o pré-voo não libera dado nenhum). A checagem de verdade
- * da origem acontece na requisição real, que traz a chave. Cada `route.ts` faz `export const OPTIONS = preflight`.
+ * Responde o pré-voo CORS (`OPTIONS`). Só as origens do app web (`APP_WEB_ORIGINS`, e localhost fora de produção) recebem
+ * os cabeçalhos; outra origem recebe 403. Sem `Origin` (não é navegador), 204 sem CORS. Cada `route.ts` faz
+ * `export const OPTIONS = preflight`.
  */
 export async function preflight(request: Request): Promise<Response> {
   const requestId = crypto.randomUUID()
   const origin = request.headers.get('origin')
   if (origin === null) return buildResponse(204, null, requestId)
-  if (!isSyntacticOrigin(origin)) {
+  if (!originAllowed(origin, appWebOrigins())) {
     const negada = errorResponse(origemNegada(), request, { requestId, route: '(pré-voo)' })
     negada.headers.set('vary', 'Origin')
     return negada
@@ -227,16 +228,16 @@ export async function preflight(request: Request): Promise<Response> {
 }
 
 /**
- * Lê as declarações do token de acesso. Rotas `customer` e `staff` exigem token; `key_or_customer` aceita a ausência do
- * cabeçalho `Authorization` (visitante) mas nunca um token ruim; `key` ignora o cabeçalho. Token ausente, inválido,
+ * Lê as declarações do token de acesso. Rotas `customer` e `staff` exigem token; `guest_or_customer` aceita a ausência do
+ * cabeçalho `Authorization` (visitante) mas nunca um token ruim; `guest` ignora o cabeçalho. Token ausente, inválido,
  * vencido ou de outra conta: a mesma resposta 401 nos três casos.
  */
-async function readClaims(def: AnyRouteDef, request: Request, key: ResolvedKey, now: Date): Promise<AccessClaims | null> {
-  if (def.auth === 'none' || def.auth === 'key') return null
-  if (def.auth === 'key_or_customer' && !request.headers.has('authorization')) return null
+async function readClaims(def: AnyRouteDef, request: Request, business: ApiBusiness, now: Date): Promise<AccessClaims | null> {
+  if (def.auth === 'none' || def.auth === 'guest') return null
+  if (def.auth === 'guest_or_customer' && !request.headers.has('authorization')) return null
   const token = bearerToken(request)
   const claims = token === null ? null : await verifyAccessToken(token, now)
-  if (!claims || claims.businessId !== key.businessId) throw sessionInvalid()
+  if (!claims || claims.businessId !== business.id) throw sessionInvalid()
   const esperado = def.auth === 'staff' ? 'staff' : 'customer'
   if (claims.kind !== esperado) {
     throw new ApiAuthError('forbidden', 'wrong_token_kind', 'Este endereço não aceita este tipo de login. Entre com a conta certa.')
@@ -244,49 +245,42 @@ async function readClaims(def: AnyRouteDef, request: Request, key: ResolvedKey, 
   return claims
 }
 
-async function buildContext(key: ResolvedKey, claims: AccessClaims | null, info: RequestInfo): Promise<TenantContext> {
-  if (claims === null) return createGuestContext({ businessId: key.businessId, timeZone: key.timeZone, request: info })
+async function buildContext(business: ApiBusiness, claims: AccessClaims | null, info: RequestInfo): Promise<TenantContext> {
+  if (claims === null) return createGuestContext({ businessId: business.id, timeZone: business.timeZone, request: info })
   if (claims.kind === 'customer') {
-    return createCustomerContext({ businessId: key.businessId, customerId: claims.customerId, request: info })
+    return createCustomerContext({ businessId: business.id, customerId: claims.customerId, request: info })
   }
   return createMemberContext({
-    businessId: key.businessId,
+    businessId: business.id,
     membershipId: claims.membershipId,
     userId: claims.userId,
     request: info,
   })
 }
 
-/** Conta uma tentativa com chave inválida por IP (só depois de constatar que a chave é inválida). Sem IP, não conta. */
-async function countInvalidKey(request: Request, now: Date): Promise<void> {
+/** Quem conta no limite por IP: o IP (ou o /64 do IPv6); sem IP conhecido, um balde único. */
+function ipOf(request: Request): string {
   const ip = clientIp(request.headers, env.TRUSTED_PROXY_HOPS)
-  if (ip === null) return
-  const r = await hitRateLimit(limitKey('api-chave-invalida', ipLimitKeyPart(ip)), LIMITS.invalidKeyIp, now)
-  if (!r.allowed) throw new ApiRateLimitError(r.retryAfterSec)
+  return ip === null ? 'sem-ip' : ipLimitKeyPart(ip)
 }
 
-function whoIs(request: Request, key: ResolvedKey): string {
-  const ip = clientIp(request.headers, env.TRUSTED_PROXY_HOPS)
-  return `${key.apiKeyId}:${ip === null ? 'sem-ip' : ipLimitKeyPart(ip)}`
-}
-
-/** Limite geral por chave e IP: conferido antes de qualquer outro trabalho. */
-async function enforceGeneralLimit(request: Request, key: ResolvedKey, now: Date): Promise<void> {
-  const geral = await hitRateLimit(limitKey('api', whoIs(request, key)), LIMITS.apiKeyIp, now)
+/** Limite geral por IP: conferido antes de qualquer outro trabalho (inclusive de procurar a conta). */
+async function enforceGeneralLimit(request: Request, now: Date): Promise<void> {
+  const geral = await hitRateLimit(limitKey('api', ipOf(request)), LIMITS.apiIp, now)
   if (!geral.allowed) throw new ApiRateLimitError(geral.retryAfterSec)
 }
 
-/** Limite da rota: por chave e IP, ou (com `limitBy: 'subject'` e pessoa autenticada) por chave e cliente ou vínculo da equipe. */
-async function enforceRouteLimit(def: AnyRouteDef, request: Request, key: ResolvedKey, claims: AccessClaims | null, now: Date): Promise<void> {
+/** Limite da rota: por IP, ou (com `limitBy: 'subject'` e pessoa autenticada) por cliente ou vínculo da equipe. */
+async function enforceRouteLimit(def: AnyRouteDef, request: Request, claims: AccessClaims | null, now: Date): Promise<void> {
   if (!def.limit) return
   const subject = claims === null ? null : claims.kind === 'customer' ? claims.customerId : claims.membershipId
-  const quem = def.limitBy === 'subject' && subject !== null ? `${key.apiKeyId}:${subject}` : whoIs(request, key)
+  const quem = def.limitBy === 'subject' && subject !== null ? subject : ipOf(request)
   const rota = await hitRateLimit(limitKey('api-rota', `${def.method} ${def.path}:${quem}`), def.limit, now)
   if (!rota.allowed) throw new ApiRateLimitError(rota.retryAfterSec)
 }
 
 /**
- * Cria o handler de uma rota: chave de app, CORS, limites, token, validação, domínio, serialização e erros padronizados,
+ * Cria o handler de uma rota: CORS, limites, conta, token, validação, domínio, serialização e erros padronizados,
  * nessa ordem. A definição vai anexada ao handler devolvido (`.definition`): o manifesto de rotas (`routes-manifest.ts`)
  * lê dela para montar o documento OpenAPI, sem depender de quais rotas o Next já carregou.
  */
@@ -296,19 +290,19 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
     throw new Error(`${def.method} ${def.path}: "cache" só vale para rota sem autenticação (auth: 'none'), porque a resposta é guardada por caches compartilhados.`)
   }
   if (def.module !== undefined && def.auth === 'none') {
-    throw new Error(`${def.method} ${def.path}: "module" exige uma rota com chave de app (auth diferente de 'none').`)
+    throw new Error(`${def.method} ${def.path}: "module" exige uma rota com conta (auth diferente de 'none').`)
   }
   const bodySchema = strictRoot(def.body)
   const querySchema = strictRoot(def.query)
   const status = def.status ?? 200
   const handle = def.handler as unknown as (c: Record<string, unknown>) => Promise<unknown>
 
-  /** Registra o uso depois de a resposta estar pronta: só com chave válida, e nenhuma falha aqui muda a resposta. */
-  const track = (key: ResolvedKey | null, status: number, started: number): void => {
-    if (key === null) return
+  /** Registra o uso depois de a resposta estar pronta: só com conta resolvida, e nenhuma falha aqui muda a resposta. */
+  const track = (business: ApiBusiness | null, status: number, started: number): void => {
+    if (business === null) return
     try {
       const erro = status >= 500 || (status >= 400 && ![401, 404, 409, 422, 429].includes(status))
-      recordUsage({ apiKeyId: key.apiKeyId, businessId: key.businessId, route: `${def.method} ${def.path}`, ms: performance.now() - started, error: erro, at: new Date() })
+      recordUsage({ businessId: business.id, route: `${def.method} ${def.path}`, ms: performance.now() - started, error: erro, at: new Date() })
     } catch {
       // Métrica nunca muda a resposta.
     }
@@ -316,13 +310,13 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
 
   const handler: RouteHandler = async (request, seg) => {
     const started = performance.now()
-    const holder: { key: ResolvedKey | null } = { key: null }
+    const holder: { business: ApiBusiness | null } = { business: null }
     const res = await respond(request, seg, holder)
-    track(holder.key, res.status, started)
+    track(holder.business, res.status, started)
     return res
   }
 
-  const respond = async (request: Request, seg: Parameters<RouteHandler>[1], holder: { key: ResolvedKey | null }): Promise<Response> => {
+  const respond = async (request: Request, seg: Parameters<RouteHandler>[1], holder: { business: ApiBusiness | null }): Promise<Response> => {
     const requestId = crypto.randomUUID()
     let cors: Record<string, string> = {}
     const finish = (res: Response): Response => {
@@ -332,38 +326,26 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
     try {
       const now = new Date()
       const origin = request.headers.get('origin')
-      // A resposta depende da origem mesmo quando a origem é recusada.
-      if (origin !== null) cors = { vary: 'Origin' }
-      let key: ResolvedKey | null = null
-      if (def.auth === 'none') {
-        // Sem chave não há o que conferir: só origem bem formada recebe CORS (health e openapi não expõem dado de conta).
-        if (origin !== null) {
-          if (!isSyntacticOrigin(origin)) throw origemNegada()
-          cors = corsHeaders(origin)
-        }
-      } else {
-        try {
-          key = await resolveAppKey({ key: request.headers.get('x-app-key'), businessSlug: request.headers.get('x-business'), now })
-        } catch (e) {
-          if (e instanceof ApiAuthError && e.reason === 'invalid_app_key') await countInvalidKey(request, now)
-          throw e
-        }
-        if (origin !== null) {
-          if (!originAllowed(origin, key.allowedOrigins)) throw origemNegada()
-          cors = corsHeaders(origin)
-        }
-        holder.key = key
-        await enforceGeneralLimit(request, key, now)
+      // A resposta depende da origem mesmo quando a origem é recusada. Sem `Origin` (app nativo, servidor), não há CORS.
+      if (origin !== null) {
+        cors = { vary: 'Origin' }
+        if (originAllowed(origin, appWebOrigins())) cors = corsHeaders(origin)
+        // Rota pública responde a qualquer um, só sem CORS para origem de fora; rota de conta recusa a origem de fora.
+        else if (def.auth !== 'none') throw origemNegada()
       }
 
       const info: RequestInfo = requestMeta(request)
+      let business: ApiBusiness | null = null
       let ctx: TenantContext | null = null
       let claims: AccessClaims | null = null
-      if (key !== null) {
-        if (def.limitBy !== 'subject') await enforceRouteLimit(any, request, key, null, now)
-        claims = await readClaims(any, request, key, now)
-        if (def.limitBy === 'subject') await enforceRouteLimit(any, request, key, claims, now)
-        ctx = await buildContext(key, claims, info)
+      if (def.auth !== 'none') {
+        await enforceGeneralLimit(request, now)
+        business = await resolveApiBusiness(request.headers.get('x-business'))
+        holder.business = business
+        if (def.limitBy !== 'subject') await enforceRouteLimit(any, request, null, now)
+        claims = await readClaims(any, request, business, now)
+        if (def.limitBy === 'subject') await enforceRouteLimit(any, request, claims, now)
+        ctx = await buildContext(business, claims, info)
         if (def.module !== undefined) await requireModule(ctx, def.module)
       }
 
@@ -386,7 +368,7 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
         }
         finalStatus = novo
       }
-      const result = await handle({ ctx, key, params, query, body, request, now, setStatus })
+      const result = await handle({ ctx, business, params, query, body, request, now, setStatus })
       if (status === 204) return finish(buildResponse(204, null, requestId))
       const json = toJson(result)
       if (env.NODE_ENV !== 'production') {

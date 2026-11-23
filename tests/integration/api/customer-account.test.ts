@@ -15,7 +15,7 @@ import { hashPassword, verifyPassword } from '@/server/auth/password'
 import { prisma } from '@/server/db/client'
 import { confirmRegistration, requestRegistration } from '@/server/domain/customers/account'
 import { addMinutes } from '@/server/time'
-import { apiError, apiRequest, callRoute, flushAfter, jsonObject, makeAppKey, pendingAfter } from '../../setup/api'
+import { apiError, apiRequest, callRoute, flushAfter, jsonObject, pendingAfter } from '../../setup/api'
 import { resetDb } from '../../setup/db'
 import { makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService } from '../../setup/factories'
 import { fakeMail } from '../../setup/mail'
@@ -38,18 +38,17 @@ const outroIp = (): string => {
   return `198.51.${(contadorIp >> 8) & 255}.${contadorIp & 255}`
 }
 
-type Conta = { id: string; key: string; nome: string }
+type Conta = { id: string; slug: string; nome: string }
 
 async function novaConta(nome = 'Barbearia Ouro & Cia'): Promise<Conta> {
   const business = await makeBusiness()
   await prisma.businessBranding.update({ where: { businessId: business.id }, data: { displayName: nome, primaryColor: '#8A2BE2' } })
-  const { secret } = await makeAppKey(business.id)
-  return { id: business.id, key: secret, nome }
+  return { id: business.id, slug: business.slug, nome }
 }
 
 /** Chama a rota e, a menos que `flush` seja falso, executa o trabalho que ela adiou para depois da resposta. */
 async function chamar(handler: RouteHandler, caminho: string, conta: Conta, body: unknown, ip: string = outroIp(), flush = true) {
-  const r = await callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { key: conta.key, body, headers: { 'x-forwarded-for': ip } }))
+  const r = await callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { business: conta.slug, body, headers: { 'x-forwarded-for': ip } }))
   if (flush) await flushAfter()
   return r
 }

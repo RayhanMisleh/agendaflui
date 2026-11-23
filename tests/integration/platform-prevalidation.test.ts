@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
-import { validateApiKeyName } from '@/server/domain/platform/api-keys'
 import { listBusinesses, validateNewBusiness } from '@/server/domain/platform/businesses'
 import { validateAccountSetup } from '@/server/domain/platform/customization'
 import { resetDb } from '../setup/db'
@@ -48,19 +47,13 @@ describe('validateAccountSetup usa os mesmos esquemas das funções de escrita',
   })
 })
 
-describe('validateNewBusiness e validateApiKeyName', () => {
+describe('validateNewBusiness', () => {
   const novo = { name: 'Pata Viva', slug: 'pata-viva', timeZone: 'America/Sao_Paulo', owner: { name: 'Marina', email: 'marina@exemplo.test' } }
 
   test('dados válidos não têm erro; slug, fuso e e-mail do dono ruins aparecem nos campos', () => {
     expect(validateNewBusiness(novo)).toEqual({})
     const e = validateNewBusiness({ ...novo, slug: 'A', timeZone: 'Marte/Olympus', owner: { name: '', email: 'sem-arroba' } })
     expect(Object.keys(e).sort()).toEqual(['owner.email', 'owner.name', 'slug', 'timeZone'])
-  })
-
-  test('nome da chave: de 1 a 80 caracteres', () => {
-    expect(validateApiKeyName('App Pata Viva')).toBeNull()
-    expect(validateApiKeyName('   ')).toMatch(/nome/i)
-    expect(validateApiKeyName('x'.repeat(81))).toMatch(/80/)
   })
 })
 

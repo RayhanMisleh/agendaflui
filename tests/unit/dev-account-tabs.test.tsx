@@ -5,7 +5,6 @@ const nav = vi.hoisted(() => ({ pathname: '/contas/abc' }))
 vi.mock('next/navigation', () => ({ usePathname: () => nav.pathname }))
 
 import { NavTabs } from '@/ui/components/NavTabs'
-import { SecretBox } from '@/ui/components/SecretBox'
 import { ACCOUNT_TABS, accountTabs } from '@/app/dev/(app)/contas/[id]/tabs'
 
 test('as abas da conta são links por URL e a aba da rota atual leva aria-current', () => {
@@ -29,13 +28,6 @@ test('o resumo só fica ativo na rota exata da conta, não nas subrotas', () => 
   expect(screen.getByRole('link', { name: 'Marca' })).toHaveAttribute('aria-current', 'page')
 })
 
-test('a aba Integrações vem logo depois de Chaves', () => {
-  expect(ACCOUNT_TABS.map((t) => t.label)).toEqual(['Resumo', 'Marca', 'Termos', 'Módulos', 'Regras', 'Equipe', 'Chaves', 'Integrações', 'Auditoria'])
-})
-
-test('o segredo aparece numa caixa com aviso de "uma vez" e com botão de copiar', () => {
-  render(<SecretBox name="App Pata" secret="afk_a_exemplo" />)
-  expect(screen.getByText('afk_a_exemplo')).toBeInTheDocument()
-  expect(screen.getByText(/não será mostrada de novo/)).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: /Copiar/ })).toBeInTheDocument()
+test('as abas da conta não têm mais a aba Chaves; Integrações vem depois de Equipe', () => {
+  expect(ACCOUNT_TABS.map((t) => t.label)).toEqual(['Resumo', 'Marca', 'Termos', 'Módulos', 'Regras', 'Equipe', 'Integrações', 'Auditoria'])
 })

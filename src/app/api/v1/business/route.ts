@@ -5,11 +5,11 @@ import { getPublicBusiness } from '@/server/domain/platform/public-business'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/business',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Dados públicos da conta: nome, marca, termos, módulos e regras de agenda',
   tag: 'Conta',
   response: businessSchema,
-  handler: async ({ key }) => getPublicBusiness(key.businessId),
+  handler: async ({ business }) => getPublicBusiness(business.id),
 })
 
 export const OPTIONS = preflight

@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { verifyPassword } from '@/server/auth/password'
 import { generateToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
-import { createApiKey } from '@/server/domain/platform/api-keys'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makeCustomer, makePlatformAdmin } from '../setup/factories'
@@ -12,7 +11,6 @@ vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import { criarAdmin, desativarAdmin, reativarAdmin } from '@/app/dev/(app)/admins/actions'
-import { criarChavePlataforma, revogarChave } from '@/app/dev/(app)/chaves/actions'
 import { salvarPerfil, trocarSenha } from '@/app/dev/(app)/perfil/actions'
 import { tentarDeNovo } from '@/app/dev/(app)/sistema/actions'
 import type { FormState } from '@/app/_lib/form-state'
@@ -40,52 +38,8 @@ afterEach(() => {
 describe('toda ação confere o admin antes de agir', () => {
   test('sem sessão válida a ação não chega a gravar nada', async () => {
     guards.requirePlatformAdmin.mockRejectedValue(new Error('NEXT_REDIRECT'))
-    await expect(criarChavePlataforma(ini, form({ name: 'Painel externo', origins: '' }))).rejects.toThrow('NEXT_REDIRECT')
     await expect(criarAdmin(ini, form({ name: 'Ana', email: 'ana@exemplo.test', senha: 'uma-senha-bem-longa' }))).rejects.toThrow('NEXT_REDIRECT')
-    expect(await prisma.apiKey.count()).toBe(0)
     expect(await prisma.platformAdmin.count()).toBe(1)
-  })
-})
-
-describe('chaves de plataforma', () => {
-  test('criar devolve o segredo uma vez, audita sem o segredo e não o guarda em claro', async () => {
-    const r = await criarChavePlataforma(ini, form({ name: 'Painel externo', origins: 'https://app.exemplo.com\n' }))
-    expect(r.ok).toBe(true)
-    expect(r.values.secret).toMatch(/^afk_p_/)
-    const chave = await prisma.apiKey.findFirstOrThrow()
-    expect(chave.kind).toBe('PLATFORM')
-    expect(chave.businessId).toBeNull()
-    expect(chave.allowedOrigins).toEqual(['https://app.exemplo.com'])
-    const auditoria = JSON.stringify(await prisma.auditLog.findMany({ where: { action: 'api_key.created' } }))
-    expect(auditoria).not.toContain(r.values.secret)
-    expect(JSON.stringify(chave)).not.toContain(r.values.secret)
-  })
-
-  test('nome vazio volta como erro do campo, com o que foi digitado', async () => {
-    const r = await criarChavePlataforma(ini, form({ name: '   ', origins: 'https://a.exemplo.com' }))
-    expect(r.ok).toBe(false)
-    expect(r.fields.name).toBeTruthy()
-    expect(r.values.origins).toBe('https://a.exemplo.com')
-    expect(await prisma.apiKey.count()).toBe(0)
-  })
-
-  test('revogar pede o nome exato: sem ele nada muda; com ele revoga e audita', async () => {
-    const { key } = await createApiKey({ kind: 'platform_admin', adminId: eu.id, name: eu.name }, { kind: 'PLATFORM', name: 'Painel externo' })
-    const errada = await revogarChave(key.id, ini, form({ confirmName: 'outro nome' }))
-    expect(errada.ok).toBe(false)
-    expect(errada.fields.confirmName).toBeTruthy()
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })).revokedAt).toBeNull()
-
-    const certa = await revogarChave(key.id, ini, form({ confirmName: 'Painel externo' }))
-    expect(certa.ok).toBe(true)
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })).revokedAt).not.toBeNull()
-    expect(await prisma.auditLog.count({ where: { action: 'api_key.revoked', targetId: key.id, actorId: eu.id } })).toBe(1)
-  })
-
-  test('id de chave que não existe devolve mensagem, não erro 500', async () => {
-    const r = await revogarChave('00000000-0000-4000-8000-000000000000', ini, form({ confirmName: 'x' }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toMatch(/não encontrada/i)
   })
 })
 

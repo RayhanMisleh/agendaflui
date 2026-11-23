@@ -16,7 +16,7 @@ export type OpenApiDocument = Json
 const TOKEN_KINDS = 'o token de acesso de um cliente (rotas /v1/auth/customer e /v1/me) ou da equipe (/v1/auth/staff e /v1/staff)'
 
 const ERROR_RESPONSES: Record<string, { name: string; description: string }> = {
-  '401': { name: 'Unauthorized', description: 'Chave do app inválida, token ausente, inválido ou vencido, ou sessão encerrada.' },
+  '401': { name: 'Unauthorized', description: 'Conta não encontrada (`unknown_business`), token ausente, inválido ou vencido, ou sessão encerrada.' },
   '403': { name: 'Forbidden', description: 'Sem permissão: origem não liberada, tipo de token errado ou papel sem acesso.' },
   '404': { name: 'NotFound', description: 'O registro não existe nesta conta (ou o módulo da rota está desligado: `error.code` é `module_disabled`).' },
   '409': { name: 'Conflict', description: 'A regra de negócio impede a ação agora: veja `error.reason`.' },
@@ -61,9 +61,8 @@ function parameters(schema: z.ZodType | undefined, where: 'path' | 'query'): Jso
 const BUSINESS_HEADER: Json = {
   name: 'X-Business',
   in: 'header',
-  required: false,
-  description:
-    'Endereço (slug) da conta. Obrigatório com a chave de plataforma; com a chave de uma conta, se enviado, precisa ser a mesma conta.',
+  required: true,
+  description: 'Endereço (slug) da conta. Ausente ou de conta que não existe: 401 `unknown_business`.',
   schema: { type: 'string' },
 }
 
@@ -79,23 +78,22 @@ const IDEMPOTENCY_HEADER: Json = {
 function security(auth: AnyRouteDef['auth']): Json[] {
   switch (auth) {
     case 'none':
+    case 'guest':
       return []
-    case 'key':
-      return [{ AppKey: [] }]
-    case 'key_or_customer':
-      return [{ AppKey: [] }, { AppKey: [], Bearer: [] }]
+    case 'guest_or_customer':
+      return [{}, { Bearer: [] }]
     case 'customer':
     case 'staff':
-      return [{ AppKey: [], Bearer: [] }]
+      return [{ Bearer: [] }]
   }
 }
 
 const AUTH_TEXT: Record<AnyRouteDef['auth'], string> = {
-  none: 'Não exige chave nem token.',
-  key: 'Exige a chave do app (X-App-Key).',
-  key_or_customer: 'Exige a chave do app. Com o token de um cliente (Authorization: Bearer) vale o que é do cliente; sem token, é visitante.',
-  customer: 'Exige a chave do app e o token de acesso de um cliente.',
-  staff: 'Exige a chave do app e o token de acesso da equipe.',
+  none: 'Pública: não exige conta nem token.',
+  guest: 'Exige a conta (X-Business), sem token.',
+  guest_or_customer: 'Exige a conta (X-Business). Com o token de um cliente (Authorization: Bearer) vale o que é do cliente; sem token, é visitante.',
+  customer: 'Exige a conta (X-Business) e o token de acesso de um cliente.',
+  staff: 'Exige a conta (X-Business) e o token de acesso da equipe.',
 }
 
 /** `getStaffAppointmentsByIdNoShow`: método em minúsculas, mais cada trecho do caminho em maiúscula inicial (`{id}` vira `ById`). */
@@ -204,7 +202,8 @@ function build(serverUrl: string): OpenApiDocument {
       version: '1.0.0',
       description: [
         'API do aplicativo (clientes e equipe) de uma conta do AgendaFlui.',
-        'Toda rota, menos a de saúde e este documento, exige a chave do app no cabeçalho X-App-Key.',
+        'É a API dos apps próprios do AgendaFlui (web, iOS e Android); não há chave de API. Toda rota, menos a de saúde e este documento, exige a conta no cabeçalho X-Business.',
+        'No navegador, só as origens do app web podem chamar a API (CORS).',
         `As rotas de cliente e de equipe também exigem Authorization: Bearer com ${TOKEN_KINDS}.`,
         'Instantes saem em ISO 8601 UTC (com Z) e vêm sempre com os rótulos locais da conta prontos: o app não faz conta de fuso.',
         'Todo erro tem o formato { "error": { "code", "reason?", "message", "fields?", "details?" } }.',
@@ -215,7 +214,6 @@ function build(serverUrl: string): OpenApiDocument {
     paths,
     components: {
       securitySchemes: {
-        AppKey: { type: 'apiKey', in: 'header', name: 'X-App-Key', description: 'Chave do aplicativo, criada pelo suporte para a conta.' },
         Bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Token de acesso curto, obtido em /v1/auth/customer/login ou /v1/auth/staff/login e renovado pelo refresh.' },
       },
       schemas: { ErrorResponse: errorSchema },

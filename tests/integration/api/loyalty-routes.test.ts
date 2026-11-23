@@ -30,9 +30,9 @@ beforeEach(async () => {
 })
 
 const get = (h: Parameters<typeof callRoute>[0], path: string, token?: string) =>
-  callRoute(h, apiRequest('GET', path, { key: c.key, ...(token ? { token } : {}) }))
+  callRoute(h, apiRequest('GET', path, { business: c.business.slug, ...(token ? { token } : {}) }))
 const post = (h: Parameters<typeof callRoute>[0], path: string, body: unknown, o: { token?: string; headers?: Record<string, string>; params?: Record<string, string> } = {}) =>
-  callRoute(h, apiRequest('POST', path, { key: c.key, ...(o.token ? { token: o.token } : {}), body, ...(o.headers ? { headers: o.headers } : {}) }), o.params ?? {})
+  callRoute(h, apiRequest('POST', path, { business: c.business.slug, ...(o.token ? { token: o.token } : {}), body, ...(o.headers ? { headers: o.headers } : {}) }), o.params ?? {})
 
 describe('módulo desligado', () => {
   test('todas as rotas respondem 404 module_disabled, antes de validar o corpo', async () => {
@@ -143,7 +143,7 @@ describe('POST /v1/loyalty/redemptions', () => {
     const outra = await montarCena()
     await prisma.businessModules.update({ where: { businessId: outra.business.id }, data: { loyalty: true } })
     await lancar(outra.business.id, outra.cliente.id, 1000)
-    const r = await callRoute(resgatar, apiRequest('POST', '/v1/loyalty/redemptions', { key: outra.key, token: outra.tokenCliente, body: { prizeId: premio.id } }))
+    const r = await callRoute(resgatar, apiRequest('POST', '/v1/loyalty/redemptions', { business: outra.business.slug, token: outra.tokenCliente, body: { prizeId: premio.id } }))
     expect(r.status).toBe(404)
     expect(await saldoNoBanco(outra.business.id, outra.cliente.id)).toBe(1000)
   })

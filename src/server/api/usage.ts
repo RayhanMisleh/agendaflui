@@ -4,7 +4,7 @@ import { startOfUtcHour } from '@/server/time'
 
 export { usageSummary } from '@/server/domain/platform/api-usage'
 
-/** Teto de combinações (chave, conta, rota, hora) distintas por lote: acima disso, as novas são descartadas até o próximo envio. */
+/** Teto de combinações (conta, rota, hora) distintas por lote: acima disso, as novas são descartadas até o próximo envio. */
 export const MAX_PENDING_USAGE = 5000
 
 type UsageState = { pending: Map<string, UsageRow>; capWarned: boolean }
@@ -28,13 +28,13 @@ function logFailure(event: string, err: unknown): void {
 
 /**
  * Soma o uso de uma requisição na memória. Nunca lança nem toca o banco: o `flushUsage` grava depois.
- * A linha é por (chave, conta, rota, hora): uma chave de plataforma que atende duas contas gera duas linhas.
+ * A linha é por (conta, rota, hora).
  */
-export function recordUsage(e: { apiKeyId: string; businessId: string; route: string; ms: number; error: boolean; at: Date }): void {
+export function recordUsage(e: { businessId: string; route: string; ms: number; error: boolean; at: Date }): void {
   try {
     const st = state()
     const hour = startOfUtcHour(e.at)
-    const k = `${e.apiKeyId}|${e.businessId}|${hour.getTime()}|${e.route}`
+    const k = `${e.businessId}|${hour.getTime()}|${e.route}`
     const ms = Number.isFinite(e.ms) ? Math.max(0, Math.round(e.ms)) : 0
     const atual = st.pending.get(k)
     if (atual === undefined) {
@@ -45,7 +45,7 @@ export function recordUsage(e: { apiKeyId: string; businessId: string; route: st
         }
         return
       }
-      st.pending.set(k, { apiKeyId: e.apiKeyId, businessId: e.businessId, route: e.route, hour, count: 1, errorCount: e.error ? 1 : 0, totalMs: ms, maxMs: ms })
+      st.pending.set(k, { businessId: e.businessId, route: e.route, hour, count: 1, errorCount: e.error ? 1 : 0, totalMs: ms, maxMs: ms })
       return
     }
     atual.count += 1

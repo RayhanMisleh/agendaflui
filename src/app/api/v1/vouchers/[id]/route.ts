@@ -6,7 +6,7 @@ import { getPublicVoucher } from '@/server/domain/vouchers/vouchers'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/vouchers/{id}',
-  auth: 'key',
+  auth: 'guest',
   module: 'vouchers',
   summary: 'Um voucher à venda. Inativo, arquivado, de parceiro parado ou de outra conta: 404',
   tag: 'Vouchers',

@@ -9,15 +9,15 @@ import { z } from '@/server/domain/errors'
 export const POST = defineRoute({
   method: 'POST',
   path: '/v1/auth/customer/register',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Pede o cadastro de um cliente e envia o código de confirmação por e-mail',
   tag: 'Conta do cliente',
   body: z.object({ name: credentialText, email: credentialText, phone: credentialText.nullable().optional(), password: credentialText }),
   response: verificationSentSchema,
   status: 202,
   limit: LIMITS.authIp,
-  handler: async ({ key, body, request, now }) => {
-    runAfterResponse(await requestRegistration(key.businessId, body, requestMeta(request), now))
+  handler: async ({ business, body, request, now }) => {
+    runAfterResponse(await requestRegistration(business.id, body, requestMeta(request), now))
     return { status: 'verification_sent' as const }
   },
 })

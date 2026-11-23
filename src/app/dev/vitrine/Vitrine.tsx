@@ -27,7 +27,6 @@ import {
   NavTabs,
   Pagination,
   SearchBar,
-  SecretBox,
   Select,
   SidebarStylePicker,
   Skeleton,
@@ -317,7 +316,6 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
             <EmptyState title="Nenhum cliente ainda" description="Cadastre o primeiro para marcar o primeiro banho." action={<Button variant="primary">Novo cliente</Button>} />
             <FormErrors message="Corrija os campos abaixo para continuar." fields={{ nome: 'Informe o nome.', whatsapp: 'Use o DDD e o número.' }} labels={{ nome: 'Nome do pet shop', whatsapp: 'WhatsApp' }} anchors={{ nome: 'vt-nome' }} />
             <Skeleton lines={3} />
-            <SecretBox name="Chave do aplicativo" secret="afk_live_3f9a1c7d52b84e60a1d7c9e4" />
             <div className="vt-row">
               <Avatar name="Marina Lopes" size="sm" />
               <Avatar name="Marina Lopes" />

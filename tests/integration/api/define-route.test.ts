@@ -1,13 +1,14 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { GET as healthGet } from '@/app/api/v1/health/route'
 import { defineRoute, preflight } from '@/server/api/define-route'
+import { webOriginsFromEnv } from '@/server/api/cors'
 import { isoInstant, uuid } from '@/server/api/wire'
 import { signAccessToken } from '@/server/auth/api-tokens'
 import type { Business, Customer } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import { DomainError, z } from '@/server/domain/errors'
 import { addMinutes } from '@/server/time'
-import { apiError, apiRequest, callRoute, customerToken, jsonObject, makeAppKey, staffToken } from '../../setup/api'
+import { apiError, apiRequest, callRoute, customerToken, jsonObject, staffToken } from '../../setup/api'
 import { resetDb } from '../../setup/db'
 import { makeBusiness, makeCustomer, makeMembership, makeUser } from '../../setup/factories'
 
@@ -25,18 +26,18 @@ const publica = defineRoute({
   auth: 'none',
   summary: 'Rota pública',
   tag: 'teste',
-  response: z.object({ ok: z.literal(true), temChave: z.boolean(), temContexto: z.boolean() }),
-  handler: async ({ ctx, key }) => {
+  response: z.object({ ok: z.literal(true), temConta: z.boolean(), temContexto: z.boolean() }),
+  handler: async ({ ctx, business }) => {
     chamadas += 1
-    return { ok: true as const, temChave: key !== null, temContexto: ctx !== null }
+    return { ok: true as const, temConta: business !== null, temContexto: ctx !== null }
   },
 })
 
-const porChave = defineRoute({
+const porConta = defineRoute({
   method: 'GET',
-  path: '/v1/teste/chave',
-  auth: 'key',
-  summary: 'Rota só com chave',
+  path: '/v1/teste/conta',
+  auth: 'guest',
+  summary: 'Rota só com conta',
   tag: 'teste',
   response: z.object({
     businessId: z.string(),
@@ -47,12 +48,12 @@ const porChave = defineRoute({
     ctxTimeZone: z.string(),
     ctxBusinessId: z.string(),
   }),
-  handler: async ({ ctx, key }) => {
+  handler: async ({ ctx, business }) => {
     chamadas += 1
     return {
-      businessId: key.businessId,
-      slug: key.businessSlug,
-      timeZone: key.timeZone,
+      businessId: business.id,
+      slug: business.slug,
+      timeZone: business.timeZone,
       ator: ctx.actor.kind,
       canal: ctx.channel,
       ctxTimeZone: ctx.timeZone,
@@ -61,10 +62,10 @@ const porChave = defineRoute({
   },
 })
 
-const chaveOuCliente = defineRoute({
+const visitanteOuCliente = defineRoute({
   method: 'GET',
-  path: '/v1/teste/chave-ou-cliente',
-  auth: 'key_or_customer',
+  path: '/v1/teste/visitante-ou-cliente',
+  auth: 'guest_or_customer',
   summary: 'Visitante ou cliente',
   tag: 'teste',
   response: z.object({ ator: z.string(), clienteId: z.string().nullable(), canal: z.string() }),
@@ -77,7 +78,7 @@ const chaveOuCliente = defineRoute({
 const statusNaoDeclarado = defineRoute({
   method: 'POST',
   path: '/v1/teste/status-nao-declarado',
-  auth: 'key',
+  auth: 'guest',
   status: 201,
   alternateStatuses: [200],
   summary: 'Pede um status que não declarou',
@@ -93,7 +94,7 @@ const limitadaPorSujeito = defineRoute({
   method: 'POST',
   path: '/v1/teste/limitada-por-sujeito',
   auth: 'customer',
-  summary: 'Limite por chave e cliente',
+  summary: 'Limite por cliente',
   tag: 'teste',
   limit: { limit: 2, windowSec: 60 },
   limitBy: 'subject',
@@ -107,7 +108,7 @@ const limitadaPorSujeito = defineRoute({
 const statusDinamico = defineRoute({
   method: 'POST',
   path: '/v1/teste/status-dinamico',
-  auth: 'key',
+  auth: 'guest',
   status: 201,
   alternateStatuses: [200],
   summary: 'Status escolhido pelo handler',
@@ -158,7 +159,7 @@ const daEquipe = defineRoute({
 const eco = defineRoute({
   method: 'POST',
   path: '/v1/teste/eco',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Devolve o corpo',
   tag: 'teste',
   body: z.object({ nome: z.string().min(1), qtd: z.number().int(), extra: z.strictObject({ a: z.number().optional() }).optional() }),
@@ -172,7 +173,7 @@ const eco = defineRoute({
 const comParametros = defineRoute({
   method: 'GET',
   path: '/v1/teste/itens/{id}',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Parâmetros e consulta',
   tag: 'teste',
   params: z.object({ id: z.uuid() }),
@@ -184,7 +185,7 @@ const comParametros = defineRoute({
 const explode = defineRoute({
   method: 'GET',
   path: '/v1/teste/explode',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Erro inesperado',
   tag: 'teste',
   response: vazio,
@@ -196,7 +197,7 @@ const explode = defineRoute({
 const conflito = defineRoute({
   method: 'GET',
   path: '/v1/teste/conflito',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Erro de domínio',
   tag: 'teste',
   response: vazio,
@@ -211,7 +212,7 @@ const conflito = defineRoute({
 const comDatas = defineRoute({
   method: 'GET',
   path: '/v1/teste/datas',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Datas na resposta',
   tag: 'teste',
   response: z.object({ quando: isoInstant, grande: z.number(), nada: z.string().optional(), lista: z.array(isoInstant) }),
@@ -224,7 +225,7 @@ const comDatas = defineRoute({
 const foraDoContrato = defineRoute({
   method: 'GET',
   path: '/v1/teste/fora-do-contrato',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Resposta fora do contrato',
   tag: 'teste',
   response: z.object({ n: z.number() }),
@@ -234,7 +235,7 @@ const foraDoContrato = defineRoute({
 const campoExtra = defineRoute({
   method: 'GET',
   path: '/v1/teste/campo-extra',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Campo a mais na raiz',
   tag: 'teste',
   response: z.object({ n: z.number() }),
@@ -244,7 +245,7 @@ const campoExtra = defineRoute({
 const campoExtraAninhado = defineRoute({
   method: 'GET',
   path: '/v1/teste/campo-extra-aninhado',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Campo a mais em objeto aninhado dentro de lista',
   tag: 'teste',
   response: z.object({ itens: z.array(z.object({ id: z.string() })) }),
@@ -254,7 +255,7 @@ const campoExtraAninhado = defineRoute({
 const detalhesImpossiveis = defineRoute({
   method: 'GET',
   path: '/v1/teste/detalhes-impossiveis',
-  auth: 'key',
+  auth: 'guest',
   summary: 'DomainError com details que não serializa',
   tag: 'teste',
   response: vazio,
@@ -266,7 +267,7 @@ const detalhesImpossiveis = defineRoute({
 const comDataIso = defineRoute({
   method: 'GET',
   path: '/v1/teste/data-iso',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Data com esquema de fio',
   tag: 'teste',
   response: z.object({ quando: isoInstant }),
@@ -276,7 +277,7 @@ const comDataIso = defineRoute({
 const limitada = defineRoute({
   method: 'GET',
   path: '/v1/teste/limitada',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Limite próprio',
   tag: 'teste',
   limit: { limit: 2, windowSec: 60 },
@@ -290,7 +291,7 @@ const limitada = defineRoute({
 const criada = defineRoute({
   method: 'POST',
   path: '/v1/teste/criada',
-  auth: 'key',
+  auth: 'guest',
   status: 201,
   summary: 'Criada',
   tag: 'teste',
@@ -302,7 +303,7 @@ const criada = defineRoute({
 const apagada = defineRoute({
   method: 'DELETE',
   path: '/v1/teste/apagada',
-  auth: 'key',
+  auth: 'guest',
   status: 204,
   summary: 'Apagada',
   tag: 'teste',
@@ -312,53 +313,54 @@ const apagada = defineRoute({
 
 let a: Business
 let b: Business
-let chaveA: { secret: string; id: string }
 const ORIGEM = 'https://app.exemplo.com'
+const ORIGENS_ENV = process.env.APP_WEB_ORIGINS
 
 beforeEach(async () => {
   chamadas = 0
   await resetDb()
   a = await makeBusiness()
   b = await makeBusiness()
-  chaveA = await makeAppKey(a.id, { allowedOrigins: [ORIGEM, 'http://*.localhost:5173'] })
+  process.env.APP_WEB_ORIGINS = ORIGEM
 })
 
-const comChave = (o: Parameters<typeof apiRequest>[2] = {}) => ({ key: chaveA.secret, ...o })
+afterEach(() => {
+  if (ORIGENS_ENV === undefined) delete process.env.APP_WEB_ORIGINS
+  else process.env.APP_WEB_ORIGINS = ORIGENS_ENV
+})
 
-describe('chave de app', () => {
-  test('sem chave: 401 invalid_app_key, com Content-Type, no-store e X-Request-Id', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave'))
+const comConta = (o: Parameters<typeof apiRequest>[2] = {}) => ({ business: a.slug, ...o })
+
+describe('conta pelo cabeçalho X-Business', () => {
+  test('sem X-Business: 401 unknown_business, com Content-Type, no-store e X-Request-Id', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta'))
     expect(r.status).toBe(401)
-    expect(apiError(r.json)).toMatchObject({ code: 'unauthorized', reason: 'invalid_app_key' })
+    expect(apiError(r.json)).toMatchObject({ code: 'unauthorized', reason: 'unknown_business' })
     expect(r.headers.get('content-type')).toBe('application/json; charset=utf-8')
     expect(r.headers.get('cache-control')).toBe('no-store')
     expect(r.headers.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/)
+    expect(chamadas).toBe(0)
   })
 
-  test('chave inventada: 401 invalid_app_key', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: 'afk_a_00000000_' + 'A'.repeat(43) }))
-    expect(r.status).toBe(401)
-    expect(apiError(r.json).reason).toBe('invalid_app_key')
+  test('X-Business com conta que não existe, vazio ou enorme: 401 unknown_business, a mesma mensagem do cabeçalho ausente', async () => {
+    const ausente = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta'))
+    for (const slug of ['conta-que-nao-existe', '', '   ', 'a'.repeat(500)]) {
+      const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { business: slug }))
+      expect(r.status, slug.slice(0, 20)).toBe(401)
+      expect(apiError(r.json)).toMatchObject({ code: 'unauthorized', reason: 'unknown_business' })
+      expect(apiError(r.json).message).toBe(apiError(ausente.json).message)
+    }
+    expect(chamadas).toBe(0)
   })
 
-  test('chave de plataforma sem X-Business: 401; com X-Business a conta é a do cabeçalho', async () => {
-    const plataforma = await makeAppKey(null)
-    const sem = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: plataforma.secret }))
-    expect(sem.status).toBe(401)
-    expect(apiError(sem.json).reason).toBe('unknown_business')
-    const com = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: plataforma.secret, business: b.slug }))
-    expect(com.status).toBe(200)
-    expect(jsonObject(com.json).businessId).toBe(b.id)
+  test('a conta é a do cabeçalho: o slug em maiúsculas também acha a conta', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { business: b.slug.toUpperCase() }))
+    expect(r.status).toBe(200)
+    expect(jsonObject(r.json).businessId).toBe(b.id)
   })
 
-  test('chave de conta com X-Business de outra conta: 403', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ business: b.slug })))
-    expect(r.status).toBe(403)
-    expect(apiError(r.json).reason).toBe('business_mismatch')
-  })
-
-  test('rota com chave: o handler recebe a conta e o contexto de visitante (canal app, fuso da conta)', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
+  test('rota com conta: o handler recebe a conta e o contexto de visitante (canal app, fuso da conta)', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
     expect(r.status).toBe(200)
     expect(r.json).toEqual({
       businessId: a.id,
@@ -371,11 +373,11 @@ describe('chave de app', () => {
     })
   })
 
-  test('o contexto de visitante usa o cliente por conta: lê só a conta da chave', async () => {
+  test('o contexto de visitante usa o cliente por conta: lê só a conta do cabeçalho', async () => {
     const tz = defineRoute({
       method: 'GET',
       path: '/v1/teste/visitante-le',
-      auth: 'key',
+      auth: 'guest',
       summary: 'Lê com o contexto do visitante',
       tag: 'teste',
       response: z.object({ clientes: z.number() }),
@@ -384,24 +386,24 @@ describe('chave de app', () => {
     await makeCustomer(a.id)
     await makeCustomer(a.id)
     await makeCustomer(b.id)
-    const r = await callRoute(tz, apiRequest('GET', '/v1/teste/visitante-le', comChave()))
+    const r = await callRoute(tz, apiRequest('GET', '/v1/teste/visitante-le', comConta()))
     expect(r.json).toEqual({ clientes: 2 })
   })
 
   test('conta suspensa: 503 business_unavailable', async () => {
     await prisma.business.update({ where: { id: a.id }, data: { status: 'SUSPENDED' } })
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
     expect(r.status).toBe(503)
     expect(apiError(r.json).code).toBe('business_unavailable')
   })
 
-  test('rota pública: responde sem chave, sem chave nem contexto no handler', async () => {
+  test('rota pública: responde sem X-Business, sem conta nem contexto no handler', async () => {
     const r = await callRoute(publica, apiRequest('GET', '/v1/teste/publica'))
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ ok: true, temChave: false, temContexto: false })
+    expect(r.json).toEqual({ ok: true, temConta: false, temContexto: false })
   })
 
-  test('GET /v1/health responde sem chave', async () => {
+  test('GET /v1/health responde sem conta', async () => {
     const r = await callRoute(healthGet, apiRequest('GET', '/v1/health'))
     expect(r.status).toBe(200)
     expect(r.json).toEqual({ status: 'ok' })
@@ -411,32 +413,52 @@ describe('chave de app', () => {
 })
 
 describe('CORS', () => {
-  test('sem Origin segue, sem cabeçalhos CORS', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
+  test('sem Origin (app nativo) segue, sem cabeçalhos CORS', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
     expect(r.status).toBe(200)
     expect(r.headers.get('access-control-allow-origin')).toBeNull()
+    expect(r.headers.get('access-control-expose-headers')).toBeNull()
   })
 
-  test('origem salva: ecoa a origem, Vary: Origin e nunca credenciais nem *', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ origin: ORIGEM })))
+  test('origem da lista APP_WEB_ORIGINS: ecoa a origem, Vary: Origin e nunca credenciais nem *', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: ORIGEM })))
     expect(r.status).toBe(200)
     expect(r.headers.get('access-control-allow-origin')).toBe(ORIGEM)
     expect(r.headers.get('vary')?.toLowerCase()).toContain('origin')
     expect(r.headers.get('access-control-allow-credentials')).toBeNull()
   })
 
-  test('curinga de localhost casa subdomínio na porta; imitação não casa', async () => {
-    const ok = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ origin: 'http://loja.localhost:5173' })))
+  test('a lista aceita várias origens separadas por vírgula; a comparação é exata', async () => {
+    process.env.APP_WEB_ORIGINS = `${ORIGEM}, https://outro.exemplo.com/`
+    const ok = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: 'https://outro.exemplo.com' })))
     expect(ok.status).toBe(200)
-    expect(ok.headers.get('access-control-allow-origin')).toBe('http://loja.localhost:5173')
-    for (const falsa of ['http://localhost.evil.com:5173', 'http://loja.localhost:9999', 'http://loja.localhost.evil.com:5173']) {
-      const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ origin: falsa })))
+    expect(ok.headers.get('access-control-allow-origin')).toBe('https://outro.exemplo.com')
+    for (const falsa of ['https://app.exemplo.com.evil.com', 'http://app.exemplo.com', 'https://app.exemplo.com:8443', 'https://x.app.exemplo.com']) {
+      const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: falsa })))
       expect(r.status, falsa).toBe(403)
     }
   })
 
-  test('origem não permitida: 403 origin_not_allowed, sem cabeçalhos CORS', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ origin: 'https://outro.com' })))
+  test('localhost e *.localhost (qualquer porta) passam fora de produção; imitações não', async () => {
+    for (const local of ['http://localhost:5173', 'http://loja.localhost:5173', 'http://127.0.0.1:3000', 'http://[::1]:8080']) {
+      const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: local })))
+      expect(r.status, local).toBe(200)
+      expect(r.headers.get('access-control-allow-origin')).toBe(local)
+    }
+    for (const falsa of ['http://localhost.evil.com:5173', 'http://loja.localhost.evil.com:5173', 'http://evil-localhost:5173']) {
+      const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: falsa })))
+      expect(r.status, falsa).toBe(403)
+    }
+  })
+
+  test('em produção localhost é recusado e só a lista vale (webOriginsFromEnv)', () => {
+    const prod = webOriginsFromEnv({ NODE_ENV: 'production', APP_WEB_ORIGINS: ORIGEM })
+    expect(prod).toEqual({ origins: [ORIGEM], allowLocalhost: false })
+    expect(webOriginsFromEnv({ NODE_ENV: 'development', APP_WEB_ORIGINS: ORIGEM }).allowLocalhost).toBe(true)
+  })
+
+  test('origem fora da lista em rota com conta: 403 origin_not_allowed, sem CORS, sem chegar ao handler', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: 'https://outro.com' })))
     expect(r.status).toBe(403)
     expect(apiError(r.json)).toMatchObject({ code: 'forbidden', reason: 'origin_not_allowed' })
     expect(r.headers.get('access-control-allow-origin')).toBeNull()
@@ -444,54 +466,86 @@ describe('CORS', () => {
     expect(chamadas).toBe(0)
   })
 
-  test('chave sem origens salvas recusa qualquer origem web, mas aceita app nativo (sem Origin)', async () => {
-    const vazia = await makeAppKey(a.id)
-    const web = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: vazia.secret, origin: ORIGEM }))
+  test('lista vazia: qualquer origem web (menos localhost) é recusada, mas o app nativo (sem Origin) passa', async () => {
+    delete process.env.APP_WEB_ORIGINS
+    const web = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: ORIGEM })))
     expect(web.status).toBe(403)
-    const nativo = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: vazia.secret }))
+    const nativo = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
     expect(nativo.status).toBe(200)
   })
 
+  test('origem fora da lista é recusada antes de procurar a conta (não revela se ela existe)', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { business: 'nao-existe', origin: 'https://outro.com' }))
+    expect(r.status).toBe(403)
+    expect(apiError(r.json).reason).toBe('origin_not_allowed')
+  })
+
   test('erro de rota depois da checagem de origem também leva os cabeçalhos CORS', async () => {
-    const r = await callRoute(conflito, apiRequest('GET', '/v1/teste/conflito', comChave({ origin: ORIGEM })))
+    const r = await callRoute(conflito, apiRequest('GET', '/v1/teste/conflito', comConta({ origin: ORIGEM })))
     expect(r.status).toBe(409)
     expect(r.headers.get('access-control-allow-origin')).toBe(ORIGEM)
   })
 
+  test('X-Business ausente com origem permitida: o 401 unknown_business leva CORS (o navegador consegue ler o erro)', async () => {
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { origin: ORIGEM }))
+    expect(r.status).toBe(401)
+    expect(apiError(r.json).reason).toBe('unknown_business')
+    expect(r.headers.get('access-control-allow-origin')).toBe(ORIGEM)
+  })
+
   test('as respostas expõem Retry-After e X-Request-Id ao navegador', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ origin: ORIGEM })))
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ origin: ORIGEM })))
     const expostos = (r.headers.get('access-control-expose-headers') ?? '').toLowerCase()
     expect(expostos).toContain('retry-after')
     expect(expostos).toContain('x-request-id')
   })
 
-  test('pré-voo sem chave: 204 com origem, métodos, cabeçalhos e Max-Age', async () => {
-    const r = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/chave', { origin: ORIGEM, headers: { 'access-control-request-method': 'POST' } }))
+  test('pré-voo de origem da lista: 204 com origem, métodos, cabeçalhos (x-business, sem x-app-key) e Max-Age', async () => {
+    const r = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/conta', { origin: ORIGEM, headers: { 'access-control-request-method': 'POST' } }))
     expect(r.status).toBe(204)
     expect(r.text).toBe('')
     expect(r.headers.get('access-control-allow-origin')).toBe(ORIGEM)
     expect(r.headers.get('vary')?.toLowerCase()).toContain('origin')
     const cabecalhos = (r.headers.get('access-control-allow-headers') ?? '').toLowerCase()
-    for (const h of ['authorization', 'content-type', 'x-app-key', 'x-business', 'idempotency-key']) expect(cabecalhos).toContain(h)
+    for (const h of ['authorization', 'content-type', 'x-business', 'idempotency-key']) expect(cabecalhos).toContain(h)
+    expect(cabecalhos).not.toContain('x-app-key')
     expect(r.headers.get('access-control-allow-methods')).toContain('POST')
     expect(r.headers.get('access-control-max-age')).toBe('600')
     expect(r.headers.get('access-control-allow-credentials')).toBeNull()
     expect(r.headers.get('x-request-id')).not.toBeNull()
   })
 
+  test('pré-voo de localhost fora de produção: 204 com CORS', async () => {
+    const r = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/conta', { origin: 'http://localhost:5173' }))
+    expect(r.status).toBe(204)
+    expect(r.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
+  })
+
+  test('pré-voo de origem de fora da lista: 403 origin_not_allowed sem cabeçalhos CORS', async () => {
+    const r = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/conta', { origin: 'https://outro.com' }))
+    expect(r.status).toBe(403)
+    expect(apiError(r.json).reason).toBe('origin_not_allowed')
+    expect(r.headers.get('access-control-allow-origin')).toBeNull()
+    expect(r.headers.get('access-control-allow-methods')).toBeNull()
+  })
+
   test('pré-voo com origem malformada: 403 sem cabeçalhos CORS; sem Origin: 204 sem CORS', async () => {
-    const mal = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/chave', { origin: 'não-é-origem' }))
+    const mal = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/conta', { origin: 'não-é-origem' }))
     expect(mal.status).toBe(403)
     expect(mal.headers.get('access-control-allow-origin')).toBeNull()
-    const sem = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/chave'))
+    const sem = await callRoute(preflight, apiRequest('OPTIONS', '/v1/teste/conta'))
     expect(sem.status).toBe(204)
     expect(sem.headers.get('access-control-allow-origin')).toBeNull()
   })
 
-  test('rota pública com Origin válida leva CORS (não há chave para conferir)', async () => {
-    const r = await callRoute(publica, apiRequest('GET', '/v1/teste/publica', { origin: 'https://qualquer.com' }))
-    expect(r.status).toBe(200)
-    expect(r.headers.get('access-control-allow-origin')).toBe('https://qualquer.com')
+  test('rota pública (none) com origem de fora responde normal, mas sem CORS; com origem da lista leva CORS', async () => {
+    const fora = await callRoute(publica, apiRequest('GET', '/v1/teste/publica', { origin: 'https://qualquer.com' }))
+    expect(fora.status).toBe(200)
+    expect(fora.headers.get('access-control-allow-origin')).toBeNull()
+    expect(fora.headers.get('vary')?.toLowerCase()).toContain('origin')
+    const dentro = await callRoute(publica, apiRequest('GET', '/v1/teste/publica', { origin: ORIGEM }))
+    expect(dentro.status).toBe(200)
+    expect(dentro.headers.get('access-control-allow-origin')).toBe(ORIGEM)
   })
 })
 
@@ -503,7 +557,7 @@ describe('token do cliente e da equipe', () => {
 
   test('cliente com token válido: ctx com ator customer e canal app', async () => {
     const token = await customerToken(a.id, cliente.id)
-    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token })))
+    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token })))
     expect(r.status).toBe(200)
     expect(r.json).toEqual({ canal: 'app', ator: 'customer', clienteId: cliente.id, businessId: a.id })
   })
@@ -516,7 +570,7 @@ describe('token do cliente e da equipe', () => {
     const adulterado = `${valido.slice(0, -3)}${valido.endsWith('aaa') ? 'bbb' : 'aaa'}`
     const respostas = []
     for (const token of [undefined, 'lixo', adulterado, vencido]) {
-      const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave(token === undefined ? {} : { token })))
+      const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta(token === undefined ? {} : { token })))
       expect(r.status).toBe(401)
       expect(apiError(r.json)).toMatchObject(SESSAO)
       respostas.push(apiError(r.json).message)
@@ -526,7 +580,7 @@ describe('token do cliente e da equipe', () => {
 
   test('cabeçalho Authorization que não é Bearer: 401', async () => {
     const token = await customerToken(a.id, cliente.id)
-    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ headers: { authorization: `Basic ${token}` } })))
+    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ headers: { authorization: `Basic ${token}` } })))
     expect(r.status).toBe(401)
     expect(apiError(r.json)).toMatchObject(SESSAO)
   })
@@ -535,33 +589,33 @@ describe('token do cliente e da equipe', () => {
     const user = await makeUser()
     const m = await makeMembership(a.id, user.id, 'OWNER')
     const equipe = await staffToken(a.id, m.id, user.id)
-    const r1 = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token: equipe })))
+    const r1 = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token: equipe })))
     expect(r1.status).toBe(403)
     expect(apiError(r1.json)).toMatchObject({ code: 'forbidden', reason: 'wrong_token_kind' })
-    const r2 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token: await customerToken(a.id, cliente.id) })))
+    const r2 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token: await customerToken(a.id, cliente.id) })))
     expect(r2.status).toBe(403)
     expect(apiError(r2.json).reason).toBe('wrong_token_kind')
     expect(chamadas).toBe(0)
   })
 
-  test('token do cliente da conta B com a chave da conta A: 401 igual aos outros', async () => {
+  test('token do cliente da conta B com X-Business da conta A: 401 igual aos outros', async () => {
     const deB = await makeCustomer(b.id)
-    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token: await customerToken(b.id, deB.id) })))
+    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token: await customerToken(b.id, deB.id) })))
     expect(r.status).toBe(401)
     expect(apiError(r.json)).toMatchObject(SESSAO)
     expect(chamadas).toBe(0)
   })
 
-  test('token de equipe da conta B com a chave de A em rota de cliente: 401, não 403 (não revela o tipo)', async () => {
+  test('token de equipe da conta B com X-Business de A em rota de cliente: 401, não 403 (não revela o tipo)', async () => {
     const user = await makeUser()
     const m = await makeMembership(b.id, user.id, 'OWNER')
-    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token: await staffToken(b.id, m.id, user.id) })))
+    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token: await staffToken(b.id, m.id, user.id) })))
     expect(r.status).toBe(401)
   })
 
-  test('token com o id de um cliente de outra conta mas bid da conta da chave: 401', async () => {
+  test('token com o id de um cliente de outra conta mas bid da conta do cabeçalho: 401', async () => {
     const deB = await makeCustomer(b.id)
-    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token: await customerToken(a.id, deB.id) })))
+    const r = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token: await customerToken(a.id, deB.id) })))
     expect(r.status).toBe(401)
     expect(apiError(r.json)).toMatchObject(SESSAO)
   })
@@ -569,23 +623,23 @@ describe('token do cliente e da equipe', () => {
   test('cliente arquivado, anonimizado ou apagado: 401 session_invalid', async () => {
     const token = await customerToken(a.id, cliente.id)
     await prisma.customer.update({ where: { id: cliente.id }, data: { archivedAt: new Date() } })
-    const arquivado = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token })))
+    const arquivado = await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token })))
     expect(arquivado.status).toBe(401)
     expect(apiError(arquivado.json)).toMatchObject(SESSAO)
     await prisma.customer.update({ where: { id: cliente.id }, data: { archivedAt: null, anonymizedAt: new Date() } })
-    expect((await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token })))).status).toBe(401)
+    expect((await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token })))).status).toBe(401)
     await prisma.customer.delete({ where: { id: cliente.id } })
-    expect((await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comChave({ token })))).status).toBe(401)
+    expect((await callRoute(doCliente, apiRequest('GET', '/v1/teste/cliente', comConta({ token })))).status).toBe(401)
   })
 
   test('equipe: o papel vem do banco, não do token; canal app', async () => {
     const user = await makeUser()
     const m = await makeMembership(a.id, user.id, 'MANAGER')
     const token = await staffToken(a.id, m.id, user.id)
-    const r1 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token })))
+    const r1 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token })))
     expect(r1.json).toEqual({ canal: 'app', papel: 'MANAGER', membershipId: m.id })
     await prisma.membership.update({ where: { id: m.id }, data: { role: 'PROFESSIONAL' } })
-    const r2 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token })))
+    const r2 = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token })))
     expect(jsonObject(r2.json).papel).toBe('PROFESSIONAL')
   })
 
@@ -593,44 +647,44 @@ describe('token do cliente e da equipe', () => {
     const user = await makeUser()
     const outro = await makeUser()
     const m = await makeMembership(a.id, user.id, 'OWNER')
-    const trocado = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token: await staffToken(a.id, m.id, outro.id) })))
+    const trocado = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token: await staffToken(a.id, m.id, outro.id) })))
     expect(trocado.status).toBe(401)
     const token = await staffToken(a.id, m.id, user.id)
     await prisma.membership.update({ where: { id: m.id }, data: { active: false } })
-    const inativo = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token })))
+    const inativo = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token })))
     expect(inativo.status).toBe(401)
     expect(apiError(inativo.json)).toMatchObject(SESSAO)
     await prisma.membership.delete({ where: { id: m.id } })
-    expect((await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token })))).status).toBe(401)
+    expect((await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token })))).status).toBe(401)
   })
 
-  test('vínculo de outra conta com o bid da conta da chave: 401', async () => {
+  test('vínculo de outra conta com o bid da conta do cabeçalho: 401', async () => {
     const user = await makeUser()
     const deB = await makeMembership(b.id, user.id, 'OWNER')
-    const r = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comChave({ token: await staffToken(a.id, deB.id, user.id) })))
+    const r = await callRoute(daEquipe, apiRequest('GET', '/v1/teste/equipe', comConta({ token: await staffToken(a.id, deB.id, user.id) })))
     expect(r.status).toBe(401)
   })
 })
 
-describe('chave ou token de cliente (key_or_customer)', () => {
-  const rota = '/v1/teste/chave-ou-cliente'
+describe('visitante ou token de cliente (guest_or_customer)', () => {
+  const rota = '/v1/teste/visitante-ou-cliente'
   let cliente: Customer
   beforeEach(async () => {
     cliente = await makeCustomer(a.id)
   })
 
   test('sem Authorization: visitante; com token de cliente válido: o cliente', async () => {
-    const visitante = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave()))
+    const visitante = await callRoute(visitanteOuCliente, apiRequest('GET', rota, comConta()))
     expect(visitante.json).toEqual({ ator: 'guest', clienteId: null, canal: 'app' })
     const token = await customerToken(a.id, cliente.id)
-    const logado = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token })))
+    const logado = await callRoute(visitanteOuCliente, apiRequest('GET', rota, comConta({ token })))
     expect(logado.json).toEqual({ ator: 'customer', clienteId: cliente.id, canal: 'app' })
   })
 
   test('token presente e ruim nunca vira visitante: inválido, vencido, vazio e não Bearer dão 401', async () => {
     const vencido = (await signAccessToken({ kind: 'customer', businessId: a.id, customerId: cliente.id }, addMinutes(new Date(), -60))).token
     for (const o of [{ token: 'lixo' }, { token: vencido }, { headers: { authorization: '' } }, { headers: { authorization: 'Basic abc' } }]) {
-      const r = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave(o)))
+      const r = await callRoute(visitanteOuCliente, apiRequest('GET', rota, comConta(o)))
       expect(r.status, JSON.stringify(o).slice(0, 40)).toBe(401)
       expect(apiError(r.json).reason).toBe('session_invalid')
     }
@@ -640,27 +694,27 @@ describe('chave ou token de cliente (key_or_customer)', () => {
   test('token de equipe: 403; de cliente de outra conta ou arquivado: 401', async () => {
     const user = await makeUser()
     const m = await makeMembership(a.id, user.id, 'OWNER')
-    const equipe = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token: await staffToken(a.id, m.id, user.id) })))
+    const equipe = await callRoute(visitanteOuCliente, apiRequest('GET', rota, comConta({ token: await staffToken(a.id, m.id, user.id) })))
     expect(equipe.status).toBe(403)
     expect(apiError(equipe.json).reason).toBe('wrong_token_kind')
     const deB = await makeCustomer(b.id)
-    const cruzado = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token: await customerToken(b.id, deB.id) })))
+    const cruzado = await callRoute(visitanteOuCliente, apiRequest('GET', rota, comConta({ token: await customerToken(b.id, deB.id) })))
     expect(cruzado.status).toBe(401)
     await prisma.customer.update({ where: { id: cliente.id }, data: { archivedAt: new Date() } })
-    const arquivado = await callRoute(chaveOuCliente, apiRequest('GET', rota, comChave({ token: await customerToken(a.id, cliente.id) })))
+    const arquivado = await callRoute(visitanteOuCliente, apiRequest('GET', rota, comConta({ token: await customerToken(a.id, cliente.id) })))
     expect(arquivado.status).toBe(401)
     expect(chamadas).toBe(0)
   })
 })
 
 describe('limite por sujeito e status escolhido pelo handler', () => {
-  test('limitBy subject: conta por chave e cliente, qualquer que seja o IP', async () => {
+  test('limitBy subject: conta por cliente, qualquer que seja o IP', async () => {
     const um = await makeCustomer(a.id)
     const dois = await makeCustomer(a.id)
     const t1 = await customerToken(a.id, um.id)
     const t2 = await customerToken(a.id, dois.id)
     const chamar = (token: string, ip: string) =>
-      callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comChave({ token, headers: { 'x-forwarded-for': ip } })))
+      callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comConta({ token, headers: { 'x-forwarded-for': ip } })))
     expect((await chamar(t1, '198.51.100.1')).status).toBe(200)
     expect((await chamar(t1, '198.51.100.2')).status).toBe(200)
     const barrada = await chamar(t1, '198.51.100.3')
@@ -671,21 +725,21 @@ describe('limite por sujeito e status escolhido pelo handler', () => {
   })
 
   test('token inválido em rota com limite por sujeito: 401, sem chegar ao handler', async () => {
-    const r = await callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comChave({ token: 'lixo' })))
+    const r = await callRoute(limitadaPorSujeito, apiRequest('POST', '/v1/teste/limitada-por-sujeito', comConta({ token: 'lixo' })))
     expect(r.status).toBe(401)
     expect(chamadas).toBe(0)
   })
 
   test('setStatus só aceita status declarado em status ou alternateStatuses: outro é erro de programação (500)', async () => {
-    const r = await callRoute(statusNaoDeclarado, apiRequest('POST', '/v1/teste/status-nao-declarado', comChave()))
+    const r = await callRoute(statusNaoDeclarado, apiRequest('POST', '/v1/teste/status-nao-declarado', comConta()))
     expect(r.status).toBe(500)
     expect(statusDinamico.definition.alternateStatuses).toEqual([200])
   })
 
   test('setStatus troca o status de sucesso da rota (201 padrão, 200 quando o handler pede)', async () => {
-    const novo = await callRoute(statusDinamico, apiRequest('POST', '/v1/teste/status-dinamico', comChave({ body: { repetido: false } })))
+    const novo = await callRoute(statusDinamico, apiRequest('POST', '/v1/teste/status-dinamico', comConta({ body: { repetido: false } })))
     expect(novo.status).toBe(201)
-    const repetido = await callRoute(statusDinamico, apiRequest('POST', '/v1/teste/status-dinamico', comChave({ body: { repetido: true } })))
+    const repetido = await callRoute(statusDinamico, apiRequest('POST', '/v1/teste/status-dinamico', comConta({ body: { repetido: true } })))
     expect(repetido.status).toBe(200)
     expect(repetido.json).toEqual({ ok: true })
   })
@@ -693,7 +747,7 @@ describe('limite por sujeito e status escolhido pelo handler', () => {
 
 describe('corpo, parâmetros e consulta', () => {
   const post = (body?: unknown, extra: Parameters<typeof apiRequest>[2] = {}) =>
-    callRoute(eco, apiRequest('POST', '/v1/teste/eco', comChave({ ...(body === undefined ? {} : { body }), ...extra })))
+    callRoute(eco, apiRequest('POST', '/v1/teste/eco', comConta({ ...(body === undefined ? {} : { body }), ...extra })))
 
   test('corpo válido passa', async () => {
     const r = await post({ nome: 'x', qtd: 2 })
@@ -743,7 +797,7 @@ describe('corpo, parâmetros e consulta', () => {
     const r = await post('nome=x', { headers: { 'content-type': 'text/plain' } })
     expect(r.status).toBe(422)
     expect(apiError(r.json).fields).toHaveProperty('_')
-    const sem = await callRoute(eco, new Request('http://api.localhost:3000/v1/teste/eco', { method: 'POST', headers: { 'x-app-key': chaveA.secret }, body: '{"nome":"x","qtd":1}' }))
+    const sem = await callRoute(eco, new Request('http://api.localhost:3000/v1/teste/eco', { method: 'POST', headers: { 'x-business': a.slug }, body: '{"nome":"x","qtd":1}' }))
     // Corpo em texto sem Content-Type: o Request o rotula como text/plain.
     expect(sem.status).toBe(422)
   })
@@ -758,7 +812,7 @@ describe('corpo, parâmetros e consulta', () => {
   test('UTF-8 inválido: 422', async () => {
     const req = new Request('http://api.localhost:3000/v1/teste/eco', {
       method: 'POST',
-      headers: { 'x-app-key': chaveA.secret, 'content-type': 'application/json' },
+      headers: { 'x-business': a.slug, 'content-type': 'application/json' },
       body: new Uint8Array([0x7b, 0x22, 0xff, 0xfe, 0x22, 0x7d]),
     })
     const r = await callRoute(eco, req)
@@ -787,7 +841,7 @@ describe('corpo, parâmetros e consulta', () => {
     })
     const req = new Request('http://api.localhost:3000/v1/teste/eco', {
       method: 'POST',
-      headers: { 'x-app-key': chaveA.secret, 'content-type': 'application/json' },
+      headers: { 'x-business': a.slug, 'content-type': 'application/json' },
       body: fluxo,
       duplex: 'half',
     } as RequestInit)
@@ -802,26 +856,26 @@ describe('corpo, parâmetros e consulta', () => {
   })
 
   test('rota sem corpo definido ignora o corpo enviado', async () => {
-    const r = await callRoute(apagada, apiRequest('DELETE', '/v1/teste/apagada', comChave({ body: 'lixo {', headers: { 'content-type': 'text/plain' } })))
+    const r = await callRoute(apagada, apiRequest('DELETE', '/v1/teste/apagada', comConta({ body: 'lixo {', headers: { 'content-type': 'text/plain' } })))
     expect(r.status).toBe(204)
   })
 
   test('params e query: coerção pelo esquema da rota; id inválido e consulta desconhecida são 422', async () => {
     const id = crypto.randomUUID()
-    const ok = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?n=3`, comChave()), { id })
+    const ok = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?n=3`, comConta()), { id })
     expect(ok.status).toBe(200)
     expect(ok.json).toEqual({ id, n: 3, tags: null })
-    const padrao = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}`, comChave()), { id })
+    const padrao = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}`, comConta()), { id })
     expect(jsonObject(padrao.json).n).toBe(1)
-    const repetida = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?tags=a&tags=b`, comChave()), { id })
+    const repetida = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?tags=a&tags=b`, comConta()), { id })
     expect(jsonObject(repetida.json).tags).toEqual(['a', 'b'])
-    const ruim = await callRoute(comParametros, apiRequest('GET', '/v1/teste/itens/xyz', comChave()), { id: 'xyz' })
+    const ruim = await callRoute(comParametros, apiRequest('GET', '/v1/teste/itens/xyz', comConta()), { id: 'xyz' })
     expect(ruim.status).toBe(422)
     expect(Object.keys(apiError(ruim.json).fields ?? {})).toEqual(['id'])
-    const desconhecida = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?x=1`, comChave()), { id })
+    const desconhecida = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?x=1`, comConta()), { id })
     expect(desconhecida.status).toBe(422)
     expect(Object.keys(apiError(desconhecida.json).fields ?? {})).toEqual(['x'])
-    const tipo = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?n=abc`, comChave()), { id })
+    const tipo = await callRoute(comParametros, apiRequest('GET', `/v1/teste/itens/${id}?n=abc`, comConta()), { id })
     expect(tipo.status).toBe(422)
     expect(Object.keys(apiError(tipo.json).fields ?? {})).toEqual(['n'])
   })
@@ -832,7 +886,7 @@ describe('erros e resposta', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
       const token = 'token-que-nao-deve-vazar'
-      const r = await callRoute(explode, apiRequest('GET', '/v1/teste/explode', comChave({ token, headers: { 'x-outro': 'senha=abc' } })))
+      const r = await callRoute(explode, apiRequest('GET', '/v1/teste/explode', comConta({ token, headers: { 'x-outro': 'senha=abc' } })))
       expect(r.status).toBe(500)
       expect(apiError(r.json).code).toBe('internal')
       expect(r.text).not.toContain('detalhe-interno-secreto')
@@ -843,7 +897,6 @@ describe('erros e resposta', () => {
       expect(gravado).toContain('GET')
       expect(gravado).toContain('/v1/teste/explode')
       expect(gravado).toContain('detalhe-interno-secreto')
-      expect(gravado).not.toContain(chaveA.secret)
       expect(gravado).not.toContain(token)
       expect(gravado).not.toContain('senha=abc')
     } finally {
@@ -852,13 +905,13 @@ describe('erros e resposta', () => {
   })
 
   test('cada resposta traz um X-Request-Id diferente', async () => {
-    const r1 = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
-    const r2 = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
+    const r1 = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
+    const r2 = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
     expect(r1.headers.get('x-request-id')).not.toBe(r2.headers.get('x-request-id'))
   })
 
   test('DomainError de conflito: 409 com reason e details serializados (datas em ISO)', async () => {
-    const r = await callRoute(conflito, apiRequest('GET', '/v1/teste/conflito', comChave()))
+    const r = await callRoute(conflito, apiRequest('GET', '/v1/teste/conflito', comConta()))
     expect(r.status).toBe(409)
     expect(apiError(r.json)).toEqual({
       code: 'conflict',
@@ -869,7 +922,7 @@ describe('erros e resposta', () => {
   })
 
   test('sucesso com Date, bigint e undefined sai como JSON puro em ISO UTC', async () => {
-    const r = await callRoute(comDatas, apiRequest('GET', '/v1/teste/datas', comChave()))
+    const r = await callRoute(comDatas, apiRequest('GET', '/v1/teste/datas', comConta()))
     expect(r.status).toBe(200)
     expect(r.json).toEqual({ quando: '2027-01-15T08:00:00.000Z', grande: 7, lista: ['2027-01-15T08:00:00.000Z'] })
   })
@@ -877,7 +930,7 @@ describe('erros e resposta', () => {
   test('resposta fora do contrato vira 500 em teste (erro de programação)', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      const r = await callRoute(foraDoContrato, apiRequest('GET', '/v1/teste/fora-do-contrato', comChave()))
+      const r = await callRoute(foraDoContrato, apiRequest('GET', '/v1/teste/fora-do-contrato', comConta()))
       expect(r.status).toBe(500)
       expect(apiError(r.json).code).toBe('internal')
     } finally {
@@ -886,10 +939,10 @@ describe('erros e resposta', () => {
   })
 
   test('status 201 devolve o corpo; 204 não tem corpo nem Content-Type de JSON', async () => {
-    const c = await callRoute(criada, apiRequest('POST', '/v1/teste/criada', comChave({ body: { nome: 'x' } })))
+    const c = await callRoute(criada, apiRequest('POST', '/v1/teste/criada', comConta({ body: { nome: 'x' } })))
     expect(c.status).toBe(201)
     expect(c.json).toEqual({ nome: 'x' })
-    const d = await callRoute(apagada, apiRequest('DELETE', '/v1/teste/apagada', comChave()))
+    const d = await callRoute(apagada, apiRequest('DELETE', '/v1/teste/apagada', comConta()))
     expect(d.status).toBe(204)
     expect(d.text).toBe('')
     expect(d.headers.get('cache-control')).toBe('no-store')
@@ -897,86 +950,72 @@ describe('erros e resposta', () => {
 })
 
 describe('limites de requisições', () => {
-  test('a 121ª requisição no minuto é 429 com Retry-After inteiro', async () => {
+  test('a 121ª requisição no minuto do mesmo IP é 429 com Retry-After inteiro', async () => {
     for (let i = 0; i < 120; i++) {
-      const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
+      const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
       if (r.status !== 200) throw new Error(`requisição ${i + 1} deu ${r.status}`)
     }
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta()))
     expect(r.status).toBe(429)
     expect(apiError(r.json).code).toBe('rate_limited')
     const espera = Number(r.headers.get('retry-after'))
     expect(Number.isInteger(espera)).toBe(true)
     expect(espera).toBeGreaterThanOrEqual(1)
     expect(espera).toBeLessThanOrEqual(60)
-    // Outra chave não é afetada.
-    const outra = await makeAppKey(a.id)
-    const ok = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: outra.secret }))
-    expect(ok.status).toBe(200)
+    // O limite geral é por IP, não por conta: outra conta no mesmo IP também é barrada; outro IP não.
+    const outraConta = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { business: b.slug }))
+    expect(outraConta.status).toBe(429)
+    const outroIp = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ headers: { 'x-forwarded-for': '203.0.113.20' } })))
+    expect(outroIp.status).toBe(200)
   }, 60_000)
 
-  test('limite da rota vale além do geral e é por rota e por chave', async () => {
-    const pedir = (key: string) => callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', { key }))
-    expect((await pedir(chaveA.secret)).status).toBe(200)
-    expect((await pedir(chaveA.secret)).status).toBe(200)
-    const barrada = await pedir(chaveA.secret)
+  test('o limite geral vale antes de procurar a conta: X-Business desconhecido também conta', async () => {
+    const doIp = { 'x-forwarded-for': '203.0.113.7' }
+    for (let i = 0; i < 120; i++) {
+      const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { business: 'nao-existe', headers: doIp }))
+      if (r.status !== 401) throw new Error(`tentativa ${i + 1} deu ${r.status}`)
+    }
+    const barrada = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', { business: 'nao-existe', headers: doIp }))
     expect(barrada.status).toBe(429)
     expect(Number(barrada.headers.get('retry-after'))).toBeGreaterThanOrEqual(1)
-    // Outras rotas da mesma chave seguem.
-    expect((await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave()))).status).toBe(200)
-    const outra = await makeAppKey(a.id)
-    expect((await pedir(outra.secret)).status).toBe(200)
+    const valida = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ headers: doIp })))
+    expect(valida.status).toBe(429)
+  }, 60_000)
+
+  test('limite da rota vale além do geral e é por rota e por IP', async () => {
+    const pedir = (ip: string) => callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comConta({ headers: { 'x-forwarded-for': ip } })))
+    expect((await pedir('198.51.100.1')).status).toBe(200)
+    expect((await pedir('198.51.100.1')).status).toBe(200)
+    const barrada = await pedir('198.51.100.1')
+    expect(barrada.status).toBe(429)
+    expect(Number(barrada.headers.get('retry-after'))).toBeGreaterThanOrEqual(1)
+    // Outras rotas do mesmo IP seguem.
+    const outraRota = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ headers: { 'x-forwarded-for': '198.51.100.1' } })))
+    expect(outraRota.status).toBe(200)
+    expect((await pedir('198.51.100.2')).status).toBe(200)
   })
 
   test('requisição barrada pelo limite não chega ao handler', async () => {
-    for (let i = 0; i < 2; i++) expect((await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))).status).toBe(200)
+    for (let i = 0; i < 2; i++) expect((await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comConta()))).status).toBe(200)
     expect(chamadas).toBe(2)
-    for (let i = 0; i < 3; i++) expect((await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))).status).toBe(429)
+    for (let i = 0; i < 3; i++) expect((await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comConta()))).status).toBe(429)
     expect(chamadas).toBe(2)
   })
 
-  test('chave inválida do mesmo IP: 30 tentativas dão 401, a 31ª dá 429 com Retry-After; chave válida do mesmo IP segue', async () => {
-    const ruim = 'afk_a_00000000_' + 'A'.repeat(43)
-    const doIp = { 'x-forwarded-for': '203.0.113.7' }
-    for (let i = 0; i < 30; i++) {
-      const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim, headers: doIp }))
-      if (r.status !== 401) throw new Error(`tentativa ${i + 1} deu ${r.status}`)
-    }
-    const barrada = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim, headers: doIp }))
-    expect(barrada.status).toBe(429)
-    expect(apiError(barrada.json).code).toBe('rate_limited')
-    expect(Number(barrada.headers.get('retry-after'))).toBeGreaterThanOrEqual(1)
-    const valida = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ headers: doIp })))
-    expect(valida.status).toBe(200)
-    // Outro IP não é afetado.
-    const outroIp = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim, headers: { 'x-forwarded-for': '203.0.113.8' } }))
-    expect(outroIp.status).toBe(401)
-  })
-
-  test('chave inválida sem IP: só 401, nunca 429; chave válida não toca o contador', async () => {
-    const ruim = 'afk_a_00000000_' + 'A'.repeat(43)
-    for (let i = 0; i < 35; i++) {
-      const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', { key: ruim }))
-      expect(r.status).toBe(401)
-    }
-    for (let i = 0; i < 5; i++) await callRoute(porChave, apiRequest('GET', '/v1/teste/chave', comChave({ headers: { 'x-forwarded-for': '203.0.113.9' } })))
-    const linhas = await prisma.rateLimitBucket.findMany({ where: { key: { startsWith: 'api-chave-invalida:' } } })
-    expect(linhas).toHaveLength(0)
-  })
-
-  test('as chaves de limite guardadas não contêm o segredo da chave', async () => {
-    await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comChave()))
+  test('as chaves de limite guardadas são por IP e rota, sem prefixo de chave nem token', async () => {
+    const token = await customerToken(a.id, (await makeCustomer(a.id)).id)
+    await callRoute(limitada, apiRequest('GET', '/v1/teste/limitada', comConta({ token })))
     const linhas = await prisma.rateLimitBucket.findMany()
     expect(linhas.length).toBeGreaterThanOrEqual(2)
-    for (const l of linhas) expect(l.key).not.toContain(chaveA.secret)
-    expect(linhas.some((l) => l.key.startsWith('api:') && l.key.includes(chaveA.id) && l.key.endsWith('sem-ip'))).toBe(true)
+    for (const l of linhas) expect(l.key).not.toContain(token)
+    expect(linhas.some((l) => l.key === 'api:sem-ip')).toBe(true)
     expect(linhas.some((l) => l.key.startsWith('api-rota:GET /v1/teste/limitada:'))).toBe(true)
   })
 })
 
 describe('definição anexada ao handler', () => {
   test('o handler carrega a definição da rota (método, caminho, autenticação)', () => {
-    expect(porChave.definition).toMatchObject({ method: 'GET', path: '/v1/teste/chave' })
+    expect(porConta.definition).toMatchObject({ method: 'GET', path: '/v1/teste/conta' })
     expect(statusDinamico.definition).toMatchObject({ method: 'POST', path: '/v1/teste/status-dinamico' })
   })
 })
@@ -985,7 +1024,7 @@ describe('corpo opcional e cache', () => {
   const opcional = defineRoute({
     method: 'POST',
     path: '/v1/teste/corpo-opcional',
-    auth: 'key',
+    auth: 'guest',
     summary: 'Corpo opcional',
     tag: 'teste',
     bodyOptional: true,
@@ -995,24 +1034,24 @@ describe('corpo opcional e cache', () => {
   })
 
   test('sem corpo vira {}; com corpo válido vale; JSON ruim, tipo errado e campo desconhecido seguem 422', async () => {
-    const sem = await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave()))
+    const sem = await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comConta()))
     expect(sem.status).toBe(200)
     expect(sem.json).toEqual({ motivo: null })
-    const com = await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: { motivo: 'x' } })))
+    const com = await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comConta({ body: { motivo: 'x' } })))
     expect(com.json).toEqual({ motivo: 'x' })
-    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: '{ruim' })))).status).toBe(422)
-    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: { outro: 1 } })))).status).toBe(422)
-    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comChave({ body: 'texto', headers: { 'content-type': 'text/plain' } })))).status).toBe(422)
+    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comConta({ body: '{ruim' })))).status).toBe(422)
+    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comConta({ body: { outro: 1 } })))).status).toBe(422)
+    expect((await callRoute(opcional, apiRequest('POST', '/v1/teste/corpo-opcional', comConta({ body: 'texto', headers: { 'content-type': 'text/plain' } })))).status).toBe(422)
   })
 
   test('sem a opção, corpo ausente continua 422', async () => {
-    const r = await callRoute(eco, apiRequest('POST', '/v1/teste/eco', comChave()))
+    const r = await callRoute(eco, apiRequest('POST', '/v1/teste/eco', comConta()))
     expect(r.status).toBe(422)
   })
 
-  test('cache só em rota sem autenticação: com chave ou token é erro de programação ao definir', () => {
+  test('cache só em rota sem autenticação: com conta ou token é erro de programação ao definir', () => {
     const base = { method: 'GET', path: '/v1/teste/cache', summary: 'Cache', tag: 'teste', cache: { maxAgeSec: 60 }, response: z.object({}), handler: async () => ({}) }
-    for (const auth of ['key', 'key_or_customer', 'customer', 'staff']) {
+    for (const auth of ['guest', 'guest_or_customer', 'customer', 'staff']) {
       expect(() => defineRoute({ ...base, auth } as unknown as Parameters<typeof defineRoute>[0]), auth).toThrow(/cache/)
     }
     expect(() => defineRoute({ ...base, auth: 'none' } as unknown as Parameters<typeof defineRoute>[0])).not.toThrow()
@@ -1023,7 +1062,7 @@ describe('contrato da resposta (formato de fio)', () => {
   test('campo a mais na raiz é erro de programação (500) fora de produção, apontando o caminho no log', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      const r = await callRoute(campoExtra, apiRequest('GET', '/v1/teste/campo-extra', comChave()))
+      const r = await callRoute(campoExtra, apiRequest('GET', '/v1/teste/campo-extra', comConta()))
       expect(r.status).toBe(500)
       expect(r.text).not.toContain('vazou')
       expect(log.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain('vazou')
@@ -1035,7 +1074,7 @@ describe('contrato da resposta (formato de fio)', () => {
   test('campo a mais em objeto dentro de lista também: o caminho aparece no log', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      const r = await callRoute(campoExtraAninhado, apiRequest('GET', '/v1/teste/campo-extra-aninhado', comChave()))
+      const r = await callRoute(campoExtraAninhado, apiRequest('GET', '/v1/teste/campo-extra-aninhado', comConta()))
       expect(r.status).toBe(500)
       expect(r.text).not.toContain('senha')
       expect(log.mock.calls.map((c) => c.map(String).join(' ')).join('\n')).toContain('itens.1.senha')
@@ -1045,7 +1084,7 @@ describe('contrato da resposta (formato de fio)', () => {
   })
 
   test('handler devolve Date com esquema isoInstant: 200 com ISO UTC', async () => {
-    const r = await callRoute(comDataIso, apiRequest('GET', '/v1/teste/data-iso', comChave()))
+    const r = await callRoute(comDataIso, apiRequest('GET', '/v1/teste/data-iso', comConta()))
     expect(r.status).toBe(200)
     expect(r.json).toEqual({ quando: '2027-01-15T08:00:00.000Z' })
   })
@@ -1062,7 +1101,7 @@ describe('defesas da camada', () => {
   test('DomainError com details que não serializa: 500 internal padrão, com X-Request-Id e CORS', async () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     try {
-      const r = await callRoute(detalhesImpossiveis, apiRequest('GET', '/v1/teste/detalhes-impossiveis', comChave({ origin: ORIGEM })))
+      const r = await callRoute(detalhesImpossiveis, apiRequest('GET', '/v1/teste/detalhes-impossiveis', comConta({ origin: ORIGEM })))
       expect(r.status).toBe(500)
       expect(apiError(r.json).code).toBe('internal')
       expect(r.headers.get('x-request-id')).toBeTruthy()
@@ -1074,17 +1113,17 @@ describe('defesas da camada', () => {
   })
 
   test('rota sem esquema de consulta recusa parâmetro de consulta com o nome dele; consulta vazia passa', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave?debug=1', comChave()))
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta?debug=1', comConta()))
     expect(r.status).toBe(422)
     expect(Object.keys(apiError(r.json).fields ?? {})).toEqual(['debug'])
     expect(chamadas).toBe(0)
-    expect((await callRoute(porChave, apiRequest('GET', '/v1/teste/chave?', comChave()))).status).toBe(200)
+    expect((await callRoute(porConta, apiRequest('GET', '/v1/teste/conta?', comConta()))).status).toBe(200)
     expect((await callRoute(healthGet, apiRequest('GET', '/v1/health?'))).status).toBe(200)
     expect((await callRoute(publica, apiRequest('GET', '/v1/teste/publica?x=1'))).status).toBe(422)
   })
 
   test('?__proto__=x numa rota sem esquema de consulta é 422, com o nome do parâmetro', async () => {
-    const r = await callRoute(porChave, apiRequest('GET', '/v1/teste/chave?__proto__=x', comChave()))
+    const r = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta?__proto__=x', comConta()))
     expect(r.status).toBe(422)
     expect(Object.keys(apiError(r.json).fields ?? {})).toEqual(['__proto__'])
     expect(chamadas).toBe(0)

@@ -6,7 +6,7 @@ import { listCategories } from '@/server/domain/store/categories'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/store/categories',
-  auth: 'key',
+  auth: 'guest',
   module: 'store',
   summary: 'Categorias de produtos, na ordem da loja, com a contagem de produtos à venda',
   tag: 'Loja',
