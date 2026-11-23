@@ -62,6 +62,44 @@ describe('renderNotification', () => {
     expect(r.email.subject).toMatch(/Novo agendamento/)
   })
 
+  describe('aviso de toda a loja (observador)', () => {
+    const STAFF_KINDS: NotificationKind[] = ['STAFF_NEW_APPOINTMENT', 'STAFF_APPOINTMENT_CANCELED', 'STAFF_APPOINTMENT_RESCHEDULED']
+    const para = (kind: NotificationKind, audience: string | null) =>
+      loaded({
+        kind,
+        channel: 'PUSH',
+        recipient: { kind: 'member', id: 'm-dono' },
+        appointment: { status: kind === 'STAFF_APPOINTMENT_CANCELED' ? 'CANCELED' : 'CONFIRMED', cancelReason: kind === 'STAFF_APPOINTMENT_CANCELED' ? 'Cliente desistiu' : null },
+        payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: null, audience },
+      })
+
+    test.each(STAFF_KINDS)('%s: o push do observador diz de qual profissional é o atendimento', (kind) => {
+      const r = renderNotification(para(kind, 'watcher'))
+      expect(r.push.body).toContain('com Ana')
+      expect(r.push.body).toContain('Maria Souza')
+      expect(r.push.body).toContain('16/11/2026')
+      expect(r.push.body).not.toMatch(/undefined|null/)
+    })
+
+    test.each(STAFF_KINDS)('%s: o push do próprio profissional continua sem o nome dele', (kind) => {
+      const r = renderNotification(para(kind, null))
+      expect(r.push.body).not.toContain('Ana')
+      expect(r.push.body).toContain('Maria Souza')
+    })
+
+    test('o motivo do cancelamento continua no push do observador', () => {
+      const r = renderNotification(para('STAFF_APPOINTMENT_CANCELED', 'watcher'))
+      expect(r.push.body).toContain('Motivo: Cliente desistiu')
+    })
+
+    test('o texto do e-mail não muda para o observador', () => {
+      const comNome = renderNotification(para('STAFF_NEW_APPOINTMENT', 'watcher'))
+      const semNome = renderNotification(para('STAFF_NEW_APPOINTMENT', null))
+      expect(comNome.email).toEqual(semNome.email)
+      expect(comNome.push.title).toBe(semNome.push.title)
+    })
+  })
+
   test('cancelamento pela equipe inclui o motivo', () => {
     const n = loaded({ kind: 'APPOINTMENT_CANCELED', appointment: { status: 'CANCELED', cancelReason: 'Profissional doente' } })
     const r = renderNotification(n)

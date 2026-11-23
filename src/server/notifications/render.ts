@@ -47,6 +47,8 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
   const services = joinNames(a.services.map(limpo))
   const customer = limpo(a.customerName)
   const professional = `${limpo(n.business.terms.professional)}: ${limpo(a.professionalName)}`
+  // Quem recebe os avisos de toda a loja precisa saber de quem é o atendimento (o próprio profissional já sabe): só no push.
+  const whose = n.payload.audience === 'watcher' ? ` com ${limpo(a.professionalName)}` : ''
   const reason = a.cancelReason ? limpo(a.cancelReason) : ''
   const hello = `Olá, ${limpo(n.recipient?.name ?? '')}.`
   const previous = n.payload.previousStartsAt ? instantOf(n.payload.previousStartsAt, startsAt) : null
@@ -133,7 +135,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
         title: 'Novo agendamento',
         subject: `Novo agendamento: ${customer} em ${when}`,
         pushTitle: 'Novo agendamento',
-        pushBody: `${customer}: ${services} em ${when}.`,
+        pushBody: `${customer}${whose}: ${services} em ${when}.`,
         content: { paragraphs: paragraphs(hello, 'Há um novo agendamento na sua agenda.'), rows: details },
       }
     case 'STAFF_APPOINTMENT_CANCELED':
@@ -149,7 +151,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
             title: 'Agendamento cancelado',
             subject: `Agendamento cancelado: ${customer} em ${when}`,
             pushTitle: 'Agendamento cancelado',
-            pushBody: [`${customer} em ${when}.`, reasonLine].filter(Boolean).join(' '),
+            pushBody: [`${customer}${whose} em ${when}.`, reasonLine].filter(Boolean).join(' '),
             content: { paragraphs: paragraphs(hello, 'Um agendamento da sua agenda foi cancelado.', reasonLine), rows: details },
           }
     case 'STAFF_APPOINTMENT_RESCHEDULED':
@@ -157,7 +159,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
         title: 'Agendamento remarcado',
         subject: `Agendamento remarcado: ${customer} para ${when}`,
         pushTitle: 'Agendamento remarcado',
-        pushBody: `${customer}: novo horário ${when}.`,
+        pushBody: `${customer}${whose}: novo horário ${when}.`,
         content: { paragraphs: paragraphs(hello, 'Um agendamento da sua agenda mudou de horário.'), rows: detailsPrevious },
       }
   }
