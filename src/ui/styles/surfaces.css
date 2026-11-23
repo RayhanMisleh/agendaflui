@@ -195,11 +195,6 @@
       padding-top: 0.75rem;
     }
   }
-  @media (prefers-reduced-motion: no-preference) {
-    .af-dialog[open] .af-dialog__sheet {
-      animation: af-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-  }
 
   /* ---- Folha: o diálogo que vira painel lateral no computador (no celular é a mesma folha da base) ---- */
   @media (min-width: 40.0625rem) {
@@ -212,17 +207,6 @@
       height: 100dvh;
       max-height: 100dvh;
       border-radius: var(--radius-block) 0 0 var(--radius-block);
-    }
-  }
-  @media (prefers-reduced-motion: no-preference) and (min-width: 40.0625rem) {
-    .af-sheet[open] .af-dialog__sheet {
-      animation: af-sheet-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
-    }
-  }
-  @keyframes af-sheet-in {
-    from {
-      transform: translateX(2rem);
-      opacity: 0;
     }
   }
 

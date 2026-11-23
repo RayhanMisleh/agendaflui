@@ -1,6 +1,6 @@
 'use client'
 import { isValidElement } from 'react'
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { CSSProperties, KeyboardEvent, ReactNode } from 'react'
 import { cx } from './cx'
 
 export type DataColumn<T> = {
@@ -86,8 +86,14 @@ export function DataList<T>({
           </tr>
         </thead>
         <tbody role="rowgroup">
-          {rows.map((row) => (
-            <tr key={rowKey(row)} role="row" data-clickable={onRowClick ? '' : undefined}>
+          {rows.map((row, n) => (
+            <tr
+              key={rowKey(row)}
+              role="row"
+              data-clickable={onRowClick ? '' : undefined}
+              className="af-enter"
+              style={{ '--i': n } as CSSProperties}
+            >
               {columns.map((c, i) => (
                 <td
                   key={c.key}

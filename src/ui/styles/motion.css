@@ -1,0 +1,144 @@
+/*
+ * Movimento do painel: só `transform` e `opacity`, de 150 a 250 ms, e só em resposta a uma ação (navegar, tocar,
+ * abrir ou fechar) ou para mostrar o que mudou. Tudo fica sob `prefers-reduced-motion: no-preference`; em `reduce` as
+ * transições de página ficam com duração zero e o resto não anima. Importado por último em ui.css.
+ */
+:root {
+  --af-dur-fast: 150ms;
+  --af-dur: 200ms;
+  --af-dur-slow: 250ms;
+  --af-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Os cliques passam pela camada da transição para a página viva. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* A barra lateral do computador é um elemento fixo entre as páginas: não anima e não pisca. */
+@media (min-width: 768px) {
+  .af-shell:not(.af-shell--phone):not(.af-shell--embedded) .af-shell__side {
+    view-transition-name: af-side;
+  }
+}
+::view-transition-group(af-side) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(af-side) {
+  display: none;
+}
+::view-transition-new(af-side) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Página: o conteúdo antigo sai rápido e o novo chega de leve, com no máximo 8 px de deslocamento. */
+  ::view-transition-old(.af-page) {
+    animation: af-page-out var(--af-dur-fast) var(--af-ease) both;
+  }
+  ::view-transition-new(.af-page) {
+    animation: af-page-in var(--af-dur) var(--af-ease) var(--af-dur-fast) both;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}
+
+@keyframes af-page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@keyframes af-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes af-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@layer components {
+  /* Resposta ao toque: o que se aperta afunda um pouco. */
+  .af-button:active:not(:disabled),
+  .af-row-hit:active,
+  .af-navlink:active:not(.af-navlink--disabled),
+  .af-tab:active,
+  a.af-card:active,
+  button.af-card:active {
+    transform: scale(0.98);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .af-button,
+    .af-row-hit,
+    .af-navlink,
+    .af-tab,
+    a.af-card,
+    button.af-card {
+      transition-property: background-color, border-color, color, transform;
+      transition-duration: var(--af-dur-fast);
+      transition-timing-function: var(--af-ease);
+    }
+
+    /* Lista: cada linha entra uma vez, ao montar, em escada curta. Voltar a renderizar não repete. */
+    .af-enter {
+      animation: af-enter var(--af-dur) var(--af-ease) backwards;
+      animation-delay: calc(min(var(--i, 0), 6) * 25ms);
+    }
+
+    /* Diálogo e folha: o `dialog` anima a entrada (@starting-style) e a saída (display e overlay discretos). */
+    .af-dialog,
+    .af-dialog::backdrop {
+      transition:
+        opacity var(--af-dur) var(--af-ease),
+        transform var(--af-dur) var(--af-ease),
+        display var(--af-dur) allow-discrete,
+        overlay var(--af-dur) allow-discrete;
+    }
+    .af-dialog:not([open]) {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+    .af-dialog:not([open])::backdrop {
+      opacity: 0;
+    }
+    .af-dialog[open] {
+      opacity: 1;
+      transform: none;
+    }
+    .af-dialog[open]::backdrop {
+      opacity: 1;
+    }
+    @starting-style {
+      .af-dialog[open] {
+        opacity: 0;
+        transform: translateY(1rem);
+      }
+      .af-dialog[open]::backdrop {
+        opacity: 0;
+      }
+    }
+    @media (min-width: 40.0625rem) {
+      .af-sheet:not([open]) {
+        transform: translateX(2rem);
+      }
+      @starting-style {
+        .af-sheet[open] {
+          transform: translateX(2rem);
+        }
+      }
+    }
+  }
+}
