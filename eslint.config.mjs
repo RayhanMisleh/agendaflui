@@ -88,6 +88,8 @@ export default defineConfig([
     'next-env.d.ts',
     '_legacy/**',
     '.local/**',
+    // Cópias de trabalho (git worktree) de outras sessões: têm o próprio lint.
+    '.claude/**',
     'src/server/db/generated/**',
     'test-results/**',
     'playwright-report/**',
