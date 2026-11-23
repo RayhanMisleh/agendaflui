@@ -4,9 +4,11 @@ import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { listCustomers } from '@/server/domain/customers/customers'
+import { getCustomerLink } from '@/server/domain/settings/customer-link'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/ui/components'
 import { um } from '@/app/_lib/params'
+import { LinkParaClientes } from '../_lib/LinkParaClientes'
 import { PainelFrame } from '../PainelFrame'
 import { ClientesTabela } from './ClientesTabela'
 
@@ -26,7 +28,7 @@ function enderecoDaLista(search: string, situacao: Situacao): string {
 export default async function ClientesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = await requireTenant('view_clients')
   const q = await searchParams
-  const painel = await getPainelContext(ctx)
+  const [painel, link] = await Promise.all([getPainelContext(ctx), getCustomerLink(ctx)])
   const { terms } = painel
   const plural = terms.customerPlural
   const clube = painel.modules.loyalty
@@ -105,26 +107,29 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
         ) : null
       }
     >
-      <Card className="af-listpanel" as="section" aria-label={plural}>
-        <SearchBar
-          action="/clientes"
-          label={`Buscar ${plural.toLowerCase()}`}
-          placeholder="Buscar por nome, telefone ou e-mail"
-          query={search}
-          filters={[]}
-          {...(situacao !== 'ativos' ? { hidden: { situacao } } : {})}
-          clearHref="/clientes"
-        />
-        <NavTabs label="Situação" items={filtros.map((f) => ({ id: f.id, label: f.label, href: enderecoDaLista(search, f.id), active: situacao === f.id }))} />
-        <ClientesTabela clientes={clientes} vazio={vazio} clube={clube ? painel.terms.club : null} />
-        {clientes.length > 0 ? (
-          <p className="af-listpanel__summary">
-            {clientes.length === 1 ? '1 cadastro nesta página.' : `${clientes.length} cadastros nesta página.`}
-            {filtrado ? ' A lista está filtrada.' : ''}
-          </p>
-        ) : null}
-        <Pagination basePath="/clientes" params={params} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
-      </Card>
+      <div className="af-stack">
+        {link ? <LinkParaClientes link={link} /> : null}
+        <Card className="af-listpanel" as="section" aria-label={plural}>
+          <SearchBar
+            action="/clientes"
+            label={`Buscar ${plural.toLowerCase()}`}
+            placeholder="Buscar por nome, telefone ou e-mail"
+            query={search}
+            filters={[]}
+            {...(situacao !== 'ativos' ? { hidden: { situacao } } : {})}
+            clearHref="/clientes"
+          />
+          <NavTabs label="Situação" items={filtros.map((f) => ({ id: f.id, label: f.label, href: enderecoDaLista(search, f.id), active: situacao === f.id }))} />
+          <ClientesTabela clientes={clientes} vazio={vazio} clube={clube ? painel.terms.club : null} />
+          {clientes.length > 0 ? (
+            <p className="af-listpanel__summary">
+              {clientes.length === 1 ? '1 cadastro nesta página.' : `${clientes.length} cadastros nesta página.`}
+              {filtrado ? ' A lista está filtrada.' : ''}
+            </p>
+          ) : null}
+          <Pagination basePath="/clientes" params={params} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
+        </Card>
+      </div>
     </PainelFrame>
   )
 }

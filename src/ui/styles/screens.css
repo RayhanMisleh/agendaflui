@@ -4,6 +4,11 @@
  */
 @layer components {
   /* ---- Cartão de lista: busca, filtros, tabela, rodapé ---- */
+  .af-stack {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
   .af-listpanel {
     display: grid;
     gap: 1.25rem;

@@ -2,6 +2,9 @@ import { z } from 'zod'
 import { isLocalOrigin, isSyntacticOrigin, webOriginsFromEnv } from './api/cors'
 import { DEFAULT_HOSTS } from './hosts'
 
+/** Endereço padrão do app web (a base do link que cada loja passa aos clientes). */
+export const DEFAULT_APP_WEB_URL = 'https://app.agendaflui.com.br'
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   // Segunda URL do banco, sem pooler: as migrações usam esta quando existe.
@@ -14,6 +17,8 @@ const envSchema = z.object({
   API_HOST: z.string().min(1).default(DEFAULT_HOSTS.api),
   // Origens do app web que podem chamar a API pelo navegador (CORS e `returnUrl` do checkout), separadas por vírgula.
   APP_WEB_ORIGINS: z.string().optional(),
+  // Endereço público do app web (só esquema e host, sem caminho nem barra final): dele sai o "link para clientes" de cada loja.
+  APP_WEB_URL: z.string().trim().min(1).default(DEFAULT_APP_WEB_URL),
   STORAGE_DIR: z.string().min(1).default('.local/storage'),
   // Canal de e-mail: em produção, SMTP_URL liga o envio (smtp://usuario:senha@host:587); em desenvolvimento os e-mails vão para .local/mail.
   SMTP_URL: z.string().min(1).optional(),
@@ -110,6 +115,13 @@ function problemasDasOrigens(source: Record<string, string | undefined>, produca
   return problemas
 }
 
+/** APP_WEB_URL bem formada (esquema e host); em produção, https e nunca local. O valor nunca entra na mensagem. */
+function problemasDaUrlDoApp(valor: string, producao: boolean): string[] {
+  if (!isSyntacticOrigin(valor)) return ['APP_WEB_URL: precisa ser só esquema e host, ex.: https://app.seudominio.com (sem caminho, consulta nem barra final)']
+  if (producao && (!valor.startsWith('https://') || isLocalOrigin(valor))) return ['APP_WEB_URL: em produção precisa ser https e não pode ser local']
+  return []
+}
+
 function falhar(problemas: string): never {
   throw new Error(`Variáveis de ambiente inválidas (${problemas}). Confira o arquivo .env com base no .env.example.`)
 }
@@ -164,7 +176,11 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
   }
   const { data } = result
   const producao = data.NODE_ENV === 'production' && data.NEXT_PHASE !== FASE_DE_BUILD
-  const problemas = [...(producao ? problemasDosHosts(source) : []), ...problemasDasOrigens(source, producao)]
+  const problemas = [
+    ...(producao ? problemasDosHosts(source) : []),
+    ...problemasDasOrigens(source, producao),
+    ...problemasDaUrlDoApp(data.APP_WEB_URL, producao),
+  ]
   if (problemas.length > 0) falhar(problemas.join('; '))
   return { ...data, INTEGRATIONS_MODE: data.INTEGRATIONS_MODE ?? (data.NODE_ENV === 'production' ? 'real' : 'fake') }
 }

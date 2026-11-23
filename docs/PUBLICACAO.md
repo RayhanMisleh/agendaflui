@@ -19,6 +19,8 @@ auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quan
 `Host`, essas rotas recusam o envio. Sem `SMTP_URL` nem `RESEND_API_KEY` o servidor sobe, mas convites e cadastro pelo app não chegam. `RESEND_API_KEY`
 substitui o SMTP (vale o Resend se as duas existem) e exige `MAIL_FROM` com o domínio verificado no Resend; o botão
 "Enviar e-mail de teste para mim" na página Sistema do painel dev confere o envio.
+`APP_WEB_URL` (opcional, padrão `https://app.agendaflui.com.br`) é o endereço público do app web: só esquema e host,
+sem barra final, e em produção `https` e não local. Dele sai o "Link para clientes" de cada loja (`<APP_WEB_URL>/<identificador>`) e o QR code.
 `INTEGRATIONS_MODE` (opcional) escolhe as integrações externas (Mercado Pago, Frenet e ViaCEP): `real` ou `fake`. Em
 produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
 produção ele impede a partida.
