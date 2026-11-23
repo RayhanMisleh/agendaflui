@@ -148,9 +148,10 @@ export const DEMO_PREMIOS = [
 ] as const
 
 /** `inicio` e `fim` em dias a partir de hoje (`null` = sem limite). */
+/** Os dois primeiros não vencem, para a conta sempre ter banner no ar; os outros mostram agendado e encerrado. */
 export const DEMO_BANNERS = [
-  { titulo: 'Semana do banho e tosa', link: null, inicio: null, fim: 20, cor: '#2F7D5B' },
-  { titulo: 'Ração premium com desconto', link: null, inicio: -5, fim: 10, cor: '#F29A4B' },
+  { titulo: 'Semana do banho e tosa', link: null, inicio: null, fim: null, cor: '#2F7D5B' },
+  { titulo: 'Ração premium com desconto', link: null, inicio: -5, fim: null, cor: '#F29A4B' },
   { titulo: 'Hotelzinho para as festas', link: null, inicio: 7, fim: 30, cor: '#4A6FA5' },
   { titulo: 'Campanha de vacinação', link: null, inicio: -30, fim: -3, cor: '#8E5A9B' },
 ] as const
