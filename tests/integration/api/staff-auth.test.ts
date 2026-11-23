@@ -116,7 +116,7 @@ describe('entrada da equipe', () => {
 
   test('staff/me lista as capacidades dos módulos por nome: dono e gerente têm as quatro, o profissional nenhuma', async () => {
     const c = await novaConta()
-    const dosModulos = ['manage_loyalty', 'manage_banners', 'manage_store', 'manage_vouchers']
+    const dosModulos = ['manage_loyalty', 'manage_banners', 'manage_store']
     for (const [role, email] of [['OWNER', 'dono@exemplo.test'], ['MANAGER', 'gerente@exemplo.test'], ['PROFESSIONAL', 'prof@exemplo.test']] as const) {
       await membro(c, role, email)
       const r = await entrar(c, email, SENHA)

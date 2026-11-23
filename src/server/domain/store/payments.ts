@@ -105,16 +105,13 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
       if (order.stockReleasedAt === null) return unchanged
       const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
       const lines = order.items.flatMap((it) => (it.productId === null ? [] : [{ kind: 'product' as const, id: it.productId, quantity: it.quantity }])).sort(byId)
-      // Voucher volta ao estoque com o pedido (as unidades não usadas): reserva de novo junto, depois dos produtos.
-      const voucherLines = order.items.flatMap((it) => (it.voucherId === null ? [] : [{ kind: 'voucher' as const, id: it.voucherId, quantity: it.quantity }])).sort(byId)
       // Reserva de novo, em ordem de id (a mesma ordem da criação do pedido), tudo ou nada.
-      type Reserva = { kind: 'product' | 'voucher'; id: string; quantity: number }
-      const reserved: Reserva[] = []
+      const reserved: typeof lines = []
       let short = false
-      for (const l of [...lines, ...voucherLines] as Reserva[]) {
+      for (const l of lines) {
         const where = { id: l.id, stock: { gte: l.quantity } }
         const data = { stock: { decrement: l.quantity } }
-        const { count } = l.kind === 'product' ? await tx.product.updateMany({ where, data }) : await tx.voucher.updateMany({ where, data })
+        const { count } = await tx.product.updateMany({ where, data })
         if (count === 0) {
           short = true
           break
@@ -123,9 +120,7 @@ export async function applyPayment(ctx: TenantContext, orderId: string, payment:
       }
       if (short) {
         for (const l of reserved) {
-          const data = { stock: { increment: l.quantity } }
-          if (l.kind === 'product') await tx.product.updateMany({ where: { id: l.id }, data })
-          else await tx.voucher.updateMany({ where: { id: l.id }, data })
+          await tx.product.updateMany({ where: { id: l.id }, data: { stock: { increment: l.quantity } } })
         }
       }
       await tx.order.update({

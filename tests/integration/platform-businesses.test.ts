@@ -80,9 +80,9 @@ describe('createBusiness', () => {
       include: { branding: true, modules: true, settings: true },
     })
     expect(conta.branding?.displayName).toBe('Barbearia Central')
-    expect(conta.modules).toMatchObject({ loyalty: false, banners: false, store: false, vouchers: false })
+    expect(conta.modules).toMatchObject({ loyalty: false, banners: false, store: false })
     expect(conta.settings).toMatchObject({ slotStepMin: 15, minLeadMin: 60, autoConfirm: true })
-    expect(r.business.modules).toEqual({ loyalty: false, banners: false, store: false, vouchers: false })
+    expect(r.business.modules).toEqual({ loyalty: false, banners: false, store: false })
   })
 
   test('a auditoria não guarda o token do convite', async () => {

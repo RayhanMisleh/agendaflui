@@ -47,7 +47,6 @@ const ROTULOS: Record<string, string> = {
   pointsSingular: 'Pontos (singular)',
   pointsPlural: 'Pontos (plural)',
   club: 'Clube',
-  vouchers: 'Vouchers',
   store: 'Loja',
   slotStepMin: 'Grade de horários',
   minLeadMin: 'Antecedência mínima',
@@ -246,14 +245,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" checked={v.loyalty} onChange={(e) => set('loyalty', e.target.checked)} />
               <Checkbox name="banners" label="Banners: avisos e promoções no app" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
               <Checkbox name="store" label="Loja: produtos e pedidos" checked={v.store} onChange={(e) => set('store', e.target.checked)} />
-              <Checkbox name="vouchers" label="Vouchers: vendidos dentro de um pedido da Loja" checked={v.vouchers} onChange={(e) => set('vouchers', e.target.checked)} />
             </div>
-            {v.vouchers && !v.store ? (
-              <p className="af-wizard__note" role="status">
-                Vouchers só funcionam com a Loja ligada. Ligue a Loja ou desligue Vouchers antes de criar a conta.
-              </p>
-            ) : null}
-            {erro('vouchers') ? <p className="af-field__error">{erro('vouchers')}</p> : null}
           </Etapa>
 
           <Etapa i={4} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Regras de agenda" ajuda="Os valores começam no padrão do sistema. O dono pode ajustá-los depois.">
@@ -300,7 +292,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <dt>Dono</dt>
               <dd>{v.ownerEmail || 'Sem e-mail ainda'}</dd>
               <dt>Módulos</dt>
-              <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja', v.vouchers && 'Vouchers'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
+              <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
             </dl>
           </Etapa>
 

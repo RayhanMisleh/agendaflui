@@ -225,7 +225,7 @@ const SELECAO_DETALHE = {
   email: true,
   phone: true,
   timezone: true,
-  modules: { select: { loyalty: true, banners: true, store: true, vouchers: true } },
+  modules: { select: { loyalty: true, banners: true, store: true } },
 } satisfies Prisma.BusinessSelect
 
 type DetalheBruto = Prisma.BusinessGetPayload<{ select: typeof SELECAO_DETALHE }>
@@ -238,7 +238,7 @@ function paraDetalhe(b: DetalheBruto): BusinessDetail {
     contactEmail: b.email,
     contactPhone: b.phone,
     timeZone: b.timezone,
-    modules: b.modules ?? { loyalty: false, banners: false, store: false, vouchers: false },
+    modules: b.modules ?? { loyalty: false, banners: false, store: false },
   }
 }
 

@@ -106,11 +106,11 @@ describe('pedido com retirada', () => {
     expect((await pedidoComRetirada(c.ctxCliente, [{ productId: p.id, quantity: 1 }])).order.status).toBe('AWAITING_PAYMENT')
   })
 
-  test('entrega NONE é sempre recusada nesta fase (todo produto é físico)', async () => {
+  test('entrega NONE não existe mais: é recusada (todo produto é físico)', async () => {
     const p = await produto(c.dono)
-    const e = await domainError(createOrder(c.ctxCliente, { lines: [{ productId: p.id, quantity: 1 }], delivery: { method: 'NONE' }, note: null }))
+    const e = await domainError(createOrder(c.ctxCliente, { lines: [{ productId: p.id, quantity: 1 }], delivery: { method: 'NONE' } as never, note: null }))
     expect(e.code).toBe('validation')
-    expect(camposDe(e)).toEqual(['delivery'])
+    expect(camposDe(e).every((k) => k.startsWith('delivery'))).toBe(true)
     expect(await prisma.order.count()).toBe(0)
   })
 

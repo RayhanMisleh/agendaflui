@@ -146,9 +146,9 @@ export const salvarTermos = porConta(
 )
 
 export const salvarModulos = porConta(
-  { nomes: [], caixas: ['loyalty', 'banners', 'store', 'vouchers'] },
+  { nomes: [], caixas: ['loyalty', 'banners', 'store'] },
   (admin, v) =>
-    updateModules(admin, v.businessId ?? '', { loyalty: v.loyalty === 'on', banners: v.banners === 'on', store: v.store === 'on', vouchers: v.vouchers === 'on' }),
+    updateModules(admin, v.businessId ?? '', { loyalty: v.loyalty === 'on', banners: v.banners === 'on', store: v.store === 'on' }),
   (r, v) => feitoNaConta('Módulos salvos.', v),
 )
 

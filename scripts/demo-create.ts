@@ -1,6 +1,6 @@
 /**
  * `npm run demo:create`: cria (uma vez só) a conta de demonstração "Pet Shop Demonstração", com equipe, clientes, agenda de
- * 4 semanas atrás a 2 semanas à frente, fidelidade, banners, loja e vouchers. Roda em produção (`INTEGRATIONS_MODE=real`) sem
+ * 4 semanas atrás a 2 semanas à frente, fidelidade, banners e loja. Roda em produção (`INTEGRATIONS_MODE=real`) sem
  * chamar nenhum serviço externo. Pode rodar de novo: não duplica nada e nunca troca a senha do dono.
  *
  * Tudo passa pelas funções de domínio, exceto o que não tem função (marcado "cru" abaixo): negócio, usuários e vínculos
@@ -25,7 +25,6 @@ import {
   DEMO_EMAIL_DONO,
   DEMO_GERENTE,
   DEMO_NOME,
-  DEMO_PARCEIROS,
   DEMO_PEDIDOS,
   DEMO_PREMIOS,
   DEMO_PRODUTOS,
@@ -53,7 +52,7 @@ export type DemoResultado = {
 }
 
 async function dominio() {
-  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, parceiros, vouchers, codigos, perfil, audit] =
+  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, perfil, audit] =
     await Promise.all([
       import('../src/server/auth/context'),
       import('../src/server/domain/customers/customers'),
@@ -75,13 +74,10 @@ async function dominio() {
       import('../src/server/domain/store/orders'),
       import('../src/server/domain/store/payments'),
       import('../src/server/domain/store/settings'),
-      import('../src/server/domain/vouchers/partners'),
-      import('../src/server/domain/vouchers/vouchers'),
-      import('../src/server/domain/vouchers/codes'),
       import('../src/server/domain/settings/business-profile'),
       import('../src/server/domain/audit'),
     ])
-  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, parceiros, vouchers, codigos, perfil, audit }
+  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, perfil, audit }
 }
 
 /** Imagem simples (cor da marca e duas formas), sem texto: não depende de fontes do sistema. */
@@ -148,7 +144,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
           city: 'São Paulo',
           state: 'SP',
           branding: { create: { displayName: DEMO_NOME, primaryColor: '#2F7D5B', accentColor: '#F29A4B' } },
-          modules: { create: { loyalty: true, banners: true, store: true, vouchers: true } },
+          modules: { create: { loyalty: true, banners: true, store: true } },
           settings: { create: {} },
         },
         select: { id: true },
@@ -412,7 +408,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     }
   })
 
-  // ---- 8. Loja e vouchers -------------------------------------------------------------------------------------
+  // ---- 8. Loja -------------------------------------------------------------------------------------
   await secao('loja', async () => {
     // Só retirada no balcão: sem entrega não há CEP, frete nem Frenet. Sem Mercado Pago configurado na conta.
     const cfgLoja = await d.loja.getStoreSettings(ctx)
@@ -447,20 +443,6 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       })
       await d.produtos.addProductImage(ctx, criado.id, await imagem(800, 800, p.cor))
     }
-    const parcs = await ctx.db.partner.findMany({ select: { id: true, name: true } })
-    for (const pa of DEMO_PARCEIROS) {
-      let parceiro = parcs.find((x) => x.name === pa.nome)
-      if (!parceiro) {
-        parceiro = await d.parceiros.createPartner(ctx, { name: pa.nome, description: pa.descricao, address: pa.endereco, phone: pa.telefone, website: pa.site, active: true })
-        await d.parceiros.setPartnerLogo(ctx, parceiro.id, await imagem(400, 400, pa.cor))
-      }
-      const vs = await ctx.db.voucher.findMany({ where: { partnerId: parceiro.id }, select: { name: true } })
-      for (const v of pa.vouchers) {
-        if (vs.some((x) => x.name === v.nome)) continue
-        const criado = await d.vouchers.createVoucher(ctx, { partnerId: parceiro.id, name: v.nome, description: v.descricao, terms: v.regras, priceCents: v.centavos, stock: v.estoque, validDays: v.validadeDias, active: true })
-        await d.vouchers.setVoucherImage(ctx, criado.id, await imagem(800, 500, pa.cor))
-      }
-    }
   })
 
   // ---- 9. Pedidos ---------------------------------------------------------------------------------------------
@@ -468,21 +450,15 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   // webhook, com o pagamento montado aqui (como a consulta ao Mercado Pago o devolveria). Nenhum `integrations()` é usado.
   await secao('pedidos', async () => {
     const prods = await ctx.db.product.findMany({ select: { id: true, name: true } })
-    const vouchers = await ctx.db.voucher.findMany({ select: { id: true, name: true } })
-    const nomesVoucher = DEMO_PARCEIROS.flatMap((p) => p.vouchers.map((v) => v.nome))
     const existentes = await ctx.db.order.findMany({ orderBy: { number: 'asc' }, select: { id: true, status: true, fulfillmentStatus: true, totalCents: true } })
     for (const [k, p] of DEMO_PEDIDOS.entries()) {
       relogio.t = antes(minuteToInstant(addDays(hoje, -p.diasAtras), p.minuto, tz), now)
       const cliente = clientePorIdx[p.cliente]
       if (!cliente) continue
       let pedido = existentes[k]
-      const soVoucher = p.linhas.every((l) => 'voucher' in l)
       if (!pedido) {
-        const linhas = p.linhas.map((l) => {
-          if ('produto' in l) return { productId: prods.find((x) => x.name === DEMO_PRODUTOS[l.produto]?.nome)?.id ?? '', quantity: l.qtd }
-          return { voucherId: vouchers.find((x) => x.name === nomesVoucher[l.voucher])?.id ?? '', quantity: l.qtd }
-        })
-        const criado = await d.pedidos.createOrder(await doCliente(cliente), { lines: linhas, delivery: soVoucher ? { method: 'NONE' } : { method: 'PICKUP' }, note: null })
+        const linhas = p.linhas.map((l) => ({ productId: prods.find((x) => x.name === DEMO_PRODUTOS[l.produto]?.nome)?.id ?? '', quantity: l.qtd }))
+        const criado = await d.pedidos.createOrder(await doCliente(cliente), { lines: linhas, delivery: { method: 'PICKUP' }, note: null })
         pedido = { id: criado.order.id, status: 'AWAITING_PAYMENT', fulfillmentStatus: 'PENDING', totalCents: criado.order.totalCents }
       }
       if (p.fim === 'cancelado') {
@@ -507,14 +483,10 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       if (p.fim === 'cancelado_pago') {
         await d.pedidos.cancelOrder(ctx, pedido.id, { reason: 'Cliente desistiu da compra.' })
       } else if (p.fim === 'entregue') {
-        if (pedido.fulfillmentStatus === 'PENDING' && !soVoucher) await d.pedidos.advanceFulfillment(ctx, pedido.id, { to: 'READY_FOR_PICKUP' })
+        if (pedido.fulfillmentStatus === 'PENDING') await d.pedidos.advanceFulfillment(ctx, pedido.id, { to: 'READY_FOR_PICKUP' })
         if (pedido.fulfillmentStatus !== 'DELIVERED') await d.pedidos.advanceFulfillment(ctx, pedido.id, { to: 'DELIVERED' })
       } else if (p.fim === 'pronto' && pedido.fulfillmentStatus === 'PENDING') {
         await d.pedidos.advanceFulfillment(ctx, pedido.id, { to: 'READY_FOR_PICKUP' })
-      } else if (p.fim === 'voucher_usado') {
-        const codigos = await d.codigos.listCodesOfOrder(ctx, pedido.id)
-        const primeiro = codigos.find((c) => c.status === 'ACTIVE')
-        if (primeiro && codigos.every((c) => c.status === 'ACTIVE')) await d.codigos.redeemVoucherCode(ctx, primeiro.code)
       }
     }
   })

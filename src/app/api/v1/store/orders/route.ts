@@ -36,15 +36,14 @@ export const POST = defineRoute({
   tag: 'Loja',
   body: z.object({
     lines: z
-      .array(z.strictObject({ productId: z.string().max(64).optional().describe('O produto (use este ou `voucherId`).'), voucherId: z.string().max(64).optional().describe('O voucher (use este ou `productId`). Exige o módulo Vouchers.'), quantity: z.number() }))
+      .array(z.strictObject({ productId: z.string().max(64).describe('O produto.'), quantity: z.number() }))
       .max(100)
-      .describe('Os itens do pedido: só o id (de um produto ou de um voucher) e a quantidade.'),
+      .describe('Os itens do pedido: só o id do produto e a quantidade.'),
     delivery: z.discriminatedUnion('method', [
       z.strictObject({ method: z.literal('PICKUP') }).describe('Retirada no local.'),
       z
         .strictObject({ method: z.literal('SHIPPING'), addressId: z.string().max(64), quoteToken: z.string().max(2000).describe('O `quoteToken` da opção escolhida em `/v1/store/shipping-quotes`, para este mesmo carrinho e endereço.') })
         .describe('Entrega no endereço, pelo serviço da cotação.'),
-      z.strictObject({ method: z.literal('NONE') }).describe('Sem entrega: só para pedido só de vouchers (que não aceita retirada nem entrega).'),
     ]),
     note: z.string().max(1000).nullable().optional().describe('Observação do cliente (até 300 caracteres).'),
   }),

@@ -189,60 +189,32 @@ export const DEMO_PRODUTOS: {
   { nome: 'Shampoo antipulgas 500 ml', descricao: 'Uso só em cães, conforme a bula.', categoria: 3, centavos: 3890, estoque: 20, gramas: 550, cor: '#D95B5B' },
 ]
 
-export const DEMO_PARCEIROS = [
-  {
-    nome: 'Clínica Veterinária Vida Animal',
-    descricao: 'Clínica parceira, a duas quadras do pet shop.',
-    endereco: 'Rua das Palmeiras, 340, Jardim Paulista, São Paulo',
-    telefone: '(11) 3000-4500',
-    site: 'https://vidaanimal.exemplo.com.br',
-    cor: '#3D9970',
-    vouchers: [
-      { nome: 'Consulta veterinária', descricao: 'Uma consulta clínica geral.', regras: 'Agendar com antecedência pelo telefone da clínica.', centavos: 9000, estoque: 20, validadeDias: 60 },
-      { nome: 'Vacina polivalente', descricao: 'Uma dose de vacina V10 ou V4.', regras: 'Válido para animais com mais de 45 dias.', centavos: 7500, estoque: 15, validadeDias: 90 },
-    ],
-  },
-  {
-    nome: 'Hotel Pet Cantinho Feliz',
-    descricao: 'Hospedagem e creche para cães e gatos.',
-    endereco: 'Av. dos Ipês, 800, Vila Mariana, São Paulo',
-    telefone: '(11) 3000-7788',
-    site: 'https://cantinhofeliz.exemplo.com.br',
-    cor: '#E0A03D',
-    vouchers: [{ nome: 'Diária de hotelzinho', descricao: 'Uma diária com alimentação.', regras: 'Reserva sujeita à disponibilidade; levar carteira de vacinação.', centavos: 7000, estoque: 12, validadeDias: 120 }],
-  },
-] as const
-
 /** Dia (em relação a hoje, negativo = passado), hora do dia em minutos, cliente, itens e desfecho. */
 export type DemoPedido = {
   diasAtras: number
   minuto: number
   cliente: number
-  /** `produto` e `voucher` são índices em `DEMO_PRODUTOS` e na lista plana de vouchers. */
-  linhas: ({ produto: number; qtd: number } | { voucher: number; qtd: number })[]
-  fim: 'entregue' | 'pronto' | 'pago' | 'cancelado_pago' | 'cancelado' | 'voucher' | 'voucher_usado'
+  /** `produto` é o índice em `DEMO_PRODUTOS`. */
+  linhas: { produto: number; qtd: number }[]
+  fim: 'entregue' | 'pronto' | 'pago' | 'cancelado_pago' | 'cancelado'
 }
 
 export const DEMO_PEDIDOS: DemoPedido[] = [
   { diasAtras: 27, minuto: 620, cliente: 0, linhas: [{ produto: 0, qtd: 1 }, { produto: 3, qtd: 2 }], fim: 'entregue' },
   { diasAtras: 25, minuto: 700, cliente: 4, linhas: [{ produto: 1, qtd: 1 }], fim: 'entregue' },
   { diasAtras: 24, minuto: 905, cliente: 7, linhas: [{ produto: 6, qtd: 2 }, { produto: 7, qtd: 1 }], fim: 'entregue' },
-  { diasAtras: 22, minuto: 650, cliente: 12, linhas: [{ voucher: 0, qtd: 1 }], fim: 'voucher_usado' },
   { diasAtras: 20, minuto: 780, cliente: 2, linhas: [{ produto: 10, qtd: 1 }, { produto: 11, qtd: 1 }], fim: 'entregue' },
   { diasAtras: 19, minuto: 990, cliente: 17, linhas: [{ produto: 14, qtd: 1 }, { produto: 15, qtd: 1 }], fim: 'cancelado_pago' },
   { diasAtras: 17, minuto: 600, cliente: 9, linhas: [{ produto: 2, qtd: 2 }], fim: 'entregue' },
   { diasAtras: 15, minuto: 840, cliente: 20, linhas: [{ produto: 12, qtd: 1 }], fim: 'cancelado' },
-  { diasAtras: 14, minuto: 700, cliente: 1, linhas: [{ voucher: 2, qtd: 1 }], fim: 'voucher_usado' },
   { diasAtras: 12, minuto: 930, cliente: 24, linhas: [{ produto: 17, qtd: 1 }], fim: 'entregue' },
   { diasAtras: 10, minuto: 660, cliente: 3, linhas: [{ produto: 0, qtd: 1 }, { produto: 5, qtd: 3 }], fim: 'entregue' },
-  { diasAtras: 9, minuto: 735, cliente: 30, linhas: [{ voucher: 1, qtd: 2 }], fim: 'voucher' },
   { diasAtras: 7, minuto: 870, cliente: 6, linhas: [{ produto: 8, qtd: 1 }], fim: 'entregue' },
   { diasAtras: 6, minuto: 615, cliente: 15, linhas: [{ produto: 3, qtd: 1 }, { produto: 4, qtd: 2 }], fim: 'entregue' },
   { diasAtras: 4, minuto: 960, cliente: 33, linhas: [{ produto: 16, qtd: 2 }, { produto: 18, qtd: 1 }], fim: 'pronto' },
   { diasAtras: 3, minuto: 690, cliente: 8, linhas: [{ produto: 1, qtd: 1 }, { produto: 10, qtd: 1 }], fim: 'pronto' },
   { diasAtras: 2, minuto: 800, cliente: 22, linhas: [{ produto: 13, qtd: 1 }], fim: 'pago' },
   { diasAtras: 1, minuto: 645, cliente: 26, linhas: [{ produto: 0, qtd: 1 }], fim: 'pago' },
-  { diasAtras: 1, minuto: 900, cliente: 35, linhas: [{ voucher: 0, qtd: 1 }], fim: 'voucher' },
   { diasAtras: 1, minuto: 1010, cliente: 10, linhas: [{ produto: 6, qtd: 3 }], fim: 'cancelado' },
 ]
 

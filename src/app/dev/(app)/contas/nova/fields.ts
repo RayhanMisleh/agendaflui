@@ -25,7 +25,6 @@ export type WizardValues = {
   loyalty: boolean
   banners: boolean
   store: boolean
-  vouchers: boolean
   // Regras de agenda
   slotStepMin: string
   minLeadMin: string
@@ -74,7 +73,6 @@ export const EMPTY_VALUES: WizardValues = {
   loyalty: false,
   banners: false,
   store: false,
-  vouchers: false,
   slotStepMin: '15',
   minLeadMin: '60',
   maxAdvanceDays: '60',
@@ -95,7 +93,7 @@ export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly 
     label: 'Termos',
     fields: ['professionalSingular', 'professionalPlural', 'customerSingular', 'customerPlural', 'pointsSingular', 'pointsPlural', 'club'],
   },
-  { id: 'modulos', label: 'Módulos', fields: ['loyalty', 'banners', 'store', 'vouchers'] },
+  { id: 'modulos', label: 'Módulos', fields: ['loyalty', 'banners', 'store'] },
   {
     id: 'regras',
     label: 'Regras de agenda',
@@ -127,7 +125,7 @@ export function stepsWithError(fields: Record<string, string>): number[] {
   return [...new Set(Object.keys(fields).map(stepOfField).filter((i): i is number => i !== null))].sort((a, b) => a - b)
 }
 
-const BOOLEANOS = ['loyalty', 'banners', 'store', 'vouchers', 'autoConfirm'] as const
+const BOOLEANOS = ['loyalty', 'banners', 'store', 'autoConfirm'] as const
 const TEXTOS = Object.keys(EMPTY_VALUES).filter((k) => !(BOOLEANOS as readonly string[]).includes(k)) as Array<
   Exclude<keyof WizardValues, (typeof BOOLEANOS)[number]>
 >

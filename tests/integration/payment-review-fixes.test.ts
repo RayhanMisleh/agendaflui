@@ -12,7 +12,6 @@ import { resetDb } from '../setup/db'
 import { cenaLoja, configurarIntegracoes, mpTokenDe, produto } from '../setup/store'
 import { estoque, pedidoComRetirada } from '../setup/store-orders'
 import { cenaPagamento, notificar, pagamentoMp, type CenaPagamento } from '../setup/store-payments'
-import { cenaVouchers, codigosDe, estoqueDoVoucher, pedidoDeVoucher } from '../setup/vouchers'
 
 vi.hoisted(() => {
   process.env.TRUSTED_PROXY_HOPS = '1'
@@ -41,22 +40,6 @@ describe('1. aviso repetido não desfaz o cancelamento do dono num pedido já pa
     expect(await estoque(c.produto.id)).toBe(10)
     expect(await prisma.auditLog.count({ where: { action: 'order.paid' } })).toBe(1)
     expect(await prisma.auditLog.count({ where: { action: 'order.reopened_by_payment' } })).toBe(0)
-  })
-
-  test('o mesmo vale para pedido de voucher: nenhum código novo e os anulados continuam anulados', async () => {
-    const v = await cenaVouchers()
-    const { order } = await pedidoDeVoucher(v.ctxCliente, [{ voucherId: v.voucher.id, quantity: 2 }])
-    const pg = pagamentoMp(order, { id: '9002' })
-    const ctx = await createSystemContext(v.b.id, () => v.now)
-    await applyPayment(ctx, order.id, pg)
-    await cancelOrder(v.dono, order.id)
-    const antes = (await codigosDe(order.id)).map((x) => [x.id, x.code, x.status])
-    await applyPayment(ctx, order.id, pg)
-    await applyPayment(ctx, order.id, pg)
-    expect((await codigosDe(order.id)).map((x) => [x.id, x.code, x.status])).toEqual(antes)
-    expect(antes.map((x) => x[2])).toEqual(['VOID', 'VOID'])
-    expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe('CANCELED')
-    expect(await estoqueDoVoucher(v.voucher.id)).toBe(10)
   })
 
   test('pedido que NUNCA foi pago e venceu continua reabrindo quando o pagamento chega depois', async () => {

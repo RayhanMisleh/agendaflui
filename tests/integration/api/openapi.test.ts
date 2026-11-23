@@ -318,7 +318,7 @@ describe('documento OpenAPI', () => {
     const esquema = esquemaDaResposta(doc, 'get', '/v1/staff/me', 200)
     const itens = objeto(objeto(objeto(esquema.properties).capabilities).items)
     expect(itens.enum).toEqual([...CAPABILITIES])
-    expect(itens.enum).toEqual(expect.arrayContaining(['manage_loyalty', 'manage_banners', 'manage_store', 'manage_vouchers']))
+    expect(itens.enum).toEqual(expect.arrayContaining(['manage_loyalty', 'manage_banners', 'manage_store']))
   })
 
   test('uma operação para cada método de cada rota, com operationId estável derivado de método e caminho', () => {

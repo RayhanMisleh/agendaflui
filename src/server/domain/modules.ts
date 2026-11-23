@@ -3,7 +3,7 @@ import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { DomainError } from '@/server/domain/errors'
 import { MODULE_LABELS, MODULE_NAMES, type ModuleName, type Modules } from '@/shared/modules'
 
-/** Os quatro módulos de uma vez (uma leitura só). Linha ausente = tudo desligado. */
+/** Os módulos de uma vez (uma leitura só). Linha ausente = tudo desligado. */
 export async function getModules(db: Pick<TenantClient | TenantTx, 'businessModules'>, businessId: string): Promise<Modules> {
   const row = await db.businessModules.findUnique({ where: { businessId } })
   return Object.fromEntries(MODULE_NAMES.map((m) => [m, row?.[m] === true])) as Modules

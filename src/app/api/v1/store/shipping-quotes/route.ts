@@ -15,9 +15,9 @@ export const POST = defineRoute({
   body: z.object({
     addressId: z.string().max(64).describe('Id de um endereço do próprio cliente.'),
     lines: z
-      .array(z.strictObject({ productId: z.string().max(64).optional(), voucherId: z.string().max(64).optional(), quantity: z.number() }))
+      .array(z.strictObject({ productId: z.string().max(64), quantity: z.number() }))
       .max(100)
-      .describe('Os itens do carrinho: só o id (de um produto ou de um voucher) e a quantidade. O preço vem do servidor; voucher não entra no frete.'),
+      .describe('Os itens do carrinho: só o id do produto e a quantidade. O preço vem do servidor.'),
   }),
   response: shippingQuoteSchema,
   limit: LIMITS.shippingQuote,

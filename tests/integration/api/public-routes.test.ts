@@ -40,7 +40,7 @@ describe('GET /v1/business', () => {
         'terms', 'terms.professional', 'terms.professional.singular', 'terms.professional.plural',
         'terms.customer', 'terms.customer.singular', 'terms.customer.plural',
         'terms.points', 'terms.points.singular', 'terms.points.plural', 'terms.club',
-        'modules', 'modules.loyalty', 'modules.banners', 'modules.store', 'modules.vouchers',
+        'modules', 'modules.loyalty', 'modules.banners', 'modules.store',
         'rules', 'rules.slotStepMin', 'rules.minLeadMin', 'rules.maxAdvanceDays', 'rules.customerChangeWindowMin',
       ].sort(),
     )
@@ -65,7 +65,7 @@ describe('GET /v1/business', () => {
       points: { singular: 'Ponto', plural: 'Pontos' },
       club: 'Clube Ouro',
     })
-    expect(json.modules).toEqual({ loyalty: true, banners: false, store: false, vouchers: false })
+    expect(json.modules).toEqual({ loyalty: true, banners: false, store: false })
     expect(json.rules).toEqual({ slotStepMin: 30, minLeadMin: 60, maxAdvanceDays: 60, customerChangeWindowMin: 120 })
     const brand = jsonObject(json.brand)
     expect(brand).toMatchObject({ primary: '#8A2BE2', logoUrl: null, symbolUrl: null })

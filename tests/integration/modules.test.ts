@@ -9,7 +9,7 @@ import { makeBusiness, makeCtx } from '../setup/factories'
 
 beforeEach(resetDb)
 
-const ligar = (businessId: string, data: { loyalty?: boolean; banners?: boolean; store?: boolean; vouchers?: boolean }) =>
+const ligar = (businessId: string, data: { loyalty?: boolean; banners?: boolean; store?: boolean }) =>
   prisma.businessModules.upsert({ where: { businessId }, create: { businessId, ...data }, update: data })
 
 async function falha(p: Promise<unknown>): Promise<DomainError> {
@@ -23,8 +23,8 @@ async function falha(p: Promise<unknown>): Promise<DomainError> {
 
 describe('módulos da conta', () => {
   test('os quatro módulos têm rótulo em português', () => {
-    expect([...MODULE_NAMES]).toEqual(['loyalty', 'banners', 'store', 'vouchers'])
-    expect(MODULE_LABELS).toEqual({ loyalty: 'Fidelidade', banners: 'Banners', store: 'Loja', vouchers: 'Vouchers' })
+    expect([...MODULE_NAMES]).toEqual(['loyalty', 'banners', 'store'])
+    expect(MODULE_LABELS).toEqual({ loyalty: 'Fidelidade', banners: 'Banners', store: 'Loja' })
   })
 
   test('sem linha de módulos, tudo está desligado e requireModule recusa com module_disabled', async () => {
@@ -65,7 +65,7 @@ describe('módulos da conta', () => {
     const ctx = await makeCtx(conta)
     await ctx.db.$transaction(async (tx) => {
       await expect(requireModule(ctx, 'banners', tx)).resolves.toBeUndefined()
-      expect((await falha(requireModule(ctx, 'vouchers', tx))).code).toBe('module_disabled')
+      expect((await falha(requireModule(ctx, 'store', tx))).code).toBe('module_disabled')
     })
   })
 })

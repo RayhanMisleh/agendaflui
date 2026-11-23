@@ -24,7 +24,7 @@ conferem `Origin == Host`.
 - `src/app/` rotas e telas (Server Components e Server Actions). Fina: autentica, valida a entrada e chama o domínio.
   `_lib/` guarda o apoio das telas; `healthz/` e `arquivos/` (imagens enviadas) atendem em todos os hosts.
 - `src/server/domain/` toda a regra de negócio, por assunto: `scheduling`, `catalog`, `customers`, `team`, `settings`,
-  `reports`, `notifications` (fila), `loyalty`, `banners`, `store`, `vouchers`, `platform` (painel dev) e `account`.
+  `reports`, `notifications` (fila), `loyalty`, `banners`, `store`, `platform` (painel dev) e `account`.
   Cada função recebe `ctx` (conta, ator, `ctx.db`, `ctx.clock()`); nunca usa o cliente Prisma cru nem `new Date()`.
   Erros são `DomainError` (`domain/errors.ts`), que também exporta o `z` usado nos esquemas.
 - `src/server/auth/` sessões, senhas, papéis e capacidades (`capabilities.ts`), tokens do app, limites de taxa, suporte.
@@ -72,8 +72,7 @@ de conta opcional, de plataforma ou o próprio registro da conta).
 
 ## Módulos
 
-Quatro módulos opcionais por conta (`src/shared/modules.ts`): `loyalty` (fidelidade), `banners`, `store` (loja) e `vouchers`
-(exige a loja). O admin os liga na aba Módulos do painel dev (`business_modules`). Cada função de domínio do módulo chama
+Três módulos opcionais por conta (`src/shared/modules.ts`): `loyalty` (fidelidade), `banners` e `store` (loja). O admin os liga na aba Módulos do painel dev (`business_modules`). Cada função de domínio do módulo chama
 `requireModule` (`domain/modules.ts`), que lança `module_disabled`; na API vira 404 e a interface esconde o menu. Desligar
 guarda os dados. A capacidade `manage_*` correspondente controla quem edita.
 
@@ -101,9 +100,9 @@ pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca e
 - Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
 - Remover profissional (`removerProfissional`, `access-core.ts`): acesso primeiro (`business_owners`, vínculos), depois `professional`.
 - Escopos sozinhos, sem combinar com outros: `catalog`, `loyalty`, `banners`, `customer` (resgate, ajuste, endereço, conta do
-  app) e `membership` (login e renovação do app). `store` também trava sozinho em produtos, categorias e vouchers.
+  app) e `membership` (login e renovação do app). `store` também trava sozinho em produtos e categorias.
 - Loja: criar pedido trava `store` e reserva o estoque; cancelar, vencer e estornar travam `order` e devolvem. As linhas de
-  produto e de voucher são sempre travadas em ordem de id, produtos antes de vouchers. Nunca `store` e `order` juntos.
+  produto são sempre travadas em ordem de id. Nunca `store` e `order` juntos.
 
 ## Fila de avisos e agendador interno
 
@@ -121,7 +120,7 @@ uma rodada de avisos e termina.
 
 ## Arquivos
 
-Imagens enviadas (logo, fotos da equipe, banners, produtos, vouchers) passam por `storage/images.ts` (valida e recodifica) e
+Imagens enviadas (logo, fotos da equipe, banners, produtos) passam por `storage/images.ts` (valida e recodifica) e
 vão para a interface `Storage` (`storage/storage.ts`), hoje em disco (`local-disk.ts`) em `STORAGE_DIR`; produção usa um
 volume persistente. São servidas por `GET /arquivos/{chave}` em qualquer host, com cabeçalhos de segurança.
 

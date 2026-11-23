@@ -73,7 +73,7 @@ export const orderSchema = z.object({
   deliveryMethod: z.enum(['PICKUP', 'SHIPPING', 'NONE']),
   items: z.array(
     z.object({
-      kind: z.enum(['product', 'voucher']),
+      kind: z.literal('product'),
       id: uuid,
       name: z.string().describe('Nome do item no momento da compra.'),
       unitPriceCents: z.number().describe('Preço unitário no momento da compra.'),

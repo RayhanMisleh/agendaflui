@@ -8,7 +8,7 @@ test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 
   expect(stepOfField('slug')).toBe(0)
   expect(stepOfField('primary')).toBe(1)
   expect(stepOfField('professionalSingular')).toBe(2)
-  expect(stepOfField('vouchers')).toBe(3)
+  expect(stepOfField('store')).toBe(3)
   expect(stepOfField('slotStepMin')).toBe(4)
   expect(stepOfField('ownerEmail')).toBe(5)
   expect(stepOfField('keyName')).toBeNull()

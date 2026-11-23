@@ -58,15 +58,15 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 
 ## Módulos e integrações
 
-- Quatro módulos opcionais, ligados por conta na aba Módulos do painel dev: Fidelidade, Banners, Loja e Vouchers
-  (Vouchers exige a Loja). Desligado, o módulo some do menu, das telas e da API (404) e os dados ficam guardados.
-  A aba mostra o que está em andamento (pedidos a entregar, resgates, códigos de voucher) antes de desligar.
+- Três módulos opcionais, ligados por conta na aba Módulos do painel dev: Fidelidade, Banners e Loja.
+  Desligado, o módulo some do menu, das telas e da API (404) e os dados ficam guardados.
+  A aba mostra o que está em andamento (pedidos a entregar e resgates) antes de desligar.
 - Mercado Pago (pagamento) e Frenet (frete) são configurados por conta, só pelo admin, na aba Integrações do painel
   dev. Os segredos ficam cifrados e a tela mostra só os 4 últimos caracteres. O webhook do Mercado Pago é
   `POST /v1/webhooks/mercadopago/{chave da conta}` no host da API.
 - `INTEGRATIONS_MODE` (`.env`): `fake` (padrão fora de produção) usa Mercado Pago, Frenet e ViaCEP falsos e liga
   "Simular pagamento aprovado" no pedido; em produção vale só `real`. Nenhum teste chama a rede.
-- O seed dá à Navalha de Ouro todos os módulos (produtos, prêmios, banners, vouchers, pedidos e códigos, com
+- O seed dá à Navalha de Ouro todos os módulos (produtos, prêmios, banners e pedidos, com
   credenciais `TEST-…` falsas e cifradas) e à Patas & Cia prêmios e um banner.
 
 ## API

@@ -20,7 +20,7 @@ export default async function ModulosPage({ params }: { params: Promise<{ id: st
         action={salvarModulos.bind(null, conta.id)}
         businessId={conta.id}
         uso={uso}
-        valores={{ loyalty: on(modules.loyalty), banners: on(modules.banners), store: on(modules.store), vouchers: on(modules.vouchers) }}
+        valores={{ loyalty: on(modules.loyalty), banners: on(modules.banners), store: on(modules.store) }}
       />
     </Card>
   )

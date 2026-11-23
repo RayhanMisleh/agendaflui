@@ -8,11 +8,11 @@ test('profissional só tem o básico', () => {
   const allowed = CAPABILITIES.filter((c) => can(member('PROFESSIONAL'), c))
   expect(allowed).toEqual(['view_dashboard', 'view_own_agenda', 'manage_own_availability', 'view_clients', 'view_own_reports'])
 })
-const MODULOS = ['manage_loyalty', 'manage_banners', 'manage_store', 'manage_vouchers'] as const
+const MODULOS = ['manage_loyalty', 'manage_banners', 'manage_store'] as const
 
 test('as capacidades dos módulos entram no fim da lista e as cinco básicas seguem as cinco primeiras', () => {
   expect(CAPABILITIES.slice(0, 5)).toEqual(['view_dashboard', 'view_own_agenda', 'manage_own_availability', 'view_clients', 'view_own_reports'])
-  expect(CAPABILITIES.slice(-4)).toEqual([...MODULOS])
+  expect(CAPABILITIES.slice(-3)).toEqual([...MODULOS])
 })
 test('gerente, dono e suporte gerenciam os módulos; profissional e admin da plataforma não', () => {
   for (const c of MODULOS) {

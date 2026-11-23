@@ -198,15 +198,11 @@ describe('termos, módulos, regras e avisos', () => {
     expect(vazioClube.fields.club).toBeTruthy()
   })
 
-  test('ligar vouchers sem loja devolve o erro no campo e não grava; com loja grava', async () => {
+  test('salvar módulos grava os que estão marcados e desliga os outros', async () => {
     const conta = await makeBusiness()
-    const e = await salvarModulos(conta.id, ini, form({ vouchers: 'on' }))
-    expect(e.ok).toBe(false)
-    expect(e.fields.vouchers).toMatch(/Loja/)
-    expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: false, store: false })
-    const ok = await salvarModulos(conta.id, ini, form({ vouchers: 'on', store: 'on', loyalty: 'on' }))
+    const ok = await salvarModulos(conta.id, ini, form({ store: 'on', loyalty: 'on' }))
     expect(ok.ok).toBe(true)
-    expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: true, store: true, loyalty: true, banners: false })
+    expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ store: true, loyalty: true, banners: false })
   })
 
   test('regras gravam e o fuso da conta não muda; valor fora do limite erra no campo; campo em branco é recusado', async () => {

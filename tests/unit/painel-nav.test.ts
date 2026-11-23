@@ -13,8 +13,8 @@ const TERMOS: Terms = {
   pointsPlural: 'Pontos',
   club: 'Clube',
 }
-const MODULOS: Modules = { loyalty: false, banners: false, store: false, vouchers: false }
-const TODOS_LIGADOS: Modules = { loyalty: true, banners: true, store: true, vouchers: true }
+const MODULOS: Modules = { loyalty: false, banners: false, store: false }
+const TODOS_LIGADOS: Modules = { loyalty: true, banners: true, store: true }
 
 function navDe(role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', modules = MODULOS) {
   const actor: Actor = { kind: 'member', userId: 'u', membershipId: 'm', name: 'Ana', role }

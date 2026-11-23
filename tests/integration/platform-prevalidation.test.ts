@@ -17,7 +17,7 @@ beforeEach(async () => {
 const setup = {
   brand: { displayName: 'Pata Viva', primary: '#2F6B4F', accent: '#E8833A', material: 'LINEN' },
   terms: { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' },
-  modules: { loyalty: true, banners: false, store: true, vouchers: true },
+  modules: { loyalty: true, banners: false, store: true },
   rules: { slotStepMin: 30, minLeadMin: 60, maxAdvanceDays: 60, customerChangeWindowMin: 120, bufferMin: 0, autoConfirm: true },
 } as const
 
@@ -30,12 +30,11 @@ describe('validateAccountSetup usa os mesmos esquemas das funções de escrita',
     const ruim = {
       brand: { ...setup.brand, displayName: '<b>x</b>', primary: 'vermelho' },
       terms: { ...setup.terms, club: '', professionalSingular: 'x'.repeat(31) },
-      modules: { loyalty: false, banners: false, store: false, vouchers: true },
+      modules: { loyalty: false, banners: false, store: false },
       rules: { ...setup.rules, slotStepMin: 7, bufferMin: 3 },
     }
     const e = validateAccountSetup(ruim as never)
-    expect(Object.keys(e).sort()).toEqual(['bufferMin', 'club', 'displayName', 'primary', 'professionalSingular', 'slotStepMin', 'store', 'vouchers'])
-    expect(e.vouchers).toMatch(/Loja/)
+    expect(Object.keys(e).sort()).toEqual(['bufferMin', 'club', 'displayName', 'primary', 'professionalSingular', 'slotStepMin'])
     expect(e.primary).toMatch(/#rrggbb/)
   })
 

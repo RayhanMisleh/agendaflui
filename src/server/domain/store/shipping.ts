@@ -31,9 +31,7 @@ export async function quoteShipping(ctx: TenantContext, i: { addressId: string; 
   if (address === null) throw new DomainError('not_found', 'Endereço não encontrado.')
   const pickup = { available: settings.pickupEnabled, instructions: settings.pickupEnabled ? settings.pickupInstructions : null }
   const error = settings.pickupEnabled ? 'A entrega não está disponível agora. Você pode retirar no local.' : 'A entrega não está disponível agora. Tente de novo em instantes.'
-  // Voucher não entra no frete (nem no peso): carrinho só de vouchers não tem entrega a cotar.
-  const physical = cart.lines.flatMap((l) => (l.kind === 'product' ? [l] : []))
-  if (physical.length === 0) return { pickup: { available: false, instructions: null }, options: [], shippingError: 'Este carrinho só tem vouchers e não precisa de entrega.' }
+  const physical = cart.lines
   const none = (): ShippingQuote => ({ pickup, options: [], shippingError: error })
 
   const token = settings.shippingEnabled && settings.originPostalCode !== null ? await readFrenetToken(ctx.businessId) : null

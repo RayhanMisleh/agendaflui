@@ -9,15 +9,11 @@ export { z }
 
 /** Motivos estáveis de erro (`DomainError.reason`), em ordem alfabética. Acrescente o seu aqui ao criar um. */
 export const DOMAIN_REASONS = [
-  'already_redeemed',
   'already_started',
   'blocked',
   'busy',
   'changed',
   'club_only',
-  'code_expired',
-  'code_void',
-  'codes_in_use',
   'customer_gone',
   'customer_inactive',
   'email_taken',
