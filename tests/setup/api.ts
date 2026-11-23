@@ -1,14 +1,11 @@
-import type { Actor } from '@/server/auth/actor'
 import { signAccessToken } from '@/server/auth/api-tokens'
 import { setAfterScheduler } from '@/server/api/after'
 import type { RouteHandler } from '@/server/api/define-route'
-import { createApiKey } from '@/server/domain/platform/api-keys'
-import { makePlatformAdmin } from './factories'
 
 const BASE = 'http://api.localhost:3000'
 
 type RequestOptions = {
-  key?: string
+  /** Slug da conta, no cabeçalho `X-Business`. */
   business?: string
   token?: string
   /** Texto vai como está (para testar JSON inválido); qualquer outro valor vira JSON. */
@@ -20,7 +17,6 @@ type RequestOptions = {
 /** Monta um `Request` para a API. Com `body`, manda `Content-Type: application/json` (a menos que `headers` diga outra coisa). */
 export function apiRequest(method: string, path: string, o: RequestOptions = {}): Request {
   const headers = new Headers()
-  if (o.key !== undefined) headers.set('x-app-key', o.key)
   if (o.business !== undefined) headers.set('x-business', o.business)
   if (o.token !== undefined) headers.set('authorization', `Bearer ${o.token}`)
   if (o.origin !== undefined) headers.set('origin', o.origin)
@@ -67,22 +63,6 @@ export function apiError(json: unknown): ApiErrorBody {
   const erro = jsonObject(json).error
   if (typeof erro !== 'object' || erro === null) throw new Error('A resposta não tem o formato de erro padrão.')
   return erro as ApiErrorBody
-}
-
-/** Cria uma chave de app (de conta com `businessId`, de plataforma com `null`) e devolve o segredo e o id. */
-export async function makeAppKey(
-  businessId: string | null,
-  o: { allowedOrigins?: string[] } = {},
-): Promise<{ secret: string; id: string }> {
-  const admin = await makePlatformAdmin()
-  const actor: Extract<Actor, { kind: 'platform_admin' }> = { kind: 'platform_admin', adminId: admin.id, name: admin.name }
-  const { key, secret } = await createApiKey(actor, {
-    kind: businessId === null ? 'PLATFORM' : 'ACCOUNT',
-    ...(businessId === null ? {} : { businessId }),
-    name: 'Chave de teste',
-    allowedOrigins: o.allowedOrigins ?? [],
-  })
-  return { secret, id: key.id }
 }
 
 export async function customerToken(businessId: string, customerId: string): Promise<string> {

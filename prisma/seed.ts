@@ -1,5 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
-import { dirname, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
@@ -56,70 +55,7 @@ export class SeedIncompletoError extends Error {
 
 const SEED_DONE_ACTION = 'seed.demo_completed'
 
-/** Chaves de app de demonstração: quantas esta execução criou e, se alguma não tem segredo guardado, a frase do aviso. */
-export type ChavesResumo = { criadas: number; aviso: string | null }
-
-export type SeedResult = { emails: string[]; agenda: AgendaResumo[]; chaves: ChavesResumo }
-
-const ORIGENS_DEMO = ['http://*.localhost:3000', 'http://localhost:3000']
-
-async function lerSegredos(arquivo: string): Promise<Record<string, string>> {
-  try {
-    const dado: unknown = JSON.parse(await readFile(arquivo, 'utf8'))
-    const r = z.record(z.string(), z.string()).safeParse(dado)
-    return r.success ? r.data : {}
-  } catch {
-    return {}
-  }
-}
-
-/**
- * Uma chave de conta por conta de demonstração e uma de plataforma, criadas pela função de domínio. O segredo só existe
- * no retorno dela: vai para o arquivo (modo 0600) e nunca é impresso. Chave que já existe não é recriada; se o segredo
- * dela não está no arquivo, só avisa (recriar exige `npm run db:reset`, que o seed nunca faz sozinho).
- */
-async function chavesDeDemonstracao(
-  prisma: PrismaClient,
-  arquivo: string,
-  admin: { id: string; name: string },
-  contas: { slug: string; name: string; id: string }[],
-): Promise<ChavesResumo> {
-  const { createApiKey } = await import('../src/server/domain/platform/api-keys')
-  const ator = { kind: 'platform_admin' as const, adminId: admin.id, name: admin.name }
-  const segredos = await lerSegredos(arquivo)
-  const alvos = [
-    ...contas.map((c) => ({ rotulo: c.slug, nome: `Demonstração ${c.name}`, kind: 'ACCOUNT' as const, businessId: c.id })),
-    { rotulo: 'plataforma', nome: 'Demonstração da plataforma', kind: 'PLATFORM' as const, businessId: null },
-  ]
-  let criadas = 0
-  let perdidas = 0
-  for (const alvo of alvos) {
-    const existente = await prisma.apiKey.findFirst({
-      where: { name: alvo.nome, kind: alvo.kind, businessId: alvo.businessId, revokedAt: null },
-    })
-    if (existente) {
-      if (segredos[alvo.rotulo]?.split('_')[2] !== existente.prefix) perdidas += 1
-      continue
-    }
-    const { secret } = await createApiKey(ator, {
-      kind: alvo.kind,
-      ...(alvo.businessId === null ? {} : { businessId: alvo.businessId }),
-      name: alvo.nome,
-      allowedOrigins: ORIGENS_DEMO,
-    })
-    segredos[alvo.rotulo] = secret
-    criadas += 1
-    // Grava a cada chave: se a seguinte falhar, o segredo desta (que só existe agora) não se perde.
-    await mkdir(dirname(arquivo), { recursive: true })
-    await writeFile(arquivo, `${JSON.stringify(segredos, null, 2)}\n`, { mode: 0o600 })
-    await chmod(arquivo, 0o600)
-  }
-  const aviso =
-    perdidas > 0
-      ? `Há chaves de demonstração sem segredo guardado em ${arquivo}: não dá para recuperá-las. Rode npm run db:reset para recriar tudo.`
-      : null
-  return { criadas, aviso }
-}
+export type SeedResult = { emails: string[]; agenda: AgendaResumo[] }
 
 type AdminAtor = { kind: 'platform_admin'; adminId: string; name: string }
 
@@ -166,20 +102,16 @@ async function contaSuspensa(prisma: PrismaClient, ator: AdminAtor, donoId: stri
 }
 
 /**
- * Uso da API das últimas 48 horas cheias, por chave de conta e rota, no formato que `recordUsage` acumula. Valores
+ * Uso da API das últimas 48 horas cheias, por conta de demonstração e rota, no formato que `recordUsage` acumula. Valores
  * determinísticos (sem sorteio); só quando a tabela está vazia, porque `writeUsageRows` soma em vez de substituir.
  */
-async function usoDeDemonstracao(prisma: PrismaClient, now: Date): Promise<void> {
+async function usoDeDemonstracao(prisma: PrismaClient, contas: { slug: string; id: string }[], now: Date): Promise<void> {
   if ((await prisma.apiUsageHourly.count()) > 0) return
-  const chaves = await prisma.apiKey.findMany({
-    where: { kind: 'ACCOUNT', revokedAt: null, name: { startsWith: 'Demonstração' }, businessId: { not: null } },
-    orderBy: { name: 'asc' },
-  })
   const { writeUsageRows } = await import('../src/server/domain/platform/api-usage')
   const fimDaHora = startOfUtcHour(now)
   const linhas = []
-  for (const [c, chave] of chaves.entries()) {
-    if (chave.businessId === null) continue
+  const ordenadas = [...contas].sort((a, b) => (a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0))
+  for (const [c, conta] of ordenadas.entries()) {
     for (let h = 1; h <= 48; h++) {
       // Mais tráfego de dia que de madrugada (hora UTC; é só um desenho plausível).
       const hora = addMinutes(fimDaHora, -60 * h)
@@ -190,8 +122,7 @@ async function usoDeDemonstracao(prisma: PrismaClient, now: Date): Promise<void>
         const errorCount = (h + r * 5 + c) % 13 === 0 ? 1 + (h % 2) : 0
         const totalMs = count * rota.ms + ((h * 13) % 30)
         linhas.push({
-          apiKeyId: chave.id,
-          businessId: chave.businessId,
+          businessId: conta.id,
           route: rota.rota,
           hour: hora,
           count,
@@ -508,8 +439,7 @@ async function semearAgenda(
 export async function seed(
   prisma: PrismaClient,
   rawEnv: SeedEnv,
-  /** `demoKeysFile`: onde gravar os segredos das chaves de app de demonstração; sem ele, o seed não cria chaves. */
-  opts: { now?: Date; demoKeysFile?: string } = {},
+  opts: { now?: Date } = {},
 ): Promise<SeedResult> {
   if (rawEnv.NODE_ENV === 'production' && rawEnv.SEED_ALLOW_PRODUCTION !== '1') {
     throw new Error('O seed de demonstração não roda em produção.')
@@ -597,11 +527,8 @@ export async function seed(
   if (patas) await avisoComFalha(prisma, patas.id, now)
   await execucoesDeDemonstracao(prisma, now)
 
-  const chaves = opts.demoKeysFile
-    ? await chavesDeDemonstracao(prisma, opts.demoKeysFile, admin, contas)
-    : { criadas: 0, aviso: null }
-  if (opts.demoKeysFile) await usoDeDemonstracao(prisma, now)
-  return { emails, agenda, chaves }
+  await usoDeDemonstracao(prisma, contas, now)
+  return { emails, agenda }
 }
 
 /** Frase curta do que o seed criou na agenda de uma conta. */
@@ -617,13 +544,10 @@ async function main(): Promise<void> {
   }
   const { prisma } = await import('../src/server/db/client')
   try {
-    const arquivo = resolve('.local/demo-keys.json')
-    const { emails, agenda, chaves } = await seed(prisma, process.env, { demoKeysFile: arquivo })
+    const { emails, agenda } = await seed(prisma, process.env)
     console.log(`Dados de demonstração prontos. Contas de acesso: ${emails.join(', ')}.`)
     for (const r of agenda) console.log(textoDoResumo(r))
     console.log('As senhas de demonstração estão no .env.')
-    if (chaves.criadas > 0) console.log(`${chaves.criadas} chaves de app de demonstração criadas; os segredos estão em .local/demo-keys.json.`)
-    if (chaves.aviso) console.log(chaves.aviso)
   } finally {
     await prisma.$disconnect()
   }

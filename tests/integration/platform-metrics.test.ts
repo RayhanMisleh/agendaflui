@@ -9,7 +9,6 @@ import { addMinutes, fromIsoInstant } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import { makeBusiness, makeCustomer, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser } from '../setup/factories'
-import { makeAppKey } from '../setup/api'
 
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
@@ -201,10 +200,9 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
 
   test('API nas últimas 24 horas e avisos pendentes e com falha', async () => {
     const sp = await conta()
-    const key = await makeAppKey(sp.business.id)
     const linha = (hour: string, count: number, errorCount: number) =>
       prisma.apiUsageHourly.create({
-        data: { apiKeyId: key.id, businessId: sp.business.id, route: `GET /v1/${hour}`, hour: at(hour), count, errorCount, totalMs: 10n, maxMs: 5 },
+        data: { businessId: sp.business.id, route: `GET /v1/${hour}`, hour: at(hour), count, errorCount, totalMs: 10n, maxMs: 5 },
       })
     await linha('2026-11-16T15:00:00.000Z', 10, 1) // hora atual
     await linha('2026-11-15T16:00:00.000Z', 5, 2) // 23 horas antes: dentro
@@ -397,8 +395,6 @@ describe('getAccountMetrics', () => {
     await prisma.membership.update({ where: { id: inativo.id }, data: { active: false } })
     await makeProfessional(mn.business.id)
     await makeProfessional(mn.business.id, { archivedAt: NOW })
-    const key = await makeAppKey(mn.business.id)
-    void key
     await prisma.refreshToken.create({
       data: { businessId: mn.business.id, subject: 'CUSTOMER', customerId: mn.customerId, familyId: randomUUID(), tokenHash: randomUUID(), expiresAt: dias(NOW, 30), createdAt: at('2026-11-12T10:00:00.000Z') },
     })

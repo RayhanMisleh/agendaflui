@@ -7,7 +7,7 @@ import { listPublicProducts } from '@/server/domain/store/products'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/store/products',
-  auth: 'key',
+  auth: 'guest',
   module: 'store',
   summary: 'Produtos à venda (ativos, de categoria não arquivada), na ordem da loja, com paginação por cursor. O estoque não é exposto',
   tag: 'Loja',

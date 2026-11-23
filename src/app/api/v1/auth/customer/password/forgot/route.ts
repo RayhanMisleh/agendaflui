@@ -9,15 +9,15 @@ import { z } from '@/server/domain/errors'
 export const POST = defineRoute({
   method: 'POST',
   path: '/v1/auth/customer/password/forgot',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Pede o código para redefinir a senha (a resposta é sempre a mesma)',
   tag: 'Conta do cliente',
   body: z.object({ email: credentialText }),
   response: verificationSentSchema,
   status: 202,
   limit: LIMITS.authIp,
-  handler: async ({ key, body, request, now }) => {
-    runAfterResponse(await requestPasswordReset(key.businessId, body.email, requestMeta(request), now))
+  handler: async ({ business, body, request, now }) => {
+    runAfterResponse(await requestPasswordReset(business.id, body.email, requestMeta(request), now))
     return { status: 'verification_sent' as const }
   },
 })

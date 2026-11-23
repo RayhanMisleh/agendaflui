@@ -72,10 +72,10 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 ## API
 
 - A documentação OpenAPI está em `/v1/openapi.json` no host da API (`http://api.localhost:3000/v1/openapi.json`).
-- As chaves de app de demonstração (uma por conta e uma de plataforma) ficam em `.local/demo-keys.json`, criadas
-  pelo seed; mande a chave no cabeçalho `X-App-Key`. Se o arquivo sumir, `npm run db:reset` recria tudo.
+- A API serve só aos apps próprios: não há chave. Mande a conta no cabeçalho `X-Business` (o `slug`, ex.: `patas-e-cia`).
+  No navegador, só as origens de `APP_WEB_ORIGINS` recebem CORS (localhost é liberado fora de produção).
 - Em desenvolvimento, e-mails caem em `.local/mail` e pushes em `.local/push`.
-- Variáveis (veja `.env.example`): `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
+- Variáveis (veja `.env.example`): `APP_WEB_ORIGINS`, `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
 - `npm run worker:once` roda uma rodada de envio de avisos e termina.
 
 ## Comandos
@@ -85,7 +85,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 | `npm run dev` | Banco, migrações, dados de demonstração e Next |
 | `npm run db:start` | Só o banco local |
 | `npm run db:migrate` | Aplica as migrações (o banco precisa estar no ar: `npm run db:start`) |
-| `npm run db:seed` | Cria os dados e as chaves de demonstração (pode repetir sem duplicar) |
+| `npm run db:seed` | Cria os dados de demonstração (pode repetir sem duplicar) |
 | `npm run db:reset` | Apaga o banco local e recria vazio |
 | `npm run admin:create` | Cria um administrador da plataforma |
 | `npm run smoke` | Fumaça por HTTP das telas dos dois painéis (só em banco local) |

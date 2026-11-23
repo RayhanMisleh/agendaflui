@@ -34,9 +34,9 @@ beforeEach(async () => {
 })
 
 const get = (h: Parameters<typeof callRoute>[0], path: string, o: { token?: string; params?: Record<string, string> } = {}) =>
-  callRoute(h, apiRequest('GET', path, { key: c.key, ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
+  callRoute(h, apiRequest('GET', path, { business: c.business.slug, ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
 const enviar = (h: Parameters<typeof callRoute>[0], method: string, path: string, body: unknown, o: { token?: string; params?: Record<string, string> } = {}) =>
-  callRoute(h, apiRequest(method, path, { key: c.key, ...(o.token ? { token: o.token } : {}), ...(body === undefined ? {} : { body }) }), o.params ?? {})
+  callRoute(h, apiRequest(method, path, { business: c.business.slug, ...(o.token ? { token: o.token } : {}), ...(body === undefined ? {} : { body }) }), o.params ?? {})
 
 const ENDERECO = { label: 'Casa', recipientName: 'Cliente Um', postalCode: '01310-100', street: 'Avenida Paulista', number: '1000', complement: null, district: 'Bela Vista', city: 'São Paulo', state: 'SP', isDefault: true }
 
@@ -63,7 +63,7 @@ describe('módulo desligado', () => {
 })
 
 describe('GET /v1/store/options e categories', () => {
-  test('opções com a chave de app, sem login', async () => {
+  test('opções com a conta, sem login', async () => {
     await updateStoreSettings(dono, 0, { pickupEnabled: true, pickupInstructions: 'Na recepção', shippingEnabled: false, originPostalCode: null, defaultPackage: { weightGrams: 1000, lengthCm: 20, heightCm: 10, widthCm: 30 }, paymentWindowMin: 60 })
     const r = await get(opcoes, '/v1/store/options')
     expect(r.status).toBe(200)

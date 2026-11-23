@@ -84,7 +84,7 @@ function chamar(handler: Parameters<typeof callRoute>[0], metodo: string, caminh
   return callRoute(
     handler,
     apiRequest(metodo, `${caminho}${o.query ?? ''}`, {
-      key: c.key,
+      business: c.business.slug,
       ...(token === undefined ? {} : { token }),
       ...(o.body === undefined ? {} : { body: o.body }),
       ...(o.headers ? { headers: o.headers } : {}),
@@ -125,9 +125,9 @@ describe('autenticação', () => {
       }))
     expect(rotas.length).toBeGreaterThanOrEqual(25)
     for (const { handler, metodo, caminho, params } of rotas) {
-      const sem = await callRoute(handler, apiRequest(metodo, caminho, { key: c.key }), params)
+      const sem = await callRoute(handler, apiRequest(metodo, caminho, { business: c.business.slug }), params)
       expect(sem.status, `${metodo} ${caminho} sem token`).toBe(401)
-      const cliente = await callRoute(handler, apiRequest(metodo, caminho, { key: c.key, token: c.tokenCliente }), params)
+      const cliente = await callRoute(handler, apiRequest(metodo, caminho, { business: c.business.slug, token: c.tokenCliente }), params)
       expect(cliente.status, `${metodo} ${caminho} com token de cliente`).toBe(403)
       expect(apiError(cliente.json).reason).toBe('wrong_token_kind')
     }
@@ -339,7 +339,7 @@ describe('marcar e agir sobre agendamentos', () => {
     const id = await marcado(c.dia(5), '15:00')
     const ruim = await callRoute(
       cancelar,
-      apiRequest('POST', `/v1/staff/appointments/${id}/cancel`, { key: c.key, token: gerente.token, body: '{nao-json', headers: { 'content-type': 'application/json' } }),
+      apiRequest('POST', `/v1/staff/appointments/${id}/cancel`, { business: c.business.slug, token: gerente.token, body: '{nao-json', headers: { 'content-type': 'application/json' } }),
       { id },
     )
     expect(ruim.status).toBe(422)
@@ -617,7 +617,7 @@ describe('dispositivos da equipe', () => {
     await chamar(registrarDispositivo, 'POST', '/v1/staff/devices', gerente, { body: { platform: 'web', pushToken: TOKEN } })
     const cliente = await callRoute(
       registrarDispositivoCliente,
-      apiRequest('POST', '/v1/me/devices', { key: c.key, token: c.tokenCliente, body: { platform: 'web', pushToken: TOKEN } }),
+      apiRequest('POST', '/v1/me/devices', { business: c.business.slug, token: c.tokenCliente, body: { platform: 'web', pushToken: TOKEN } }),
     )
     expect(cliente.status).toBe(204)
     const [unico] = await prisma.device.findMany({ where: { businessId: c.business.id } })
@@ -700,13 +700,13 @@ describe('isolamento entre contas', () => {
 })
 
 describe('rotas da equipe no manifesto', () => {
-  test('todo caminho /v1/staff/* pede token da equipe; as rotas de entrada /v1/auth/staff/* só a chave', () => {
+  test('todo caminho /v1/staff/* pede token da equipe; as rotas de entrada /v1/auth/staff/* só a conta', () => {
     const defs = routeDefinitions()
     const staff = defs.filter((d) => d.path.startsWith('/v1/staff/'))
     expect(staff.length).toBeGreaterThanOrEqual(25)
     for (const d of staff) expect(d.auth, `${d.method} ${d.path}`).toBe('staff')
     for (const d of defs.filter((x) => x.path.startsWith('/v1/auth/staff/'))) {
-      expect(['key', 'staff'], `${d.method} ${d.path}`).toContain(d.auth)
+      expect(['guest', 'staff'], `${d.method} ${d.path}`).toContain(d.auth)
     }
   })
 })

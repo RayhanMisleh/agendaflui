@@ -33,10 +33,10 @@ beforeEach(async () => {
   voucherId = (await createVoucherDireto(c.business.id, parceiro.id)).id
 })
 
-const get = (h: Parameters<typeof callRoute>[0], path: string, o: { token?: string; params?: Record<string, string>; key?: boolean } = {}) =>
-  callRoute(h, apiRequest('GET', path, { ...(o.key === false ? {} : { key: c.key }), ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
+const get = (h: Parameters<typeof callRoute>[0], path: string, o: { token?: string; params?: Record<string, string>; business?: boolean } = {}) =>
+  callRoute(h, apiRequest('GET', path, { ...(o.business === false ? {} : { business: c.business.slug }), ...(o.token ? { token: o.token } : {}) }), o.params ?? {})
 let chaves = 0
-const post = (path: string, body: unknown, token: string) => callRoute(criarPedido, apiRequest('POST', path, { key: c.key, token, body, headers: { 'idempotency-key': `v-${++chaves}` } }))
+const post = (path: string, body: unknown, token: string) => callRoute(criarPedido, apiRequest('POST', path, { business: c.business.slug, token, body, headers: { 'idempotency-key': `v-${++chaves}` } }))
 
 /** Compra e paga `n` unidades do voucher pelo domínio (o pagamento é o mesmo do webhook). */
 async function comprar(customer: { id: string }, n = 1) {
@@ -97,8 +97,8 @@ describe('GET /v1/vouchers e /v1/vouchers/{id}', () => {
     expect((await get(umVoucher, `/v1/vouchers/${voucherId}`, { params: { id: voucherId } })).status).toBe(200)
   })
 
-  test('exige a chave do app', async () => {
-    expect((await get(listarVouchers, '/v1/vouchers', { key: false })).status).toBe(401)
+  test('exige o cabeçalho X-Business', async () => {
+    expect((await get(listarVouchers, '/v1/vouchers', { business: false })).status).toBe(401)
   })
 })
 

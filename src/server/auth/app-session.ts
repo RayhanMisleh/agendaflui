@@ -1,6 +1,6 @@
 import 'server-only'
 import { revokeRefreshToken, rotateRefreshToken, type RequestMeta, type SubjectKind, type TokenPair } from '@/server/auth/api-tokens'
-import { ApiAuthError } from '@/server/domain/platform/api-keys'
+import { ApiAuthError } from '@/server/auth/api-auth-error'
 
 /**
  * Renovação da sessão do app (cliente ou equipe). Um token de renovação do outro tipo de sujeito é tratado como

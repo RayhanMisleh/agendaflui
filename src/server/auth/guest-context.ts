@@ -4,7 +4,7 @@ import type { RequestInfo, TenantContext } from './actor'
 
 /**
  * Contexto de quem usa o app sem entrar (ator `guest`): só leitura do que é público. A conta já foi resolvida e
- * conferida (ativa) pela chave de app, então não há o que reler no banco.
+ * conferida (ativa) pelo cabeçalho `X-Business`, então não há o que reler no banco.
  */
 export function createGuestContext(i: {
   businessId: string

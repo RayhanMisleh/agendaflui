@@ -22,11 +22,13 @@ test('sem JavaScript todas as etapas aparecem num formulário só, com os campos
   const html = renderToString(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const secoes = doc.querySelectorAll('section.af-wizard__step')
-  expect(secoes).toHaveLength(7)
+  expect(secoes).toHaveLength(6)
   for (const s of secoes) expect(s.hasAttribute('hidden')).toBe(false)
-  for (const nome of ['name', 'slug', 'primary', 'material', 'club', 'bufferMin', 'ownerEmail', 'keyName']) {
+  for (const nome of ['name', 'slug', 'primary', 'material', 'club', 'bufferMin', 'ownerEmail']) {
     expect(doc.querySelector(`form [name="${nome}"]`), nome).not.toBeNull()
   }
+  expect(doc.querySelector('form [name="keyName"]')).toBeNull()
+  expect(doc.querySelector('form [name="createKey"]')).toBeNull()
   expect(doc.querySelector('button[type="submit"]')?.textContent).toContain('Criar conta')
   expect(doc.querySelector('nav[aria-label="Etapas da criação da conta"] a[href="#etapa-dono"]')).not.toBeNull()
 })
@@ -82,7 +84,7 @@ test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valo
   }))
   render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   await userEvent.type(screen.getByLabelText('Nome da conta'), 'Pata Viva')
-  await userEvent.click(screen.getByRole('link', { name: /Chave de app/ }))
+  await userEvent.click(screen.getByRole('link', { name: /Dono/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
   const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
   expect(await within(trilho).findByRole('link', { name: /Dados.*com erro/ })).toHaveAttribute('aria-current', 'step')
@@ -94,7 +96,7 @@ test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valo
   expect(screen.getByRole('alert')).toHaveTextContent('Identificador: Já existe uma conta')
 })
 
-test('depois de criar, mostra o segredo da chave uma vez, com aviso e botão de copiar', async () => {
+test('depois de criar, mostra a conta criada, o link de entrada e o convite do dono, sem chave', async () => {
   acao.criarConta.mockImplementation(async (): Promise<FormState<WizardData>> => ({
     ok: true,
     message: null,
@@ -109,18 +111,15 @@ test('depois de criar, mostra o segredo da chave uma vez, com aviso e botão de 
         ownerExisting: false,
         emailSent: true,
         pendencias: [],
-        keyName: 'App Pata Viva',
-        secret: 'afk_a_1234abcd_SEGREDO',
       },
     },
   }))
   render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
-  await userEvent.click(screen.getByRole('link', { name: /Chave de app/ }))
+  await userEvent.click(screen.getByRole('link', { name: /Dono/ }))
   await userEvent.click(screen.getByRole('button', { name: 'Criar conta' }))
   expect(await screen.findByRole('heading', { name: 'Pata Viva está criada' })).toHaveFocus()
-  expect(screen.getByText('afk_a_1234abcd_SEGREDO')).toBeInTheDocument()
-  expect(screen.getByText('Copie a chave de app agora. Ela não será mostrada de novo.')).toBeInTheDocument()
-  expect(screen.getByRole('button', { name: 'Copiar a chave App Pata Viva' })).toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'Copiar link de entrada' })).toBeInTheDocument()
+  expect(screen.queryByText(/chave de app/i)).not.toBeInTheDocument()
   expect(screen.getByRole('link', { name: 'Abrir a conta' })).toHaveAttribute('href', '/contas/c-1')
   expect(screen.getByText(/Enviamos para marina@exemplo.test o convite/)).toBeInTheDocument()
 })

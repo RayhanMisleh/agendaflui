@@ -6,7 +6,7 @@ import { getPublicProduct } from '@/server/domain/store/products'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/store/products/{id}',
-  auth: 'key',
+  auth: 'guest',
   module: 'store',
   summary: 'Um produto à venda. Inativo, arquivado ou de outra conta: 404',
   tag: 'Loja',

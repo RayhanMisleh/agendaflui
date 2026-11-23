@@ -47,15 +47,13 @@ export const DOMAIN_REASONS = [
 export type DomainReason = (typeof DOMAIN_REASONS)[number]
 
 /**
- * Motivos (`reason`) que só a camada da API produz: chave de app, token, origem, corpo e entrada da equipe. Lista única,
+ * Motivos (`reason`) que só a camada da API produz: conta, token, origem, corpo e entrada da equipe. Lista única,
  * usada pelo código (`ApiAuthError` e o mapeamento de erros) e pelo documento OpenAPI; não repete os de `DOMAIN_REASONS`.
  */
 export const API_REASONS = [
   'account_inactive',
   'body_too_large',
-  'business_mismatch',
   'business_unavailable',
-  'invalid_app_key',
   'invalid_credentials',
   'invalid_refresh_token',
   'no_access',

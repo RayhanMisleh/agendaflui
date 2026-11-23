@@ -1,5 +1,3 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
 import { afterAll, beforeAll, expect, test, vi } from 'vitest'
 import { GET as availability } from '@/app/api/v1/availability/route'
 import { GET as business } from '@/app/api/v1/business/route'
@@ -38,21 +36,18 @@ const SENHA = 'senha-muito-segura-1'
 const IP = { 'x-forwarded-for': '198.51.100.7' }
 
 const mail = fakeMail()
-let dir: string
-let key: string
+const SLUG = 'patas-e-cia'
 const usadas: string[] = []
 
 beforeAll(async () => {
   await resetDb()
-  dir = await mkdtemp(join(process.cwd(), '.local', 'full-flow-'))
-  const arquivo = join(dir, 'demo-keys.json')
-  await seed(prisma, ENV, { now: SEED_NOW, demoKeysFile: arquivo })
-  const chaves = JSON.parse(await readFile(arquivo, 'utf8')) as Record<string, string>
-  key = chaves['patas-e-cia'] ?? ''
+  await seed(prisma, ENV, { now: SEED_NOW })
+  // Os avisos da demonstração vencem conforme o relógio real se afasta do SEED_NOW e ocupariam a rodada do worker: o fluxo
+  // só confere os avisos que ele mesmo gera.
+  await prisma.notification.updateMany({ where: { status: 'PENDING' }, data: { status: 'SKIPPED', skipReason: 'seed' } })
 })
-afterAll(async () => {
+afterAll(() => {
   mail.uninstall()
-  await rm(dir, { recursive: true, force: true })
 })
 
 type Chamada = { method: string; path: string }
@@ -66,7 +61,7 @@ const chamar = (
   registrar({ method, path: o.modelo ?? rota.split('?')[0] ?? rota })
   return callRoute(
     handler,
-    apiRequest(method, rota, { ...o, ...(o.key === undefined ? {} : { key: o.key }) }),
+    apiRequest(method, rota, { business: SLUG, ...o }),
     o.params ?? {},
   )
 }
@@ -76,13 +71,13 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   const agora = () => new Date()
   const canais = { email: mail.channel, push: null }
 
-  // 1. Health, sem chave.
+  // 1. Health (não precisa de conta).
   const saude = await chamar(health, 'GET', '/v1/health')
   expect(saude.status).toBe(200)
   expect(saude.json).toEqual({ status: 'ok' })
 
-  // 2. A chave do pet shop devolve os termos da conta.
-  const conta = await chamar(business, 'GET', '/v1/business', { key })
+  // 2. O cabeçalho X-Business do pet shop devolve os termos da conta.
+  const conta = await chamar(business, 'GET', '/v1/business', {})
   expect(conta.status).toBe(200)
   const termos = jsonObject(jsonObject(conta.json).terms)
   expect(jsonObject(termos.professional).singular).toBe('Tosador')
@@ -91,7 +86,6 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
 
   // 3. Cadastro, código lido do e-mail, confirmação e tokens.
   const cadastro = await chamar(register, 'POST', '/v1/auth/customer/register', {
-    key,
     headers: IP,
     body: { name: 'Tutor do Fluxo', email: EMAIL, phone: '(11) 91234-5678', password: SENHA },
   })
@@ -99,13 +93,13 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   await flushAfter()
   expect(mail.sent).toHaveLength(1)
   expect(mail.sent[0]?.to).toBe(EMAIL)
-  const confirmacao = await chamar(verify, 'POST', '/v1/auth/customer/verify', { key, headers: IP, body: { email: EMAIL, code: mail.codeOf() } })
+  const confirmacao = await chamar(verify, 'POST', '/v1/auth/customer/verify', { headers: IP, body: { email: EMAIL, code: mail.codeOf() } })
   expect(confirmacao.status).toBe(200)
   const token = String(jsonObject(jsonObject(confirmacao.json).tokens).accessToken)
   expect(token.length).toBeGreaterThan(20)
 
   // 4. Serviços, disponibilidade de um dia útil futuro e marcação com o primeiro início.
-  const lista = await chamar(services, 'GET', '/v1/services', { key })
+  const lista = await chamar(services, 'GET', '/v1/services', {})
   const itens = jsonObject(lista.json).items as { id: string; name: string; clubOnly: boolean }[]
   const banho = itens.find((s) => s.name === 'Banho' && !s.clubOnly)
   expect(banho).toBeDefined()
@@ -113,7 +107,7 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   let escolha: { data: string; startsAt: string; professionalId: string } | null = null
   for (let n = 3; n <= 14 && escolha === null; n++) {
     const data = addDays(hoje, n)
-    const disp = await chamar(availability, 'GET', `/v1/availability?date=${data}&serviceIds=${banho?.id}`, { key })
+    const disp = await chamar(availability, 'GET', `/v1/availability?date=${data}&serviceIds=${banho?.id}`, {})
     expect(disp.status).toBe(200)
     const slots = jsonObject(disp.json).slots as { startsAt: string; professionalIds: string[] }[]
     // Um profissional ligado a um acesso recebe o aviso de equipe: é o que o teste confere no fim.
@@ -128,7 +122,6 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   expect(escolha).not.toBeNull()
   if (escolha === null) return
   const marcado = await chamar(marcar, 'POST', '/v1/appointments', {
-    key,
     token,
     body: { serviceIds: [banho?.id], professionalId: escolha.professionalId, startsAt: escolha.startsAt },
   })
@@ -137,7 +130,7 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   expect(agendamento).toMatchObject({ status: 'CONFIRMED', startsAt: escolha.startsAt })
 
   // 5. O próximo agendamento é o mesmo.
-  const proximoAg = await chamar(proximo, 'GET', '/v1/appointments/next', { key, token })
+  const proximoAg = await chamar(proximo, 'GET', '/v1/appointments/next', { token })
   expect(jsonObject(jsonObject(proximoAg.json).appointment).id).toBe(agendamento.id)
 
   // 6. O worker envia a confirmação ao cliente e o aviso de novo agendamento ao profissional; lembretes ficam na fila.
@@ -169,7 +162,6 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
   // 7. Cancelar: a equipe é avisada e os lembretes pendentes deixam de valer, sem sair nenhum.
   const antesDoCancelamento = mail.sent.length
   const cancelado = await chamar(cancelar, 'POST', `/v1/appointments/${agendamento.id}/cancel`, {
-    key,
     token,
     params: { id: String(agendamento.id) },
     modelo: '/v1/appointments/{id}/cancel',

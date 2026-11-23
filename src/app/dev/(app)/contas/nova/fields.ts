@@ -36,12 +36,9 @@ export type WizardValues = {
   // Dono
   ownerName: string
   ownerEmail: string
-  // Chave de app
-  createKey: boolean
-  keyName: string
 }
 
-/** O que a ação devolve depois de criar a conta. O segredo da chave só existe aqui, uma vez. */
+/** O que a ação devolve depois de criar a conta. */
 export type WizardResult = {
   createdId: string
   businessName: string
@@ -51,8 +48,6 @@ export type WizardResult = {
   emailSent: boolean
   /** Passos depois da criação que falharam, em texto para a pessoa. */
   pendencias: string[]
-  keyName?: string | undefined
-  secret?: string | undefined
 }
 
 /** Valores do formulário mais o resultado da criação (só existe depois que a conta foi criada). */
@@ -88,11 +83,9 @@ export const EMPTY_VALUES: WizardValues = {
   autoConfirm: true,
   ownerName: '',
   ownerEmail: '',
-  createKey: true,
-  keyName: '',
 }
 
-export type StepId = 'dados' | 'marca' | 'termos' | 'modulos' | 'regras' | 'dono' | 'chave'
+export type StepId = 'dados' | 'marca' | 'termos' | 'modulos' | 'regras' | 'dono'
 
 export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly string[] }> = [
   { id: 'dados', label: 'Dados', fields: ['name', 'slug', 'document', 'contactEmail', 'contactPhone'] },
@@ -109,11 +102,10 @@ export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly 
     fields: ['slotStepMin', 'minLeadMin', 'maxAdvanceDays', 'customerChangeWindowMin', 'bufferMin', 'autoConfirm'],
   },
   { id: 'dono', label: 'Dono', fields: ['ownerName', 'ownerEmail'] },
-  { id: 'chave', label: 'Chave de app', fields: ['createKey', 'keyName'] },
 ]
 
 /** Nomes que o domínio usa nos erros e que diferem dos do formulário. */
-const NOME_DO_DOMINIO: Record<string, string> = { 'owner.name': 'ownerName', 'owner.email': 'ownerEmail', allowedOrigins: 'keyName' }
+const NOME_DO_DOMINIO: Record<string, string> = { 'owner.name': 'ownerName', 'owner.email': 'ownerEmail' }
 
 /** Etapa (posição na lista, a partir de 0) de um campo com erro; `null` se o campo não é do assistente. */
 export function stepOfField(field: string): number | null {
@@ -135,7 +127,7 @@ export function stepsWithError(fields: Record<string, string>): number[] {
   return [...new Set(Object.keys(fields).map(stepOfField).filter((i): i is number => i !== null))].sort((a, b) => a - b)
 }
 
-const BOOLEANOS = ['loyalty', 'banners', 'store', 'vouchers', 'autoConfirm', 'createKey'] as const
+const BOOLEANOS = ['loyalty', 'banners', 'store', 'vouchers', 'autoConfirm'] as const
 const TEXTOS = Object.keys(EMPTY_VALUES).filter((k) => !(BOOLEANOS as readonly string[]).includes(k)) as Array<
   Exclude<keyof WizardValues, (typeof BOOLEANOS)[number]>
 >

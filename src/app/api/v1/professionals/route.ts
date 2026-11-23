@@ -6,7 +6,7 @@ import { listProfessionals } from '@/server/domain/team/professionals'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/professionals',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Profissionais ativos; com serviceIds (separados por vírgula), só os que fazem todos esses serviços',
   tag: 'Catálogo',
   query: z.object({ serviceIds: idListText.optional() }),

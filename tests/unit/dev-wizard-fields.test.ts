@@ -1,7 +1,7 @@
 import { EMPTY_VALUES, STEPS, firstStepWithError, readValues, stepOfField, TERM_PRESETS } from '@/app/dev/(app)/contas/nova/fields'
 
-test('são sete etapas, na ordem do desenho', () => {
-  expect(STEPS.map((s) => s.id)).toEqual(['dados', 'marca', 'termos', 'modulos', 'regras', 'dono', 'chave'])
+test('são seis etapas, na ordem do desenho', () => {
+  expect(STEPS.map((s) => s.id)).toEqual(['dados', 'marca', 'termos', 'modulos', 'regras', 'dono'])
 })
 
 test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 6', () => {
@@ -11,7 +11,7 @@ test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 
   expect(stepOfField('vouchers')).toBe(3)
   expect(stepOfField('slotStepMin')).toBe(4)
   expect(stepOfField('ownerEmail')).toBe(5)
-  expect(stepOfField('keyName')).toBe(6)
+  expect(stepOfField('keyName')).toBeNull()
 })
 
 test('campos do domínio com nome diferente caem na etapa certa (owner.email)', () => {
@@ -22,7 +22,7 @@ test('campos do domínio com nome diferente caem na etapa certa (owner.email)', 
 
 test('firstStepWithError devolve a primeira etapa com erro, pela ordem das etapas e não dos campos', () => {
   expect(firstStepWithError({ ownerEmail: 'x', slug: 'y' })).toBe(0)
-  expect(firstStepWithError({ keyName: 'x', club: 'y' })).toBe(2)
+  expect(firstStepWithError({ ownerName: 'x', club: 'y' })).toBe(2)
   expect(firstStepWithError({})).toBeNull()
   expect(firstStepWithError({ campoDesconhecido: 'x' })).toBeNull()
 })

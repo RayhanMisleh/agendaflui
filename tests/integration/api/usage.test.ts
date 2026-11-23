@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto'
-import pg from 'pg'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { GET as business } from '@/app/api/v1/business/route'
 import { GET as health } from '@/app/api/v1/health/route'
@@ -7,11 +5,10 @@ import { GET as availability } from '@/app/api/v1/availability/route'
 import { GET as meAppointments } from '@/app/api/v1/appointments/route'
 import { defineRoute } from '@/server/api/define-route'
 import { flushUsage, MAX_PENDING_USAGE, recordUsage, usageSummary } from '@/server/api/usage'
-import { usageByKey } from '@/server/domain/platform/api-usage'
 import { prisma } from '@/server/db/client'
 import { z } from '@/server/domain/errors'
 import { addMinutes, fromEpochMs } from '@/server/time'
-import { apiRequest, callRoute, makeAppKey } from '../../setup/api'
+import { apiRequest, callRoute } from '../../setup/api'
 import { montarCena, type Cena } from '../../setup/api-scene'
 import { resetDb } from '../../setup/db'
 import { domainError } from '../../setup/expect'
@@ -40,7 +37,7 @@ const linhas = () => prisma.apiUsageHourly.findMany({ orderBy: [{ hour: 'asc' },
 
 describe('recordUsage e flushUsage', () => {
   test('três chamadas e um erro 500 viram uma linha com contagens, soma e máximo', async () => {
-    const base = { apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business' }
+    const base = { businessId: c.business.id, route: 'GET /v1/business' }
     recordUsage({ ...base, ms: 10, error: false, at: addMinutes(H0, 5) })
     recordUsage({ ...base, ms: 30, error: false, at: addMinutes(H0, 20) })
     recordUsage({ ...base, ms: 20, error: false, at: addMinutes(H0, 59) })
@@ -53,7 +50,7 @@ describe('recordUsage e flushUsage', () => {
   })
 
   test('horas diferentes viram linhas diferentes', async () => {
-    const base = { apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: 5, error: false }
+    const base = { businessId: c.business.id, route: 'GET /v1/business', ms: 5, error: false }
     recordUsage({ ...base, at: addMinutes(H0, 10) })
     recordUsage({ ...base, at: addMinutes(H0, 70) })
     await flushUsage()
@@ -61,7 +58,7 @@ describe('recordUsage e flushUsage', () => {
   })
 
   test('dois flushUsage seguidos somam em vez de sobrescrever, e o máximo só sobe', async () => {
-    const base = { apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', error: false, at: H0 }
+    const base = { businessId: c.business.id, route: 'GET /v1/business', error: false, at: H0 }
     recordUsage({ ...base, ms: 50 })
     await flushUsage()
     recordUsage({ ...base, ms: 10 })
@@ -73,7 +70,7 @@ describe('recordUsage e flushUsage', () => {
   })
 
   test('flushUsage concorrentes não contam em dobro', async () => {
-    const base = { apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', error: false, at: H0, ms: 7 }
+    const base = { businessId: c.business.id, route: 'GET /v1/business', error: false, at: H0, ms: 7 }
     for (let i = 0; i < 5; i++) recordUsage(base)
     await Promise.all([flushUsage(), flushUsage(), flushUsage()])
     expect((await linhas())[0]).toMatchObject({ count: 5, totalMs: 35n })
@@ -86,7 +83,7 @@ describe('recordUsage e flushUsage', () => {
 
   test('acima do teto descarta as novas combinações, avisa uma vez e mantém as já acumuladas', async () => {
     const aviso = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const base = { apiKeyId: c.keyId, businessId: c.business.id, error: false, at: H0, ms: 1 }
+    const base = { businessId: c.business.id, error: false, at: H0, ms: 1 }
     for (let i = 0; i < MAX_PENDING_USAGE + 20; i++) recordUsage({ ...base, route: `GET /v1/r${i}` })
     recordUsage({ ...base, route: 'GET /v1/r0' })
     expect(aviso).toHaveBeenCalledTimes(1)
@@ -98,8 +95,8 @@ describe('recordUsage e flushUsage', () => {
 
   test('falha ao gravar perde o lote, não reenfileira e registra só o nome do erro', async () => {
     const erro = vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    // chave de app inexistente: a FK falha e o lote inteiro cai.
-    recordUsage({ apiKeyId: UUID, businessId: c.business.id, route: 'GET /v1/business', ms: 1, error: false, at: H0 })
+    // conta inexistente: a FK falha e o lote inteiro cai.
+    recordUsage({ businessId: UUID, route: 'GET /v1/business', ms: 1, error: false, at: H0 })
     expect(await flushUsage()).toBe(0)
     expect(erro).toHaveBeenCalledTimes(1)
     expect(JSON.stringify(erro.mock.calls)).not.toContain(UUID)
@@ -114,28 +111,28 @@ describe('defineRoute registra o uso', () => {
     const rota = defineRoute({
       method: 'GET',
       path: '/v1/coisas/{id}',
-      auth: 'key',
+      auth: 'guest',
       summary: 'x',
       tag: 'x',
       params: z.object({ id: z.string() }),
       response: z.object({ ok: z.literal(true) }),
       handler: async () => ({ ok: true as const }),
     })
-    const r = await callRoute(rota, apiRequest('GET', `/v1/coisas/${UUID}`, { key: c.key }), { id: UUID })
+    const r = await callRoute(rota, apiRequest('GET', `/v1/coisas/${UUID}`, { business: c.business.slug }), { id: UUID })
     expect(r.status).toBe(200)
     await flushUsage()
     const l = await linhas()
     expect(l).toHaveLength(1)
     expect(l[0]?.route).toBe('GET /v1/coisas/{id}')
     expect(l.map((x) => x.route).join()).not.toContain(UUID)
-    expect(l[0]).toMatchObject({ apiKeyId: c.keyId, businessId: c.business.id, count: 1, errorCount: 0 })
+    expect(l[0]).toMatchObject({ businessId: c.business.id, count: 1, errorCount: 0 })
   })
 
   test('status 500 conta como erro; 401 e 422 não', async () => {
     const quebra = defineRoute({
       method: 'GET',
       path: '/v1/quebra',
-      auth: 'key',
+      auth: 'guest',
       summary: 'x',
       tag: 'x',
       response: z.object({ ok: z.literal(true) }),
@@ -144,9 +141,9 @@ describe('defineRoute registra o uso', () => {
       },
     })
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    expect((await callRoute(quebra, apiRequest('GET', '/v1/quebra', { key: c.key }))).status).toBe(500)
-    expect((await callRoute(meAppointments, apiRequest('GET', '/v1/appointments', { key: c.key }))).status).toBe(401)
-    expect((await callRoute(availability, apiRequest('GET', '/v1/availability?serviceId=nao-e-uuid', { key: c.key }))).status).toBe(422)
+    expect((await callRoute(quebra, apiRequest('GET', '/v1/quebra', { business: c.business.slug }))).status).toBe(500)
+    expect((await callRoute(meAppointments, apiRequest('GET', '/v1/appointments', { business: c.business.slug }))).status).toBe(401)
+    expect((await callRoute(availability, apiRequest('GET', '/v1/availability?serviceId=nao-e-uuid', { business: c.business.slug }))).status).toBe(422)
     await flushUsage()
     const por = Object.fromEntries((await linhas()).map((l) => [l.route, l]))
     expect(por['GET /v1/quebra']).toMatchObject({ count: 1, errorCount: 1 })
@@ -155,34 +152,29 @@ describe('defineRoute registra o uso', () => {
     vi.restoreAllMocks()
   })
 
-  test('requisição sem chave válida e rota sem autenticação não gravam métrica', async () => {
-    expect((await callRoute(business, apiRequest('GET', '/v1/business', { key: 'afk_a_00000000_' + 'x'.repeat(43) }))).status).toBe(401)
+  test('requisição sem conta resolvida e rota sem autenticação não gravam métrica', async () => {
+    expect((await callRoute(business, apiRequest('GET', '/v1/business', { business: 'conta-que-nao-existe' }))).status).toBe(401)
     expect((await callRoute(business, apiRequest('GET', '/v1/business'))).status).toBe(401)
     expect((await callRoute(health, apiRequest('GET', '/v1/health'))).status).toBe(200)
     expect(await flushUsage()).toBe(0)
     expect(await linhas()).toHaveLength(0)
   })
 
-  test('chave de plataforma grava a conta resolvida na requisição; chave de conta, a conta da chave', async () => {
+  test('grava a conta resolvida pelo cabeçalho X-Business, uma linha por conta', async () => {
     const outra = await makeBusiness()
-    const plat = await makeAppKey(null)
-    const r = await callRoute(business, apiRequest('GET', '/v1/business', { key: plat.secret, business: outra.slug }))
-    expect(r.status).toBe(200)
-    // o cabeçalho X-Business numa chave de conta não muda o dono da métrica.
-    await callRoute(business, apiRequest('GET', '/v1/business', { key: c.key, business: outra.slug }))
-    await callRoute(business, apiRequest('GET', '/v1/business', { key: c.key }))
+    expect((await callRoute(business, apiRequest('GET', '/v1/business', { business: outra.slug }))).status).toBe(200)
+    await callRoute(business, apiRequest('GET', '/v1/business', { business: c.business.slug }))
+    await callRoute(business, apiRequest('GET', '/v1/business', { business: c.business.slug }))
     await flushUsage()
     const l = await linhas()
-    const daPlat = l.find((x) => x.apiKeyId === plat.id)
-    const daConta = l.find((x) => x.apiKeyId === c.keyId)
-    expect(daPlat?.businessId).toBe(outra.id)
-    expect(daConta?.businessId).toBe(c.business.id)
-    expect(daConta?.count).toBe(1)
+    expect(l).toHaveLength(2)
+    expect(l.find((x) => x.businessId === outra.id)?.count).toBe(1)
+    expect(l.find((x) => x.businessId === c.business.id)?.count).toBe(2)
   })
 
-  test('a mesma chave atendendo duas contas na mesma hora gera uma linha por conta, na memória e no banco', async () => {
+  test('duas gravações da mesma conta, rota e hora somam numa linha só; duas contas na mesma hora geram uma linha por conta', async () => {
     const outra = await makeBusiness()
-    const base = { apiKeyId: c.keyId, route: 'GET /v1/business', error: false, at: H0, ms: 1 }
+    const base = { route: 'GET /v1/business', error: false, at: H0, ms: 1 }
     recordUsage({ ...base, businessId: c.business.id })
     recordUsage({ ...base, businessId: outra.id })
     await flushUsage()
@@ -195,7 +187,7 @@ describe('defineRoute registra o uso', () => {
   })
 
   test('o acumulador vive em globalThis: outra cópia do módulo (outra camada do Next) grava o que a primeira registrou', async () => {
-    recordUsage({ apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: 3, error: false, at: H0 })
+    recordUsage({ businessId: c.business.id, route: 'GET /v1/business', ms: 3, error: false, at: H0 })
     vi.resetModules()
     const outraCopia = await import('@/server/api/usage')
     expect(outraCopia.flushUsage).not.toBe(flushUsage)
@@ -205,15 +197,15 @@ describe('defineRoute registra o uso', () => {
 
   test('recordUsage nunca lança, mesmo com dado inválido', () => {
     expect(() =>
-      recordUsage({ apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: Number.NaN, error: false, at: new Date(Number.NaN) }),
+      recordUsage({ businessId: c.business.id, route: 'GET /v1/business', ms: Number.NaN, error: false, at: new Date(Number.NaN) }),
     ).not.toThrow()
   })
 })
 
 describe('usageSummary', () => {
-  test('agrega por rota no intervalo, com média e máximo, e filtra por chave e conta', async () => {
+  test('agrega por rota no intervalo, com média e máximo, e filtra por conta', async () => {
     const a = await admin()
-    const base = { apiKeyId: c.keyId, businessId: c.business.id }
+    const base = { businessId: c.business.id }
     recordUsage({ ...base, route: 'GET /v1/business', ms: 10, error: false, at: H0 })
     recordUsage({ ...base, route: 'GET /v1/business', ms: 30, error: true, at: addMinutes(H0, 120) })
     recordUsage({ ...base, route: 'GET /v1/services', ms: 8, error: false, at: H0 })
@@ -226,11 +218,10 @@ describe('usageSummary', () => {
     ])
     expect(await usageSummary(a, { ...q, businessId: UUID })).toEqual([])
     const outra = await makeBusiness()
-    recordUsage({ apiKeyId: c.keyId, businessId: outra.id, route: 'GET /v1/business', ms: 100, error: false, at: H0 })
+    recordUsage({ businessId: outra.id, route: 'GET /v1/business', ms: 100, error: false, at: H0 })
     await flushUsage()
     expect(await usageSummary(a, { ...q, businessId: outra.id })).toEqual([{ route: 'GET /v1/business', count: 1, errorCount: 0, avgMs: 100, maxMs: 100 }])
     expect((await usageSummary(a, { ...q, businessId: c.business.id }))[0]).toMatchObject({ route: 'GET /v1/business', count: 2 })
-    expect((await usageSummary(a, { ...q, apiKeyId: c.keyId })).length).toBe(2)
   })
 
   test('exige admin da plataforma em execução', async () => {
@@ -243,77 +234,5 @@ describe('usageSummary', () => {
     expect((await domainError(usageSummary(a, { from: H0, to: addMinutes(H0, 60 * 24 * 93) }))).code).toBe('validation')
     expect((await domainError(usageSummary(a, { from: addMinutes(H0, 60), to: H0 }))).code).toBe('validation')
     await expect(usageSummary(a, { from: H0, to: addMinutes(H0, 60 * 24 * 92) })).resolves.toEqual([])
-  })
-})
-
-describe('usageByKey', () => {
-  test('soma por chave e por rota no intervalo, só das chaves pedidas, sem misturar chaves', async () => {
-    const a = await admin()
-    const outraChave = await makeAppKey(c.business.id)
-    const base = { businessId: c.business.id }
-    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/business', ms: 10, error: false, at: H0 })
-    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/business', ms: 30, error: true, at: addMinutes(H0, 120) })
-    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/services', ms: 8, error: false, at: H0 })
-    recordUsage({ ...base, apiKeyId: c.keyId, route: 'GET /v1/services', ms: 8, error: false, at: addMinutes(H0, 60 * 24 * 10) })
-    recordUsage({ ...base, apiKeyId: outraChave.id, route: 'GET /v1/business', ms: 100, error: false, at: H0 })
-    await flushUsage()
-    const q = { from: H0, to: addMinutes(H0, 60 * 24) }
-    const r = await usageByKey(a, { ...q, apiKeyIds: [c.keyId, outraChave.id] })
-    expect(r.get(c.keyId)).toEqual([
-      { route: 'GET /v1/business', count: 2, errorCount: 1, avgMs: 20, maxMs: 30 },
-      { route: 'GET /v1/services', count: 1, errorCount: 0, avgMs: 8, maxMs: 8 },
-    ])
-    expect(r.get(outraChave.id)).toEqual([{ route: 'GET /v1/business', count: 1, errorCount: 0, avgMs: 100, maxMs: 100 }])
-    const so = await usageByKey(a, { ...q, apiKeyIds: [outraChave.id] })
-    expect([...so.keys()]).toEqual([outraChave.id])
-    expect((await usageByKey(a, { ...q, apiKeyIds: [] })).size).toBe(0)
-    // Chave sem uso no intervalo: lista vazia, não ausente.
-    const semUso = await usageByKey(a, { from: addMinutes(H0, 60 * 24 * 30), to: addMinutes(H0, 60 * 24 * 31), apiKeyIds: [c.keyId] })
-    expect(semUso.get(c.keyId)).toEqual([])
-  })
-
-  test('mais de 500 chaves: fatia em lotes e soma os resultados, sem recusar', async () => {
-    const a = await admin()
-    recordUsage({ apiKeyId: c.keyId, businessId: c.business.id, route: 'GET /v1/business', ms: 10, error: false, at: H0 })
-    await flushUsage()
-    const ids = [c.keyId, ...Array.from({ length: 500 }, () => randomUUID())]
-    const r = await usageByKey(a, { from: H0, to: addMinutes(H0, 60 * 24), apiKeyIds: ids })
-    expect(r.size).toBe(501)
-    expect(r.get(c.keyId)).toEqual([{ route: 'GET /v1/business', count: 1, errorCount: 0, avgMs: 10, maxMs: 10 }])
-    expect(r.get(ids[500]!)).toEqual([])
-  })
-
-  test('exige admin da plataforma, recusa id inválido e confere o teto do intervalo', async () => {
-    const falso = { kind: 'system' } as unknown as Parameters<typeof usageByKey>[0]
-    expect((await domainError(usageByKey(falso, { from: H0, to: addMinutes(H0, 60), apiKeyIds: [] }))).code).toBe('forbidden')
-    const a = await admin()
-    expect((await domainError(usageByKey(a, { from: H0, to: addMinutes(H0, 60), apiKeyIds: ['x'] }))).code).toBe('validation')
-    expect((await domainError(usageByKey(a, { from: H0, to: addMinutes(H0, 60 * 24 * 93), apiKeyIds: [UUID] }))).code).toBe('validation')
-    expect((await domainError(usageByKey(a, { from: addMinutes(H0, 60), to: H0, apiKeyIds: [UUID] }))).code).toBe('validation')
-  })
-
-  test('o número de consultas não cresce com o número de chaves', async () => {
-    const a = await admin()
-    const ids = [c.keyId]
-    for (let i = 0; i < 6; i++) ids.push((await makeAppKey(c.business.id)).id)
-    const q = { from: H0, to: addMinutes(H0, 60 * 24) }
-    const contar = async (apiKeyIds: string[]): Promise<number> => {
-      const original = pg.Client.prototype.query as unknown as (...x: unknown[]) => unknown
-      let n = 0
-      const espia = vi.spyOn(pg.Client.prototype, 'query').mockImplementation(function (this: unknown, ...args: unknown[]) {
-        n += 1
-        return original.apply(this, args)
-      } as never)
-      try {
-        await usageByKey(a, { ...q, apiKeyIds })
-      } finally {
-        espia.mockRestore()
-      }
-      return n
-    }
-    const comUma = await contar(ids.slice(0, 1))
-    const comSete = await contar(ids)
-    expect(comUma).toBeGreaterThan(0)
-    expect(comSete).toBe(comUma)
   })
 })

@@ -33,7 +33,7 @@ beforeEach(async () => {
 })
 
 type Opcoes = Parameters<typeof apiRequest>[2]
-const comKey = (o: Opcoes = {}): Opcoes => ({ key: c.key, ...o })
+const comKey = (o: Opcoes = {}): Opcoes => ({ business: c.business.slug, ...o })
 
 /** Início (ISO UTC) do horário com este rótulo, como a disponibilidade devolve. */
 async function inicio(data: string, label: string, profissionalId: string | null = c.ana.id): Promise<string> {
@@ -122,10 +122,10 @@ describe('marcar, ler, cancelar e remarcar', () => {
   test('horário de Manaus: a marcação guarda 13:00:00.000Z e responde 09:00 local', async () => {
     const m = await montarCena({ timeZone: 'America/Manaus' })
     const data = m.dia(10)
-    const disp = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${data}&serviceIds=${m.banho.id}`, { key: m.key }))
+    const disp = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${data}&serviceIds=${m.banho.id}`, { business: m.business.slug }))
     const nove = (jsonObject(disp.json).slots as { startsAt: string; label: string }[]).find((s) => s.label === '09:00')
     expect(nove?.startsAt).toBe(`${data}T13:00:00.000Z`)
-    const r = await callRoute(marcar, apiRequest('POST', '/v1/appointments', { key: m.key, token: m.tokenCliente, body: { serviceIds: [m.banho.id], startsAt: nove?.startsAt } }))
+    const r = await callRoute(marcar, apiRequest('POST', '/v1/appointments', { business: m.business.slug, token: m.tokenCliente, body: { serviceIds: [m.banho.id], startsAt: nove?.startsAt } }))
     expect(r.status).toBe(201)
     expect(jsonObject(r.json)).toMatchObject({ startsAt: `${data}T13:00:00.000Z`, local: { date: data, start: '09:00', end: '10:00' } })
   })

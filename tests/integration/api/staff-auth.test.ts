@@ -11,7 +11,7 @@ import { CAPABILITIES } from '@/server/auth/capabilities'
 import { prisma } from '@/server/db/client'
 import { tenantDb } from '@/server/db/tenant'
 import { z } from '@/server/domain/errors'
-import { apiError, apiRequest, callRoute, jsonObject, makeAppKey } from '../../setup/api'
+import { apiError, apiRequest, callRoute, jsonObject } from '../../setup/api'
 import { resetDb } from '../../setup/db'
 import { makeBusiness, makeCustomer, makeMembership, makeProfessional, makeUser } from '../../setup/factories'
 
@@ -41,22 +41,21 @@ const outroIp = (): string => {
   return `192.0.2.${contadorIp % 250}`
 }
 
-type Conta = { id: string; key: string }
+type Conta = { id: string; slug: string }
 
 async function novaConta(): Promise<Conta> {
   const business = await makeBusiness()
-  const { secret } = await makeAppKey(business.id)
-  return { id: business.id, key: secret }
+  return { id: business.id, slug: business.slug }
 }
 
 function chamar(handler: RouteHandler, caminho: string, c: Conta, body: unknown, ip: string = outroIp()) {
-  return callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { key: c.key, body, headers: { 'x-forwarded-for': ip } }))
+  return callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { business: c.slug, body, headers: { 'x-forwarded-for': ip } }))
 }
 
 const entrar = (c: Conta, email: string, password: string, ip?: string) => chamar(login, '/login', c, { email, password }, ip)
 
 function eu(c: Conta, token: string) {
-  return callRoute(staffMe, apiRequest('GET', '/v1/staff/me', { key: c.key, token, headers: { 'x-forwarded-for': outroIp() } }))
+  return callRoute(staffMe, apiRequest('GET', '/v1/staff/me', { business: c.slug, token, headers: { 'x-forwarded-for': outroIp() } }))
 }
 
 function tokensDe(json: unknown): { accessToken: string; refreshToken: string } {
@@ -240,7 +239,7 @@ describe('sessão da equipe', () => {
     const c = await novaConta()
     await membro(c, 'OWNER', 'dono@exemplo.test')
     const { accessToken } = tokensDe((await entrar(c, 'dono@exemplo.test', SENHA)).json)
-    const naRotaDoCliente = await callRoute(rotaDoCliente, apiRequest('GET', '/v1/teste/cliente-da-tarefa-8', { key: c.key, token: accessToken }))
+    const naRotaDoCliente = await callRoute(rotaDoCliente, apiRequest('GET', '/v1/teste/cliente-da-tarefa-8', { business: c.slug, token: accessToken }))
     expect(naRotaDoCliente.status).toBe(403)
     expect(apiError(naRotaDoCliente.json).reason).toBe('wrong_token_kind')
 
@@ -253,7 +252,7 @@ describe('sessão da equipe', () => {
 
   test('sem token: 401', async () => {
     const c = await novaConta()
-    const r = await callRoute(staffMe, apiRequest('GET', '/v1/staff/me', { key: c.key }))
+    const r = await callRoute(staffMe, apiRequest('GET', '/v1/staff/me', { business: c.slug }))
     expect(r.status).toBe(401)
   })
 })
@@ -281,7 +280,7 @@ describe('tokens de renovação do outro tipo de sujeito', () => {
     // O token do cliente ainda renova na rota do cliente.
     const dele = await callRoute(
       customerRefresh,
-      apiRequest('POST', '/v1/auth/customer/refresh', { key: c.key, body: { refreshToken: cliente.refreshToken }, headers: { 'x-forwarded-for': outroIp() } }),
+      apiRequest('POST', '/v1/auth/customer/refresh', { business: c.slug, body: { refreshToken: cliente.refreshToken }, headers: { 'x-forwarded-for': outroIp() } }),
     )
     expect(dele.status).toBe(200)
   })
@@ -290,7 +289,7 @@ describe('tokens de renovação do outro tipo de sujeito', () => {
     const { c, equipe } = await umDeCadaTipo()
     const r = await callRoute(
       customerRefresh,
-      apiRequest('POST', '/v1/auth/customer/refresh', { key: c.key, body: { refreshToken: equipe.refreshToken }, headers: { 'x-forwarded-for': outroIp() } }),
+      apiRequest('POST', '/v1/auth/customer/refresh', { business: c.slug, body: { refreshToken: equipe.refreshToken }, headers: { 'x-forwarded-for': outroIp() } }),
     )
     expect(r.status).toBe(401)
     const linha = await prisma.refreshToken.findFirstOrThrow({ where: { subject: 'MEMBER' } })
@@ -304,7 +303,7 @@ describe('tokens de renovação do outro tipo de sujeito', () => {
     expect(await prisma.refreshToken.count({ where: { subject: 'CUSTOMER', revokedAt: null } })).toBe(1)
     const r = await callRoute(
       customerLogout,
-      apiRequest('POST', '/v1/auth/customer/logout', { key: c.key, body: { refreshToken: equipe.refreshToken }, headers: { 'x-forwarded-for': outroIp() } }),
+      apiRequest('POST', '/v1/auth/customer/logout', { business: c.slug, body: { refreshToken: equipe.refreshToken }, headers: { 'x-forwarded-for': outroIp() } }),
     )
     expect(r.status).toBe(204)
     expect(await prisma.refreshToken.count({ where: { subject: 'MEMBER', revokedAt: null } })).toBe(1)

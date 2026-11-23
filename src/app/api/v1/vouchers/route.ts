@@ -6,7 +6,7 @@ import { listPublicVouchers } from '@/server/domain/vouchers/vouchers'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/vouchers',
-  auth: 'key',
+  auth: 'guest',
   module: 'vouchers',
   summary: 'Vouchers à venda (ativos, de parceiro ativo), na ordem da loja. O estoque não é exposto. A compra é um pedido da Loja com linhas `voucherId` e entrega `NONE`',
   tag: 'Vouchers',

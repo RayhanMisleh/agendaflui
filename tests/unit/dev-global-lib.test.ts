@@ -30,11 +30,11 @@ describe('filtros da auditoria na URL', () => {
   })
 
   test('as datas valem como dias inteiros no fuso da plataforma, fim inclusivo', () => {
-    const f = lerFiltros({ de: '2026-11-01', ate: '2026-11-10', acao: 'api_key.revoked', ator: 'PLATFORM_ADMIN', conta: 'x', cursor: 'c' })
+    const f = lerFiltros({ de: '2026-11-01', ate: '2026-11-10', acao: 'admin.deactivated', ator: 'PLATFORM_ADMIN', conta: 'x', cursor: 'c' })
     expect(f.erro).toBeNull()
     expect(toIsoInstant(f.query.from!)).toBe('2026-11-01T03:00:00.000Z')
     expect(toIsoInstant(f.query.to!)).toBe('2026-11-11T03:00:00.000Z')
-    expect(f.query).toMatchObject({ action: 'api_key.revoked', actorType: 'PLATFORM_ADMIN', cursor: 'c' })
+    expect(f.query).toMatchObject({ action: 'admin.deactivated', actorType: 'PLATFORM_ADMIN', cursor: 'c' })
     expect(f.query.businessId).toBeUndefined()
     expect(f.values.conta).toBe('x')
     expect(f.values).toMatchObject({ de: '2026-11-01', ate: '2026-11-10' })
@@ -61,7 +61,7 @@ describe('filtros da auditoria na URL', () => {
   })
 })
 
-test('os seis destinos do painel estão todos habilitados', () => {
+test('os cinco destinos do painel estão todos habilitados', () => {
   expect(DEV_NAV.filter((n) => n.disabled)).toEqual([])
 })
 
@@ -82,6 +82,8 @@ describe('códigos da URL nunca leem o protótipo do objeto', () => {
     expect(traduzirFaltou('marca,termos')).toEqual(['a marca (cores e barra lateral)', 'os termos'])
     expect(traduzirFaltou('constructor,__proto__,toString,marca,marca')).toEqual(['a marca (cores e barra lateral)'])
     expect(traduzirFaltou('')).toEqual([])
+    // O código `chave` saiu junto com a chave de app.
+    expect(traduzirFaltou('chave')).toEqual([])
   })
 
   test('um() pega o primeiro valor ou texto vazio', () => {

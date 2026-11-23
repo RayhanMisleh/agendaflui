@@ -34,7 +34,7 @@ async function professionalIdOf(db: TenantClient | TenantTx, membershipId: strin
 }
 
 /**
- * Entrada da equipe pelo app. A conta vem da chave de app; o usuário precisa ter vínculo ATIVO nela. Mesmo erro
+ * Entrada da equipe pelo app. A conta vem do cabeçalho `X-Business`; o usuário precisa ter vínculo ATIVO nela. Mesmo erro
  * (`invalid_credentials`) para e-mail inexistente, senha errada, usuário sem senha e usuário sem vínculo ativo na conta,
  * sempre com uma verificação de senha para igualar o tempo.
  */

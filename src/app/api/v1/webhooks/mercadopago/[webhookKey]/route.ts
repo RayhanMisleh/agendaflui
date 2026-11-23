@@ -4,7 +4,7 @@ import { handleMercadoPagoNotification } from '@/server/domain/store/payments'
 import { env } from '@/server/env'
 
 /*
- * Webhook do Mercado Pago. Rota simples, fora do OpenAPI e sem chave de app: a conta vem da chave do endereço e a assinatura
+ * Webhook do Mercado Pago. Rota simples, fora do OpenAPI e sem `X-Business`: a conta vem da chave do endereço e a assinatura
  * é conferida pelo domínio. O corpo NUNCA é lido (a situação do pagamento vem de uma consulta à API do Mercado Pago). A
  * resposta é sempre sem corpo e sem detalhe.
  */

@@ -54,18 +54,20 @@ de conta opcional, de plataforma ou o próprio registro da conta).
 ## Acesso e papéis
 
 - **Painel dev**: administradores da plataforma (`platform-auth.ts`, sessão de 12 h). Criam contas, ligam módulos,
-  configuram integrações, emitem chaves de app e veem métricas, uso, auditoria e o estado do sistema (`/sistema`).
+  configuram integrações e veem métricas, uso, auditoria e o estado do sistema (`/sistema`).
 - **Painel do negócio**: membros da conta (`member-auth.ts`, sessão de 30 dias, um usuário pode ter várias contas). Papéis
   `OWNER`, `MANAGER` e `PROFESSIONAL` mapeiam para capacidades (`can()` em `capabilities.ts`); o domínio chama `authorize`.
   A conta sempre mantém ao menos um dono ativo. Cada conta tem o próprio link de entrada (`/entrar/{slug}`).
 - **Suporte** ("entrar como", `support-session.ts`): o admin troca um token de passagem (60 s, uso único) por uma sessão de
   60 minutos fixos no painel do negócio, com poderes de dono, exceto gerir acessos da equipe. Admin ou conta inativos derrubam a
   sessão na requisição seguinte. As ações ficam na auditoria.
-- **API do app** (`/v1`, `define-route.ts`): toda rota declara o tipo de autenticação (`none`, `key`, `key_or_customer`,
-  `customer`, `staff`). A chave de app (`X-App-Key`, `domain/platform/api-keys.ts`; uma por conta ou de plataforma, com origens
-  permitidas) identifica a conta; `customer` e `staff` exigem também o token de acesso (JWT de 15 min) e o de renovação
-  (60 dias, rotacionado, só o hash no banco) de `auth/api-tokens.ts`. Limites de taxa por chave e IP ficam no banco
-  (`rate-limit-db.ts`). Cada rota alimenta o uso por hora (`api/usage.ts`). O contrato é o OpenAPI de `/v1/openapi.json`,
+- **API do app** (`/v1`, `define-route.ts`): serve só aos apps próprios (web, iOS e Android), sem chave de API. Toda rota
+  declara o tipo de autenticação (`none`, `guest`, `guest_or_customer`, `customer`, `staff`). Fora `none`, a conta vem do
+  cabeçalho `X-Business` (`auth/api-business.ts`); `customer` e `staff` exigem também o token de acesso (JWT de 15 min) e o de
+  renovação (60 dias, rotacionado, só o hash no banco) de `auth/api-tokens.ts`. No navegador, só as origens de
+  `APP_WEB_ORIGINS` recebem CORS (`api/cors.ts`; localhost só fora de produção), e o `returnUrl` do checkout segue a mesma
+  lista. Limites de taxa por IP (e por cliente ou vínculo nas rotas com `limitBy: 'subject'`) ficam no banco
+  (`rate-limit-db.ts`). Cada rota alimenta o uso por conta, rota e hora (`api/usage.ts`). O contrato é o OpenAPI de `/v1/openapi.json`,
   gerado das mesmas definições de rota (`api/openapi.ts`). Criações aceitam `Idempotency-Key`.
 
 ## Módulos

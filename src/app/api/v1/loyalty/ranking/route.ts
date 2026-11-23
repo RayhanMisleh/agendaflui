@@ -5,7 +5,7 @@ import { getRanking } from '@/server/domain/loyalty/ranking'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/loyalty/ranking',
-  auth: 'key_or_customer',
+  auth: 'guest_or_customer',
   module: 'loyalty',
   summary: 'Ranking do mês (pontos ganhos, 10 primeiros, só o primeiro nome). Desligado: `enabled: false` e lista vazia',
   tag: 'Fidelidade',

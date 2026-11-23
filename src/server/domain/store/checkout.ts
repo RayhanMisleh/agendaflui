@@ -1,6 +1,6 @@
 import type { TenantContext } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
-import { originAllowed } from '@/server/api/cors'
+import { originAllowed, type WebOrigins } from '@/server/api/cors'
 import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
 import { readMercadoPagoSecrets, readMercadoPagoWebhookKey } from '@/server/domain/platform/integration-secrets'
 import { ownCustomerId } from '@/server/domain/store/addresses'
@@ -17,8 +17,8 @@ const invalidTransition = (message: string): DomainError => new DomainError('con
 
 const returnUrlSchema = z.object({ returnUrl: z.string('Informe o endereço de retorno em texto.').max(500, 'Use até 500 caracteres no endereço de retorno.').nullable().optional() })
 
-/** O endereço de retorno só vale se a origem dele estiver liberada na chave do app que chamou (lista vazia não libera nada). */
-function checkReturnUrl(returnUrl: string | null | undefined, allowedOrigins: readonly string[]): string | null {
+/** O endereço de retorno só vale se a origem dele for do app web (`APP_WEB_ORIGINS`; localhost só fora de produção). */
+function checkReturnUrl(returnUrl: string | null | undefined, webOrigins: WebOrigins): string | null {
   if (returnUrl === null || returnUrl === undefined || returnUrl === '') return null
   const message = 'O endereço de retorno não está liberado para este app.'
   let url: URL
@@ -27,7 +27,7 @@ function checkReturnUrl(returnUrl: string | null | undefined, allowedOrigins: re
   } catch {
     throw new DomainError('validation', 'Informe um endereço de retorno válido.', { fields: { returnUrl: 'Informe um endereço de retorno válido.' } })
   }
-  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username !== '' || url.password !== '' || !originAllowed(url.origin, allowedOrigins)) {
+  if ((url.protocol !== 'https:' && url.protocol !== 'http:') || url.username !== '' || url.password !== '' || !originAllowed(url.origin, webOrigins)) {
     throw new DomainError('validation', message, { fields: { returnUrl: message } })
   }
   return url.toString()
@@ -42,11 +42,11 @@ function checkReturnUrl(returnUrl: string | null | undefined, allowedOrigins: re
 export async function startCheckout(
   ctx: TenantContext,
   orderId: string,
-  i: { returnUrl?: string | null; allowedOrigins?: readonly string[] } = {},
+  i: { returnUrl?: string | null; webOrigins?: WebOrigins } = {},
 ): Promise<{ checkoutUrl: string; expiresAt: Date; expiresLabel: string }> {
   const customerId = await ownCustomerId(ctx)
   const { returnUrl } = parse(returnUrlSchema, { returnUrl: i.returnUrl })
-  const backUrl = checkReturnUrl(returnUrl, i.allowedOrigins ?? [])
+  const backUrl = checkReturnUrl(returnUrl, i.webOrigins ?? { origins: [], allowLocalhost: false })
   if (!idSchema.safeParse(orderId).success) throw new DomainError('not_found', 'Pedido não encontrado.')
   const order = orNotFound(await ctx.db.order.findFirst({ where: { id: orderId, customerId }, include: { items: { orderBy: { position: 'asc' } }, customer: { select: { email: true } } } }), 'Pedido')
   const now = ctx.clock()

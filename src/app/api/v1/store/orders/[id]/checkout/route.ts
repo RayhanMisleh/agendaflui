@@ -1,3 +1,4 @@
+import { appWebOrigins } from '@/server/api/cors'
 import { defineRoute, preflight } from '@/server/api/define-route'
 import { idParams, isoInstant } from '@/server/api/wire'
 import { LIMITS } from '@/server/auth/rate-limit-db'
@@ -10,10 +11,10 @@ export const POST = defineRoute({
   auth: 'customer',
   module: 'store',
   summary:
-    'Começa o pagamento de um pedido pelo Mercado Pago (Checkout Pro) e devolve o endereço para onde levar o cliente. A segunda chamada devolve o mesmo endereço. `returnUrl` (opcional) precisa ter a origem liberada na chave do app. Pedido que não aguarda mais o pagamento: 409 `invalid_transition`; pagamento fora do ar: 409 `payment_unavailable`',
+    'Começa o pagamento de um pedido pelo Mercado Pago (Checkout Pro) e devolve o endereço para onde levar o cliente. A segunda chamada devolve o mesmo endereço. `returnUrl` (opcional) precisa ser um endereço do app web. Pedido que não aguarda mais o pagamento: 409 `invalid_transition`; pagamento fora do ar: 409 `payment_unavailable`',
   tag: 'Loja',
   params: idParams('o pedido'),
-  body: z.object({ returnUrl: z.string().max(500).nullable().optional().describe('Para onde o Mercado Pago devolve o cliente depois de pagar. A origem precisa estar liberada na chave do app.') }),
+  body: z.object({ returnUrl: z.string().max(500).nullable().optional().describe('Para onde o Mercado Pago devolve o cliente depois de pagar. Precisa ser um endereço do app web (no app nativo, envie sem).') }),
   bodyOptional: true,
   response: z.object({
     checkoutUrl: z.string().describe('Endereço do pagamento no Mercado Pago.'),
@@ -22,7 +23,7 @@ export const POST = defineRoute({
   }),
   limit: LIMITS.order,
   limitBy: 'subject',
-  handler: async ({ ctx, key, params, body }) => startCheckout(ctx, params.id, { returnUrl: body.returnUrl ?? null, allowedOrigins: key.allowedOrigins }),
+  handler: async ({ ctx, params, body }) => startCheckout(ctx, params.id, { returnUrl: body.returnUrl ?? null, webOrigins: appWebOrigins() }),
 })
 
 export const OPTIONS = preflight

@@ -35,7 +35,7 @@ Este repositório contém os dois painéis **e** é o back-end do app.
 
 - Várias contas isoladas num banco só; nenhum dado de uma conta aparece em outra.
 - Painel dev completo: criar e personalizar contas ao máximo (marca, módulos, termos,
-  regras), gerenciar chaves, ver métricas da plataforma, de cada conta e da API.
+  regras), ver métricas da plataforma, de cada conta e da API.
 - Painel do negócio com todas as funções do painel antigo, generalizadas, em visual
   skeuomórfico (materiais e objetos do mundo real), fácil de usar no computador e no celular.
 - Agenda e fuso horário corretos por construção, com testes.
@@ -185,8 +185,7 @@ pontos permanecem ligados a um cliente sem identificação, para os relatórios 
 - `business_modules` — quais módulos opcionais estão ligados
 - `business_settings` — regras de agenda, termos, notificações (seção 8.2)
 - `business_integrations` — credenciais de Mercado Pago, Frenet e SMTP próprio, cifradas
-- `api_keys` — chaves do app por conta (seção 9.2)
-- `api_usage_hourly` — uso agregado por chave, rota e hora
+- `api_usage_hourly` — uso da API agregado por conta, rota e hora
 
 **Pessoas**
 
@@ -331,17 +330,18 @@ Atender clientes é independente do papel: dono ou gerente também podem ter fic
 profissional e aparecer na agenda. As permissões são uma lista única de capacidades em
 `identity`, usada pelo servidor (que é quem bloqueia) e pelas telas (que só escondem).
 
-### 9.2 API do app e chaves
+### 9.2 API do app
 
-- Toda requisição do app traz uma **chave de app** no cabeçalho `X-App-Key`. Há dois tipos,
-  para a API servir tanto um app único quanto apps com marca própria:
-  - **chave de conta**: presa a uma conta; a API já sabe de quem se trata. Serve para um app
-    publicado só para aquele negócio.
-  - **chave de plataforma**: de um app compartilhado; a conta vem no cabeçalho
-    `X-Business` (o `slug`). Com ela existe também `GET /v1/businesses/{slug}` para o app
-    abrir um negócio a partir de um link ou código.
-  Uma chave tem nome, origens web permitidas (CORS), situação (ativa, revogada) e data do
-  último uso. Só o hash é guardado; o valor completo aparece uma vez, na criação.
+- A API serve só aos apps próprios do AgendaFlui (web em `https://app.agendaflui.com.br`,
+  iOS e Android `com.agendaflui.app`). Não há chave de API nem API aberta a terceiros: um
+  segredo embutido num app publicado não prova nada, então a identidade é o login.
+- Toda requisição de conta traz o `slug` no cabeçalho `X-Business`; conta ausente ou
+  inexistente é 401 `unknown_business`, conta suspensa ou arquivada é 503. O app abre um
+  negócio por link ou código com `GET /v1/business`.
+- No navegador, só as origens do app web (`APP_WEB_ORIGINS`, separadas por vírgula; localhost
+  liberado só fora de produção) recebem CORS; outra origem é recusada (403
+  `origin_not_allowed`). App nativo não manda `Origin` e segue normal. O `returnUrl` do
+  checkout do Mercado Pago precisa ser dessa mesma lista.
 - Cliente e equipe entram por rotas separadas (`auth/customer/*` e `auth/staff/*`) e
   recebem tokens de tipos diferentes; o token diz o tipo, a conta e, para equipe, o papel.
   Token de cliente não acessa rotas `staff/*` e vice-versa. O mesmo e-mail pode ser equipe
@@ -349,7 +349,8 @@ profissional e aparecer na agenda. As permissões são uma lista única de capac
 - Token de acesso curto (JWT, 15 min) e token de renovação rotativo (guardado como hash,
   revogável). O cadastro do cliente vale só para aquela conta.
 - Envio de push usa credenciais da plataforma (um projeto Expo), não por conta.
-- Limite de requisições por chave e por IP.
+- Limite de requisições por IP (geral e por rota) e, nas rotas sensíveis, por cliente ou
+  pessoa da equipe.
 
 ### 9.3 Contrato da API `v1`
 
@@ -389,7 +390,7 @@ do painel do negócio ao lado do formulário.
   um sem o outro.
 - **Regras de agenda** (8.2) e **avisos** (8.4). O fuso é sempre `America/Sao_Paulo`: nenhuma tela nem rota o altera.
 - **Conta**: dados cadastrais, dono (cria o usuário e envia convite para definir senha),
-  situação, chaves de app.
+  situação.
 
 O dono, no painel do negócio, pode ajustar regras de agenda, avisos, termos, integrações e
 trocar logo. Cores, material e módulos são só do painel dev.
@@ -454,11 +455,9 @@ aprova o visual ali antes de as telas serem produzidas em série.
   cadastrados, volume financeiro movimentado, usuários ativos do app (dia e mês), uso e
   erros da API, fila de avisos, contas sem atividade recente.
 - **Contas**: lista com busca e filtros; **criar conta** em etapas (dados, marca com prévia,
-  termos, módulos, regras, dono, chave de app); página da conta com abas (resumo e métricas,
-  marca, termos, módulos, regras, equipe, chaves, integrações, auditoria); suspender,
+  termos, módulos, regras, dono); página da conta com abas (resumo e métricas,
+  marca, termos, módulos, regras, equipe, integrações, auditoria); suspender,
   reativar, arquivar; **entrar como**.
-- **Chaves e API**: todas as chaves, uso por chave (requisições, erros, tempo de resposta,
-  rotas mais chamadas), criar, revogar; documentação OpenAPI.
 - **Sistema**: fila e falhas de avisos, tamanho do banco, execuções do agendador, erros
   recentes.
 - **Auditoria**: quem fez o quê.
@@ -541,8 +540,8 @@ consulta e é apagado na fase 6.
 
 ## 16. Decisões tomadas por quem escreveu (para o dono conferir)
 
-- "Chaves" foi entendido como **chaves de app** (9.2), com métricas de uso. A API aceita
-  tanto app único compartilhado quanto app próprio por negócio.
+- "Chaves" foi entendido como **chaves de app** (9.2), com métricas de uso. Em 2026-11-23 o
+  dono decidiu que a API serve só aos apps próprios: as chaves saíram e ficou o uso por conta.
 - Cliente que exclui a conta é anonimizado, não apagado; o histórico fica.
 - "Entrar como" dá poderes de dono, sempre auditado; segredos nunca são exibidos.
 - Vouchers exige Loja. Ranking de pontos é opcional e desligado por padrão.

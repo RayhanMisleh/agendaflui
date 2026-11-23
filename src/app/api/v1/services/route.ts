@@ -6,7 +6,7 @@ import { listServices } from '@/server/domain/catalog/services'
 export const GET = defineRoute({
   method: 'GET',
   path: '/v1/services',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Serviços ativos da conta, na ordem de exibição',
   tag: 'Catálogo',
   response: z.object({ items: z.array(serviceSchema) }),

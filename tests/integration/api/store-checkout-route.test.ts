@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { POST as pagar } from '@/app/api/v1/store/orders/[id]/checkout/route'
 import { prisma } from '@/server/db/client'
 import { setIntegrationsForTests } from '@/server/integrations'
 import { fakeMercadoPago, type FakeMercadoPago } from '@/server/integrations/fakes'
-import { apiError, apiRequest, callRoute, jsonObject, makeAppKey } from '../../setup/api'
+import { apiError, apiRequest, callRoute, jsonObject } from '../../setup/api'
 import { montarCena, type Cena } from '../../setup/api-scene'
 import { resetDb } from '../../setup/db'
 import { makeCtx } from '../../setup/factories'
@@ -33,8 +33,8 @@ beforeEach(async () => {
   await prisma.order.update({ where: { id: pedido.id }, data: { expiresAt: new Date(Date.now() + 3_600_000) } })
 })
 
-const chamar = (o: { key?: string; token?: string; body?: unknown; id?: string; origin?: string } = {}) =>
-  callRoute(pagar, apiRequest('POST', `/v1/store/orders/${o.id ?? pedido.id}/checkout`, { key: o.key ?? c.key, token: o.token ?? c.tokenCliente, ...(o.body === undefined ? {} : { body: o.body }), ...(o.origin ? { origin: o.origin } : {}) }), { id: o.id ?? pedido.id })
+const chamar = (o: { token?: string; body?: unknown; id?: string; origin?: string } = {}) =>
+  callRoute(pagar, apiRequest('POST', `/v1/store/orders/${o.id ?? pedido.id}/checkout`, { business: c.business.slug, token: o.token ?? c.tokenCliente, ...(o.body === undefined ? {} : { body: o.body }), ...(o.origin ? { origin: o.origin } : {}) }), { id: o.id ?? pedido.id })
 
 describe('POST /v1/store/orders/{id}/checkout', () => {
   test('devolve o endereço de pagamento e o prazo; a segunda chamada devolve o mesmo', async () => {
@@ -48,7 +48,7 @@ describe('POST /v1/store/orders/{id}/checkout', () => {
   })
 
   test('sem token de cliente é 401; pedido de outro cliente é 404; Mercado Pago não configurado é 409 payment_unavailable', async () => {
-    expect((await callRoute(pagar, apiRequest('POST', `/v1/store/orders/${pedido.id}/checkout`, { key: c.key }), { id: pedido.id })).status).toBe(401)
+    expect((await callRoute(pagar, apiRequest('POST', `/v1/store/orders/${pedido.id}/checkout`, { business: c.business.slug }), { id: pedido.id })).status).toBe(401)
     expect((await chamar({ token: c.tokenOutro })).status).toBe(404)
     await prisma.businessIntegration.deleteMany({ where: { businessId: c.business.id } })
     const r = await chamar()
@@ -63,16 +63,31 @@ describe('POST /v1/store/orders/{id}/checkout', () => {
     expect(apiError(r.json).code).toBe('module_disabled')
   })
 
-  test('returnUrl só vale com a origem liberada na chave que chamou', async () => {
-    const livre = await makeAppKey(c.business.id, { allowedOrigins: ['https://app.exemplo.test'] })
-    const ruim = await chamar({ body: { returnUrl: 'https://app.exemplo.test/pedido' } })
-    expect(ruim.status).toBe(422)
-    expect(apiError(ruim.json).fields?.returnUrl).toBeDefined()
-    const boa = await chamar({ key: livre.secret, body: { returnUrl: 'https://app.exemplo.test/pedido' }, origin: 'https://app.exemplo.test' })
-    expect(boa.status).toBe(200)
-    expect(fake.preferences[0]!.backUrl).toBe('https://app.exemplo.test/pedido')
-    expect((await chamar({ key: livre.secret, body: { returnUrl: 'https://outro.test/x' } })).status).toBe(422)
-    expect((await chamar({ body: { valor: 1 } })).status).toBe(422)
+  describe('returnUrl e APP_WEB_ORIGINS', () => {
+    const anterior = process.env.APP_WEB_ORIGINS
+    beforeEach(() => {
+      process.env.APP_WEB_ORIGINS = 'https://app.exemplo.com'
+    })
+    afterEach(() => {
+      if (anterior === undefined) delete process.env.APP_WEB_ORIGINS
+      else process.env.APP_WEB_ORIGINS = anterior
+    })
+
+    test('origem do app web passa; origem de fora é 422 no campo returnUrl', async () => {
+      const boa = await chamar({ body: { returnUrl: 'https://app.exemplo.com/x/pedidos/1' }, origin: 'https://app.exemplo.com' })
+      expect(boa.status).toBe(200)
+      expect(fake.preferences[0]!.backUrl).toBe('https://app.exemplo.com/x/pedidos/1')
+      const ruim = await chamar({ body: { returnUrl: 'https://outro.exemplo.com/x/pedidos/1' } })
+      expect(ruim.status).toBe(422)
+      expect(apiError(ruim.json).fields?.returnUrl).toBeDefined()
+      expect((await chamar({ body: { valor: 1 } })).status).toBe(422)
+    })
+
+    test('app nativo: sem returnUrl e sem Origin funciona', async () => {
+      const r = await chamar()
+      expect(r.status).toBe(200)
+      expect(jsonObject(r.json).checkoutUrl).toMatch(/^https:\/\//)
+    })
   })
 
   test('limite de 10 por minuto por pessoa', async () => {

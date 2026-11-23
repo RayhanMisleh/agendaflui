@@ -27,7 +27,7 @@ beforeEach(async () => {
 })
 
 const get = (rota: typeof business, caminho: string, o: Parameters<typeof apiRequest>[2] = {}) =>
-  callRoute(rota, apiRequest('GET', caminho, { key: c.key, ...o }))
+  callRoute(rota, apiRequest('GET', caminho, { business: c.business.slug, ...o }))
 
 describe('GET /v1/business', () => {
   test('devolve exatamente as chaves públicas, em todos os níveis, e nenhum dado interno', async () => {
@@ -108,7 +108,7 @@ describe('URLs de arquivo', () => {
     const foto = await makeUpload(c.business.id)
     await prisma.customer.update({ where: { id: c.cliente.id }, data: { avatarUploadId: foto.id } })
     const { GET: me } = await import('@/app/api/v1/me/route')
-    const r = await callRoute(me, apiRequest('GET', '/v1/me', { key: c.key, token: c.tokenCliente }))
+    const r = await callRoute(me, apiRequest('GET', '/v1/me', { business: c.business.slug, token: c.tokenCliente }))
     expect(jsonObject(r.json).avatarUrl).toBe(`${areaLink('api', '/arquivos/')}${foto.path}`)
   })
 })
@@ -198,7 +198,7 @@ describe('GET /v1/availability', () => {
   test('conta em Manaus: 09:00 local é 13:00:00.000Z', async () => {
     const m = await montarCena({ timeZone: 'America/Manaus' })
     const data = m.dia(10)
-    const r = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${data}&serviceIds=${m.banho.id}`, { key: m.key }))
+    const r = await callRoute(availability, apiRequest('GET', `/v1/availability?date=${data}&serviceIds=${m.banho.id}`, { business: m.business.slug }))
     expect(r.status).toBe(200)
     const slots = jsonObject(r.json).slots as { startsAt: string; label: string }[]
     const nove = slots.find((s) => s.label === '09:00')

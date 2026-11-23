@@ -6,14 +6,14 @@ import { z } from '@/server/domain/errors'
 export const POST = defineRoute({
   method: 'POST',
   path: '/v1/auth/staff/logout',
-  auth: 'key',
+  auth: 'guest',
   summary: 'Sai do app da equipe: revoga a sessão do token de renovação',
   tag: 'Conta da equipe',
   body: z.object({ refreshToken: credentialText }),
   response: z.undefined(),
   status: 204,
-  handler: async ({ key, body, now }) => {
-    await logoutAppSession('staff', key.businessId, body.refreshToken, now)
+  handler: async ({ business, body, now }) => {
+    await logoutAppSession('staff', business.id, body.refreshToken, now)
     return undefined
   },
 })

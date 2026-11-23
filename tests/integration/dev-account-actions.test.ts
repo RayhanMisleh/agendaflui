@@ -22,10 +22,7 @@ vi.mock('@/server/notifications/channels', async (original) => {
 import {
   alternarAcesso,
   arquivarConta,
-  criarChave,
-  editarOrigens,
   reenviarConvite,
-  revogarChave,
   salvarAvisos,
   salvarDados,
   salvarMarca,
@@ -36,7 +33,6 @@ import {
   convidarMembro,
   trocarPapel,
 } from '@/app/dev/(app)/contas/[id]/actions'
-import { createApiKey, listApiKeys } from '@/server/domain/platform/api-keys'
 import { updateNotificationSettings } from '@/server/domain/settings/notification-settings'
 import { updateSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { updateTermsAsOwner } from '@/server/domain/settings/business-profile'
@@ -295,65 +291,6 @@ describe('equipe', () => {
   })
 })
 
-describe('chaves', () => {
-  test('criar devolve o segredo uma vez; a listagem seguinte e o banco não o contêm', async () => {
-    const conta = await makeBusiness()
-    const r = await criarChave(conta.id, ini, form({ name: 'App Pata', origins: 'https://app.exemplo.com\nhttps://b.exemplo.com' }))
-    expect(r.ok).toBe(true)
-    const segredo = r.values.secret
-    expect(segredo).toMatch(/^afk_a_/)
-    const lista = await listApiKeys({ kind: 'platform_admin', ...adminAtual }, { businessId: conta.id })
-    expect(lista).toHaveLength(1)
-    expect(lista[0]?.allowedOrigins).toEqual(['https://app.exemplo.com', 'https://b.exemplo.com'])
-    expect(JSON.stringify(lista)).not.toContain(segredo)
-    const linha = await prisma.apiKey.findFirstOrThrow({ where: { businessId: conta.id } })
-    expect(JSON.stringify(linha)).not.toContain(segredo)
-    const auditoria = await prisma.auditLog.findMany({ where: { businessId: conta.id } })
-    expect(JSON.stringify(auditoria)).not.toContain(segredo)
-  })
-
-  test('origem inválida erra no campo de origens e não cria a chave', async () => {
-    const conta = await makeBusiness()
-    const r = await criarChave(conta.id, ini, form({ name: 'App', origins: 'isto não é origem' }))
-    expect(r.ok).toBe(false)
-    expect(r.fields.origins).toBeTruthy()
-    expect(r.values.origins).toBe('isto não é origem')
-    expect(await prisma.apiKey.count({ where: { businessId: conta.id } })).toBe(0)
-  })
-
-  test('revogar pede o nome da chave; chave de OUTRA conta pelo formulário desta não é revogada', async () => {
-    const a = await makeBusiness()
-    const b = await makeBusiness()
-    const chaveA = (await criarChave(a.id, ini, form({ name: 'Chave A', origins: '' }))).ok
-    expect(chaveA).toBe(true)
-    await criarChave(b.id, ini, form({ name: 'Chave B', origins: '' }))
-    const kA = await prisma.apiKey.findFirstOrThrow({ where: { businessId: a.id } })
-    const kB = await prisma.apiKey.findFirstOrThrow({ where: { businessId: b.id } })
-
-    const alheia = await revogarChave(a.id, ini, form({ keyId: kB.id, confirmName: 'Chave B' }))
-    expect(alheia.ok).toBe(false)
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kB.id } })).revokedAt).toBeNull()
-    const origensAlheias = await editarOrigens(a.id, ini, form({ keyId: kB.id, origins: 'https://x.exemplo.com' }))
-    expect(origensAlheias.ok).toBe(false)
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kB.id } })).allowedOrigins).toEqual([])
-
-    const semNome = await revogarChave(a.id, ini, form({ keyId: kA.id, confirmName: 'outra' }))
-    expect(semNome.ok).toBe(false)
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kA.id } })).revokedAt).toBeNull()
-    expect((await revogarChave(a.id, ini, form({ keyId: kA.id, confirmName: 'Chave A' }))).ok).toBe(true)
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: kA.id } })).revokedAt).not.toBeNull()
-  })
-
-  test('editar origens da própria chave grava', async () => {
-    const conta = await makeBusiness()
-    await criarChave(conta.id, ini, form({ name: 'K', origins: '' }))
-    const k = await prisma.apiKey.findFirstOrThrow({ where: { businessId: conta.id } })
-    const r = await editarOrigens(conta.id, ini, form({ keyId: k.id, origins: 'https://novo.exemplo.com' }))
-    expect(r.ok).toBe(true)
-    expect((await prisma.apiKey.findUniqueOrThrow({ where: { id: k.id } })).allowedOrigins).toEqual(['https://novo.exemplo.com'])
-  })
-})
-
 describe('convidar membro novo', () => {
   test('cria o vínculo e o convite, devolve a mensagem e a pessoa aparece na equipe', async () => {
     const conta = await makeBusiness()
@@ -403,19 +340,5 @@ describe('o id da conta vem do servidor, não do formulário', () => {
     const r = await salvarTermos('nao-e-uuid', ini, form({ club: 'X' }))
     expect(r.ok).toBe(false)
     expect(r.message).toBeTruthy()
-  })
-})
-
-describe('chave de plataforma', () => {
-  test('pela página de uma conta não se revoga nem se edita uma chave de PLATAFORMA', async () => {
-    const conta = await makeBusiness()
-    const { key } = await createApiKey({ kind: 'platform_admin', ...adminAtual }, { kind: 'PLATFORM', name: 'Plataforma' })
-    const revogar = await revogarChave(conta.id, ini, form({ keyId: key.id, confirmName: 'Plataforma' }))
-    expect(revogar.ok).toBe(false)
-    const origens = await editarOrigens(conta.id, ini, form({ keyId: key.id, origins: 'https://x.exemplo.com' }))
-    expect(origens.ok).toBe(false)
-    const depois = await prisma.apiKey.findUniqueOrThrow({ where: { id: key.id } })
-    expect(depois.revokedAt).toBeNull()
-    expect(depois.allowedOrigins).toEqual([])
   })
 })
