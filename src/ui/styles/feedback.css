@@ -227,6 +227,81 @@
     }
   }
 
+  /* ---- Esqueleto de tela: a moldura inteira enquanto a página carrega ---- */
+  .af-skel {
+    display: block;
+    width: var(--w, 100%);
+    height: var(--h, 0.875rem);
+    border-radius: var(--radius-pill);
+    background-color: var(--line);
+  }
+  .af-skel--card {
+    border-radius: var(--radius-card);
+  }
+  .af-skel--field {
+    border-radius: var(--radius-chip);
+  }
+  .af-skel--round {
+    flex: none;
+    border-radius: 50%;
+  }
+  .af-skel--side {
+    background-color: var(--side-line);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-skel {
+      animation: af-pulse 1800ms ease-in-out infinite;
+    }
+  }
+  .af-shellskel__body {
+    display: grid;
+    gap: 1.25rem;
+  }
+  .af-shellskel__stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: 1rem;
+  }
+  .af-shellskel__pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: 1.25rem;
+  }
+  .af-shellskel__card {
+    display: grid;
+    gap: 0.875rem;
+    padding: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+  }
+  .af-shellskel__row {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+  }
+  .af-shellskel__grow {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .af-shellskel__tools {
+    display: flex;
+    gap: 0.75rem;
+  }
+  /* A barra lateral (e o seu menu) só existe no computador; a moldura (`shells.css`) já a desenha. */
+  .af-shellskel__nav {
+    display: none;
+  }
+  @media (min-width: 768px) {
+    .af-shellskel__nav {
+      display: grid;
+      gap: 0.25rem;
+      padding: 1.25rem 0.75rem;
+    }
+  }
+
   /* ---- Medidor ---- */
   .af-meter {
     display: grid;
