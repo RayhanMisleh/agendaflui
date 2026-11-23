@@ -15,20 +15,39 @@
   pointer-events: none;
 }
 
-/* A barra lateral do computador é um elemento fixo entre as páginas: não anima e não pisca. */
+/*
+ * A barra lateral do computador, e no celular a barra do topo e a pílula de navegação, são elementos fixos entre as
+ * páginas: não animam e ficam acima do conteúdo que troca (z-index 100), senão o snapshot da página os cobre. O menu da
+ * conta é um <dialog> modal (camada superior), não um `position: fixed` dentro dessas barras. O esqueleto não leva o
+ * nome, para ele nunca duplicar o da moldura.
+ */
 @media (min-width: 768px) {
-  .af-shell:not(.af-shell--phone):not(.af-shell--embedded) .af-shell__side {
+  .af-shell:not(.af-shell--phone):not(.af-shell--embedded):not(.af-shell--skeleton) .af-shell__side {
     view-transition-name: af-side;
   }
 }
-::view-transition-group(af-side) {
+@media (max-width: 767.98px) {
+  .af-shell:not(.af-shell--phone):not(.af-shell--embedded):not(.af-shell--skeleton) .af-shell__top {
+    view-transition-name: af-top;
+  }
+  .af-shell:not(.af-shell--phone):not(.af-shell--embedded):not(.af-shell--skeleton) .af-shell__nav {
+    view-transition-name: af-nav;
+  }
+}
+::view-transition-group(af-side),
+::view-transition-group(af-top),
+::view-transition-group(af-nav) {
   animation: none;
   z-index: 100;
 }
-::view-transition-old(af-side) {
+::view-transition-old(af-side),
+::view-transition-old(af-top),
+::view-transition-old(af-nav) {
   display: none;
 }
-::view-transition-new(af-side) {
+::view-transition-new(af-side),
+::view-transition-new(af-top),
+::view-transition-new(af-nav) {
   animation: none;
 }
 

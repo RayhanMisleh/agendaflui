@@ -124,3 +124,20 @@ test('nenhuma duração de movimento passa de 250ms (exceto af-spin e af-pulse)'
     }
   }
 })
+
+test('motion.css nomeia a barra do topo e a pílula do celular para ficarem acima da página durante a troca', () => {
+  const celular = regras(MOTION).find((r) => /max-width:\s*767\.98px/.test(r.prelude))
+  expect(celular, 'falta o bloco do celular').toBeDefined()
+  expect(celular!.body).toMatch(/\.af-shell__top\s*\{[^}]*view-transition-name:\s*af-top/)
+  expect(celular!.body).toMatch(/\.af-shell__nav\s*\{[^}]*view-transition-name:\s*af-nav/)
+  const regra = (parte: string, nome: string) => regras(MOTION).find((r) => !r.prelude.startsWith('@') && r.prelude.includes(`::view-transition-${parte}(${nome})`))
+  for (const nome of ['af-top', 'af-nav']) {
+    expect(regra('group', nome)?.body, nome).toMatch(/animation:\s*none[\s\S]*z-index:\s*100/)
+    expect(regra('old', nome)?.body, nome).toMatch(/display:\s*none/)
+    expect(regra('new', nome)?.body, nome).toMatch(/animation:\s*none/)
+  }
+})
+
+test('o esqueleto não leva nome de transição: todo nome exclui .af-shell--skeleton (evita nome duplicado com a moldura)', () => {
+  expect(regras(MOTION).filter((r) => !r.prelude.startsWith('@') && /view-transition-name/.test(r.body)).every((r) => /:not\(\.af-shell--skeleton\)/.test(r.prelude))).toBe(true)
+})
