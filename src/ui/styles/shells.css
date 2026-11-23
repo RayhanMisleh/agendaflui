@@ -362,7 +362,9 @@
   .af-shell__account form {
     display: block;
   }
+  /* O link com cara de botão (Meu perfil) também é filho direto: volta a ser flex para centralizar ícone e texto. */
   .af-shell__account .af-button {
+    display: flex;
     width: 100%;
   }
 
