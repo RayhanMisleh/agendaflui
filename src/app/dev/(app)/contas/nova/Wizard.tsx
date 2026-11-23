@@ -47,7 +47,6 @@ const ROTULOS: Record<string, string> = {
   pointsSingular: 'Pontos (singular)',
   pointsPlural: 'Pontos (plural)',
   club: 'Clube',
-  vouchers: 'Vouchers',
   store: 'Loja',
   slotStepMin: 'Grade de horários',
   minLeadMin: 'Antecedência mínima',
@@ -152,7 +151,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               </Field>
               <Field
                 label="Identificador"
-                hint={v.slug ? `O link de entrada termina em /entrar/${v.slug}.` : 'Letras minúsculas, números e hífens. Vira o final do link de entrada.'}
+                hint="Letras minúsculas, números e hífens. Identifica a conta no painel dev."
                 error={erro('slug')}
               >
                 <Input
@@ -246,14 +245,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" checked={v.loyalty} onChange={(e) => set('loyalty', e.target.checked)} />
               <Checkbox name="banners" label="Banners: avisos e promoções no app" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
               <Checkbox name="store" label="Loja: produtos e pedidos" checked={v.store} onChange={(e) => set('store', e.target.checked)} />
-              <Checkbox name="vouchers" label="Vouchers: vendidos dentro de um pedido da Loja" checked={v.vouchers} onChange={(e) => set('vouchers', e.target.checked)} />
             </div>
-            {v.vouchers && !v.store ? (
-              <p className="af-wizard__note" role="status">
-                Vouchers só funcionam com a Loja ligada. Ligue a Loja ou desligue Vouchers antes de criar a conta.
-              </p>
-            ) : null}
-            {erro('vouchers') ? <p className="af-field__error">{erro('vouchers')}</p> : null}
           </Etapa>
 
           <Etapa i={4} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Regras de agenda" ajuda="Os valores começam no padrão do sistema. O dono pode ajustá-los depois.">
@@ -300,7 +292,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <dt>Dono</dt>
               <dd>{v.ownerEmail || 'Sem e-mail ainda'}</dd>
               <dt>Módulos</dt>
-              <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja', v.vouchers && 'Vouchers'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
+              <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
             </dl>
           </Etapa>
 
@@ -369,7 +361,7 @@ function Etapa(p: {
   )
 }
 
-/** Tela final: o link de entrada, o estado do convite e o que faltou (se faltou). */
+/** Tela final: o estado do convite e o que faltou (se faltou). */
 function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => void }) {
   const titulo = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
@@ -396,21 +388,23 @@ function Concluida({ result, onAgain }: { result: WizardResult; onAgain: () => v
         </div>
       ) : null}
 
-      <div className="af-done__row">
-        <span className="af-done__label">Link de entrada da conta</span>
-        <span className="af-entrylink">
-          <span className="af-entrylink__url">{result.entryUrl}</span>
-          <CopyButton text={result.entryUrl} label="Copiar link de entrada" />
-        </span>
-      </div>
-
       <p className="af-wizard__note">
         {result.ownerExisting
-          ? `${result.ownerEmail} já tinha cadastro: foi vinculado à conta sem trocar a senha${result.emailSent ? ' e recebeu um aviso de acesso novo.' : '. O aviso por e-mail não saiu; avise a pessoa pelo link acima.'}`
+          ? `${result.ownerEmail} já tinha cadastro: foi vinculado à conta sem trocar a senha${result.emailSent ? ' e recebeu um aviso de acesso novo.' : '. O aviso por e-mail não saiu; avise a pessoa por outro meio.'}`
           : result.emailSent
             ? `Enviamos para ${result.ownerEmail} o convite para definir a senha.`
             : `O convite para ${result.ownerEmail} não saiu por e-mail. Reenvie o convite na página da conta.`}
       </p>
+
+      <div className="af-done__row">
+        <label htmlFor="link-clientes" className="af-done__label">
+          Link para clientes
+        </label>
+        <div className="af-entrylink">
+          <Input id="link-clientes" readOnly value={result.customerLinkUrl} onFocus={(e) => e.currentTarget.select()} />
+          <CopyButton text={result.customerLinkUrl} label="Copiar o link para clientes" variant="secondary" />
+        </div>
+      </div>
 
       <div className="af-done__actions">
         <LinkButton href={`/contas/${result.createdId}`} variant="primary">

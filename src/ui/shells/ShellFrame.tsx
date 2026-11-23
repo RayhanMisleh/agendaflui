@@ -3,6 +3,7 @@ import { cx } from '../components/cx'
 import { AccountMenu } from './AccountMenu'
 import { BrandMark } from './BrandMark'
 import type { NavItem } from './nav'
+import { PageTransition } from './PageTransition'
 import { ShellNav } from './ShellNav'
 import { UserPlate } from './UserPlate'
 import type { ShellUser } from './UserPlate'
@@ -16,7 +17,7 @@ export type ShellFrameProps = {
   brand: { name: string; logoUrl: string | null; symbolUrl: string | null; platform?: boolean }
   nav: NavItem[]
   user: ShellUser
-  /** Sair, Trocar de conta, Meu perfil: vão no pé da barra (computador) e no menu da conta (celular). */
+  /** Sair e Meu perfil: vão no pé da barra (computador) e no menu da conta (celular). */
   accountActions?: ReactNode
   /** Bolha discreta no pé da barra (só a Cheia). */
   bubble?: boolean
@@ -92,15 +93,17 @@ export function ShellFrame(p: ShellFrameProps) {
           </footer>
         </div>
         <Main id={contentId} tabIndex={-1} aria-labelledby={p.embedded ? titleId : undefined} className="af-shell__main">
-          <div className="af-shell__inner">
-            <div className="af-shell__head">
-              <Heading id={titleId} className="af-shell__title">
-                {p.title}
-              </Heading>
-              {p.actions ? <div className="af-shell__actions">{p.actions}</div> : null}
+          <PageTransition>
+            <div className="af-shell__inner">
+              <div className="af-shell__head">
+                <Heading id={titleId} className="af-shell__title">
+                  {p.title}
+                </Heading>
+                {p.actions ? <div className="af-shell__actions">{p.actions}</div> : null}
+              </div>
+              <div className="af-shell__body">{p.children}</div>
             </div>
-            <div className="af-shell__body">{p.children}</div>
-          </div>
+          </PageTransition>
         </Main>
       </div>
     </div>

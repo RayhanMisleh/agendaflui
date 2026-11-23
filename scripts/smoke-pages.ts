@@ -117,19 +117,11 @@ const PAGINAS_MODULOS: string[] = [
   '/loja?aba=configuracoes',
   '/loja/produtos/novo',
   '/loja/produtos/{produto}',
-  '/vouchers',
-  '/vouchers?aba=vouchers',
-  '/vouchers?aba=parceiros',
-  '/vouchers?aba=codigos&situacao=ACTIVE',
-  '/vouchers/novo',
-  '/vouchers/parceiros/novo',
-  '/vouchers/{voucher}',
-  '/vouchers/parceiros/{parceiro}',
 ]
 
 /** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
-const PAGINAS_LOJA_DESLIGADA = ['/fidelidade', '/banners', '/loja', '/vouchers']
-const SEM_LOJA_404 = new Set(['/loja', '/vouchers'])
+const PAGINAS_LOJA_DESLIGADA = ['/fidelidade', '/banners', '/loja']
+const SEM_LOJA_404 = new Set(['/loja'])
 
 type Resposta = { status: number; corpo: string }
 
@@ -275,13 +267,13 @@ async function main(): Promise<number> {
 
     // Os módulos da conta mudam só durante a fumaça e voltam ao valor de antes no fim (inclusive se o script cair).
     const antes = await prisma.businessModules.findUnique({ where: { businessId: conta.id } })
-    const ligar = (data: { loyalty: boolean; banners: boolean; store: boolean; vouchers: boolean }) =>
+    const ligar = (data: { loyalty: boolean; banners: boolean; store: boolean }) =>
       prisma.businessModules.upsert({ where: { businessId: conta.id }, create: { businessId: conta.id, ...data }, update: data })
     limpezas.push(async () => {
-      if (antes) await ligar({ loyalty: antes.loyalty, banners: antes.banners, store: antes.store, vouchers: antes.vouchers })
+      if (antes) await ligar({ loyalty: antes.loyalty, banners: antes.banners, store: antes.store })
       else await prisma.businessModules.deleteMany({ where: { businessId: conta.id } })
     })
-    await ligar({ loyalty: true, banners: true, store: true, vouchers: true })
+    await ligar({ loyalty: true, banners: true, store: true })
 
     const cliente = await prisma.customer.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
     const profissional = await prisma.professional.findFirst({ where: { businessId: conta.id }, orderBy: { createdAt: 'asc' }, select: { id: true } })
@@ -294,13 +286,6 @@ async function main(): Promise<number> {
     const banner = await prisma.banner.create({ data: { businessId: conta.id, title: 'Banner da fumaça' }, select: { id: true } })
     limpezas.push(async () => {
       await prisma.banner.deleteMany({ where: { id: banner.id } })
-    })
-    // Um parceiro e um voucher de demonstração para as fichas; saem ao fim (o voucher antes do parceiro).
-    const parceiro = await prisma.partner.create({ data: { businessId: conta.id, name: 'Parceiro da fumaça' }, select: { id: true } })
-    const voucher = await prisma.voucher.create({ data: { businessId: conta.id, partnerId: parceiro.id, name: 'Voucher da fumaça', priceCents: 5000, stock: 3 }, select: { id: true } })
-    limpezas.push(async () => {
-      await prisma.voucher.deleteMany({ where: { id: voucher.id } })
-      await prisma.partner.deleteMany({ where: { id: parceiro.id } })
     })
     // Um produto de demonstração para a ficha; sai ao fim, junto com as sessões.
     const produto = await prisma.product.create({ data: { businessId: conta.id, name: 'Produto da fumaça', priceCents: 1990, stock: 3 }, select: { id: true } })
@@ -340,7 +325,7 @@ async function main(): Promise<number> {
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{voucher}', voucher.id).replace('{parceiro}', parceiro.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id)
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id)
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
@@ -363,8 +348,8 @@ async function main(): Promise<number> {
       }
     }
 
-    // Conta com a Loja desligada: as páginas da Loja e dos Vouchers somem (404). As outras só não podem quebrar.
-    await ligar({ loyalty: true, banners: true, store: false, vouchers: false })
+    // Conta com a Loja desligada: a página da Loja some (404). As outras só não podem quebrar.
+    await ligar({ loyalty: true, banners: true, store: false })
     for (const caminho of PAGINAS_LOJA_DESLIGADA) {
       const esperado = SEM_LOJA_404.has(caminho) ? 404 : null
       let linha: string

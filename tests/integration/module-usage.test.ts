@@ -10,8 +10,7 @@ import { makeBusiness, makePlatformAdmin } from '../setup/factories'
 import { lancar } from '../setup/loyalty'
 import { configurarIntegracoes } from '../setup/store'
 import { pedidoComRetirada, marcarPago } from '../setup/store-orders'
-import { cenaVouchers, codigosDe, pagar, pedidoDeVoucher } from '../setup/vouchers'
-import { produto } from '../setup/store'
+import { cenaLoja, produto } from '../setup/store'
 
 type Admin = Extract<Actor, { kind: 'platform_admin' }>
 let admin: Admin
@@ -23,34 +22,34 @@ beforeEach(async () => {
 })
 
 describe('getModuleUsage', () => {
-  test('conta só o que é da própria conta: pedidos a entregar, resgates pendentes e códigos ativos', async () => {
-    const a = await cenaVouchers()
-    const b = await cenaVouchers()
-    // Conta A: um pedido de produto pago e a entregar, um já entregue, um aguardando pagamento; 2 códigos; 1 resgate pendente.
+  test('conta só o que é da própria conta: pedidos a entregar e resgates pendentes', async () => {
+    const a = await cenaLoja()
+    const b = await cenaLoja()
+    await configurarIntegracoes(a.b.id, { mercadoPago: true })
+    await configurarIntegracoes(b.b.id, { mercadoPago: true })
+    // Conta A: um pedido de produto pago e a entregar, um já entregue, um aguardando pagamento; 1 resgate pendente.
     const p = await produto(a.dono, { stock: 10 })
     const aEntregar = await pedidoComRetirada(a.ctxCliente, [{ productId: p.id, quantity: 1 }])
     await marcarPago(aEntregar.order.id)
     const entregue = await pedidoComRetirada(a.ctxCliente, [{ productId: p.id, quantity: 1 }])
     await marcarPago(entregue.order.id, { fulfillment: 'DELIVERED' })
     await pedidoComRetirada(a.ctxCliente, [{ productId: p.id, quantity: 1 }])
-    const v = await pedidoDeVoucher(a.ctxCliente, [{ voucherId: a.voucher.id, quantity: 2 }])
-    await pagar(a, v.order)
-    expect(await codigosDe(v.order.id)).toHaveLength(2)
     await prisma.businessModules.update({ where: { businessId: a.b.id }, data: { loyalty: true } })
     await lancar(a.b.id, a.cliente.id, 100)
     const prize = await createPrize(a.dono, { name: 'Brinde', description: null, costPoints: 40, stock: null, active: true })
     await redeemPrize(a.ctxCliente, { prizeId: prize.id })
-    // Conta B: só um código (não pode aparecer na conta A).
-    const vb = await pedidoDeVoucher(b.ctxCliente, [{ voucherId: b.voucher.id, quantity: 1 }])
-    await pagar(b, vb.order)
+    // Conta B: um pedido pago a entregar (não pode aparecer na conta A).
+    const pb = await produto(b.dono, { stock: 10 })
+    const deB = await pedidoComRetirada(b.ctxCliente, [{ productId: pb.id, quantity: 1 }])
+    await marcarPago(deB.order.id)
 
-    expect(await getModuleUsage(admin, a.b.id)).toEqual({ openOrders: 1, pendingRedemptions: 1, activeVoucherCodes: 2, mercadoPagoConfigured: true })
-    expect(await getModuleUsage(admin, b.b.id)).toEqual({ openOrders: 0, pendingRedemptions: 0, activeVoucherCodes: 1, mercadoPagoConfigured: true })
+    expect(await getModuleUsage(admin, a.b.id)).toEqual({ openOrders: 1, pendingRedemptions: 1, mercadoPagoConfigured: true })
+    expect(await getModuleUsage(admin, b.b.id)).toEqual({ openOrders: 1, pendingRedemptions: 0, mercadoPagoConfigured: true })
   })
 
   test('conta nova: tudo zero e Mercado Pago não configurado; configurar só um dos segredos não conta', async () => {
     const b = await makeBusiness()
-    expect(await getModuleUsage(admin, b.id)).toEqual({ openOrders: 0, pendingRedemptions: 0, activeVoucherCodes: 0, mercadoPagoConfigured: false })
+    expect(await getModuleUsage(admin, b.id)).toEqual({ openOrders: 0, pendingRedemptions: 0, mercadoPagoConfigured: false })
     await configurarIntegracoes(b.id, { mercadoPago: true })
     expect((await getModuleUsage(admin, b.id)).mercadoPagoConfigured).toBe(true)
   })

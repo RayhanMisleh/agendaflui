@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
+import { OUTRA_LOJA_MESSAGE } from '@/server/domain/platform/access-core'
 import {
   createBusiness,
   getBusinessDetail,
@@ -12,6 +13,7 @@ import {
   slugSchema,
   updateBusinessData,
 } from '@/server/domain/platform/businesses'
+import { env } from '@/server/env'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import { makeBusiness, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
@@ -49,7 +51,6 @@ describe('createBusiness', () => {
   test('dono novo: usuário sem senha, vínculo OWNER, convite só com hash e e-mail com o link', async () => {
     const r = await createBusiness(actor, base)
     expect(r.business).toMatchObject({ name: 'Barbearia Central', slug: 'central', status: 'ACTIVE', timeZone: 'America/Sao_Paulo', version: 1 })
-    expect(r.business.entryUrl).toBe('http://painel.localhost:3000/entrar/central')
     expect(r.business.ownerName).toBe('João Silva')
     expect(r.owner.existing).toBe(false)
     expect(r.emailSent).toBe(true)
@@ -80,9 +81,9 @@ describe('createBusiness', () => {
       include: { branding: true, modules: true, settings: true },
     })
     expect(conta.branding?.displayName).toBe('Barbearia Central')
-    expect(conta.modules).toMatchObject({ loyalty: false, banners: false, store: false, vouchers: false })
+    expect(conta.modules).toMatchObject({ loyalty: false, banners: false, store: false })
     expect(conta.settings).toMatchObject({ slotStepMin: 15, minLeadMin: 60, autoConfirm: true })
-    expect(r.business.modules).toEqual({ loyalty: false, banners: false, store: false, vouchers: false })
+    expect(r.business.modules).toEqual({ loyalty: false, banners: false, store: false })
   })
 
   test('a auditoria não guarda o token do convite', async () => {
@@ -94,7 +95,7 @@ describe('createBusiness', () => {
   test('dono que já existe: só o vínculo, senha intacta, nenhum convite e e-mail de aviso', async () => {
     const outra = await makeBusiness()
     const existente = await makeUser({ name: 'Helena', email: 'helena@exemplo.test', password: 'senha-da-helena-1' })
-    await makeMembership(outra.id, existente.id, 'OWNER')
+    await prisma.membership.create({ data: { businessId: outra.id, userId: existente.id, role: 'OWNER', active: false } })
     const antes = existente.passwordHash
 
     const r = await createBusiness(actor, { ...base, owner: { name: 'Outro Nome', email: 'HELENA@exemplo.test' } })
@@ -110,13 +111,14 @@ describe('createBusiness', () => {
     expect(mail.sent[0]?.to).toBe('helena@exemplo.test')
     expect(mail.sent[0]?.text).toContain('Barbearia Central')
     expect(mail.sent[0]?.text).not.toContain('definir-senha')
-    expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar/central')
+    expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar')
+    expect(mail.sent[0]?.text).not.toContain('/entrar/central')
   })
 
   test('dono existente sem senha: emite convite novo e manda o e-mail de convite', async () => {
     const outra = await makeBusiness()
     const pendente = await makeUser({ name: 'Pendente', email: 'pendente@exemplo.test', password: null })
-    await makeMembership(outra.id, pendente.id, 'OWNER')
+    await prisma.membership.create({ data: { businessId: outra.id, userId: pendente.id, role: 'OWNER', active: false } })
     await prisma.userToken.create({ data: { userId: pendente.id, purpose: 'INVITE', tokenHash: 'velho', expiresAt: new Date(Date.now() - 1000) } })
     const r = await createBusiness(actor, { ...base, owner: { name: 'X', email: 'pendente@exemplo.test' } })
     expect(r.owner).toEqual({ userId: pendente.id, existing: true })
@@ -133,6 +135,13 @@ describe('createBusiness', () => {
     expect(r.emailSent).toBe(false)
     expect(await prisma.business.count()).toBe(1)
     expect(await prisma.userToken.count()).toBe(1)
+    // O vínculo do dono guarda que o convite não saiu (a ficha e a lista mostram "Convite não enviado").
+    expect((await prisma.membership.findFirstOrThrow({ where: { businessId: r.business.id } })).inviteMailFailedAt).not.toBeNull()
+  })
+
+  test('com o e-mail enviado, o vínculo do dono não fica marcado', async () => {
+    const r = await createBusiness(actor, base)
+    expect((await prisma.membership.findFirstOrThrow({ where: { businessId: r.business.id } })).inviteMailFailedAt).toBeNull()
   })
 
   test('sem canal de e-mail configurado, emailSent é falso', async () => {
@@ -221,6 +230,29 @@ describe('createBusiness', () => {
   })
 })
 
+describe('createBusiness: dono de outra loja', () => {
+  test('dono ativo em outra loja: conflict no campo owner.email e nada é criado', async () => {
+    const outra = await makeBusiness({ slug: 'outra-loja' })
+    const user = await makeUser({ email: 'joao@exemplo.test' })
+    await makeMembership(outra.id, user.id, 'OWNER')
+    const e = await domainError(createBusiness(actor, base))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect(e.fields).toEqual({ 'owner.email': OUTRA_LOJA_MESSAGE })
+    expect(await prisma.business.findUnique({ where: { slug: 'central' } })).toBeNull()
+    expect(await prisma.membership.count({ where: { userId: user.id } })).toBe(1)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  test('dono desativado em outra loja pode criar a conta nova', async () => {
+    const outra = await makeBusiness({ slug: 'outra-loja' })
+    const user = await makeUser({ email: 'joao@exemplo.test' })
+    const antigo = await makeMembership(outra.id, user.id, 'OWNER')
+    await prisma.membership.update({ where: { id: antigo.id }, data: { active: false } })
+    const r = await createBusiness(actor, base)
+    expect(r.owner.userId).toBe(user.id)
+  })
+})
+
 describe('listBusinesses e getBusinessDetail', () => {
   test('busca "joao" acha a conta cujo dono é "João", sem diferenciar acento, por nome, slug e e-mail', async () => {
     await createBusiness(actor, base)
@@ -250,7 +282,7 @@ describe('listBusinesses e getBusinessDetail', () => {
     const ativas = await listBusinesses(actor, { status: 'ACTIVE' })
     expect(ativas.items.map((i) => i.slug)).toEqual(['outra'])
     const susp = await listBusinesses(actor, { status: 'SUSPENDED' })
-    expect(susp.items[0]).toMatchObject({ slug: 'central', status: 'SUSPENDED', ownerName: 'João Silva', entryUrl: 'http://painel.localhost:3000/entrar/central' })
+    expect(susp.items[0]).toMatchObject({ slug: 'central', status: 'SUSPENDED', ownerName: 'João Silva' })
   })
 
   test('paginação por cursor é estável: sem repetir nem perder, e o último não tem cursor', async () => {
@@ -277,6 +309,7 @@ describe('listBusinesses e getBusinessDetail', () => {
     const r = await createBusiness(actor, { ...base, contactEmail: 'contato@central.test', contactPhone: '5592999990000' })
     const d = await getBusinessDetail(actor, r.business.id)
     expect(d).toMatchObject({ contactEmail: 'contato@central.test', contactPhone: '5592999990000', version: 1, timeZone: 'America/Sao_Paulo' })
+    expect(d.customerLinkUrl).toBe(`${env.APP_WEB_URL}/${d.slug}`)
     expect((await domainError(getBusinessDetail(actor, UUID_INEXISTENTE))).code).toBe('not_found')
     expect((await domainError(getBusinessDetail(actor, 'nao-e-uuid'))).code).toBe('not_found')
   })
@@ -287,7 +320,6 @@ describe('updateBusinessData', () => {
     const r = await createBusiness(actor, base)
     const d = await updateBusinessData(actor, r.business.id, 1, { name: 'Central Nova', slug: 'central-nova' })
     expect(d).toMatchObject({ name: 'Central Nova', slug: 'central-nova', version: 2 })
-    expect(d.entryUrl).toBe('http://painel.localhost:3000/entrar/central-nova')
     const linha = await prisma.auditLog.findFirstOrThrow({ where: { action: 'business.updated' } })
     expect(linha.actorId).toBe(adminId)
     expect(linha.metadata).toMatchObject({ fields: ['name', 'slug'] })
@@ -375,7 +407,7 @@ describe('setBusinessStatus', () => {
     const dono = await sess(r.owner.userId, r.business.id, 'h2')
     const multi = await makeUser()
     await makeMembership(r.business.id, multi.id, 'MANAGER')
-    await makeMembership(outra.id, multi.id, 'MANAGER')
+    await prisma.membership.create({ data: { businessId: outra.id, userId: multi.id, role: 'MANAGER', active: false } })
     const emOutra = await sess(multi.id, outra.id, 'h3')
     const estranho = await makeUser()
     const deEstranho = await sess(estranho.id, outra.id, 'h4')

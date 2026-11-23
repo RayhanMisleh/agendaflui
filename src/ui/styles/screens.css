@@ -1,9 +1,14 @@
 /*
- * Peças das telas do painel dev: lista de contas, linhas de ação, link de entrada, convite de membro e a prévia recolhível.
+ * Peças das telas do painel dev: lista de contas, linhas de ação, convite de membro e a prévia recolhível.
  * Cartão com borda fina, sem sombra; texto em tinta; nada de rótulo em maiúsculas.
  */
 @layer components {
   /* ---- Cartão de lista: busca, filtros, tabela, rodapé ---- */
+  .af-stack {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
   .af-listpanel {
     display: grid;
     gap: 1.25rem;
@@ -37,6 +42,10 @@
     gap: 0.25rem 0.5rem;
     min-width: 0;
     max-width: 24rem;
+  }
+  .af-entrylink .af-input {
+    flex: 1 1 14rem;
+    min-width: 0;
   }
   .af-entrylink__url {
     min-width: 0;

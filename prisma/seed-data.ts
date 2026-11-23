@@ -120,8 +120,6 @@ export type DemoModulos = {
     categorias: string[]
     /** `categoria` é o índice em `categorias`. */
     produtos: { nome: string; descricao: string; categoria: number; centavos: number; promocaoCentavos?: number; estoque: number; gramas: number }[]
-    parceiro: { nome: string; descricao: string; endereco: string; telefone: string; site: string }
-    vouchers: { nome: string; descricao: string; regras: string; centavos: number; estoque: number; validadeDias: number }[]
   }
 }
 
@@ -153,11 +151,6 @@ const MODULOS_NAVALHA: DemoModulos = {
       { nome: 'Pomada modeladora', descricao: 'Fixação forte e acabamento fosco.', categoria: 1, centavos: 4200, estoque: 10, gramas: 150 },
       { nome: 'Shampoo anticaspa', descricao: 'Limpeza profunda do couro cabeludo.', categoria: 1, centavos: 3500, estoque: 0, gramas: 300 },
     ],
-    parceiro: { nome: 'Café do Largo', descricao: 'Cafeteria parceira, a dois quarteirões da barbearia.', endereco: 'Rua do Largo, 120, Centro, Manaus', telefone: '(92) 3000-1234', site: 'https://cafedolargo.agendaflui.localhost' },
-    vouchers: [
-      { nome: 'Café com pão de queijo', descricao: 'Um café com pão de queijo no balcão.', regras: 'Válido de segunda a sexta, uma vez por código.', centavos: 1800, estoque: 30, validadeDias: 30 },
-      { nome: 'Combo lanche para dois', descricao: 'Dois sanduíches e duas bebidas.', regras: 'Válido todos os dias, até as 18 horas.', centavos: 5500, estoque: 10, validadeDias: 60 },
-    ],
   },
 }
 
@@ -173,12 +166,12 @@ export const DEMO_CONTAS = [
       accentColor: '#F29A4B',
       coverMaterial: 'LEATHER',
     },
-    modulos: { loyalty: true, banners: true, store: false, vouchers: false },
+    modulos: { loyalty: true, banners: true, store: false },
     termos: {
       termProfessionalSingular: 'Tosador',
       termProfessionalPlural: 'Tosadores',
-      termCustomerSingular: 'Tutor',
-      termCustomerPlural: 'Tutores',
+      termCustomerSingular: 'Cliente',
+      termCustomerPlural: 'Clientes',
       termPointsSingular: 'Patinha',
       termPointsPlural: 'Patinhas',
     },
@@ -201,7 +194,7 @@ export const DEMO_CONTAS = [
       accentColor: '#E3A72F',
       coverMaterial: 'WOOD',
     },
-    modulos: { loyalty: true, banners: true, store: true, vouchers: true },
+    modulos: { loyalty: true, banners: true, store: true },
     termos: {
       termProfessionalSingular: 'Barbeiro',
       termProfessionalPlural: 'Barbeiros',
@@ -216,8 +209,6 @@ export const DEMO_CONTAS = [
   },
 ] as const
 
-export const DEMO_MULTI_NOME = 'Helena Prado'
-
 /** Admin extra da plataforma, desativado: dá vida à lista de admins do painel dev. A senha dele é aleatória e descartada. */
 export const DEMO_ADMIN_INATIVO = { nome: 'Admin Inativo', email: 'inativo@agendaflui.localhost' } as const
 
@@ -227,6 +218,8 @@ export const DEMO_CONTA_SUSPENSA = {
   nome: 'Estúdio Sol Nascente',
   segmento: 'Estúdio de pilates',
   fuso: 'America/Sao_Paulo',
+  donoNome: 'Helena Prado',
+  donoEmail: `dono.sol@${DOMINIO}`,
 } as const
 
 /** Rotas do uso de API de demonstração: método e caminho como o código grava, peso do tráfego e tempo típico em ms. */

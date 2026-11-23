@@ -6,7 +6,7 @@ import { Dialog } from '../components/Dialog'
 import { UserPlate } from './UserPlate'
 import type { ShellUser } from './UserPlate'
 
-/** Menu da conta na barra do topo do celular: abre uma folha com quem você é e as ações da conta (Sair, Trocar de conta). */
+/** Menu da conta na barra do topo do celular: abre uma folha com quem você é e as ações da conta (Sair). */
 export function AccountMenu({ user, children }: { user: ShellUser; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (

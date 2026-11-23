@@ -60,7 +60,7 @@ export async function startCheckout(
   if (secrets === null || webhookKey === null) throw unavailable()
 
   const items = [
-    ...order.items.map((it) => ({ id: it.productId ?? it.voucherId ?? it.id, title: it.name, quantity: it.quantity, unitPriceCents: it.unitPriceCents })),
+    ...order.items.map((it) => ({ id: it.productId ?? it.id, title: it.name, quantity: it.quantity, unitPriceCents: it.unitPriceCents })),
     ...(order.shippingCents > 0 ? [{ id: 'shipping', title: 'Frete', quantity: 1, unitPriceCents: order.shippingCents }] : []),
   ]
   // O que vai para o Mercado Pago tem de fechar com o total do pedido; senão nada sai daqui.

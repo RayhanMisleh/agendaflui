@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, test, vi } from 'vitest'
-import { getChannels, getEmailChannel, setEmailChannel } from '@/server/notifications/channels'
+import { emailChannelKind, getChannels, getEmailChannel, setEmailChannel } from '@/server/notifications/channels'
 import { createFileChannel } from '@/server/notifications/channels/email-file'
 import { createSmtpChannel } from '@/server/notifications/channels/email-smtp'
 import { maskEmail } from '@/server/notifications/channels/types'
@@ -130,5 +130,31 @@ describe('getChannels', () => {
     expect(prod.email).toBeNull()
     expect(prod.push).not.toBeNull()
     expect(getChannels({ NODE_ENV: 'production', SMTP_URL: 'smtp://localhost:2525' }).email).not.toBeNull()
+  })
+})
+
+describe('canal de produção: Resend ou SMTP', () => {
+  const base = { NODE_ENV: 'production', MAIL_FROM: 'a@b.test' }
+  const SMTP = 'smtp://localhost:2525'
+  const CHAVE = 'chave-so-de-teste'
+
+  test('com RESEND_API_KEY usa o Resend; sem ela e com SMTP_URL, o SMTP; sem nenhum, nada', () => {
+    expect(emailChannelKind({ ...base, RESEND_API_KEY: CHAVE, SMTP_URL: SMTP })).toBe('resend')
+    expect(emailChannelKind({ ...base, SMTP_URL: SMTP })).toBe('smtp')
+    expect(emailChannelKind({ ...base })).toBe('none')
+    expect(getEmailChannel({ ...base, RESEND_API_KEY: CHAVE })).not.toBeNull()
+    expect(getEmailChannel({ ...base })).toBeNull()
+  })
+
+  test('desenvolvimento usa arquivos e teste não tem canal próprio', () => {
+    expect(emailChannelKind({ NODE_ENV: 'development' })).toBe('file')
+    expect(emailChannelKind({ NODE_ENV: 'test', RESEND_API_KEY: CHAVE })).toBe('none')
+  })
+
+  test('canal injetado conta como "file"; injetar null conta como "none"', () => {
+    setEmailChannel({ async send() {} })
+    expect(emailChannelKind({ ...base, RESEND_API_KEY: CHAVE })).toBe('file')
+    setEmailChannel(null)
+    expect(emailChannelKind({ ...base, RESEND_API_KEY: CHAVE })).toBe('none')
   })
 })

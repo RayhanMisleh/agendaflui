@@ -50,6 +50,13 @@ test('em produção com o segredo de exemplo, a fase de build do Next aceita e a
   expect(() => parseEnv(prod)).toThrow(/APP_SECRET/)
 })
 
+test('em produção com RESEND_API_KEY, MAIL_FROM também precisa ser informado', () => {
+  const prod = { ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), RESEND_API_KEY: 're_so_de_teste' }
+  expect(() => parseEnv(prod)).toThrow(/MAIL_FROM/)
+  expect(parseEnv({ ...prod, MAIL_FROM: 'Conta <contato@exemplo.com>' }).RESEND_API_KEY).toBe('re_so_de_teste')
+  expect(parseEnv({ ...prod, NEXT_PHASE: 'phase-production-build' }).NODE_ENV).toBe('production')
+})
+
 test('em produção com SMTP_URL, MAIL_FROM precisa ser informado; a fase de build e os outros ambientes dispensam', () => {
   const prod = { ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), SMTP_URL: 'smtp://localhost:2525' }
   expect(() => parseEnv(prod)).toThrow(/MAIL_FROM/)
@@ -135,8 +142,15 @@ describe('avisos de produção', () => {
     const avisos = productionWarnings({ ...prod, SMTP_URL: undefined })
     expect(avisos).toHaveLength(1)
     expect(avisos[0]).toMatch(/SMTP_URL/)
+    expect(avisos[0]).toMatch(/RESEND_API_KEY/)
     expect(avisos[0]).toMatch(/convites e cadastro pelo app não chegam/)
     expect(productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('senha-secreta')
+  })
+
+  test('com RESEND_API_KEY no lugar do SMTP_URL não avisa de e-mail e a chave nunca aparece', () => {
+    const comResend = { ...prod, SMTP_URL: undefined, RESEND_API_KEY: 're_so_de_teste' }
+    expect(productionWarnings(comResend)).toEqual([])
+    expect(productionWarnings({ ...comResend, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('re_so_de_teste')
   })
 
   test('sem NEXT_SERVER_ACTIONS_ENCRYPTION_KEY avisa que várias instâncias exigem a chave fixa', () => {

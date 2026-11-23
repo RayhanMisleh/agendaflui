@@ -29,7 +29,7 @@ describe('moldura do painel do negócio', () => {
     expect(screen.getByTestId('painel-shell').firstElementChild).toHaveClass(`af-shell--bar-${tom}`)
   })
 
-  test('as ações da conta (Sair, Trocar de conta) ficam no pé da barra, não no cabeçalho da página', () => {
+  test('a ação da conta (Sair) fica no pé da barra, não no cabeçalho da página', () => {
     render(
       <PainelShell {...painel('LEATHER')} accountActions={<button type="button">Sair</button>} actions={<button type="button">Nova</button>}>
         x

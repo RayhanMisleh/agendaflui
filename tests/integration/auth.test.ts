@@ -1,16 +1,40 @@
 import { vi } from 'vitest'
 import { AuthError } from '@/server/auth/actor'
-import { getMemberSession, getTenantContext, loginUser, logoutUser, selectBusiness } from '@/server/auth/member-auth'
+import { loginMember } from '@/app/painel/entrar/actions'
+import { SEM_CONTA } from '@/app/_lib/login-form'
+import { PAINEL_COOKIE, requireTenant } from '@/server/auth/guards'
+import { getMemberSession, getTenantContext, loginUser, logoutUser } from '@/server/auth/member-auth'
 import { getPlatformActor, loginPlatformAdmin, logoutPlatform } from '@/server/auth/platform-auth'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
 
+const jar = new Map<string, string>()
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+    set: (name: string, value: string, options: Record<string, unknown> = {}) => {
+      if (options['maxAge'] === 0) jar.delete(name)
+      else jar.set(name, value)
+    },
+  }),
+  headers: async () => new Headers(),
+}))
+vi.mock('next/navigation', () => ({
+  redirect: (to: string): never => {
+    throw Object.assign(new Error(`NEXT_REDIRECT ${to}`), { to })
+  },
+  notFound: (): never => {
+    throw new Error('NEXT_NOT_FOUND')
+  },
+}))
+
 const SENHA = 'senha-bem-longa'
 const ERRADA = 'errada-errada'
 
 beforeEach(async () => {
+  jar.clear()
   await resetDb()
 })
 
@@ -70,19 +94,61 @@ test('login bem-sucedido zera o limitador', async () => {
   for (let i = 0; i < 4; i++) await loginUser({ email: 'a@x.test', password: ERRADA }).catch(() => {})
   await expect(loginUser({ email: 'a@x.test', password: SENHA })).resolves.toBeDefined()
 })
-test('quem tem duas contas escolhe; conta suspensa não aparece', async () => {
+test('o login traz no máximo um vínculo: o ativo; vínculo desativado e conta suspensa não contam', async () => {
   const u = await makeUser({ password: SENHA })
   const [b1, b2, b3] = [await makeBusiness(), await makeBusiness(), await makeBusiness({ status: 'SUSPENDED' })]
-  for (const b of [b1, b2, b3]) await makeMembership(b.id, u.id, 'OWNER')
+  await makeMembership(b1.id, u.id, 'OWNER')
+  await prisma.membership.create({ data: { businessId: b2.id, userId: u.id, role: 'OWNER', active: false } })
+  await prisma.membership.create({ data: { businessId: b3.id, userId: u.id, role: 'OWNER', active: false } })
   const { token, session } = await loginUser({ email: u.email, password: SENHA })
-  expect(session.activeBusinessId).toBeNull()
-  expect(session.memberships.map((m) => m.businessId).sort()).toEqual([b1.id, b2.id].sort())
-  expect(await getTenantContext(token)).toBeNull()
-  await expect(selectBusiness(token, b3.id)).rejects.toMatchObject({ code: 'no_access' })
-  await selectBusiness(token, b2.id)
+  expect(session.memberships.map((m) => m.businessId)).toEqual([b1.id])
+  expect(session.activeBusinessId).toBe(b1.id)
   const ctx = await getTenantContext(token)
-  expect(ctx).toMatchObject({ businessId: b2.id, timeZone: b2.timezone, actor: { kind: 'member', role: 'OWNER', membershipId: expect.any(String) } })
-  expect((await getMemberSession(token))?.activeBusinessId).toBe(b2.id)
+  expect(ctx).toMatchObject({ businessId: b1.id, timeZone: b1.timezone, actor: { kind: 'member', role: 'OWNER', membershipId: expect.any(String) } })
+  expect((await getMemberSession(token))?.activeBusinessId).toBe(b1.id)
+})
+test('login com uma conta ativa grava a sessão já nela e leva para o início', async () => {
+  const u = await makeUser({ password: SENHA })
+  const b = await makeBusiness()
+  await makeMembership(b.id, u.id, 'MANAGER')
+  const form = new FormData()
+  form.set('email', u.email)
+  form.set('password', SENHA)
+  await expect(loginMember({ error: null, email: '' }, form)).rejects.toMatchObject({ to: '/' })
+  const token = jar.get(PAINEL_COOKIE)
+  expect(token).toBeDefined()
+  const sessao = await prisma.session.findFirstOrThrow({ where: { userId: u.id } })
+  expect(sessao.activeBusinessId).toBe(b.id)
+  expect(await getTenantContext(token)).toMatchObject({ businessId: b.id, actor: { kind: 'member', role: 'MANAGER' } })
+})
+test('login sem nenhuma conta ativa devolve a frase e não deixa sessão nem cookie', async () => {
+  const u = await makeUser({ password: SENHA })
+  const b = await makeBusiness()
+  await prisma.membership.create({ data: { businessId: b.id, userId: u.id, role: 'OWNER', active: false } })
+  const form = new FormData()
+  form.set('email', u.email)
+  form.set('password', SENHA)
+  expect(await loginMember({ error: null, email: '' }, form)).toEqual({ error: SEM_CONTA, email: u.email })
+  expect(jar.has(PAINEL_COOKIE)).toBe(false)
+  expect(await prisma.session.count({ where: { userId: u.id, revokedAt: null } })).toBe(0)
+})
+test('requireTenant sem conta ativa manda para /entrar', async () => {
+  const u = await makeUser({ password: SENHA })
+  const b = await makeBusiness()
+  await makeMembership(b.id, u.id, 'OWNER')
+  const { token } = await loginUser({ email: u.email, password: SENHA })
+  await prisma.membership.updateMany({ where: { userId: u.id }, data: { active: false } })
+  jar.set(PAINEL_COOKIE, token)
+  await expect(requireTenant()).rejects.toMatchObject({ to: '/entrar' })
+  jar.delete(PAINEL_COOKIE)
+  await expect(requireTenant()).rejects.toMatchObject({ to: '/entrar' })
+})
+test('quem só tem vínculo ativo numa conta suspensa entra sem nenhuma conta', async () => {
+  const u = await makeUser({ password: SENHA })
+  const suspensa = await makeBusiness({ status: 'SUSPENDED' })
+  await makeMembership(suspensa.id, u.id, 'OWNER')
+  const { session } = await loginUser({ email: u.email, password: SENHA })
+  expect(session.memberships).toEqual([])
 })
 test('o contexto da conta traz o fuso gravado nela, não o padrão', async () => {
   const u = await makeUser({ password: SENHA })

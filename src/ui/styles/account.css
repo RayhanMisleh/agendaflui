@@ -82,8 +82,13 @@
     border-radius: var(--radius-chip);
     background-color: var(--success-tint);
   }
+  .af-matrix__scroll {
+    max-width: 100%;
+    overflow-x: auto;
+  }
   .af-matrix {
     width: 100%;
+    min-width: 20rem;
     border-collapse: collapse;
     color: var(--ink);
     font-size: var(--text-small);

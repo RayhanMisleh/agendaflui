@@ -262,7 +262,7 @@ describe('getPainelContext: papel, termos e módulos num lugar só', () => {
     expect(a.roleLabel).toBe('Dono')
     expect((await getPainelContext(prof)).roleLabel).toBe('Tosador')
     expect((await getPainelContext(gerente)).roleLabel).toBe('Gerente')
-    expect(a.modules).toEqual({ loyalty: false, banners: false, store: false, vouchers: false })
+    expect(a.modules).toEqual({ loyalty: false, banners: false, store: false })
   })
 
   test('o suporte aparece como Suporte e usa o nome do admin', async () => {

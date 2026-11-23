@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
 import { prisma } from '@/server/db/client'
-import { getSystemStatus, retryFailedNotification } from '@/server/domain/platform/system'
+import { getSystemStatus, retryFailedNotification, sendTestEmail } from '@/server/domain/platform/system'
 import { cleanupRound, startScheduler } from '@/server/notifications/scheduler'
 import { recordSchedulerRun } from '@/server/notifications/scheduler-runs'
 import { hashToken } from '@/server/auth/tokens'
 import { addMinutes, fromIsoInstant } from '@/server/time'
 import { resetDb } from '../setup/db'
+import { fakeMail } from '../setup/mail'
 import { domainError } from '../setup/expect'
 import { makeBusiness, makeCustomer, makePlatformAdmin, makeUser } from '../setup/factories'
 
@@ -300,5 +301,47 @@ describe('agendador grava scheduler_runs', () => {
     expect(linhas).toHaveLength(3)
     expect(linhas[0]?.metadata).toMatchObject({ expiresAt: vencimento.toISOString() })
     expect(await prisma.session.count()).toBe(0)
+  })
+})
+
+describe('e-mail de teste', () => {
+  const mail = fakeMail()
+  beforeEach(() => mail.install())
+  afterEach(() => mail.uninstall())
+
+  test('chega ao próprio admin, devolve ok e audita sem o conteúdo', async () => {
+    const admin = await prisma.platformAdmin.findUniqueOrThrow({ where: { id: adminId } })
+    const r = await sendTestEmail(actor, NOW)
+    expect(r).toEqual({ ok: true, channel: 'file', error: null, to: admin.email })
+    expect(mail.sent).toHaveLength(1)
+    expect(mail.sent[0]?.to).toBe(admin.email)
+    const log = await prisma.auditLog.findMany({ where: { action: 'system.test_email' } })
+    expect(log).toHaveLength(1)
+    expect(log[0]).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: adminId, businessId: null, metadata: { ok: true, channel: 'file', error: null } })
+    expect(JSON.stringify(log[0]?.metadata)).not.toContain(admin.email)
+  })
+
+  test('com o canal falhando: ok false, error channel_error, auditado e sem vazar a mensagem do provedor', async () => {
+    mail.failing = true
+    const r = await sendTestEmail(actor, NOW)
+    expect(r).toMatchObject({ ok: false, error: 'channel_error' })
+    const log = await prisma.auditLog.findMany({ where: { action: 'system.test_email' } })
+    expect(log).toHaveLength(1)
+    expect(log[0]?.metadata).toMatchObject({ ok: false, error: 'channel_error' })
+  })
+
+  test('sem canal configurado: ok false, not_configured e canal none', async () => {
+    mail.uninstall()
+    const { setEmailChannel } = await import('@/server/notifications/channels')
+    setEmailChannel(null)
+    const r = await sendTestEmail(actor, NOW)
+    expect(r).toMatchObject({ ok: false, channel: 'none', error: 'not_configured' })
+    expect((await prisma.auditLog.findMany({ where: { action: 'system.test_email' } })).length).toBe(1)
+  })
+
+  test('quem não é admin ativo não envia nada', async () => {
+    await prisma.platformAdmin.update({ where: { id: adminId }, data: { active: false } })
+    await expect(sendTestEmail(actor, NOW)).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mail.sent).toHaveLength(0)
   })
 })

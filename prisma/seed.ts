@@ -11,7 +11,6 @@ import {
   DEMO_CONTAS,
   DEMO_CONTA_SUSPENSA,
   DEMO_EXECUCOES,
-  DEMO_MULTI_NOME,
   DEMO_ROTAS_USO,
   demoEmail, type DemoAgenda,
   type DemoModulos,
@@ -21,7 +20,7 @@ import { planejarAgenda } from './seed-plan'
 import sharp from 'sharp'
 import { addDays, addMinutes, fromEpochMs, startOfUtcHour, todayIn } from '../src/server/time'
 
-/** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD, SEED_MULTI_EMAIL). */
+/** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD). */
 export type SeedEnv = Record<string, string | undefined>
 
 const emailSchema = z.string().trim().toLowerCase().pipe(z.email('E-mail inválido.'))
@@ -30,7 +29,6 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: emailSchema,
   SEED_ADMIN_PASSWORD: passwordSchema,
   SEED_USER_PASSWORD: passwordSchema,
-  SEED_MULTI_EMAIL: emailSchema,
 })
 
 const PAPEIS: Record<DemoPapel, MembershipRole> = { dono: 'OWNER', gerente: 'MANAGER', profissional: 'PROFESSIONAL' }
@@ -176,7 +174,7 @@ async function avisoComFalha(prisma: PrismaClient, businessId: string, now: Date
 }
 
 async function dominio() {
-  const [auditoria, contexto, catalogo, equipe, horarios, bloqueios, fechamentos, clientes, agendamentos, premios, avisos, categorias, produtos, pedidos, pagamentos, parceiros, vouchers, integracoes, fidelidade, razao] = await Promise.all([
+  const [auditoria, contexto, catalogo, equipe, horarios, bloqueios, fechamentos, clientes, agendamentos, premios, avisos, categorias, produtos, pedidos, pagamentos, integracoes, fidelidade, razao] = await Promise.all([
     import('../src/server/domain/audit'),
     import('../src/server/auth/context'),
     import('../src/server/domain/catalog/services'),
@@ -192,14 +190,12 @@ async function dominio() {
     import('../src/server/domain/store/products'),
     import('../src/server/domain/store/orders'),
     import('../src/server/domain/store/payments'),
-    import('../src/server/domain/vouchers/partners'),
-    import('../src/server/domain/vouchers/vouchers'),
     import('../src/server/domain/platform/integrations'),
     import('../src/server/domain/loyalty/redemptions'),
     import('../src/server/domain/loyalty/ledger'),
   ])
   const { redeemPrize } = fidelidade
-  return { ...auditoria, ...contexto, ...catalogo, ...equipe, ...horarios, ...bloqueios, ...fechamentos, ...clientes, ...agendamentos, ...premios, ...avisos, ...categorias, ...produtos, ...pedidos, ...pagamentos, ...parceiros, ...vouchers, ...integracoes, redeemPrize, adjustPoints: razao.adjustPoints }
+  return { ...auditoria, ...contexto, ...catalogo, ...equipe, ...horarios, ...bloqueios, ...fechamentos, ...clientes, ...agendamentos, ...premios, ...avisos, ...categorias, ...produtos, ...pedidos, ...pagamentos, ...integracoes, redeemPrize, adjustPoints: razao.adjustPoints }
 }
 
 type Dominio = Awaited<ReturnType<typeof dominio>>
@@ -225,8 +221,8 @@ async function integracoesDeTeste(d: Dominio, ator: AdminAtor, businessId: strin
 }
 
 /**
- * Fidelidade, Banners, Loja e Vouchers de uma conta, sempre pelas funções de domínio e nos caminhos reais: os pontos já
- * foram creditados pelos atendimentos concluídos; o resgate, os pedidos e os códigos nascem de `redeemPrize`, `createOrder`
+ * Fidelidade, Banners e Loja de uma conta, sempre pelas funções de domínio e nos caminhos reais: os pontos já
+ * foram creditados pelos atendimentos concluídos; o resgate e os pedidos nascem de `redeemPrize`, `createOrder`
  * e `applyPayment` (o mesmo caminho do webhook, com o pagamento como a consulta ao Mercado Pago o devolveria).
  */
 async function semearModulos(
@@ -290,16 +286,11 @@ async function semearModulos(
       }),
     )
   }
-  const parceiro = await d.createPartner(ctx, { name: loja.parceiro.nome, description: loja.parceiro.descricao, address: loja.parceiro.endereco, phone: loja.parceiro.telefone, website: loja.parceiro.site, active: true })
-  const vouchers = []
-  for (const v of loja.vouchers) {
-    vouchers.push(await d.createVoucher(ctx, { partnerId: parceiro.id, name: v.nome, description: v.descricao, terms: v.regras, priceCents: v.centavos, stock: v.estoque, validDays: v.validadeDias, active: true }))
-  }
   await integracoesDeTeste(d, ator, ctx.businessId, now)
 
-  // Pedidos pelo caminho do app: três clientes, três pedidos (a entregar, aguardando pagamento e de vouchers).
+  // Pedidos pelo caminho do app: três clientes, dois pedidos (a entregar e aguardando pagamento).
   const comEstoque = produtos.filter((p) => p.stock > 0)
-  const [c1, c2, c3] = clientes.filter((c) => c.id !== quemResgata?.id).slice(0, 3)
+  const [c1, c2] = clientes.filter((c) => c.id !== quemResgata?.id).slice(0, 2)
   const doCliente = (c: { id: string; name: string }) => d.createTenantContext({ businessId: ctx.businessId, actor: { kind: 'customer', customerId: c.id, name: c.name }, clock: () => now, channel: 'app' })
   const sistema = await d.createSystemContext(ctx.businessId, () => now)
   const pagar = async (orderId: string, totalCents: number, n: number) =>
@@ -318,11 +309,6 @@ async function semearModulos(
     await pagar(pedido.order.id, pedido.order.totalCents, 1)
   }
   if (c2 && p2) await d.createOrder(await doCliente(c2), { lines: [{ productId: p2.id, quantity: 1 }], delivery: { method: 'PICKUP' }, note: 'Retiro na sexta.' })
-  const [v1] = vouchers
-  if (c3 && v1) {
-    const pedido = await d.createOrder(await doCliente(c3), { lines: [{ voucherId: v1.id, quantity: 2 }], delivery: { method: 'NONE' }, note: null })
-    await pagar(pedido.order.id, pedido.order.totalCents, 2)
-  }
 }
 
 /**
@@ -481,8 +467,6 @@ export async function seed(
     })
   }
 
-  const multiId = await usuario(DEMO_MULTI_NOME, env.SEED_MULTI_EMAIL)
-
   for (const conta of DEMO_CONTAS) {
     const negocio = await prisma.business.upsert({
       where: { slug: conta.slug },
@@ -502,7 +486,6 @@ export async function seed(
       const userId = await usuario(conta.equipe[papel], demoEmail(conta.chave, papel))
       await vinculo(negocio.id, userId, PAPEIS[papel])
     }
-    await vinculo(negocio.id, multiId, 'OWNER')
     contas.push({ slug: negocio.slug, name: negocio.name, id: negocio.id })
     if ((await prisma.service.count({ where: { businessId: negocio.id } })) === 0) {
       agenda.push(await semearAgenda(prisma, conta, negocio, admin.id, now))
@@ -522,7 +505,7 @@ export async function seed(
 
   const ator: AdminAtor = { kind: 'platform_admin', adminId: admin.id, name: admin.name }
   await adminInativo(prisma, ator, now)
-  await contaSuspensa(prisma, ator, multiId, now)
+  await contaSuspensa(prisma, ator, await usuario(DEMO_CONTA_SUSPENSA.donoNome, DEMO_CONTA_SUSPENSA.donoEmail), now)
   const patas = contas.find((c) => c.slug === 'patas-e-cia')
   if (patas) await avisoComFalha(prisma, patas.id, now)
   await execucoesDeDemonstracao(prisma, now)

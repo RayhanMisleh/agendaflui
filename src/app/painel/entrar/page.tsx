@@ -1,6 +1,4 @@
 import type { Metadata } from 'next'
-import { BRAND_COOKIE, readCookie } from '@/server/auth/guards'
-import { getPublicBrandBySlug } from '@/server/domain/platform/branding'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 import { deriveTheme } from '@/ui/theme/derive'
 import { um } from '@/app/_lib/params'
@@ -17,10 +15,8 @@ const MARCA_PADRAO = {
   theme: deriveTheme(AGENDAFLUI_BRAND),
 }
 
-/** Entrada genérica: usa a marca da última conta acessada neste navegador, se ainda estiver ativa. */
+/** Entrada única da equipe: sempre com a marca Agenda Flui. */
 export default async function EntrarPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const senhaNova = um((await searchParams).senha) === 'nova'
-  const slug = await readCookie(BRAND_COOKIE)
-  const lembrada = slug ? await getPublicBrandBySlug(slug) : null
-  return <PainelEntrada marca={lembrada ?? MARCA_PADRAO} senhaNova={senhaNova} />
+  return <PainelEntrada marca={MARCA_PADRAO} senhaNova={senhaNova} />
 }

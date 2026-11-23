@@ -31,7 +31,6 @@ export const ROTULOS: Record<string, string> = {
   pointsSingular: 'Pontos (singular)',
   pointsPlural: 'Pontos (plural)',
   club: 'Clube',
-  vouchers: 'Vouchers',
   store: 'Loja',
   slotStepMin: 'Grade de horários',
   minLeadMin: 'Antecedência mínima',

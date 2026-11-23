@@ -144,7 +144,7 @@ describe('versão das configurações', () => {
   })
 
   test('módulos ganham versão que sobe só quando algo muda', async () => {
-    const mods = { loyalty: true, banners: false, store: false, vouchers: false }
+    const mods = { loyalty: true, banners: false, store: false }
     await updateModules(admin, biz.id, mods)
     await updateModules(admin, biz.id, mods)
     expect((await prisma.businessModules.findUniqueOrThrow({ where: { businessId: biz.id } })).version).toBe(2)

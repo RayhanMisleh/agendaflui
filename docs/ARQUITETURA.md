@@ -24,7 +24,7 @@ conferem `Origin == Host`.
 - `src/app/` rotas e telas (Server Components e Server Actions). Fina: autentica, valida a entrada e chama o domínio.
   `_lib/` guarda o apoio das telas; `healthz/` e `arquivos/` (imagens enviadas) atendem em todos os hosts.
 - `src/server/domain/` toda a regra de negócio, por assunto: `scheduling`, `catalog`, `customers`, `team`, `settings`,
-  `reports`, `notifications` (fila), `loyalty`, `banners`, `store`, `vouchers`, `platform` (painel dev) e `account`.
+  `reports`, `notifications` (fila), `loyalty`, `banners`, `store`, `platform` (painel dev) e `account`.
   Cada função recebe `ctx` (conta, ator, `ctx.db`, `ctx.clock()`); nunca usa o cliente Prisma cru nem `new Date()`.
   Erros são `DomainError` (`domain/errors.ts`), que também exporta o `z` usado nos esquemas.
 - `src/server/auth/` sessões, senhas, papéis e capacidades (`capabilities.ts`), tokens do app, limites de taxa, suporte.
@@ -55,9 +55,9 @@ de conta opcional, de plataforma ou o próprio registro da conta).
 
 - **Painel dev**: administradores da plataforma (`platform-auth.ts`, sessão de 12 h). Criam contas, ligam módulos,
   configuram integrações e veem métricas, uso, auditoria e o estado do sistema (`/sistema`).
-- **Painel do negócio**: membros da conta (`member-auth.ts`, sessão de 30 dias, um usuário pode ter várias contas). Papéis
+- **Painel do negócio**: membros da conta (`member-auth.ts`, sessão de 30 dias, uma loja por login da equipe: o banco recusa um segundo vínculo ativo do mesmo usuário). Papéis
   `OWNER`, `MANAGER` e `PROFESSIONAL` mapeiam para capacidades (`can()` em `capabilities.ts`); o domínio chama `authorize`.
-  A conta sempre mantém ao menos um dono ativo. Cada conta tem o próprio link de entrada (`/entrar/{slug}`).
+  A conta sempre mantém ao menos um dono ativo. A equipe entra por um endereço único (`/entrar`); a loja vem do vínculo ativo da pessoa. No app, `POST /v1/auth/staff/login` também não leva `X-Business`: a resposta traz a loja (`business`), e as outras rotas da equipe seguem com o `slug` dela.
 - **Suporte** ("entrar como", `support-session.ts`): o admin troca um token de passagem (60 s, uso único) por uma sessão de
   60 minutos fixos no painel do negócio, com poderes de dono, exceto gerir acessos da equipe. Admin ou conta inativos derrubam a
   sessão na requisição seguinte. As ações ficam na auditoria.
@@ -72,8 +72,7 @@ de conta opcional, de plataforma ou o próprio registro da conta).
 
 ## Módulos
 
-Quatro módulos opcionais por conta (`src/shared/modules.ts`): `loyalty` (fidelidade), `banners`, `store` (loja) e `vouchers`
-(exige a loja). O admin os liga na aba Módulos do painel dev (`business_modules`). Cada função de domínio do módulo chama
+Três módulos opcionais por conta (`src/shared/modules.ts`): `loyalty` (fidelidade), `banners` e `store` (loja). O admin os liga na aba Módulos do painel dev (`business_modules`). Cada função de domínio do módulo chama
 `requireModule` (`domain/modules.ts`), que lança `module_disabled`; na API vira 404 e a interface esconde o menu. Desligar
 guarda os dados. A capacidade `manage_*` correspondente controla quem edita.
 
@@ -101,14 +100,14 @@ pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca e
 - Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
 - Remover profissional (`removerProfissional`, `access-core.ts`): acesso primeiro (`business_owners`, vínculos), depois `professional`.
 - Escopos sozinhos, sem combinar com outros: `catalog`, `loyalty`, `banners`, `customer` (resgate, ajuste, endereço, conta do
-  app) e `membership` (login e renovação do app). `store` também trava sozinho em produtos, categorias e vouchers.
+  app) e `membership` (login e renovação do app). `store` também trava sozinho em produtos e categorias.
 - Loja: criar pedido trava `store` e reserva o estoque; cancelar, vencer e estornar travam `order` e devolvem. As linhas de
-  produto e de voucher são sempre travadas em ordem de id, produtos antes de vouchers. Nunca `store` e `order` juntos.
+  produto são sempre travadas em ordem de id. Nunca `store` e `order` juntos.
 
 ## Fila de avisos e agendador interno
 
 Avisos (e-mail e push) entram em `notifications` na mesma transação do fato que os gerou
-(`domain/notifications/outbox.ts`). O envio (`src/server/notifications/`) reserva linhas com `FOR UPDATE SKIP LOCKED` por 2
+(`domain/notifications/outbox.ts`). Dono e gerente podem ligar, no app (`PATCH /v1/staff/me`), os avisos de toda a loja: linhas só de push, marcadas `audience: 'watcher'`, que o envio confere de novo contra o papel e a preferência. O envio (`src/server/notifications/`) reserva linhas com `FOR UPDATE SKIP LOCKED` por 2
 minutos (`claim.ts`), decide, renderiza e entrega por canal (`channels/`: SMTP e Expo; arquivos em `.local/` em
 desenvolvimento), com até 5 tentativas e espera crescente. A garantia é "pelo menos uma vez".
 
@@ -121,7 +120,7 @@ uma rodada de avisos e termina.
 
 ## Arquivos
 
-Imagens enviadas (logo, fotos da equipe, banners, produtos, vouchers) passam por `storage/images.ts` (valida e recodifica) e
+Imagens enviadas (logo, fotos da equipe, banners, produtos) passam por `storage/images.ts` (valida e recodifica) e
 vão para a interface `Storage` (`storage/storage.ts`), hoje em disco (`local-disk.ts`) em `STORAGE_DIR`; produção usa um
 volume persistente. São servidas por `GET /arquivos/{chave}` em qualquer host, com cabeçalhos de segurança.
 

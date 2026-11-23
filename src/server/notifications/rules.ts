@@ -23,6 +23,21 @@ const active = (a: LoadedAppointment) => a.status === 'PENDING' || a.status === 
 function stillValid(n: LoadedNotification, a: LoadedAppointment, now: Date): boolean {
   const sameStart = n.payload.startsAt === toIsoInstant(a.startsAt)
   const recipientIsProfessional = n.recipient?.id === a.professionalMembershipId
+  // Linha de observador (dono ou gerente que liga os avisos de toda a loja): vale enquanto ele ainda observa e a situação
+  // do agendamento bate com o aviso. Rebaixado, desativado ou com a preferência desligada, deixa de valer.
+  if (n.payload.audience === 'watcher') {
+    if (!n.recipient?.watchesAll) return false
+    switch (n.kind) {
+      case 'STAFF_NEW_APPOINTMENT':
+        return active(a)
+      case 'STAFF_APPOINTMENT_RESCHEDULED':
+        return active(a) && sameStart
+      case 'STAFF_APPOINTMENT_CANCELED':
+        return a.status === 'CANCELED'
+      default:
+        return false
+    }
+  }
   switch (n.kind) {
     case 'APPOINTMENT_REQUESTED':
       return a.status === 'PENDING'

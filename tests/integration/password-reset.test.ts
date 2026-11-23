@@ -246,9 +246,8 @@ describe('resetPanelPassword', () => {
   test('derruba todas as sessões do painel da pessoa (de qualquer conta) e os tokens do app de todos os vínculos; os dos outros ficam', async () => {
     const outra = (await makeBusiness()).id
     const { user, membership } = await pessoa()
-    const segundoVinculo = await makeMembership(outra, user.id, 'PROFESSIONAL')
-    const inativo = await makeMembership((await makeBusiness()).id, user.id, 'PROFESSIONAL')
-    await prisma.membership.update({ where: { id: inativo.id }, data: { active: false } })
+    const segundoVinculo = await prisma.membership.create({ data: { businessId: outra, userId: user.id, role: 'PROFESSIONAL', active: false } })
+    const inativo = await prisma.membership.create({ data: { businessId: (await makeBusiness()).id, userId: user.id, role: 'PROFESSIONAL', active: false } })
     const sessoes = await Promise.all(
       [businessId, outra, null].map((b) =>
         prisma.session.create({ data: { userId: user.id, activeBusinessId: b, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600) } }),

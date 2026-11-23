@@ -13,8 +13,8 @@ const TERMOS: Terms = {
   pointsPlural: 'Pontos',
   club: 'Clube',
 }
-const MODULOS: Modules = { loyalty: false, banners: false, store: false, vouchers: false }
-const TODOS_LIGADOS: Modules = { loyalty: true, banners: true, store: true, vouchers: true }
+const MODULOS: Modules = { loyalty: false, banners: false, store: false }
+const TODOS_LIGADOS: Modules = { loyalty: true, banners: true, store: true }
 
 function navDe(role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', modules = MODULOS) {
   const actor: Actor = { kind: 'member', userId: 'u', membershipId: 'm', name: 'Ana', role }
@@ -61,7 +61,7 @@ test('o rótulo acompanha o termo da conta, não um texto fixo', () => {
   expect(nav.map((i) => i.label)).not.toContain('Clientes')
 })
 
-test('com os módulos ligados, o dono vê Fidelidade, Banners, Loja e Vouchers entre Serviços e Relatórios', () => {
+test('com os módulos ligados, o dono vê Fidelidade, Banners e Loja entre Serviços e Relatórios', () => {
   expect(navDe('OWNER', TODOS_LIGADOS).map((i) => [i.label, i.href])).toEqual([
     ['Início', '/'],
     ['Agenda', '/agenda'],
@@ -71,7 +71,6 @@ test('com os módulos ligados, o dono vê Fidelidade, Banners, Loja e Vouchers e
     ['Fidelidade', '/fidelidade'],
     ['Banners', '/banners'],
     ['Loja', '/loja'],
-    ['Vouchers', '/vouchers'],
     ['Relatórios', '/relatorios'],
     ['Configurações', '/configuracoes'],
   ])
@@ -82,19 +81,18 @@ test('cada módulo só aparece com o módulo ligado: Loja ligada e Fidelidade de
   expect(r).toContain('Loja')
   expect(r).not.toContain('Fidelidade')
   expect(r).not.toContain('Banners')
-  expect(r).not.toContain('Vouchers')
 })
 
 test('o profissional não vê módulo nenhum, nem com todos ligados', () => {
   expect(rotulos('PROFESSIONAL', TODOS_LIGADOS)).toEqual(rotulos('PROFESSIONAL', MODULOS))
   const r = rotulos('PROFESSIONAL', TODOS_LIGADOS)
-  for (const nome of ['Fidelidade', 'Banners', 'Loja', 'Vouchers']) expect(r).not.toContain(nome)
+  for (const nome of ['Fidelidade', 'Banners', 'Loja']) expect(r).not.toContain(nome)
 })
 
 test('módulo ligado sem a capacidade também some', () => {
   const sem = painelNav({ can: (c) => c !== 'manage_store', modules: TODOS_LIGADOS, terms: TERMOS }).map((i) => i.label)
   expect(sem).not.toContain('Loja')
-  expect(sem).toContain('Vouchers')
+  expect(sem).toContain('Banners')
 })
 
 test('todo item traz ícone e as sete capacidades da navegação existem', () => {

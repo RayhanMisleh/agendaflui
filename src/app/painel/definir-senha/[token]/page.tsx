@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { APP_LINE } from '@/server/notifications/render-invite'
 import { INVITE_INVALID_MESSAGE, readInvite } from '@/server/auth/invites'
 import { EntryScreen } from '@/ui/shells'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
@@ -37,7 +38,7 @@ export default async function DefinirSenhaPage({ params }: { params: Promise<{ t
       message={`Olá, ${convite.userName.split(' ')[0]}. Escolha a senha para entrar com ${convite.email}.`}
       testId="definir-senha"
     >
-      <DefinirSenhaForm token={token} action={definirSenha} />
+      <DefinirSenhaForm token={token} appLine={APP_LINE} action={definirSenha} />
     </EntryScreen>
   )
 }

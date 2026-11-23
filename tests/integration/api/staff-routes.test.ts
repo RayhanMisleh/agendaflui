@@ -700,13 +700,14 @@ describe('isolamento entre contas', () => {
 })
 
 describe('rotas da equipe no manifesto', () => {
-  test('todo caminho /v1/staff/* pede token da equipe; as rotas de entrada /v1/auth/staff/* só a conta', () => {
+  test('todo caminho /v1/staff/* pede token da equipe; a entrada /v1/auth/staff/login não pede conta nem token, as outras de /v1/auth/staff/* só a conta', () => {
     const defs = routeDefinitions()
     const staff = defs.filter((d) => d.path.startsWith('/v1/staff/'))
     expect(staff.length).toBeGreaterThanOrEqual(25)
     for (const d of staff) expect(d.auth, `${d.method} ${d.path}`).toBe('staff')
     for (const d of defs.filter((x) => x.path.startsWith('/v1/auth/staff/'))) {
-      expect(['guest', 'staff'], `${d.method} ${d.path}`).toContain(d.auth)
+      const esperado = d.path === '/v1/auth/staff/login' ? ['none'] : ['guest', 'staff']
+      expect(esperado, `${d.method} ${d.path}`).toContain(d.auth)
     }
   })
 })

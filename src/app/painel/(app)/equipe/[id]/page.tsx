@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
+import { accessStatus } from '@/server/domain/team/access-status'
 import { getTeamSheet } from '@/server/domain/team/sheet'
 import type { TeamSheet } from '@/server/domain/team/sheet'
 import { formatDateTime } from '@/server/time'
@@ -165,7 +166,7 @@ export default async function FichaPage({
             </h2>
             {acesso ? (
               <AcessoGestao
-                acesso={{ membershipId: acesso.membershipId, email: acesso.email, name: acesso.name, role: acesso.role, active: acesso.active, pending: !acesso.hasPassword }}
+                acesso={{ membershipId: acesso.membershipId, email: acesso.email, name: acesso.name, role: acesso.role, status: accessStatus(acesso) }}
                 suporte={suporte}
                 podeDono={donoLogado}
                 termo={terms.professionalSingular}

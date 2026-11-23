@@ -38,11 +38,20 @@ export type TeamMember = {
   role: MembershipRole
   active: boolean
   hasPassword: boolean
+  /** O último e-mail de convite (ou de acesso) não foi aceito pelo canal. Sai quando um envio dá certo. */
+  inviteMailFailed: boolean
   lastLoginAt: Date | null
   professionalId: string | null
 }
 
-export type InviteInput = { name: string; email: string; role: MembershipRole; professionalId?: string | null }
+export type InviteInput = {
+  name: string
+  email: string
+  role: MembershipRole
+  professionalId?: string | null
+  /** Cria a ficha de profissional na mesma transação (ignora `professionalId`): o cadastro num passo só. */
+  createProfessional?: boolean
+}
 
 /** Quem age: o admin da plataforma pelo painel dev, ou o contexto de conta (membro, ou admin em suporte). */
 export type Autor = { kind: 'admin'; actor: PlatformAdminActor } | { kind: 'conta'; ctx: TenantContext }
@@ -60,6 +69,7 @@ const conviteSchema = z.object({
   email: emailSchema,
   role: z.enum(PAPEIS, 'Escolha um papel válido.'),
   professionalId: z.uuid('Escolha uma ficha de profissional válida.').nullable().optional(),
+  createProfessional: z.boolean().optional(),
 })
 export const papelSchema = z.enum(PAPEIS, 'Escolha um papel válido.')
 
@@ -68,6 +78,7 @@ const SELECAO = {
   businessId: true,
   role: true,
   active: true,
+  inviteMailFailedAt: true,
   user: { select: { id: true, name: true, email: true, passwordHash: true, lastLoginAt: true } },
   professionals: { select: { id: true }, take: 1 },
 } satisfies Prisma.MembershipSelect
@@ -83,6 +94,7 @@ function paraMembro(m: Bruto): TeamMember {
     role: m.role,
     active: m.active,
     hasPassword: m.user.passwordHash !== null,
+    inviteMailFailed: m.inviteMailFailedAt !== null,
     lastLoginAt: m.user.lastLoginAt,
     professionalId: m.professionals[0]?.id ?? null,
   }
@@ -96,6 +108,36 @@ export const contaInexistente = (): DomainError => new DomainError('not_found', 
 const vinculoInexistente = (): DomainError => new DomainError('not_found', 'Acesso da equipe não encontrado.')
 
 class UsuarioCriadoPorOutro extends Error {}
+
+export const OUTRA_LOJA_MESSAGE = 'Este e-mail já faz parte da equipe de outra loja. Cada acesso da equipe pertence a uma loja só.'
+const INDICE_UMA_LOJA = 'memberships_one_active_per_user'
+
+/** O conflito de "uma loja por login da equipe". `campo` (ex.: `email`) leva a frase para o campo do formulário. */
+export function outraLoja(campo?: string): DomainError {
+  return new DomainError('conflict', OUTRA_LOJA_MESSAGE, {
+    reason: 'member_of_other_business',
+    ...(campo ? { fields: { [campo]: OUTRA_LOJA_MESSAGE } } : {}),
+  })
+}
+
+/** O erro é a violação do índice parcial de um vínculo ativo por usuário (e não a de `(business_id, user_id)`)? */
+export function violouUmaLoja(err: unknown): boolean {
+  if (!isUniqueViolation(err)) return false
+  const meta = typeof err === 'object' && err !== null && 'meta' in err ? err.meta : null
+  let texto = ''
+  try {
+    texto = JSON.stringify(meta) ?? ''
+  } catch {
+    texto = ''
+  }
+  return texto.includes(INDICE_UMA_LOJA)
+}
+
+/** Dentro da transação: o usuário já é ativo na equipe de OUTRA conta? Então recusa com a frase única. */
+export async function exigirSemOutraLoja(tx: Prisma.TransactionClient, userId: string, businessId: string, campo?: string): Promise<void> {
+  const outro = await tx.membership.findFirst({ where: { userId, active: true, businessId: { not: businessId } }, select: { id: true } })
+  if (outro) throw outraLoja(campo)
+}
 
 /** Lista todos os vínculos da conta (ativos ou não), do mais antigo ao mais novo. Quem chama já conferiu a permissão. */
 export async function listarEquipe(businessId: string): Promise<TeamMember[]> {
@@ -223,7 +265,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
           throw proibido('Só um dono da conta pode convidar outro dono.')
         }
         const conta = UUID.test(businessId)
-          ? await tx.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, slug: true, status: true } })
+          ? await tx.business.findUnique({ where: { id: businessId }, select: { id: true, name: true, status: true } })
           : null
         if (!conta) throw contaInexistente()
         if (conta.status === 'ARCHIVED') throw contaArquivada()
@@ -240,16 +282,29 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
             throw err
           }
         }
+        await exigirSemOutraLoja(tx, usuario.id, conta.id, 'email')
         let vinculo: { id: string }
         try {
           vinculo = await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: i.role }, select: { id: true } })
         } catch (err) {
+          if (violouUmaLoja(err)) throw outraLoja('email')
           if (isUniqueViolation(err)) {
             throw new DomainError('conflict', 'Esta pessoa já faz parte da equipe desta conta. Se o acesso está desativado, reative-o na lista.')
           }
           throw err
         }
-        if (i.professionalId) {
+        if (i.createProfessional) {
+          // Cadastro num passo: a ficha nasce junto do vínculo, no fim da lista e com os serviços ativos da conta (como `createProfessional`).
+          const ultima = await tx.professional.aggregate({ where: { businessId: conta.id, archivedAt: null }, _max: { displayOrder: true } })
+          const ficha = await tx.professional.create({
+            data: { businessId: conta.id, membershipId: vinculo.id, name: i.name, commissionBps: 0, displayOrder: (ultima._max.displayOrder ?? 0) + 1 },
+            select: { id: true },
+          })
+          const servicos = await tx.service.findMany({ where: { businessId: conta.id, archivedAt: null }, select: { id: true } })
+          if (servicos.length > 0) {
+            await tx.professionalService.createMany({ data: servicos.map((sv) => ({ businessId: conta.id, professionalId: ficha.id, serviceId: sv.id })) })
+          }
+        } else if (i.professionalId) {
           // UPDATE condicional: de dois convites simultâneos para a mesma ficha, só um liga; o outro desfaz tudo.
           const ligada = await tx.professional.updateMany({
             where: { id: i.professionalId, businessId: conta.id, membershipId: null, archivedAt: null },
@@ -280,7 +335,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
         return { membro, conta, convite, nomeDoUsuario: usuario.name }
       })
       const { membro, conta, convite } = feito
-      await deliverAccessMail(
+      const enviado = await deliverAccessMail(
         convite ? 'invite' : 'access_granted',
         membro.email,
         convite
@@ -291,9 +346,10 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
               link: areaLink('painel', `/definir-senha/${convite.token}`),
               ttlDays: INVITE_TTL_DAYS,
             })
-          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('painel', `/entrar/${conta.slug}`) }),
+          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('painel', '/entrar') }),
       )
-      return membro
+      await marcarEnvio(membro.membershipId, enviado, now)
+      return { ...membro, inviteMailFailed: !enviado }
     } catch (err) {
       // Outro convite criou o mesmo usuário no meio do caminho: a nova tentativa o encontra e só cria o vínculo.
       if (err instanceof UsuarioCriadoPorOutro && tentativa < 2) continue
@@ -303,6 +359,11 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
       throw err
     }
   }
+}
+
+/** Guarda se o e-mail de convite saiu: `invite_mail_failed_at` com o instante da falha, ou `NULL` quando o canal aceitou. */
+export async function marcarEnvio(membershipId: string, enviado: boolean, now: Date): Promise<void> {
+  await prisma.membership.update({ where: { id: membershipId }, data: { inviteMailFailedAt: enviado ? null : now } })
 }
 
 export type Alteracao = (atual: { role: MembershipRole; active: boolean }) => { role: MembershipRole; active: boolean }
@@ -362,7 +423,13 @@ async function alterarVinculoEm(
       )
     }
   }
-  await tx.membership.update({ where: { id: membershipId }, data: { role: novo.role, active: novo.active } })
+  if (novo.active && !atual.active) await exigirSemOutraLoja(tx, atual.user.id, businessId)
+  try {
+    await tx.membership.update({ where: { id: membershipId }, data: { role: novo.role, active: novo.active } })
+  } catch (err) {
+    if (violouUmaLoja(err)) throw outraLoja()
+    throw err
+  }
 
   const rebaixou = DEGRAU[novo.role] < DEGRAU[atual.role]
   const desativou = atual.active && !novo.active
@@ -373,8 +440,8 @@ async function alterarVinculoEm(
     })
     await revokeMemberTokensIn(tx, businessId, membershipId, now)
   }
-  // Quem fica sem nenhum acesso ativo não define nem redefine a senha por um link antigo.
-  if (desativou && (await tx.membership.count({ where: { userId: atual.user.id, active: true } })) === 0) {
+  // Um login tem no máximo um vínculo ativo: quem é desativado fica sem acesso e não define nem redefine a senha por um link antigo.
+  if (desativou) {
     await tx.userToken.deleteMany({ where: { userId: atual.user.id, purpose: { in: ['INVITE', 'PASSWORD_RESET'] }, usedAt: null } })
   }
   if (novo.role !== atual.role) {
@@ -404,8 +471,11 @@ const MEMBRO = {
   user: { select: { id: true, name: true, email: true, passwordHash: true } },
 } satisfies Prisma.MembershipSelect
 
-/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Só para acesso ativo. */
-export async function reenviarConvite(autor: Autor, businessId: string, membershipId: string, now: Date): Promise<void> {
+/**
+ * Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Só para acesso ativo. Devolve se o e-mail
+ * saiu: `inviteMailFailed` é `true` quando o canal não aceitou (o convite novo existe, mas ninguém o recebeu).
+ */
+export async function reenviarConvite(autor: Autor, businessId: string, membershipId: string, now: Date): Promise<{ inviteMailFailed: boolean }> {
   if (autor.kind === 'admin') assertPlatformAdmin(autor.actor)
   if (!UUID.test(membershipId) || !UUID.test(businessId)) throw vinculoInexistente()
   const feito = await prisma.$transaction(async (tx) => {
@@ -423,7 +493,7 @@ export async function reenviarConvite(autor: Autor, businessId: string, membersh
     await auditar(tx, autor, businessId, { action: 'team.invite_resent', targetType: 'membership', targetId: membershipId })
     return { m, convite }
   })
-  await deliverAccessMail(
+  const enviado = await deliverAccessMail(
     'invite',
     feito.m.user.email,
     renderMemberInvite({
@@ -434,6 +504,8 @@ export async function reenviarConvite(autor: Autor, businessId: string, membersh
       ttlDays: INVITE_TTL_DAYS,
     }),
   )
+  await marcarEnvio(membershipId, enviado, now)
+  return { inviteMailFailed: !enviado }
 }
 
 /**

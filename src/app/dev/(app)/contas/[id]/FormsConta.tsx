@@ -16,7 +16,7 @@ export function DadosForm({ action, valores }: { action: AcaoConta; valores: Cam
             <Field label="Nome da conta" error={fields.name}>
               <Input name="name" defaultValue={v.name} autoComplete="off" />
             </Field>
-            <Field label="Identificador" hint="Trocar o identificador muda o link de entrada da conta." error={fields.slug}>
+            <Field label="Identificador" hint="Letras minúsculas, números e hífens." error={fields.slug}>
               <Input name="slug" defaultValue={v.slug} autoComplete="off" autoCapitalize="none" spellCheck={false} />
             </Field>
             <Field label="E-mail de contato" error={fields.contactEmail}>
@@ -68,29 +68,26 @@ export function TermosForm({ action, valores }: { action: AcaoConta; valores: Ca
 }
 
 /** O que está em andamento na conta, como a página lê (`getModuleUsage`). */
-export type UsoDosModulos = { openOrders: number; pendingRedemptions: number; activeVoucherCodes: number; mercadoPagoConfigured: boolean }
+export type UsoDosModulos = { openOrders: number; pendingRedemptions: number; mercadoPagoConfigured: boolean }
 
 const plural = (n: number, um: string, varios: string): string => (n === 1 ? `1 ${um}` : `${String(n)} ${varios}`)
 
 /** A frase do que está em andamento num módulo; `null` quando não há nada a dizer (Banners não tem andamento). */
-function andamento(modulo: 'loyalty' | 'store' | 'vouchers', uso: UsoDosModulos): string {
+function andamento(modulo: 'loyalty' | 'store', uso: UsoDosModulos): string {
   if (modulo === 'store') return uso.openOrders === 0 ? 'Nenhum pedido pago a entregar.' : `${plural(uso.openOrders, 'pedido pago a entregar', 'pedidos pagos a entregar')}.`
-  if (modulo === 'loyalty') return uso.pendingRedemptions === 0 ? 'Nenhum resgate a entregar.' : `${plural(uso.pendingRedemptions, 'resgate a entregar', 'resgates a entregar')}.`
-  return uso.activeVoucherCodes === 0 ? 'Nenhum código de voucher ativo.' : `${plural(uso.activeVoucherCodes, 'código de voucher ativo', 'códigos de voucher ativos')}.`
+  return uso.pendingRedemptions === 0 ? 'Nenhum resgate a entregar.' : `${plural(uso.pendingRedemptions, 'resgate a entregar', 'resgates a entregar')}.`
 }
 
 export function ModulosForm({ action, valores, businessId, uso }: { action: AcaoConta; valores: Campos; businessId: string; uso: UsoDosModulos }) {
   return (
     <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar módulos">
-      {({ values: v, fields }) => <ModulosCampos v={v} erroVouchers={fields.vouchers} businessId={businessId} uso={uso} />}
+      {({ values: v }) => <ModulosCampos v={v} businessId={businessId} uso={uso} />}
     </ContaForm>
   )
 }
 
-/** O erro de "vouchers exigem Loja" fica ligado ao checkbox de vouchers (`aria-describedby`), não solto no formulário. */
-function ModulosCampos({ v, erroVouchers, businessId, uso }: { v: Campos; erroVouchers: string | undefined; businessId: string; uso: UsoDosModulos }) {
+function ModulosCampos({ v, businessId, uso }: { v: Campos; businessId: string; uso: UsoDosModulos }) {
   const uid = useId()
-  const erroId = erroVouchers ? `${uid}-vouchers-erro` : undefined
   const semMercadoPago = v.store === 'on' && !uso.mercadoPagoConfigured
   return (
     <div className="af-wizard__checks">
@@ -109,22 +106,8 @@ function ModulosCampos({ v, erroVouchers, businessId, uso }: { v: Campos; erroVo
           <Link href={`/contas/${businessId}/integracoes`}>Configurar na aba Integrações</Link>.
         </p>
       ) : null}
-      <Checkbox
-        name="vouchers"
-        label="Vouchers: vendidos dentro de um pedido da Loja"
-        defaultChecked={v.vouchers === 'on'}
-        {...(erroId ? { 'aria-describedby': erroId, 'aria-invalid': true } : { 'aria-describedby': `${uid}-vouchers` })}
-      />
-      <p id={`${uid}-vouchers`} className="af-wizard__note">
-        Em andamento: {andamento('vouchers', uso)}
-      </p>
-      {erroVouchers ? (
-        <p id={erroId} className="af-field__error">
-          {erroVouchers}
-        </p>
-      ) : null}
       <p className="af-wizard__note">
-        Desligar um módulo esconde tudo isso da conta e do app, mas guarda os dados: ao ligar de novo, tudo volta. Vouchers só funcionam com a Loja ligada; para desligar os dois, desmarque os dois no mesmo envio.
+        Desligar um módulo esconde tudo isso da conta e do app, mas guarda os dados: ao ligar de novo, tudo volta.
       </p>
     </div>
   )
@@ -177,29 +160,31 @@ export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; val
   return (
     <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar avisos">
       {({ values: v }) => (
-        <table className="af-matrix">
-          <caption className="af-sr">Avisos por tipo e canal</caption>
-          <thead>
-            <tr>
-              <th scope="col">Aviso</th>
-              <th scope="col">E-mail</th>
-              <th scope="col">Push</th>
-            </tr>
-          </thead>
-          <tbody>
-            {avisos.map((a) => (
-              <tr key={a.kind}>
-                <th scope="row">{a.label}</th>
-                <td>
-                  <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={v[`${a.kind}__email`] === 'on'} />
-                </td>
-                <td>
-                  <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: push</span>} defaultChecked={v[`${a.kind}__push`] === 'on'} />
-                </td>
+        <div className="af-matrix__scroll">
+          <table className="af-matrix">
+            <caption className="af-sr">Avisos por tipo e canal</caption>
+            <thead>
+              <tr>
+                <th scope="col">Aviso</th>
+                <th scope="col">E-mail</th>
+                <th scope="col">Push</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {avisos.map((a) => (
+                <tr key={a.kind}>
+                  <th scope="row">{a.label}</th>
+                  <td>
+                    <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={v[`${a.kind}__email`] === 'on'} />
+                  </td>
+                  <td>
+                    <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: push</span>} defaultChecked={v[`${a.kind}__push`] === 'on'} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </ContaForm>
   )

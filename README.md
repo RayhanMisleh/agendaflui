@@ -30,8 +30,8 @@ O seed de demonstração não roda em produção, a menos que `SEED_ALLOW_PRODUC
 avisar que os dados de demonstração ficaram incompletos, rode `npm run db:reset` e inicie de novo.
 
 Os e-mails e as senhas de demonstração estão no `.env.example` (copiados para o seu `.env`).
-Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Cada conta tem o
-próprio link de entrada: `painel.localhost:3000/entrar/patas-e-cia`.
+Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). A equipe de todas as contas
+entra pelo mesmo endereço: `painel.localhost:3000/entrar`.
 A vitrine de componentes fica em `dev.localhost:3000/vitrine` (só para admin logado).
 
 Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
@@ -48,8 +48,8 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 
 ## Painel do negócio
 
-- Entre em `http://painel.localhost:3000` (ou no link da conta, `/entrar/patas-e-cia`) com os e-mails de
-  demonstração do `.env.example`: dono, gerente e profissional de cada conta, e o usuário das duas contas.
+- Entre em `http://painel.localhost:3000` (`/entrar`) com os e-mails de
+  demonstração do `.env.example`: dono, gerente e profissional de cada conta.
 - Cada conta de demonstração tem uma semana de agenda variada (concluídos, faltas, cancelado e confirmados),
   um bloqueio, um fechamento (feriado) e um cliente arquivado.
 - O que cada papel vê depende da capacidade: o profissional só abre a própria agenda, os próprios números e
@@ -58,15 +58,15 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 
 ## Módulos e integrações
 
-- Quatro módulos opcionais, ligados por conta na aba Módulos do painel dev: Fidelidade, Banners, Loja e Vouchers
-  (Vouchers exige a Loja). Desligado, o módulo some do menu, das telas e da API (404) e os dados ficam guardados.
-  A aba mostra o que está em andamento (pedidos a entregar, resgates, códigos de voucher) antes de desligar.
+- Três módulos opcionais, ligados por conta na aba Módulos do painel dev: Fidelidade, Banners e Loja.
+  Desligado, o módulo some do menu, das telas e da API (404) e os dados ficam guardados.
+  A aba mostra o que está em andamento (pedidos a entregar e resgates) antes de desligar.
 - Mercado Pago (pagamento) e Frenet (frete) são configurados por conta, só pelo admin, na aba Integrações do painel
   dev. Os segredos ficam cifrados e a tela mostra só os 4 últimos caracteres. O webhook do Mercado Pago é
   `POST /v1/webhooks/mercadopago/{chave da conta}` no host da API.
 - `INTEGRATIONS_MODE` (`.env`): `fake` (padrão fora de produção) usa Mercado Pago, Frenet e ViaCEP falsos e liga
   "Simular pagamento aprovado" no pedido; em produção vale só `real`. Nenhum teste chama a rede.
-- O seed dá à Navalha de Ouro todos os módulos (produtos, prêmios, banners, vouchers, pedidos e códigos, com
+- O seed dá à Navalha de Ouro todos os módulos (produtos, prêmios, banners e pedidos, com
   credenciais `TEST-…` falsas e cifradas) e à Patas & Cia prêmios e um banner.
 
 ## API
@@ -75,7 +75,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 - A API serve só aos apps próprios: não há chave. Mande a conta no cabeçalho `X-Business` (o `slug`, ex.: `patas-e-cia`).
   No navegador, só as origens de `APP_WEB_ORIGINS` recebem CORS (localhost é liberado fora de produção).
 - Em desenvolvimento, e-mails caem em `.local/mail` e pushes em `.local/push`.
-- Variáveis (veja `.env.example`): `APP_WEB_ORIGINS`, `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
+- Variáveis (veja `.env.example`): `APP_WEB_ORIGINS`, `APP_WEB_URL`, `TRUSTED_PROXY_HOPS`, `SMTP_URL`, `RESEND_API_KEY`, `MAIL_FROM`, `EXPO_ACCESS_TOKEN`, `WORKER_ENABLED`.
 - `npm run worker:once` roda uma rodada de envio de avisos e termina.
 
 ## Comandos

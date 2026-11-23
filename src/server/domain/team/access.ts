@@ -12,7 +12,7 @@ import {
   type Autor,
   type TeamMember,
 } from '@/server/domain/platform/access-core'
-import { authorize, DomainError, parse } from '@/server/domain/errors'
+import { authorize, DomainError, parse, z } from '@/server/domain/errors'
 
 export type { TeamMember } from '@/server/domain/platform/access-core'
 
@@ -41,6 +41,22 @@ export async function inviteAccess(
   return recortarUm(ctx.businessId, await convidar(comoConta(ctx), ctx.businessId, i, ctx.clock()))
 }
 
+const cadastroSchema = z.object({ role: z.enum(['PROFESSIONAL', 'MANAGER'], 'Escolha Profissional ou Gerente.') })
+
+/**
+ * Cadastro num passo: cria a ficha, o acesso e o convite (e o e-mail, depois do commit) de uma pessoa nova da equipe. Só
+ * profissional ou gerente; dono entra pelo convite da aba Acesso. `inviteMailFailed` diz se o e-mail não saiu: o cadastro
+ * fica e a ficha oferece "Reenviar convite".
+ */
+export async function addTeamMember(
+  ctx: TenantContext,
+  i: { name: string; email: string; role: 'PROFESSIONAL' | 'MANAGER' },
+): Promise<TeamMember> {
+  authorize(ctx, 'manage_team')
+  const { role } = parse(cadastroSchema, { role: i.role })
+  return recortarUm(ctx.businessId, await convidar(comoConta(ctx), ctx.businessId, { name: i.name, email: i.email, role, createProfessional: true }, ctx.clock()))
+}
+
 export async function changeAccessRole(ctx: TenantContext, membershipId: string, role: MembershipRole): Promise<TeamMember> {
   authorize(ctx, 'manage_team')
   const papel = parse(papelSchema, role)
@@ -58,8 +74,8 @@ export async function setAccessActive(ctx: TenantContext, membershipId: string, 
   )
 }
 
-/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. */
-export async function resendAccessInvite(ctx: TenantContext, membershipId: string): Promise<void> {
+/** Manda um convite novo (e invalida o anterior) a quem ainda não definiu a senha. Diz se o e-mail saiu. */
+export async function resendAccessInvite(ctx: TenantContext, membershipId: string): Promise<{ inviteMailFailed: boolean }> {
   authorize(ctx, 'manage_team')
   return reenviarConvite(comoConta(ctx), ctx.businessId, membershipId, ctx.clock())
 }

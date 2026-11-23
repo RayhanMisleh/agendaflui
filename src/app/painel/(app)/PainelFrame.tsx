@@ -1,12 +1,10 @@
 import type { ReactNode } from 'react'
-import { ArrowLeftRight } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import { requireMemberSession } from '@/server/auth/guards'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { getPublicBrandById } from '@/server/domain/platform/branding'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
-import { LinkButton } from '@/ui/components'
 import { PainelShell, painelNav } from '@/ui/shells'
 import { EncerrarSuporte } from '../EncerrarSuporte'
 import { SairDaConta } from '../SairDaConta'
@@ -15,7 +13,7 @@ import { SairDaConta } from '../SairDaConta'
  * Rotas do painel que já têm tela. As outras aparecem na barra esmaecidas (com cadeado) até a tela existir: cada tarefa de
  * tela acrescenta a sua rota aqui.
  */
-const ROTAS_PRONTAS: ReadonlySet<string> = new Set(['/', '/agenda', '/servicos', '/clientes', '/equipe', '/relatorios', '/configuracoes', '/fidelidade', '/banners', '/loja', '/vouchers'])
+const ROTAS_PRONTAS: ReadonlySet<string> = new Set(['/', '/agenda', '/servicos', '/clientes', '/equipe', '/relatorios', '/configuracoes', '/fidelidade', '/banners', '/loja'])
 
 /** Moldura do painel do negócio com a marca, a navegação por capacidade e o usuário da conta ativa. */
 export async function PainelFrame({
@@ -30,7 +28,7 @@ export async function PainelFrame({
   children: ReactNode
 }) {
   const [session, marca, painel] = await Promise.all([requireMemberSession(), getPublicBrandById(ctx.businessId), getPainelContext(ctx)])
-  if (!marca) redirect('/escolher-conta')
+  if (!marca) redirect('/entrar')
 
   const nav = painelNav({ can: (c) => can(ctx.actor, c), modules: painel.modules, terms: painel.terms }).map((item) => ({
     ...item,
@@ -48,18 +46,7 @@ export async function PainelFrame({
       title={title}
       actions={actions}
       {...(suporte ? { supportBanner: `Você está em modo suporte na conta ${marca.name}`, supportAction: <EncerrarSuporte /> } : {})}
-      accountActions={
-        suporte ? null : (
-          <>
-            {session.kind === 'member' && session.memberships.length > 1 ? (
-              <LinkButton href="/escolher-conta" variant="secondary" icon={<ArrowLeftRight size={18} />}>
-                Trocar de conta
-              </LinkButton>
-            ) : null}
-            <SairDaConta />
-          </>
-        )
-      }
+      accountActions={suporte ? null : <SairDaConta />}
     >
       {children}
     </PainelShell>

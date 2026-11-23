@@ -4,7 +4,7 @@ import { emailDigitado, lerCampos, mensagemDeLogin, SEM_CONTA, SEM_DADOS } from 
 import type { LoginState } from '@/app/_lib/login-form'
 import { requestInfo } from '@/server/auth/request-info'
 import { AuthError } from '@/server/auth/actor'
-import { PAINEL_COOKIE, readCookie, setBrandCookie, setSessionCookie } from '@/server/auth/guards'
+import { PAINEL_COOKIE, readCookie, setSessionCookie } from '@/server/auth/guards'
 import { loginUser, logoutUser } from '@/server/auth/member-auth'
 
 export async function loginMember(_anterior: LoginState, form: FormData): Promise<LoginState> {
@@ -18,17 +18,12 @@ export async function loginMember(_anterior: LoginState, form: FormData): Promis
     if (erro instanceof AuthError) return { error: mensagemDeLogin(erro), email: campos.email }
     throw erro
   }
-  const { memberships } = entrada.session
-  const unica = memberships.length === 1 ? memberships[0] : undefined
-  if (memberships.length === 0) {
+  // Um login da equipe pertence a uma loja só: com uma conta ativa a sessão já nasce nela.
+  if (entrada.session.memberships.length === 0) {
     // Nenhuma conta ativa: a sessão recém-criada não serve para nada e é encerrada na hora.
     await logoutUser(entrada.token)
     return { error: SEM_CONTA, email: campos.email }
   }
   await setSessionCookie(PAINEL_COOKIE, entrada.token, entrada.expiresAt)
-  if (unica) {
-    await setBrandCookie(unica.slug)
-    redirect('/')
-  }
-  redirect('/escolher-conta')
+  redirect('/')
 }

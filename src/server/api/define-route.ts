@@ -85,7 +85,7 @@ export type RouteDef<A extends RouteAuth, P, Q, B, R> = {
   status?: 200 | 201 | 202 | 204
   /** Outros status de sucesso que o handler pode escolher com `setStatus` (só documentação para o OpenAPI, e a lista que `setStatus` aceita). */
   alternateStatuses?: readonly (200 | 201 | 202)[]
-  /** Limite da rota, além do limite geral por IP. */
+  /** Limite da rota, além do limite geral por IP (vale também em rota `none`: aí os dois contam por IP). */
   limit?: LimitRule
   /**
    * Com `'subject'`, o limite da rota conta por pessoa autenticada (cliente ou vínculo da equipe, não por IP);
@@ -330,14 +330,20 @@ export function defineRoute<A extends RouteAuth, P, Q, B, R>(def: RouteDef<A, P,
       if (origin !== null) {
         cors = { vary: 'Origin' }
         if (originAllowed(origin, appWebOrigins())) cors = corsHeaders(origin)
-        // Rota pública responde a qualquer um, só sem CORS para origem de fora; rota de conta recusa a origem de fora.
-        else if (def.auth !== 'none') throw origemNegada()
+        // Rota pública responde a qualquer um, só sem CORS para origem de fora; rota de conta (e a de credencial, pública
+        // mas com limite próprio, como o login da equipe) recusa a origem de fora.
+        else if (def.auth !== 'none' || def.limit !== undefined) throw origemNegada()
       }
 
       const info: RequestInfo = requestMeta(request)
       let business: ApiBusiness | null = null
       let ctx: TenantContext | null = null
       let claims: AccessClaims | null = null
+      if (def.auth === 'none' && def.limit !== undefined) {
+        // Rota pública com limite próprio (a entrada da equipe, que descobre a loja sozinha): limite geral e o da rota, por IP.
+        await enforceGeneralLimit(request, now)
+        await enforceRouteLimit(any, request, null, now)
+      }
       if (def.auth !== 'none') {
         await enforceGeneralLimit(request, now)
         business = await resolveApiBusiness(request.headers.get('x-business'))

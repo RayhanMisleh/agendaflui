@@ -96,7 +96,7 @@ export const businessSchema = z.object({
     points: z.object({ singular: z.string(), plural: z.string() }),
     club: z.string(),
   }),
-  modules: z.object({ loyalty: z.boolean(), banners: z.boolean(), store: z.boolean(), vouchers: z.boolean() }),
+  modules: z.object({ loyalty: z.boolean(), banners: z.boolean(), store: z.boolean() }),
   rules: z.object({
     slotStepMin: z.number(),
     minLeadMin: z.number(),

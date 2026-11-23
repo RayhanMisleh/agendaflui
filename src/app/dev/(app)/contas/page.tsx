@@ -52,7 +52,6 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
     slug: c.slug,
     status: c.status,
     ownerName: c.ownerName,
-    entrada: c.entryUrl,
   }))
 
   const vazio = aviso ? (
@@ -70,7 +69,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
   ) : (
     <EmptyState
       title="Nenhuma conta ainda"
-      description="Crie a primeira conta: você escolhe a marca, os termos e o dono, e o link de entrada fica pronto."
+      description="Crie a primeira conta: você escolhe a marca, os termos e o dono, e o convite sai por e-mail."
       action={
         <LinkButton href="/contas/nova" variant="primary" icon={<Plus size={18} />}>
           Criar a primeira conta

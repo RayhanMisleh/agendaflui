@@ -1,14 +1,14 @@
 'use server'
 import { redirect } from 'next/navigation'
 import type { MembershipRole } from '@/server/db/generated/client'
-import { changeAccessRole, inviteAccess, resendAccessInvite, sendAccessPasswordReset, setAccessActive } from '@/server/domain/team/access'
-import { createProfessional, updateProfessional } from '@/server/domain/team/professionals'
+import { addTeamMember, changeAccessRole, inviteAccess, resendAccessInvite, sendAccessPasswordReset, setAccessActive } from '@/server/domain/team/access'
+import { updateProfessional } from '@/server/domain/team/professionals'
 import { removeProfessional } from '@/server/domain/team/removal'
 import { createTimeBlock, deleteTimeBlock, previewTimeBlock } from '@/server/domain/team/time-blocks'
 import { setWeekSchedule } from '@/server/domain/team/working-hours'
 import type { DayRanges, WeekSchedule } from '@/server/domain/team/working-hours'
 import { WEEKDAYS, isLocalDate, isLocalTime, parseMinuteLabel, toInstant } from '@/server/time'
-import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
+import { conviteNaoEnviado, erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
 import { DomainError } from '@/server/domain/errors'
 import { parsePercentBps } from '@/shared/percent'
@@ -46,16 +46,22 @@ function comLista(fd: FormData, nomes: readonly string[], lista: string, caixas:
 
 const DADOS = ['id', 'name', 'bio', 'commission'] as const
 
-export const criarProfissional = tenantAction(
+function papelDoCadastro(texto: string | undefined): 'PROFESSIONAL' | 'MANAGER' {
+  if (texto === 'PROFESSIONAL' || texto === 'MANAGER') return texto
+  throw erroDeCampo('role', 'Escolha Profissional ou Gerente.')
+}
+
+/** Cadastro num passo: nome, e-mail e papel criam a ficha, o acesso e o convite. Depois abre a ficha nova. */
+export const cadastrarNaEquipe = tenantAction(
   'manage_team',
-  (fd) => comLista(fd, DADOS, 'serviceIds', ['active']),
+  (fd) => ler(fd, ['name', 'email', 'role']),
   async (ctx, v) => {
-    const ids = (v.serviceIds ?? '').split(',').filter((s) => s !== '')
-    return (await createProfessional(ctx, { name: v.name ?? '', bio: v.bio ?? '', commissionBps: comissao(v.commission), serviceIds: ids })).id
+    const membro = await addTeamMember(ctx, { name: v.name ?? '', email: v.email ?? '', role: papelDoCadastro(v.role) })
+    return membro.professionalId
   },
   (id) => {
     atualizarPainel()
-    redirect(`/equipe/${id}`)
+    redirect(id ? `/equipe/${id}` : '/equipe')
   },
 )
 
@@ -214,11 +220,11 @@ export const convidarAcesso = tenantAction(
   'manage_team',
   (fd) => ler(fd, ['id', 'name', 'email', 'role']),
   async (ctx, v) => {
-    await inviteAccess(ctx, { name: v.name ?? '', email: v.email ?? '', role: papel(v.role), professionalId: v.id ?? '' })
+    const membro = await inviteAccess(ctx, { name: v.name ?? '', email: v.email ?? '', role: papel(v.role), professionalId: v.id ?? '' })
     atualizarPainel()
-    return `Convite enviado para ${v.email?.trim() ?? 'o e-mail informado'}.`
+    return membro.inviteMailFailed
   },
-  (mensagem, v) => feito(mensagem, v),
+  (falhou, v) => (falhou ? conviteNaoEnviado(v) : feito(`Convite enviado para ${v.email?.trim() || 'o e-mail informado'}.`, v)),
 )
 
 export const mudarPapelAcesso = tenantAction(
@@ -248,10 +254,12 @@ export const reenviarConviteAcesso = tenantAction(
   'manage_team',
   (fd) => ler(fd, ['membershipId']),
   async (ctx, v) => {
-    await resendAccessInvite(ctx, v.membershipId ?? '')
-    return 'Convite reenviado.'
+    const { inviteMailFailed } = await resendAccessInvite(ctx, v.membershipId ?? '')
+    // A situação (enviado ou não) vem do banco: a ficha e a lista se atualizam e mostram o que aconteceu com o e-mail.
+    atualizarPainel()
+    return inviteMailFailed
   },
-  (mensagem, v) => feito(mensagem, v),
+  (falhou, v) => (falhou ? conviteNaoEnviado(v) : feito('Convite reenviado.', v)),
 )
 
 export const redefinirSenhaAcesso = tenantAction(

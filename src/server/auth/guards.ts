@@ -11,9 +11,6 @@ import { getPlatformActor } from './platform-auth'
 
 export const DEV_COOKIE = 'af_dev_session'
 export const PAINEL_COOKIE = 'af_painel_session'
-export const BRAND_COOKIE = 'af_brand'
-
-const UM_ANO_S = 365 * 24 * 60 * 60
 
 // Sem atributo Domain: cada cookie fica preso ao host que o gravou (dev. ou painel.).
 function opcoes(extra: { expires?: Date; maxAge?: number }) {
@@ -34,10 +31,6 @@ export async function clearSessionCookie(name: typeof DEV_COOKIE | typeof PAINEL
   ;(await cookies()).set(name, '', opcoes({ maxAge: 0 }))
 }
 
-export async function setBrandCookie(slug: string): Promise<void> {
-  ;(await cookies()).set(BRAND_COOKIE, slug, opcoes({ maxAge: UM_ANO_S }))
-}
-
 export async function readCookie(name: string): Promise<string | undefined> {
   return (await cookies()).get(name)?.value
 }
@@ -55,7 +48,7 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminActor> {
   return actor
 }
 
-/** Sessão do painel do negócio, sem exigir conta ativa (usada pela escolha de conta). */
+/** Sessão do painel do negócio, sem exigir conta ativa. */
 export async function requireMemberSession(): Promise<MemberSession> {
   const session = await lerSessao(await readCookie(PAINEL_COOKIE))
   if (!session) redirect('/entrar')
@@ -63,15 +56,15 @@ export async function requireMemberSession(): Promise<MemberSession> {
 }
 
 /**
- * Contexto da conta ativa da sessão. Sem sessão válida vai para a entrada; sem conta ativa, para a
- * escolha de conta; sem a capacidade pedida, é 404 (a rota não existe para quem não pode usá-la).
+ * Contexto da conta ativa da sessão. Sem sessão válida ou sem conta ativa vai para a entrada; sem a capacidade
+ * pedida, é 404 (a rota não existe para quem não pode usá-la).
  */
 export async function requireTenant(capability?: Capability): Promise<TenantContext> {
   const token = await readCookie(PAINEL_COOKIE)
   const session = await requireMemberSession()
-  if (!session.activeBusinessId) redirect('/escolher-conta')
+  if (!session.activeBusinessId) redirect('/entrar')
   const ctx = await lerContexto(token)
-  if (!ctx) redirect('/escolher-conta')
+  if (!ctx) redirect('/entrar')
   if (capability && !can(ctx.actor, capability)) notFound()
   const info = await requestInfo()
   return { ...ctx, request: { ip: info.ip ?? null, userAgent: info.userAgent ?? null } }

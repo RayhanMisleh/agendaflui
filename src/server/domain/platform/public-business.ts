@@ -23,7 +23,7 @@ export type PublicBusiness = {
     tokens: Record<string, string>
   }
   terms: { professional: Term; customer: Term; points: Term; club: string }
-  modules: { loyalty: boolean; banners: boolean; store: boolean; vouchers: boolean }
+  modules: { loyalty: boolean; banners: boolean; store: boolean }
   rules: { slotStepMin: number; minLeadMin: number; maxAdvanceDays: number; customerChangeWindowMin: number }
 }
 
@@ -43,7 +43,7 @@ const SELECAO = {
       symbol: { select: { path: true } },
     },
   },
-  modules: { select: { loyalty: true, banners: true, store: true, vouchers: true } },
+  modules: { select: { loyalty: true, banners: true, store: true } },
   settings: {
     select: {
       slotStepMin: true,
@@ -94,7 +94,6 @@ export async function getPublicBusiness(businessId: string): Promise<PublicBusin
       loyalty: modules.loyalty,
       banners: modules.banners,
       store: modules.store,
-      vouchers: modules.vouchers,
     },
     rules: {
       slotStepMin: settings.slotStepMin,

@@ -53,3 +53,15 @@ export function renderPasswordResetCode(brand: AccountBrand, i: { customerName: 
   })
   return { subject: `${umaLinha(semControle(brand.name))}: código para redefinir a senha`, ...body }
 }
+
+/** E-mail de teste do painel dev: prova que o canal de envio está configurado. Sem link, sem dado de conta. */
+export function renderTestEmail(brand: AccountBrand, i: { adminName: string }): RenderedMail {
+  const title = 'E-mail de teste'
+  const body = layout(brand, title, {
+    paragraphs: [
+      greeting(i.adminName),
+      'Este é um e-mail de teste do painel de plataforma. Se ele chegou, o envio de e-mails está funcionando.',
+    ],
+  })
+  return { subject: `${umaLinha(brand.name)}: e-mail de teste`, ...body }
+}

@@ -14,9 +14,17 @@ vi.mock('@/server/storage/storage', async (original) => {
   const real = await original<typeof import('@/server/storage/storage')>()
   return { ...real, getStorage: () => disco.storage ?? real.getStorage() }
 })
+const canal = vi.hoisted(() => ({ falha: false }))
 vi.mock('@/server/notifications/channels', async (original) => {
   const real = await original<typeof import('@/server/notifications/channels')>()
-  return { ...real, getEmailChannel: () => ({ send: vi.fn(async () => undefined) }) }
+  return {
+    ...real,
+    getEmailChannel: () => ({
+      send: vi.fn(async () => {
+        if (canal.falha) throw new Error('falha de envio simulada')
+      }),
+    }),
+  }
 })
 
 import {
@@ -198,15 +206,11 @@ describe('termos, módulos, regras e avisos', () => {
     expect(vazioClube.fields.club).toBeTruthy()
   })
 
-  test('ligar vouchers sem loja devolve o erro no campo e não grava; com loja grava', async () => {
+  test('salvar módulos grava os que estão marcados e desliga os outros', async () => {
     const conta = await makeBusiness()
-    const e = await salvarModulos(conta.id, ini, form({ vouchers: 'on' }))
-    expect(e.ok).toBe(false)
-    expect(e.fields.vouchers).toMatch(/Loja/)
-    expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: false, store: false })
-    const ok = await salvarModulos(conta.id, ini, form({ vouchers: 'on', store: 'on', loyalty: 'on' }))
+    const ok = await salvarModulos(conta.id, ini, form({ store: 'on', loyalty: 'on' }))
     expect(ok.ok).toBe(true)
-    expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ vouchers: true, store: true, loyalty: true, banners: false })
+    expect(await prisma.businessModules.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ store: true, loyalty: true, banners: false })
   })
 
   test('regras gravam e o fuso da conta não muda; valor fora do limite erra no campo; campo em branco é recusado', async () => {
@@ -287,7 +291,21 @@ describe('equipe', () => {
     expect(r.ok).toBe(false)
     expect(r.message).toMatch(/já definiu a senha/)
     const pendente = await makeMembership(conta.id, (await makeUser({ password: null })).id, 'MANAGER')
-    expect((await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))).ok).toBe(true)
+    const enviado = await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))
+    expect(enviado).toMatchObject({ ok: true, message: 'Convite reenviado.' })
+  })
+
+  test('reenviar convite com o e-mail falhando diz "Convite não enviado", não "reenviado"', async () => {
+    const conta = await makeBusiness()
+    const pendente = await makeMembership(conta.id, (await makeUser({ password: null })).id, 'MANAGER')
+    canal.falha = true
+    try {
+      const r = await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))
+      expect(r.ok).toBe(false)
+      expect(r.message).toMatch(/^Convite não enviado/)
+    } finally {
+      canal.falha = false
+    }
   })
 })
 
@@ -296,9 +314,28 @@ describe('convidar membro novo', () => {
     const conta = await makeBusiness()
     const r = await convidarMembro(conta.id, ini, form({ name: 'Ana Gerente', email: 'ANA@exemplo.test', role: 'MANAGER' }))
     expect(r.ok).toBe(true)
-    expect(r.message).toMatch(/convite/i)
+    expect(r.message).toMatch(/^Convite enviado/)
     const m = await prisma.membership.findFirstOrThrow({ where: { businessId: conta.id }, include: { user: true } })
     expect([m.role, m.user.email]).toEqual(['MANAGER', 'ana@exemplo.test'])
+    expect(m.inviteMailFailedAt).toBeNull()
+  })
+
+  test('com o e-mail falhando o cadastro fica e a tela diz "Convite não enviado", não "enviado"', async () => {
+    const conta = await makeBusiness()
+    canal.falha = true
+    try {
+      const r = await convidarMembro(conta.id, ini, form({ name: 'Ana Gerente', email: 'ana@exemplo.test', role: 'MANAGER' }))
+      expect(r.ok).toBe(false)
+      expect(r.message).toMatch(/^Convite não enviado/)
+      expect(r.message).not.toMatch(/^Convite enviado/)
+      // O cadastro existe (não dá para repetir o envio digitando de novo): o formulário limpa e o reenvio está na lista.
+      expect(r.values).toMatchObject({ name: '', email: '' })
+      const m = await prisma.membership.findFirstOrThrow({ where: { businessId: conta.id }, include: { user: true } })
+      expect(m.user.email).toBe('ana@exemplo.test')
+      expect(m.inviteMailFailedAt).not.toBeNull()
+    } finally {
+      canal.falha = false
+    }
   })
 
   test('e-mail já vinculado à conta: erro do domínio no estado, com o que foi digitado', async () => {

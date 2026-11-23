@@ -13,7 +13,6 @@ const ENV: SeedEnv = {
   SEED_ADMIN_EMAIL: 'Admin@AgendaFlui.localhost ',
   SEED_ADMIN_PASSWORD: 'senha-do-admin-demo',
   SEED_USER_PASSWORD: 'senha-dos-usuarios-demo',
-  SEED_MULTI_EMAIL: ' MULTI@agendaflui.localhost',
 }
 
 // Quarta-feira, 12:00 em São Paulo e 11:00 em Manaus.
@@ -40,7 +39,7 @@ describe('contas e acessos', () => {
   test('rodar o seed duas vezes dá as mesmas contagens', async () => {
     await seed(prisma, ENV, { now: NOW })
     const primeira = await contagens()
-    expect(primeira).toEqual({ contas: 3, marcas: 3, modulos: 3, configuracoes: 3, usuarios: 7, vinculos: 9, admins: 2 })
+    expect(primeira).toEqual({ contas: 3, marcas: 3, modulos: 3, configuracoes: 3, usuarios: 7, vinculos: 7, admins: 2 })
     await seed(prisma, ENV, { now: NOW })
     expect(await contagens()).toEqual(primeira)
   })
@@ -53,8 +52,8 @@ describe('contas e acessos', () => {
     })
     expect(patas.timezone).toBe('America/Sao_Paulo')
     expect(patas.branding).toMatchObject({ primaryColor: '#2F7D5B', accentColor: '#F29A4B', coverMaterial: 'LEATHER' })
-    expect(patas.settings).toMatchObject({ termProfessionalPlural: 'Tosadores', termCustomerPlural: 'Tutores', termPointsPlural: 'Patinhas' })
-    expect(patas.modules).toMatchObject({ loyalty: true, banners: true, store: false, vouchers: false })
+    expect(patas.settings).toMatchObject({ termProfessionalPlural: 'Tosadores', termCustomerPlural: 'Clientes', termPointsPlural: 'Patinhas' })
+    expect(patas.modules).toMatchObject({ loyalty: true, banners: true, store: false })
     const navalha = await prisma.business.findUniqueOrThrow({
       where: { slug: 'navalha-de-ouro' },
       include: { branding: true, modules: true, settings: true },
@@ -62,27 +61,22 @@ describe('contas e acessos', () => {
     expect(navalha.timezone).toBe('America/Manaus')
     expect(navalha.branding).toMatchObject({ primaryColor: '#243B6B', coverMaterial: 'WOOD' })
     expect(navalha.settings?.termProfessionalPlural).toBe('Barbeiros')
-    expect(navalha.modules).toMatchObject({ loyalty: true, banners: true, store: true, vouchers: true })
+    expect(navalha.modules).toMatchObject({ loyalty: true, banners: true, store: true })
   })
 
-  test('o usuário de SEED_MULTI_EMAIL é dono das duas contas', async () => {
+  test('cada login da equipe tem um vínculo ativo só, e a conta suspensa tem o próprio dono', async () => {
     await seed(prisma, ENV, { now: NOW })
-    const multi = await prisma.user.findUniqueOrThrow({
-      where: { email: 'multi@agendaflui.localhost' },
-      include: { memberships: { include: { business: true } } },
-    })
-    expect(multi.memberships.map((m) => [m.business.slug, m.role]).sort()).toEqual([
-      ['estudio-sol-nascente', 'OWNER'],
-      ['navalha-de-ouro', 'OWNER'],
-      ['patas-e-cia', 'OWNER'],
-    ])
+    const porUsuario = await prisma.membership.groupBy({ by: ['userId'], where: { active: true }, _count: true })
+    expect(porUsuario.every((u) => u._count === 1)).toBe(true)
+    const donos = await prisma.membership.findMany({ where: { business: { slug: 'estudio-sol-nascente' } }, include: { user: true } })
+    expect(donos.map((m) => [m.role, m.user.email])).toEqual([['OWNER', 'dono.sol@agendaflui.localhost']])
   })
 
   test('cada conta tem dono, gerente e profissional, e e-mails ficam normalizados', async () => {
     await seed(prisma, ENV, { now: NOW })
     for (const slug of ['patas-e-cia', 'navalha-de-ouro']) {
       const vinculos = await prisma.membership.findMany({ where: { business: { slug } } })
-      expect(vinculos.map((m) => m.role).sort()).toEqual(['MANAGER', 'OWNER', 'OWNER', 'PROFESSIONAL'])
+      expect(vinculos.map((m) => m.role).sort()).toEqual(['MANAGER', 'OWNER', 'PROFESSIONAL'])
     }
     const admin = await prisma.platformAdmin.findFirstOrThrow({ where: { active: true } })
     expect(admin.email).toBe('admin@agendaflui.localhost')
@@ -261,14 +255,11 @@ describe('agenda de demonstração', () => {
 
   async function limparAgenda(businessId: string) {
     const filtro = { businessId }
-    await prisma.voucherCode.deleteMany({ where: filtro })
     await prisma.payment.deleteMany({ where: filtro })
     await prisma.orderItem.deleteMany({ where: filtro })
     await prisma.order.deleteMany({ where: filtro })
     await prisma.loyaltyTransaction.deleteMany({ where: filtro })
     await prisma.prizeRedemption.deleteMany({ where: filtro })
-    await prisma.voucher.deleteMany({ where: filtro })
-    await prisma.partner.deleteMany({ where: filtro })
     await prisma.productImage.deleteMany({ where: filtro })
     await prisma.product.deleteMany({ where: filtro })
     await prisma.productCategory.deleteMany({ where: filtro })
@@ -770,7 +761,7 @@ describe('módulos de demonstração', () => {
     expect(produtos.filter((p) => p.stock === 0 && p.active)).toHaveLength(1)
   })
 
-  test('Navalha de Ouro: 3 prêmios, 2 banners no ar e 1 agendado, 1 parceiro e 2 vouchers', async () => {
+  test('Navalha de Ouro: 3 prêmios, 2 banners no ar e 1 agendado', async () => {
     const b = await conta('navalha-de-ouro')
     expect(await prisma.prize.count({ where: { businessId: b.id } })).toBe(3)
     const hoje = todayIn(b.timezone, NOW)
@@ -778,8 +769,6 @@ describe('módulos de demonstração', () => {
     const noAr = banners.filter((x) => x.active && x.imageUploadId !== null && (x.startsOn === null || dbDateToLocal(x.startsOn) <= hoje) && (x.endsOn === null || dbDateToLocal(x.endsOn) >= hoje))
     const agendados = banners.filter((x) => x.active && x.startsOn !== null && dbDateToLocal(x.startsOn) > hoje)
     expect([noAr.length, agendados.length, banners.length]).toEqual([2, 1, 3])
-    expect(await prisma.partner.count({ where: { businessId: b.id } })).toBe(1)
-    expect(await prisma.voucher.count({ where: { businessId: b.id } })).toBe(2)
   })
 
   test('pontos vêm dos atendimentos concluídos (EARN com o atendimento) e o saldo de cada cliente é a soma do extrato', async () => {
@@ -800,22 +789,16 @@ describe('módulos de demonstração', () => {
     }
   })
 
-  test('Navalha de Ouro: 1 resgate pendente, 1 pedido pago a entregar, 1 aguardando pagamento e 1 de vouchers com códigos', async () => {
+  test('Navalha de Ouro: 1 resgate pendente, 1 pedido pago a entregar e 1 aguardando pagamento', async () => {
     const b = await conta('navalha-de-ouro')
     expect(await prisma.prizeRedemption.count({ where: { businessId: b.id, status: 'PENDING' } })).toBe(1)
     const pedidos = await prisma.order.findMany({ where: { businessId: b.id }, include: { items: true }, orderBy: { number: 'asc' } })
-    expect(pedidos).toHaveLength(3)
+    expect(pedidos).toHaveLength(2)
     const aEntregar = pedidos.filter((p) => p.status === 'PAID' && p.fulfillmentStatus === 'PENDING' && p.items.every((i) => i.productId !== null))
     const aguardando = pedidos.filter((p) => p.status === 'AWAITING_PAYMENT')
-    const deVouchers = pedidos.filter((p) => p.items.some((i) => i.voucherId !== null))
-    expect([aEntregar.length, aguardando.length, deVouchers.length]).toEqual([1, 1, 1])
-    expect(deVouchers[0]?.status).toBe('PAID')
-    const codigos = await prisma.voucherCode.findMany({ where: { businessId: b.id, orderId: deVouchers[0]?.id ?? '' } })
-    const comprados = deVouchers[0]?.items.reduce((t, i) => t + i.quantity, 0) ?? 0
-    expect(codigos.length).toBe(comprados)
-    expect(codigos.every((c) => c.status === 'ACTIVE' && /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(c.code))).toBe(true)
+    expect([aEntregar.length, aguardando.length]).toEqual([1, 1])
     // Estoque reservado e pagamentos pelo caminho real.
-    expect(await prisma.payment.count({ where: { businessId: b.id, status: 'APPROVED' } })).toBe(2)
+    expect(await prisma.payment.count({ where: { businessId: b.id, status: 'APPROVED' } })).toBe(1)
   })
 
   test('Mercado Pago e Frenet da Navalha de Ouro ficam cifrados; nada em texto, nem na auditoria', async () => {
@@ -836,7 +819,7 @@ describe('módulos de demonstração', () => {
     expect(auditoria).not.toMatch(/TEST-[0-9A-Za-z]{10}/)
   })
 
-  test('Patas & Cia: prêmios e um banner no ar, e nada de loja nem vouchers', async () => {
+  test('Patas & Cia: prêmios e um banner no ar, e nada de loja', async () => {
     const b = await conta('patas-e-cia')
     expect(await prisma.prize.count({ where: { businessId: b.id } })).toBeGreaterThanOrEqual(2)
     const hoje = todayIn(b.timezone, NOW)
@@ -856,7 +839,6 @@ describe('módulos de demonstração', () => {
       premios: await prisma.prize.count(),
       banners: await prisma.banner.count(),
       pedidos: await prisma.order.count(),
-      codigos: await prisma.voucherCode.count(),
       pontos: await prisma.loyaltyTransaction.count(),
     })
     const antes = await contar()

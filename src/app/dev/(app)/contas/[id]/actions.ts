@@ -10,7 +10,7 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notifica
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { adminAction } from '../../_lib/action'
-import { erroDeCampo, feito, ler } from '@/app/_lib/campos'
+import { conviteNaoEnviado, erroDeCampo, feito, ler } from '@/app/_lib/campos'
 import type { PlatformAdminActor } from '../../_lib/action'
 import type { FormState } from '@/app/_lib/form-state'
 import { MSG_CONFLITO } from './forms'
@@ -32,6 +32,12 @@ function atualizar(): void {
 function feitoNaConta(mensagem: string, v: Campos, extra: Campos = {}): FormState<Campos> {
   atualizar()
   return feito(mensagem, v, extra)
+}
+
+/** O e-mail não saiu: a página recarrega para mostrar a situação, e o estado avisa em vez de dizer que reenviou. */
+function falhaDeEnvio(v: Campos): FormState<Campos> {
+  atualizar()
+  return conviteNaoEnviado(v)
 }
 
 type Entrada = { nomes: readonly string[]; caixas?: readonly string[] }
@@ -146,9 +152,9 @@ export const salvarTermos = porConta(
 )
 
 export const salvarModulos = porConta(
-  { nomes: [], caixas: ['loyalty', 'banners', 'store', 'vouchers'] },
+  { nomes: [], caixas: ['loyalty', 'banners', 'store'] },
   (admin, v) =>
-    updateModules(admin, v.businessId ?? '', { loyalty: v.loyalty === 'on', banners: v.banners === 'on', store: v.store === 'on', vouchers: v.vouchers === 'on' }),
+    updateModules(admin, v.businessId ?? '', { loyalty: v.loyalty === 'on', banners: v.banners === 'on', store: v.store === 'on' }),
   (r, v) => feitoNaConta('Módulos salvos.', v),
 )
 
@@ -199,7 +205,11 @@ export const convidarMembro = porConta(
   (admin, v) =>
     // O domínio confere nome, e-mail e papel; o tipo só deixa de reclamar da lista de opções.
     inviteMember(admin, v.businessId ?? '', { name: v.name ?? '', email: v.email ?? '', role: (v.role ?? '') as Parameters<typeof inviteMember>[2]['role'] }),
-  (r, v) => feitoNaConta('Convite enviado. A pessoa já aparece na equipe.', v, { name: '', email: '' }),
+  // O cadastro existe de qualquer jeito (a pessoa já aparece na equipe): o formulário limpa, e se o e-mail não saiu a linha tem "Reenviar".
+  (r, v) =>
+    r.inviteMailFailed
+      ? falhaDeEnvio({ ...v, name: '', email: '' })
+      : feitoNaConta('Convite enviado. A pessoa já aparece na equipe.', v, { name: '', email: '' }),
 )
 
 export const trocarPapel = porConta(
@@ -230,7 +240,8 @@ export const reenviarConvite = porConta(
   { nomes: ['membershipId'] },
   async (admin, v) => {
     const membro = await doMembro(admin, v.businessId ?? '', v.membershipId ?? '')
-    await resendInvite(admin, membro.membershipId)
+    return resendInvite(admin, membro.membershipId)
   },
-  (r, v) => feitoNaConta('Convite reenviado.', v),
+  // A situação vem do banco: a página recarrega e a linha mostra "Convite não enviado" se o e-mail não saiu.
+  (r, v) => (r.inviteMailFailed ? falhaDeEnvio(v) : feitoNaConta('Convite reenviado.', v)),
 )

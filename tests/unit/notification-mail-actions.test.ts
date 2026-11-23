@@ -1,5 +1,5 @@
 import { emailFrame } from '@/server/notifications/frame'
-import { renderAccessGranted, renderMemberInvite, renderOwnerInvite } from '@/server/notifications/render-invite'
+import { APP_LINE, renderAccessGranted, renderMemberInvite, renderOwnerInvite } from '@/server/notifications/render-invite'
 import { renderPanelPasswordReset } from '@/server/notifications/render-password-reset'
 
 const botao = (html: string, href: string) => new RegExp(`<a href="${href}" style="[^"]*border-radius:999px`).test(html)
@@ -28,10 +28,10 @@ describe('links de ação dos e-mails viram botão em pílula', () => {
   })
 
   test('aviso de acesso', () => {
-    const m = renderAccessGranted({ ownerName: 'Ana', businessName: 'Patas', entryLink: 'https://painel.test/entrar/patas' })
-    expect(botao(m.html, 'https://painel.test/entrar/patas')).toBe(true)
+    const m = renderAccessGranted({ ownerName: 'Ana', businessName: 'Patas', entryLink: 'https://painel.test/entrar' })
+    expect(botao(m.html, 'https://painel.test/entrar')).toBe(true)
     expect(m.html).toContain('>Entrar em Patas</a>')
-    expect(m.text).toContain('https://painel.test/entrar/patas')
+    expect(m.text).toContain('https://painel.test/entrar')
   })
 
   test('redefinição de senha', () => {
@@ -40,4 +40,17 @@ describe('links de ação dos e-mails viram botão em pílula', () => {
     expect(m.html).toContain('>Redefinir minha senha</a>')
     expect(m.text).toContain('https://painel.test/redefinir-senha/t3')
   })
+})
+
+test('convite, dono e aviso de acesso citam o app, no texto e no HTML', () => {
+  expect(APP_LINE).toBe('Baixe o app Agenda Flui para ver sua agenda no celular.')
+  const mails = [
+    renderMemberInvite({ name: 'Davi', businessName: 'Patas', roleLabel: 'Tosador', link: 'https://painel.test/definir-senha/t2', ttlDays: 7 }),
+    renderOwnerInvite({ ownerName: 'Ana', businessName: 'Patas', link: 'https://painel.test/definir-senha/tok', ttlDays: 7 }),
+    renderAccessGranted({ ownerName: 'Ana', businessName: 'Patas', entryLink: 'https://painel.test/entrar' }),
+  ]
+  for (const m of mails) {
+    expect(m.text).toContain(APP_LINE)
+    expect(m.html).toContain(APP_LINE)
+  }
 })

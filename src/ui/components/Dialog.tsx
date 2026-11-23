@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { cx } from './cx'
@@ -70,6 +70,15 @@ export function Dialog({
   const pressedOnBackdrop = useRef(false)
   const onCloseRef = useRef(onClose)
   const titleId = useId()
+  // Ao fechar, o conteúdo fica montado até a saída animada acabar (o CSS dura no máximo 250 ms).
+  const [mounted, setMounted] = useState(open)
+  if (open && !mounted) setMounted(true)
+
+  useEffect(() => {
+    if (open) return
+    const t = setTimeout(() => setMounted(false), 250)
+    return () => clearTimeout(t)
+  }, [open])
 
   useEffect(() => {
     onCloseRef.current = onClose
@@ -132,7 +141,7 @@ export function Dialog({
         pressedOnBackdrop.current = false
       }}
     >
-      {open ? (
+      {open || mounted ? (
         <div className="af-dialog__sheet">
           <span className="af-dialog__grip" aria-hidden="true" />
           <header className="af-dialog__head">

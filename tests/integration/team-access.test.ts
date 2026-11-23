@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor, TenantContext } from '@/server/auth/actor'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
+import { OUTRA_LOJA_MESSAGE } from '@/server/domain/platform/access-core'
 import {
+  addTeamMember,
   changeAccessRole,
   inviteAccess,
   listAccess,
@@ -14,7 +16,7 @@ import {
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const AGORA = new Date('2026-11-17T12:00:00.000Z')
@@ -129,7 +131,8 @@ describe('inviteAccess', () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash).toBe(user.passwordHash)
     expect(await prisma.userToken.count({ where: { userId: user.id } })).toBe(0)
     expect(mail.sent[0]?.text).not.toContain('/definir-senha/')
-    expect(mail.sent[0]?.text).toContain('/entrar/')
+    expect(mail.sent[0]?.text).toContain('/entrar')
+    expect(mail.sent[0]?.text).not.toMatch(/\/entrar\//)
   })
 
   test('mesma pessoa duas vezes na conta é conflict', async () => {
@@ -442,6 +445,8 @@ describe('sendAccessPasswordReset: limite e conta arquivada', () => {
 })
 
 describe('o que o dono vê do usuário: só o que é da própria conta', () => {
+  // Quem sai de uma loja fica com o vínculo desativado (histórico): só um vínculo ativo por login.
+  const vinculoAntigo = (b: string, userId: string) => prisma.membership.create({ data: { businessId: b, userId, role: 'MANAGER', active: false } })
   const sessaoEm = (userId: string, b: string, quando: Date) =>
     prisma.session.create({ data: { userId, activeBusinessId: b, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600), createdAt: quando } })
 
@@ -449,7 +454,7 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     const outra = (await makeBusiness()).id
     const pessoa = await makeUser({ lastLoginAt: new Date('2026-11-16T10:00:00.000Z') })
     const m = await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
-    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await vinculoAntigo(outra, pessoa.id)
     await sessaoEm(pessoa.id, outra, new Date('2026-11-16T10:00:00.000Z'))
     expect((await listAccess(dono)).find((x) => x.membershipId === m.id)?.lastLoginAt).toBeNull()
     await sessaoEm(pessoa.id, businessId, new Date('2026-11-10T08:00:00.000Z'))
@@ -460,7 +465,7 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
   test('convidar quem já existe em outra conta não devolve o último acesso nem a senha de lá', async () => {
     const outra = (await makeBusiness()).id
     const existente = await makeUser({ email: 'carla@exemplo.test', password: 'senha-da-carla-1', lastLoginAt: AGORA })
-    await makeMembership(outra, existente.id, 'OWNER')
+    await vinculoAntigo(outra, existente.id)
     const m = await inviteAccess(dono, { name: 'Carla', email: 'carla@exemplo.test', role: 'PROFESSIONAL' })
     expect(m.lastLoginAt).toBeNull()
     expect((await listAccess(dono)).find((x) => x.userId === existente.id)?.lastLoginAt).toBeNull()
@@ -481,7 +486,7 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     const outra = (await makeBusiness()).id
     const pessoa = await makeUser({ lastLoginAt: AGORA })
     await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
-    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await vinculoAntigo(outra, pessoa.id)
     expect((await listAccess(suporte)).find((x) => x.userId === pessoa.id)?.lastLoginAt).toBeNull()
   })
 
@@ -489,8 +494,151 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     const outra = (await makeBusiness()).id
     const pessoa = await makeUser({ lastLoginAt: AGORA })
     const m = await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
-    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await vinculoAntigo(outra, pessoa.id)
     expect((await changeAccessRole(dono, m.id, 'MANAGER')).lastLoginAt).toBeNull()
     expect((await setAccessActive(dono, m.id, false)).lastLoginAt).toBeNull()
+  })
+})
+
+describe('uma loja por login da equipe', () => {
+  async function outraLoja(): Promise<string> {
+    return (await makeBusiness({ name: 'Outra Loja' })).id
+  }
+
+  test('convidar quem é ativo em outra loja: conflict member_of_other_business, nada gravado', async () => {
+    const user = await makeUser({ email: 'ana@exemplo.test' })
+    await makeMembership(await outraLoja(), user.id, 'MANAGER')
+    const e = await domainError(inviteAccess(dono, { name: 'Ana', email: 'ana@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect(e.fields).toEqual({ email: OUTRA_LOJA_MESSAGE })
+    expect(await prisma.membership.count({ where: { userId: user.id } })).toBe(1)
+    expect(await prisma.auditLog.count({ where: { action: 'team.member_invited' } })).toBe(0)
+    expect(mailTo('ana@exemplo.test')).toHaveLength(0)
+  })
+
+  test('quem foi desativado na loja A pode ser convidado na B; reativar na A depois é recusado', async () => {
+    const lojaA = await outraLoja()
+    const user = await makeUser({ email: 'bia@exemplo.test' })
+    const antigo = await makeMembership(lojaA, user.id, 'PROFESSIONAL')
+    await prisma.membership.update({ where: { id: antigo.id }, data: { active: false } })
+    await inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'PROFESSIONAL' })
+    expect(await prisma.membership.count({ where: { userId: user.id, active: true } })).toBe(1)
+    const donoA = await ctxWithRole({ id: lojaA }, 'OWNER', { now: AGORA })
+    const e = await domainError(setAccessActive(donoA, antigo.id, true))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: antigo.id } })).active).toBe(false)
+  })
+
+  test('dois convites simultâneos do mesmo e-mail em lojas diferentes: um passa, o outro é conflict com a mesma frase', async () => {
+    const lojaB = await outraLoja()
+    const donoB = await ctxWithRole({ id: lojaB }, 'OWNER', { now: AGORA })
+    const entrada = { name: 'Caio', email: 'caio@exemplo.test', role: 'PROFESSIONAL' as const }
+    const r = await Promise.allSettled([inviteAccess(dono, entrada), inviteAccess(donoB, entrada)])
+    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
+    const recusado = r.find((x) => x.status === 'rejected')
+    expect(recusado?.status === 'rejected' ? recusado.reason : null).toMatchObject({
+      code: 'conflict',
+      reason: 'member_of_other_business',
+      message: OUTRA_LOJA_MESSAGE,
+    })
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'caio@exemplo.test' } })
+    expect(await prisma.membership.count({ where: { userId: user.id, active: true } })).toBe(1)
+  })
+
+  test('o banco recusa um segundo vínculo ativo do mesmo usuário', async () => {
+    const user = await makeUser()
+    await makeMembership(businessId, user.id, 'MANAGER')
+    await expect(makeMembership(await outraLoja(), user.id, 'MANAGER')).rejects.toMatchObject({ code: 'P2002' })
+  })
+})
+
+describe('addTeamMember: cadastro num passo e situação do convite', () => {
+  const membroDe = async (email: string) => prisma.membership.findFirstOrThrow({ where: { businessId, user: { email } }, include: { professionals: true } })
+
+  test('cria ficha, vínculo e convite numa transação e manda o e-mail', async () => {
+    const servico = await makeService(businessId, { name: 'Banho' })
+    const antes = await makeProfessional(businessId, { name: 'Antiga' })
+    const m = await addTeamMember(dono, { name: 'Duda Lima', email: 'Duda@Exemplo.test', role: 'PROFESSIONAL' })
+    expect(m).toMatchObject({ name: 'Duda Lima', email: 'duda@exemplo.test', role: 'PROFESSIONAL', active: true, hasPassword: false, inviteMailFailed: false })
+    expect(m.professionalId).not.toBeNull()
+    const vinculo = await membroDe('duda@exemplo.test')
+    expect(vinculo.professionals).toHaveLength(1)
+    const ficha = await prisma.professional.findUniqueOrThrow({ where: { id: m.professionalId ?? '' }, include: { services: true } })
+    expect(ficha).toMatchObject({ name: 'Duda Lima', membershipId: vinculo.id, commissionBps: 0, active: true })
+    expect(ficha.displayOrder).toBeGreaterThan(antes.displayOrder)
+    expect(ficha.services.map((s) => s.serviceId)).toEqual([servico.id])
+    expect(mailTo('duda@exemplo.test')).toHaveLength(1)
+    expect(mailTo('duda@exemplo.test')[0]?.text).toContain('/definir-senha/')
+    expect((await membroDe('duda@exemplo.test')).inviteMailFailedAt).toBeNull()
+  })
+
+  test('gerente também ganha a ficha e o convite', async () => {
+    const m = await addTeamMember(dono, { name: 'Gil Gerente', email: 'gil@exemplo.test', role: 'MANAGER' })
+    expect(m).toMatchObject({ role: 'MANAGER', inviteMailFailed: false })
+    expect(m.professionalId).not.toBeNull()
+  })
+
+  test('com o envio falhando o cadastro fica e inviteMailFailed é true, na lista também', async () => {
+    mail.failing = true
+    const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
+    expect(m.inviteMailFailed).toBe(true)
+    expect(m.professionalId).not.toBeNull()
+    expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).not.toBeNull()
+    expect((await listAccess(dono)).find((x) => x.membershipId === m.membershipId)?.inviteMailFailed).toBe(true)
+  })
+
+  test('sem canal de e-mail configurado conta como convite não enviado', async () => {
+    mail.uninstall()
+    const m = await addTeamMember(dono, { name: 'Fia Reis', email: 'fia@exemplo.test', role: 'PROFESSIONAL' })
+    expect(m.inviteMailFailed).toBe(true)
+  })
+
+  test('reenviar com sucesso limpa a falha; reenviar falhando mantém', async () => {
+    mail.failing = true
+    const m = await addTeamMember(dono, { name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL' })
+    expect(await resendAccessInvite(dono, m.membershipId)).toEqual({ inviteMailFailed: true })
+    expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).not.toBeNull()
+    mail.failing = false
+    expect(await resendAccessInvite(dono, m.membershipId)).toEqual({ inviteMailFailed: false })
+    expect((await membroDe('eva@exemplo.test')).inviteMailFailedAt).toBeNull()
+    expect((await listAccess(dono)).find((x) => x.membershipId === m.membershipId)?.inviteMailFailed).toBe(false)
+  })
+
+  test('e-mail de outra loja: conflict, nem ficha nem vínculo nem usuário novo', async () => {
+    const outra = await makeBusiness()
+    const alheio = await makeUser({ email: 'alheio@exemplo.test' })
+    await makeMembership(outra.id, alheio.id, 'MANAGER')
+    const fichas = await prisma.professional.count({ where: { businessId } })
+    const e = await domainError(addTeamMember(dono, { name: 'Alheio', email: 'alheio@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(fichas)
+    expect(await prisma.membership.count({ where: { businessId, userId: alheio.id } })).toBe(0)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  test('a mesma pessoa duas vezes: conflict e a segunda ficha não fica', async () => {
+    await addTeamMember(dono, { name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' })
+    const fichas = await prisma.professional.count({ where: { businessId } })
+    expect((await domainError(addTeamMember(dono, { name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('conflict')
+    expect(await prisma.professional.count({ where: { businessId } })).toBe(fichas)
+  })
+
+  test('profissional não cadastra ninguém: forbidden', async () => {
+    expect((await domainError(addTeamMember(profissional, { name: 'X', email: 'x@exemplo.test', role: 'PROFESSIONAL' }))).code).toBe('forbidden')
+    expect(await prisma.user.count({ where: { email: 'x@exemplo.test' } })).toBe(0)
+  })
+
+  test('papel OWNER (ou desconhecido) em addTeamMember: validation no campo role', async () => {
+    for (const role of ['OWNER', 'ADMIN'] as const) {
+      const e = await domainError(addTeamMember(dono, { name: 'X', email: 'x@exemplo.test', role: role as 'MANAGER' }))
+      expect(e.code).toBe('validation')
+      expect(Object.keys(e.fields ?? {})).toEqual(['role'])
+    }
+    expect(await prisma.user.count({ where: { email: 'x@exemplo.test' } })).toBe(0)
+  })
+
+  test('e-mail vazio ou inválido: validation no campo email', async () => {
+    const e = await domainError(addTeamMember(dono, { name: 'X', email: '', role: 'PROFESSIONAL' }))
+    expect(Object.keys(e.fields ?? {})).toContain('email')
   })
 })

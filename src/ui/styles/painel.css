@@ -217,7 +217,7 @@
     gap: 1rem;
     align-items: start;
   }
-  @media (min-width: 30rem) {
+  @media (min-width: 40rem) {
     .af-formgrid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -401,6 +401,61 @@
   .af-visit__detail {
     color: var(--ink-muted);
     font-size: var(--text-small);
+  }
+  .af-custlink {
+    display: grid;
+    gap: 1.25rem;
+    align-items: center;
+    min-width: 0;
+  }
+  .af-custlink__main {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-custlink__title {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+  }
+  .af-custlink__help {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-custlink__url {
+    min-width: 0;
+    width: 100%;
+  }
+  .af-custlink__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .af-custlink__qrbox {
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+  }
+  .af-custlink__qr {
+    width: 9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-chip);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .af-custlink__qr svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  @media (min-width: 40rem) {
+    .af-custlink {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
   }
   .af-careful {
     display: grid;
@@ -847,28 +902,30 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
-  .af-ordertable {
-    width: 100%;
-    border-collapse: collapse;
+  .af-ordertotals {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--line);
   }
-  .af-ordertable th,
-  .af-ordertable td {
-    padding: 0.5rem 0.5rem;
-    border-bottom: 1px solid var(--line);
-    text-align: start;
-    vertical-align: top;
+  .af-ordertotals > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
   }
-  .af-ordertable th {
+  .af-ordertotals dt {
     color: var(--ink-muted);
     font-size: var(--text-small);
-    font-weight: 600;
   }
-  .af-ordertable .af-col--end {
-    text-align: end;
+  .af-ordertotals dd {
+    margin: 0;
   }
-  .af-ordertable tfoot th,
-  .af-ordertable tfoot td {
-    border-bottom: 0;
+  .af-ordertotals__sum dt,
+  .af-ordertotals__sum dd {
+    color: var(--ink);
+    font-size: var(--text-body);
     font-weight: 700;
   }
   .af-ordernote {
@@ -906,36 +963,5 @@
   }
   .af-orderactions__test p {
     margin: 0;
-  }
-
-  /* Vouchers: campo grande do código no balcão e o cartão do resultado. */
-  .af-input--code {
-    font-size: 1.75rem;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    text-align: center;
-    min-height: 3.5rem;
-  }
-  .af-redeemcard {
-    display: grid;
-    gap: 0.75rem;
-    margin: 0;
-    padding: 1rem;
-    border: 1px solid var(--line);
-    border-inline-start: 4px solid var(--accent);
-    border-radius: var(--radius-chip);
-  }
-  .af-redeemcard p {
-    margin: 0;
-    font-size: 1.125rem;
-  }
-  .af-redeemcard--refused {
-    border-inline-start-color: var(--danger, var(--accent));
-  }
-  .af-codetext {
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    white-space: nowrap;
   }
 }

@@ -1,5 +1,6 @@
 'use server'
 import { redirect, unstable_rethrow } from 'next/navigation'
+import { customerLinkUrl } from '@/server/customer-link'
 import { DomainError } from '@/server/domain/errors'
 import { createBusiness, validateNewBusiness } from '@/server/domain/platform/businesses'
 import { getCustomization, updateBrand, updateModules, updateRulesAsAdmin, updateTerms, validateAccountSetup } from '@/server/domain/platform/customization'
@@ -63,7 +64,7 @@ function conferirAntes(v: WizardData): Record<string, string> {
     validateAccountSetup({
       brand: marcaDe(v),
       terms: termosDe(v),
-      modules: { loyalty: v.loyalty, banners: v.banners, store: v.store, vouchers: v.vouchers },
+      modules: { loyalty: v.loyalty, banners: v.banners, store: v.store },
       rules: regrasDe(v),
     }),
   )
@@ -132,7 +133,7 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
     await updateTerms(admin, id, termosDe(v))
   })
   await passo(falhas, 'modulos', async () => {
-    await updateModules(admin, id, { loyalty: v.loyalty, banners: v.banners, store: v.store, vouchers: v.vouchers })
+    await updateModules(admin, id, { loyalty: v.loyalty, banners: v.banners, store: v.store })
   })
   await passo(falhas, 'regras', async () => {
     await updateRulesAsAdmin(admin, id, regrasDe(v))
@@ -141,10 +142,10 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
   return {
     createdId: id,
     businessName: criada.business.name,
-    entryUrl: criada.business.entryUrl,
     ownerEmail: v.ownerEmail.trim().toLowerCase(),
     ownerExisting: criada.owner.existing,
     emailSent: criada.emailSent,
+    customerLinkUrl: customerLinkUrl(criada.business.slug),
     pendencias: falhas.map((f) => (f.motivo ? `${PENDENCIA[f.codigo]}: ${f.motivo}` : `${PENDENCIA[f.codigo]}.`)),
     faltou: falhas.map((f) => f.codigo),
   }

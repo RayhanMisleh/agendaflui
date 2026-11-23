@@ -12,7 +12,7 @@ import { resolveNotificationSettings, type NotificationSettings } from '@/server
  * desenho: toda consulta de conta aqui filtra pelo `businessId` da linha reservada.
  */
 
-export type LoadedPayload = { startsAt: string | null; previousStartsAt: string | null; reason: string | null }
+export type LoadedPayload = { startsAt: string | null; previousStartsAt: string | null; reason: string | null; audience: string | null }
 
 export type LoadedAppointment = {
   id: string
@@ -37,6 +37,8 @@ export type LoadedRecipient = {
   allowEmail: boolean
   allowPush: boolean
   pushTokens: string[]
+  /** Vínculo ativo, dono ou gerente, com a preferência de avisos de toda a loja ligada (vale para as linhas de observador). */
+  watchesAll: boolean
 }
 
 export type LoadedNotification = {
@@ -65,7 +67,7 @@ const text = (v: unknown): string | null => (typeof v === 'string' ? v : null)
 /** O `payload` só serve para comparar (início do aviso, motivo): nunca carrega dado pessoal. */
 export function parsePayload(raw: unknown): LoadedPayload {
   const o = typeof raw === 'object' && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
-  return { startsAt: text(o['startsAt']), previousStartsAt: text(o['previousStartsAt']), reason: text(o['reason']) }
+  return { startsAt: text(o['startsAt']), previousStartsAt: text(o['previousStartsAt']), reason: text(o['reason']), audience: text(o['audience']) }
 }
 
 async function loadRecipient(
@@ -92,12 +94,13 @@ async function loadRecipient(
       allowEmail: c.notifyEmailAppointments,
       allowPush: c.notifyPushAppointments,
       pushTokens: await tokens({ customerId: c.id }),
+      watchesAll: false,
     }
   }
   if (n.membershipId) {
     const m = await prisma.membership.findFirst({
       where: { id: n.membershipId, businessId },
-      select: { id: true, active: true, user: { select: { name: true, email: true } } },
+      select: { id: true, active: true, role: true, notifyAllAppointments: true, user: { select: { name: true, email: true } } },
     })
     if (!m) return null
     return {
@@ -109,6 +112,7 @@ async function loadRecipient(
       allowEmail: true,
       allowPush: true,
       pushTokens: await tokens({ membershipId: m.id }),
+      watchesAll: m.active && (m.role === 'OWNER' || m.role === 'MANAGER') && m.notifyAllAppointments,
     }
   }
   return null

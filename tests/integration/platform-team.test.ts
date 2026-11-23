@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
+import { OUTRA_LOJA_MESSAGE } from '@/server/domain/platform/access-core'
 import {
   changeMemberRole,
   inviteMember,
@@ -97,7 +98,8 @@ describe('inviteMember', () => {
     expect(await prisma.userToken.count({ where: { userId: user.id } })).toBe(0)
     expect(mail.sent).toHaveLength(1)
     expect(mail.sent[0]?.text).not.toContain('/definir-senha/')
-    expect(mail.sent[0]?.text).toContain('/entrar/')
+    expect(mail.sent[0]?.text).toContain('/entrar')
+    expect(mail.sent[0]?.text).not.toMatch(/\/entrar\//)
   })
 
   test('mesma pessoa duas vezes na conta (mesmo desativada) dá conflict', async () => {
@@ -289,6 +291,14 @@ describe('resendInvite', () => {
     expect(await prisma.auditLog.count({ where: { businessId, action: 'team.invite_resent' } })).toBe(1)
   })
 
+  test('devolve se o e-mail saiu: falha do canal vira inviteMailFailed true e a coluna fica marcada', async () => {
+    const m = await inviteMember(actor, businessId, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' }, AGORA)
+    expect(await resendInvite(actor, m.membershipId, AGORA)).toEqual({ inviteMailFailed: false })
+    mail.failing = true
+    expect(await resendInvite(actor, m.membershipId, AGORA)).toEqual({ inviteMailFailed: true })
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: m.membershipId } })).inviteMailFailedAt).not.toBeNull()
+  })
+
   test('quem já tem senha ou está desativado não recebe convite: conflict', async () => {
     const { membership } = await novoVinculo('MANAGER')
     expect((await domainError(resendInvite(actor, membership.id, AGORA))).code).toBe('conflict')
@@ -325,12 +335,18 @@ describe('desativar o último vínculo ativo de quem ainda não tem senha', () =
     await setMemberActive(actor, m.membershipId, false, AGORA)
     expect(await pendentes(m.userId)).toBe(0)
   })
+})
 
-  test('com outro vínculo ativo em outra conta, o convite fica', async () => {
-    const outra = (await makeBusiness({ name: 'Outra' })).id
-    const m = await inviteMember(actor, businessId, { name: 'Caio Lima', email: 'caio@exemplo.test', role: 'PROFESSIONAL' }, AGORA)
-    await makeMembership(outra, m.userId, 'PROFESSIONAL')
-    await setMemberActive(actor, m.membershipId, false, AGORA)
-    expect(await pendentes(m.userId)).toBe(1)
+describe('uma loja por login da equipe (porta do admin)', () => {
+  test('convidar quem é ativo em outra loja: conflict member_of_other_business e nada gravado; reativar também', async () => {
+    const outra = (await makeBusiness({ name: 'Outra Loja' })).id
+    const user = await makeUser({ email: 'ana@exemplo.test' })
+    await makeMembership(outra, user.id, 'MANAGER')
+    const e = await domainError(inviteMember(actor, businessId, { name: 'Ana', email: 'ana@exemplo.test', role: 'MANAGER' }, AGORA))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect(await prisma.membership.count({ where: { userId: user.id } })).toBe(1)
+    const antigo = await prisma.membership.create({ data: { businessId, userId: user.id, role: 'MANAGER', active: false } })
+    const r = await domainError(setMemberActive(actor, antigo.id, true, AGORA))
+    expect(r).toMatchObject({ code: 'conflict', reason: 'member_of_other_business' })
   })
 })

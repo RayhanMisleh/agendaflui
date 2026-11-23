@@ -4,10 +4,12 @@ import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
 import { getHomeOverview } from '@/server/domain/scheduling/home'
+import { getCustomerLink } from '@/server/domain/settings/customer-link'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { addDays } from '@/server/time'
 import { Card, EmptyHint, EmptyState, LinkButton, PhoneLink, StatNumber, StatusBadge, TimeChip } from '@/ui/components'
 import { formatDuration, shortDate, weekdayName } from '@/ui/format'
+import { LinkParaClientes } from './_lib/LinkParaClientes'
 import { PainelFrame } from './PainelFrame'
 
 export const metadata: Metadata = { title: 'Início | Agenda Flui' }
@@ -34,7 +36,7 @@ function Situacao({ status }: { status: AppointmentView['status'] }) {
 
 export default async function InicioPage() {
   const ctx = await requireTenant('view_dashboard')
-  const [home, painel] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx)])
+  const [home, painel, link] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx), getCustomerLink(ctx)])
   const semFicha = home.unlinked
   const avisoSemFicha = `Seu acesso ainda não está ligado a uma ficha de ${painel.terms.professionalSingular.toLowerCase()}. Peça ao dono da conta para resolver isso em ${painel.terms.professionalPlural}.`
   const todos = home.scope === 'all'
@@ -48,6 +50,7 @@ export default async function InicioPage() {
   return (
     <PainelFrame ctx={ctx} title="Início">
       <div className="af-home">
+        {link ? <LinkParaClientes link={link} /> : null}
         <div className="af-home__top">
           <Card variant="block" bubbles as="section" aria-labelledby="inicio-hoje" className="af-home__hero">
             <h2 id="inicio-hoje" className="af-home__hero-title">

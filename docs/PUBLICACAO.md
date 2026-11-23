@@ -13,10 +13,14 @@ Um contêiner Docker (`Dockerfile` na raiz), porta 3000, atrás de um proxy com 
 Lista completa, uma linha cada, no bloco "Produção" do `.env.example`. Obrigatórias: `DATABASE_URL`,
 `APP_SECRET`, `DEV_HOST`, `PAINEL_HOST`, `API_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`.
 Atrás do proxy use `TRUSTED_PROXY_HOPS=1`: com 0 o IP do cliente é desconhecido (limites por IP desligados,
-auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quando falta `SMTP_URL` e quando falta
+auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quando faltam `SMTP_URL` e `RESEND_API_KEY` e quando falta
 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. O proxy precisa preservar o `Host` original: as rotas POST do painel dev conferem
 `Origin == Host`, e o roteamento por host também usa o `Host` (nunca `X-Forwarded-Host`); se o proxy reescrever o
-`Host`, essas rotas recusam o envio. Sem `SMTP_URL` o servidor sobe, mas convites e cadastro pelo app não chegam.
+`Host`, essas rotas recusam o envio. Sem `SMTP_URL` nem `RESEND_API_KEY` o servidor sobe, mas convites e cadastro pelo app não chegam. `RESEND_API_KEY`
+substitui o SMTP (vale o Resend se as duas existem) e exige `MAIL_FROM` com o domínio verificado no Resend; o botão
+"Enviar e-mail de teste para mim" na página Sistema do painel dev confere o envio.
+`APP_WEB_URL` (opcional, padrão `https://app.agendaflui.com.br`) é o endereço público do app web: só esquema e host,
+sem barra final, e em produção `https` e não local. Dele sai o "Link para clientes" de cada loja (`<APP_WEB_URL>/<identificador>`) e o QR code.
 `INTEGRATIONS_MODE` (opcional) escolhe as integrações externas (Mercado Pago, Frenet e ViaCEP): `real` ou `fake`. Em
 produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
 produção ele impede a partida.
@@ -40,6 +44,10 @@ O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS 
 (até cerca de 60 s), confere fuso/travas/`btree_gist`, roda `prisma migrate deploy` (duas instâncias juntas são seguras: o
 Prisma usa trava consultiva do Postgres) e inicia o Next, repassando `SIGTERM`. `MIGRATE_ON_START=false` pula a migração.
 
+Se uma migração falhar, a partida para e as seguintes dão `P3009`. Corrija a causa (os dados que a migração recusou),
+rode `prisma migrate resolve --rolled-back <nome-da-migração>` e suba de novo. As migrações de 2026-11-23 (remoção da
+venda antiga e `um_vinculo_ativo`) rodam em transação: ao falhar, o banco volta ao estado anterior.
+
 ## Retenção
 
 O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias, uso da API com mais de 400 dias
@@ -55,11 +63,11 @@ No terminal do contêiner (Coolify): `npm run admin:create`. Pergunta nome, e-ma
 
 ## Conta de demonstração
 
-No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Pet Shop Demonstração" (identificador `demo`,
+No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Focinho Feliz Pet Shop", com nome, paleta, logo, símbolo e favicon próprios (identificador `demo`,
 dono `demo@agendaflui.com.br`) com equipe, 40 clientes, agenda de 4 semanas atrás a 2 semanas à frente, fidelidade,
-banners, loja e vouchers. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
+banners e loja. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
 Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`. A senha do dono é gerada na hora e aparece
-**uma única vez** no terminal, junto do link de entrada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) e nunca troca a senha
+**uma única vez** no terminal, junto do link de entrada e do link para clientes. Se o e-mail do dono (ou de alguém da equipe) já for ativo em outra loja, o comando para com uma mensagem clara e não grava nada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) reaplica a marca, os termos e os pedidos se estiverem diferentes, e nunca troca a senha
 (para trocá-la, use a redefinição de senha do painel). O gerente e os profissionais têm e-mails `@demo.agendaflui.com.br`
 com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
 

@@ -32,7 +32,7 @@ const SITUACOES_DE_PEDIDO = [
   { id: 'cancelados', label: 'Cancelados e vencidos', status: 'closed' },
 ] as const
 
-const ENTREGA_EM_TEXTO = { PICKUP: 'Retirada', SHIPPING: 'Entrega', NONE: 'Sem entrega' } as const
+const ENTREGA_EM_TEXTO = { PICKUP: 'Retirada', SHIPPING: 'Entrega' } as const
 
 const SITUACOES = [
   { id: '', label: 'Todos os produtos', situation: undefined },

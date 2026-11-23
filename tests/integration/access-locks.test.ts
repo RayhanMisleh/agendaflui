@@ -50,7 +50,8 @@ async function membroComToken() {
   const user = await makeUser({ password: 'senha-antiga-1' })
   const outra = await makeBusiness()
   const m1 = await makeMembership(businessId, user.id, 'PROFESSIONAL')
-  await makeMembership(outra.id, user.id, 'MANAGER')
+  // O vínculo de outra loja é histórico (desativado): um login tem um vínculo ativo só, mas os tokens dele ainda caem.
+  await prisma.membership.create({ data: { businessId: outra.id, userId: user.id, role: 'MANAGER', active: false } })
   const token = randomUUID()
   await prisma.userToken.create({ data: { userId: user.id, purpose: 'PASSWORD_RESET', tokenHash: hashToken(token), expiresAt: addMinutes(AGORA, 60) } })
   return { user, membership: m1, token }

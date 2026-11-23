@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
+import { env } from '@/server/env'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makePlatformAdmin, makeUser } from '../setup/factories'
 
@@ -48,7 +49,6 @@ function formulario(extra: Record<string, string> = {}): FormData {
     club: 'Clube Pata',
     loyalty: 'on',
     store: 'on',
-    vouchers: 'on',
     slotStepMin: '30',
     minLeadMin: '90',
     maxAdvanceDays: '45',
@@ -91,7 +91,8 @@ describe('criar conta pela ação do assistente', () => {
     expect(estado.ok).toBe(true)
     const r = estado.values.result
     expect(r?.pendencias).toEqual([])
-    expect(r?.entryUrl).toContain('/entrar/pata-viva')
+    expect(r).not.toHaveProperty('entryUrl')
+    expect(r?.customerLinkUrl).toBe(`${env.APP_WEB_URL}/pata-viva`)
 
     const conta = await prisma.business.findUniqueOrThrow({
       where: { slug: 'pata-viva' },
@@ -105,7 +106,7 @@ describe('criar conta pela ação do assistente', () => {
     expect(conta.settings?.termClub).toBe('Clube Pata')
     expect(conta.settings?.slotStepMin).toBe(30)
     expect(conta.settings?.bufferMin).toBe(10)
-    expect(conta.modules).toMatchObject({ loyalty: true, banners: false, store: true, vouchers: true })
+    expect(conta.modules).toMatchObject({ loyalty: true, banners: false, store: true })
     expect(conta.memberships.map((m) => [m.role, m.user.email])).toEqual([['OWNER', 'marina@exemplo.test']])
     expect(envio.send).toHaveBeenCalledTimes(1)
   })
@@ -127,12 +128,11 @@ describe('criar conta pela ação do assistente', () => {
     expect(firstStepWithError(estado.fields)).toBe(0)
   })
 
-  test('erro de outra etapa (cor, termo, regra, módulos) é recusado ANTES de criar a conta, no campo certo', async () => {
+  test('erro de outra etapa (cor, termo, regra) é recusado ANTES de criar a conta, no campo certo', async () => {
     const casos: Array<[Record<string, string>, string]> = [
       [{ primary: 'vermelho' }, 'primary'],
       [{ club: '' }, 'club'],
       [{ slotStepMin: '7' }, 'slotStepMin'],
-      [{ loyalty: '__ausente__', store: '__ausente__', vouchers: 'on' }, 'vouchers'],
       [{ ownerEmail: 'sem-arroba' }, 'ownerEmail'],
     ]
     for (const [extra, campo] of casos) {

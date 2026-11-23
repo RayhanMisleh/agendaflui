@@ -107,7 +107,7 @@ describe('quem pode chamar', () => {
         () => updateBrand(a, biz.id, 1, brand),
         () => setBrandImage(a, biz.id, 'logo', null),
         () => updateTerms(a, biz.id, termos),
-        () => updateModules(a, biz.id, { loyalty: false, banners: false, store: false, vouchers: false }),
+        () => updateModules(a, biz.id, { loyalty: false, banners: false, store: false }),
         () => updateRulesAsAdmin(a, biz.id, { bufferMin: 5 }),
         () => updateNotificationsAsAdmin(a, biz.id, avisosVazios),
       ]
@@ -151,7 +151,7 @@ describe('getCustomization', () => {
       pointsPlural: 'Pontos',
       club: 'Clube',
     })
-    expect(r.modules).toEqual({ loyalty: false, banners: false, store: false, vouchers: false })
+    expect(r.modules).toEqual({ loyalty: false, banners: false, store: false })
     expect(r.rules).toMatchObject({ slotStepMin: 15, minLeadMin: 60, autoConfirm: true })
     expect(r.timeZone).toBe('America/Sao_Paulo')
     expect(r.notifications.APPOINTMENT_CONFIRMED).toEqual({ email: true, push: true })
@@ -333,40 +333,28 @@ describe('updateTerms', () => {
 })
 
 describe('updateModules', () => {
-  test('vouchers sem loja falha; loja sem vouchers e os dois ligados passam', async () => {
-    const e = await domainError(updateModules(actor, biz.id, { loyalty: false, banners: false, store: false, vouchers: true }))
-    expect(e.code).toBe('validation')
-    expect(e.message).toContain('Loja')
-    expect(e.fields?.['vouchers']).toBeTruthy()
-    expect(await updateModules(actor, biz.id, { loyalty: true, banners: false, store: true, vouchers: false })).toEqual({
-      loyalty: true,
-      banners: false,
-      store: true,
-      vouchers: false,
-    })
-    expect((await updateModules(actor, biz.id, { loyalty: true, banners: true, store: true, vouchers: true })).vouchers).toBe(true)
+  test('liga e desliga cada módulo e devolve o estado gravado', async () => {
+    expect(await updateModules(actor, biz.id, { loyalty: true, banners: false, store: true })).toEqual({ loyalty: true, banners: false, store: true })
+    expect(await updateModules(actor, biz.id, { loyalty: false, banners: true, store: false })).toEqual({ loyalty: false, banners: true, store: false })
+    expect((await getBusinessDetail(actor, biz.id)).modules).toMatchObject({ loyalty: false, banners: true, store: false })
   })
 
-  test('desligar a loja com vouchers ligado falha e mantém o que estava', async () => {
-    await updateModules(actor, biz.id, { loyalty: false, banners: false, store: true, vouchers: true })
-    const e = await domainError(updateModules(actor, biz.id, { loyalty: false, banners: false, store: false, vouchers: true }))
+  test('módulo que não existe no corpo é recusado', async () => {
+    const e = await domainError(updateModules(actor, biz.id, { loyalty: false, banners: false, store: false, promos: true } as never))
     expect(e.code).toBe('validation')
-    expect(e.message).toMatch(/Vouchers/)
-    const atual = await getBusinessDetail(actor, biz.id)
-    expect(atual.modules).toMatchObject({ store: true, vouchers: true })
   })
 
   test('audita de e para', async () => {
-    await updateModules(actor, biz.id, { loyalty: true, banners: false, store: false, vouchers: false })
+    await updateModules(actor, biz.id, { loyalty: true, banners: false, store: false })
     const [log] = await auditoria('modules.updated')
     expect(log?.metadata).toMatchObject({
-      from: { loyalty: false, banners: false, store: false, vouchers: false },
-      to: { loyalty: true, banners: false, store: false, vouchers: false },
+      from: { loyalty: false, banners: false, store: false },
+      to: { loyalty: true, banners: false, store: false },
     })
   })
 
   test('valor que não é booleano é recusado', async () => {
-    const e = await domainError(updateModules(actor, biz.id, { loyalty: 'sim', banners: false, store: false, vouchers: false } as never))
+    const e = await domainError(updateModules(actor, biz.id, { loyalty: 'sim', banners: false, store: false } as never))
     expect(e.code).toBe('validation')
   })
 })
@@ -628,7 +616,7 @@ describe('admin desativado com o objeto de ator antigo', () => {
     const chamadas = [
       () => updateBrand(actor, biz.id, 1, { ...brand, displayName: 'Outro Nome' }),
       () => updateTerms(actor, biz.id, { ...termos, club: 'Clube Novo' }),
-      () => updateModules(actor, biz.id, { loyalty: true, banners: false, store: false, vouchers: false }),
+      () => updateModules(actor, biz.id, { loyalty: true, banners: false, store: false }),
       () => updateRulesAsAdmin(actor, biz.id, { bufferMin: 5 }),
       () => updateNotificationsAsAdmin(actor, biz.id, { APPOINTMENT_CONFIRMED: { email: false, push: false } } as never),
       () => setBrandImage(actor, biz.id, 'logo', null),

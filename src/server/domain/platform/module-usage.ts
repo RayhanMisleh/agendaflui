@@ -7,8 +7,6 @@ export type ModuleUsage = {
   openOrders: number
   /** Resgates de prêmio pedidos e ainda não entregues. */
   pendingRedemptions: number
-  /** Códigos de voucher vendidos e ainda sem baixa nem anulação. */
-  activeVoucherCodes: number
   /** O Mercado Pago tem token e assinatura do webhook gravados. */
   mercadoPagoConfigured: boolean
 }
@@ -25,16 +23,14 @@ export async function getModuleUsage(actor: PlatformAdminActor, businessId: stri
   if (!(await prisma.business.findUnique({ where: { id: businessId }, select: { id: true } }))) {
     throw new DomainError('not_found', 'Conta não encontrada.')
   }
-  const [openOrders, pendingRedemptions, activeVoucherCodes, integration] = await Promise.all([
+  const [openOrders, pendingRedemptions, integration] = await Promise.all([
     prisma.order.count({ where: { businessId, status: 'PAID', fulfillmentStatus: { not: 'DELIVERED' } } }),
     prisma.prizeRedemption.count({ where: { businessId, status: 'PENDING' } }),
-    prisma.voucherCode.count({ where: { businessId, status: 'ACTIVE' } }),
     prisma.businessIntegration.findUnique({ where: { businessId }, select: { mpAccessTokenEnc: true, mpWebhookSecretEnc: true } }),
   ])
   return {
     openOrders,
     pendingRedemptions,
-    activeVoucherCodes,
     mercadoPagoConfigured: integration !== null && integration.mpAccessTokenEnc !== null && integration.mpWebhookSecretEnc !== null,
   }
 }

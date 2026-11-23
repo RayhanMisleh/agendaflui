@@ -60,17 +60,17 @@ const casos: Caso[] = [
   { nome: 'concluído com agendamento confirmado', n: loaded({ kind: 'APPOINTMENT_COMPLETED' }), esperado: skip('stale') },
   {
     nome: 'remarcado com o mesmo início envia',
-    n: loaded({ kind: 'APPOINTMENT_RESCHEDULED', payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: null } }),
+    n: loaded({ kind: 'APPOINTMENT_RESCHEDULED', payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: null, audience: null } }),
     esperado: SEND,
   },
   {
     nome: 'remarcado de novo depois (início do payload não é o atual)',
-    n: loaded({ kind: 'APPOINTMENT_RESCHEDULED', payload: { startsAt: iso(min(INICIO, -60)), previousStartsAt: null, reason: null } }),
+    n: loaded({ kind: 'APPOINTMENT_RESCHEDULED', payload: { startsAt: iso(min(INICIO, -60)), previousStartsAt: null, reason: null, audience: null } }),
     esperado: skip('stale'),
   },
   {
     nome: 'remarcado sem início no payload',
-    n: loaded({ kind: 'APPOINTMENT_RESCHEDULED', payload: { startsAt: null, previousStartsAt: null, reason: null } }),
+    n: loaded({ kind: 'APPOINTMENT_RESCHEDULED', payload: { startsAt: null, previousStartsAt: null, reason: null, audience: null } }),
     esperado: skip('stale'),
   },
   {
@@ -88,7 +88,7 @@ const casos: Caso[] = [
     n: loaded({
       kind: 'STAFF_APPOINTMENT_RESCHEDULED',
       recipient: { kind: 'member', id: 'm-1' },
-      payload: { startsAt: iso(min(INICIO, 30)), previousStartsAt: null, reason: null },
+      payload: { startsAt: iso(min(INICIO, 30)), previousStartsAt: null, reason: null, audience: null },
     }),
     esperado: skip('stale'),
   },
@@ -112,7 +112,7 @@ const casos: Caso[] = [
     n: loaded({
       kind: 'STAFF_APPOINTMENT_CANCELED',
       recipient: { kind: 'member', id: 'm-old' },
-      payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: 'moved' },
+      payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: 'moved', audience: null },
     }),
     esperado: SEND,
   },
@@ -121,7 +121,7 @@ const casos: Caso[] = [
     n: loaded({
       kind: 'STAFF_APPOINTMENT_CANCELED',
       recipient: { kind: 'member', id: 'm-1' },
-      payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: 'moved' },
+      payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: 'moved', audience: null },
     }),
     esperado: skip('stale'),
   },
@@ -179,7 +179,7 @@ const casos: Caso[] = [
   },
   {
     nome: 'lembrete dentro da tolerância de 30 minutos envia',
-    n: loaded({ kind: 'APPOINTMENT_REMINDER_1H', scheduledFor: min(AGORA, -30), payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: null } }),
+    n: loaded({ kind: 'APPOINTMENT_REMINDER_1H', scheduledFor: min(AGORA, -30), payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: null, audience: null } }),
     esperado: SEND,
   },
   {
@@ -190,7 +190,7 @@ const casos: Caso[] = [
   { nome: 'lembrete de agendamento cancelado', n: loaded({ kind: 'APPOINTMENT_REMINDER_24H', appointment: { status: 'CANCELED' } }), esperado: skip('stale') },
   {
     nome: 'lembrete de um horário que mudou',
-    n: loaded({ kind: 'APPOINTMENT_REMINDER_24H', payload: { startsAt: iso(min(INICIO, 90)), previousStartsAt: null, reason: null } }),
+    n: loaded({ kind: 'APPOINTMENT_REMINDER_24H', payload: { startsAt: iso(min(INICIO, 90)), previousStartsAt: null, reason: null, audience: null } }),
     esperado: skip('stale'),
   },
   {
@@ -200,7 +200,49 @@ const casos: Caso[] = [
   },
 ]
 
+const observador = (kind: 'STAFF_NEW_APPOINTMENT' | 'STAFF_APPOINTMENT_RESCHEDULED' | 'STAFF_APPOINTMENT_CANCELED', o: Parameters<typeof loaded>[0] = {}) =>
+  loaded({
+    kind,
+    channel: 'PUSH',
+    payload: { startsAt: iso(INICIO), previousStartsAt: null, reason: null, audience: 'watcher' },
+    // O observador não é o profissional do atendimento (m-1).
+    recipient: { kind: 'member', id: 'm-dono', watchesAll: true },
+    ...o,
+  })
+
+const observadores: Caso[] = [
+  { nome: 'observador: novo agendamento ativo envia', n: observador('STAFF_NEW_APPOINTMENT'), esperado: SEND },
+  { nome: 'observador: novo agendamento cancelado depois', n: observador('STAFF_NEW_APPOINTMENT', { appointment: { status: 'CANCELED' } }), esperado: skip('stale') },
+  {
+    nome: 'observador rebaixado a profissional (ou gerente sem a preferência) depois de enfileirar',
+    n: observador('STAFF_NEW_APPOINTMENT', { recipient: { kind: 'member', id: 'm-dono', watchesAll: false } }),
+    esperado: skip('stale'),
+  },
+  {
+    nome: 'observador desativado depois de enfileirar',
+    n: observador('STAFF_NEW_APPOINTMENT', { recipient: { kind: 'member', id: 'm-dono', watchesAll: true, active: false } }),
+    esperado: skip('recipient_gone'),
+  },
+  { nome: 'observador: remarcação com o mesmo início envia', n: observador('STAFF_APPOINTMENT_RESCHEDULED'), esperado: SEND },
+  {
+    nome: 'observador: remarcação com início desatualizado',
+    n: observador('STAFF_APPOINTMENT_RESCHEDULED', { payload: { startsAt: iso(min(INICIO, 30)), previousStartsAt: null, reason: null, audience: 'watcher' } }),
+    esperado: skip('stale'),
+  },
+  { nome: 'observador: cancelamento só com agendamento cancelado', n: observador('STAFF_APPOINTMENT_CANCELED'), esperado: skip('stale') },
+  { nome: 'observador: cancelamento com agendamento cancelado envia', n: observador('STAFF_APPOINTMENT_CANCELED', { appointment: { status: 'CANCELED' } }), esperado: SEND },
+  {
+    nome: 'sem a marca de observador, o profissional segue valendo só para quem é o profissional',
+    n: loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', id: 'm-dono', watchesAll: true } }),
+    esperado: skip('stale'),
+  },
+]
+
 describe('decide', () => {
+  test.each(observadores)('$nome', ({ n, esperado }) => {
+    expect(decide(n, AGORA)).toEqual(esperado)
+  })
+
   test.each(casos)('$nome', ({ n, esperado, now }) => {
     expect(decide(n, now ?? AGORA)).toEqual(esperado)
   })

@@ -2,7 +2,7 @@
 import Link from 'next/link'
 import { useActionState } from 'react'
 import { ArrowRight, DoorOpen } from 'lucide-react'
-import { Button, CopyButton, DataList, LinkButton, StatusDot, businessStatusDot } from '@/ui/components'
+import { Button, DataList, LinkButton, StatusDot, businessStatusDot } from '@/ui/components'
 import type { BusinessStatusKey, DataColumn } from '@/ui/components'
 import type { FormState } from '@/app/_lib/form-state'
 import { entrarComo } from './actions'
@@ -13,7 +13,6 @@ export type ContaLinha = {
   slug: string
   status: BusinessStatusKey
   ownerName: string | null
-  entrada: string
 }
 
 type EntrarState = FormState<{ businessId: string }>
@@ -59,16 +58,6 @@ const COLUNAS: DataColumn<ContaLinha>[] = [
   },
   { key: 'situacao', header: 'Situação', nowrap: true, cell: (c) => <StatusDot {...businessStatusDot(c.status)} /> },
   { key: 'dono', header: 'Dono', cell: (c) => c.ownerName ?? 'Sem dono ativo' },
-  {
-    key: 'entrada',
-    header: 'Link de entrada',
-    cell: (c) => (
-      <span className="af-entrylink">
-        <span className="af-entrylink__url">{c.entrada}</span>
-        <CopyButton text={c.entrada} label={`Copiar link de entrada de ${c.name}`} />
-      </span>
-    ),
-  },
   {
     key: 'acoes',
     header: <span className="af-sr">Ações</span>,

@@ -428,7 +428,6 @@ describe('seed de demonstração', () => {
     SEED_ADMIN_EMAIL: 'admin@agendaflui.localhost',
     SEED_ADMIN_PASSWORD: 'senha-do-admin-demo',
     SEED_USER_PASSWORD: 'senha-dos-usuarios-demo',
-    SEED_MULTI_EMAIL: 'multi@agendaflui.localhost',
   }
   // Quarta-feira, 12:00 em São Paulo.
   const NOW = new Date('2026-11-18T15:00:00Z')

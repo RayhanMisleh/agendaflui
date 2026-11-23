@@ -1,6 +1,7 @@
 import 'server-only'
 import type { Actor } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
+import { customerLinkUrl } from '@/server/customer-link'
 import { issueInvite, INVITE_TTL_DAYS } from '@/server/auth/invites'
 import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
@@ -8,6 +9,7 @@ import { Prisma } from '@/server/db/generated/client'
 import type { BusinessStatus } from '@/server/db/generated/client'
 import { normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
 import { DomainError, isUniqueViolation, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
+import { exigirSemOutraLoja, marcarEnvio, outraLoja, violouUmaLoja } from '@/server/domain/platform/access-core'
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
@@ -26,7 +28,6 @@ export type BusinessRow = {
   status: BusinessStatus
   createdAt: Date
   ownerName: string | null
-  entryUrl: string
 }
 
 export type BusinessDetail = BusinessRow & {
@@ -36,6 +37,8 @@ export type BusinessDetail = BusinessRow & {
   contactPhone: string | null
   timeZone: string
   modules: Modules
+  /** O link que a loja passa aos clientes (`<APP_WEB_URL>/<slug>`). */
+  customerLinkUrl: string
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -49,7 +52,6 @@ const SLUGS_RESERVADOS: readonly string[] = [
   'arquivos',
   'suporte',
   'definir-senha',
-  'escolher-conta',
   'admin',
   'www',
 ]
@@ -188,8 +190,6 @@ function idValido(id: string): string {
   return id
 }
 
-const entryUrlOf = (slug: string): string => areaLink('painel', `/entrar/${slug}`)
-
 const SELECAO_LINHA = {
   id: true,
   slug: true,
@@ -214,7 +214,6 @@ function paraLinha(b: LinhaBruta): BusinessRow {
     status: b.status,
     createdAt: b.createdAt,
     ownerName: b.memberships[0]?.user.name ?? null,
-    entryUrl: entryUrlOf(b.slug),
   }
 }
 
@@ -225,7 +224,7 @@ const SELECAO_DETALHE = {
   email: true,
   phone: true,
   timezone: true,
-  modules: { select: { loyalty: true, banners: true, store: true, vouchers: true } },
+  modules: { select: { loyalty: true, banners: true, store: true } },
 } satisfies Prisma.BusinessSelect
 
 type DetalheBruto = Prisma.BusinessGetPayload<{ select: typeof SELECAO_DETALHE }>
@@ -238,7 +237,8 @@ function paraDetalhe(b: DetalheBruto): BusinessDetail {
     contactEmail: b.email,
     contactPhone: b.phone,
     timeZone: b.timezone,
-    modules: b.modules ?? { loyalty: false, banners: false, store: false, vouchers: false },
+    modules: b.modules ?? { loyalty: false, banners: false, store: false },
+    customerLinkUrl: customerLinkUrl(b.slug),
   }
 }
 
@@ -366,7 +366,7 @@ export async function getBusinessDetail(actor: PlatformAdminActor, id: string): 
   return lerDetalhe(idValido(id))
 }
 
-type OwnerMail = { to: string; ownerName: string; businessName: string; slug: string; token: string | null }
+type OwnerMail = { to: string; ownerName: string; businessName: string; token: string | null }
 
 /** Envia o e-mail do dono depois do commit. Falha ou falta de canal não desfaz nada: o retorno diz se saiu. */
 async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
@@ -378,7 +378,7 @@ async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
   try {
     const mail =
       m.token === null
-        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: entryUrlOf(m.slug) })
+        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: areaLink('painel', '/entrar') })
         : renderOwnerInvite({
             ownerName: m.ownerName,
             businessName: m.businessName,
@@ -452,23 +452,30 @@ export async function createBusiness(
             throw err
           }
         }
-        await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' } })
+        await exigirSemOutraLoja(tx, usuario.id, conta.id, 'owner.email')
+        let vinculo: { id: string }
+        try {
+          vinculo = await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' }, select: { id: true } })
+        } catch (err) {
+          if (violouUmaLoja(err)) throw outraLoja('owner.email')
+          throw err
+        }
         const convite = !semSenha ? null : await issueInvite(tx, usuario.id, now)
         await auditar(tx, actor, 'business.created', conta.id, {
           slug: i.slug,
           ownerUserId: usuario.id,
           ownerExisting: existente,
         })
-        return { businessId: conta.id, userId: usuario.id, ownerName: usuario.name, existing: existente, token: convite?.token ?? null }
+        return { businessId: conta.id, membershipId: vinculo.id, userId: usuario.id, ownerName: usuario.name, existing: existente, token: convite?.token ?? null }
       })
       const business = await lerDetalhe(feito.businessId)
       const emailSent = await enviarEmailDoDono({
         to: i.owner.email,
         ownerName: feito.ownerName,
         businessName: business.name,
-        slug: business.slug,
         token: feito.token,
       })
+      await marcarEnvio(feito.membershipId, emailSent, now)
       return { business, owner: { userId: feito.userId, existing: feito.existing }, emailSent }
     } catch (err) {
       // Outro cadastro criou o mesmo usuário no meio do caminho: uma nova tentativa o encontra e só cria o vínculo.
@@ -483,7 +490,7 @@ export async function createBusiness(
 
 /**
  * Edita os dados da conta. O UPDATE é uma instrução só, condicionada à versão lida: quem grava sobre uma versão antiga
- * recebe `conflict` (`stale_version`) em vez de sobrescrever. Trocar o slug troca o link de entrada (no retorno).
+ * recebe `conflict` (`stale_version`) em vez de sobrescrever.
  */
 export async function updateBusinessData(
   actor: PlatformAdminActor,

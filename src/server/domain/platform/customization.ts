@@ -217,31 +217,24 @@ const modulosSchema = z.strictObject({
   loyalty: z.boolean('Informe ligado ou desligado.'),
   banners: z.boolean('Informe ligado ou desligado.'),
   store: z.boolean('Informe ligado ou desligado.'),
-  vouchers: z.boolean('Informe ligado ou desligado.'),
 })
 
-const MODULOS_PADRAO: Modules = { loyalty: false, banners: false, store: false, vouchers: false }
+const MODULOS_PADRAO: Modules = { loyalty: false, banners: false, store: false }
 
-const MSG_VOUCHERS = 'Vouchers exigem a Loja ligada, porque são vendidos como produto. Ligue a Loja ou desligue Vouchers.'
-
-/** Vouchers são vendidos dentro de um pedido da Loja: um não vive sem o outro. */
 export async function updateModules(actor: PlatformAdminActor, businessId: string, input: Modules): Promise<Modules> {
   exigirAdmin(actor)
   idValido(businessId)
   const i = parse(modulosSchema, input)
-  if (i.vouchers && !i.store) {
-    throw new DomainError('validation', MSG_VOUCHERS, { fields: { vouchers: MSG_VOUCHERS, store: MSG_VOUCHERS } })
-  }
   return prisma.$transaction(async (tx) => {
     await requireActiveAdmin(tx, actor)
     orNotFound(await tx.business.findUnique({ where: { id: businessId }, select: { id: true } }), 'Conta')
-    const antes = (await tx.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true, vouchers: true } })) ?? MODULOS_PADRAO
+    const antes = (await tx.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true } })) ?? MODULOS_PADRAO
     const mudou = (Object.keys(i) as (keyof Modules)[]).some((k) => i[k] !== antes[k])
     const depois = await tx.businessModules.upsert({
       where: { businessId },
       create: { businessId, ...i },
       update: mudou ? { ...i, version: { increment: 1 } } : i,
-      select: { loyalty: true, banners: true, store: true, vouchers: true },
+      select: { loyalty: true, banners: true, store: true },
     })
     await auditar(tx, actor, 'modules.updated', businessId, { from: antes, to: depois })
     return depois
@@ -261,7 +254,6 @@ export function validateAccountSetup(input: { brand: BrandInput; terms: Terms; m
   if (!termos.success) Object.assign(erros, zodFields(termos.error, { perUnknownKey: true }))
   const modulos = modulosSchema.safeParse(input.modules)
   if (!modulos.success) Object.assign(erros, zodFields(modulos.error, { perUnknownKey: true }))
-  else if (modulos.data.vouchers && !modulos.data.store) Object.assign(erros, { vouchers: MSG_VOUCHERS, store: MSG_VOUCHERS })
   try {
     parseSchedulingRules(input.rules)
   } catch (e) {
@@ -326,7 +318,7 @@ export async function getCustomization(
   const [brand, settings, modules, rules, notifications] = await Promise.all([
     lerMarca(businessId),
     prisma.businessSettings.findUnique({ where: { businessId }, select: SELECAO_TERMOS }),
-    prisma.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true, vouchers: true } }),
+    prisma.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true } }),
     getSchedulingRules(ctx),
     getNotificationSettings(ctx),
   ])

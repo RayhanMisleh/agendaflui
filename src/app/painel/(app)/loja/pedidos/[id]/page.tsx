@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { fulfillmentSteps } from '@/server/domain/store/fulfillment'
@@ -10,15 +9,12 @@ import type { OrderAttention, OrderView } from '@/server/domain/store/orders'
 import { listOrderPayments } from '@/server/domain/store/payments'
 import type { OrderPaymentView } from '@/server/domain/store/payments'
 import { canSimulatePayment } from '@/server/domain/store/simulate'
-import { isModuleOn } from '@/server/domain/modules'
-import { listCodesOfOrder } from '@/server/domain/vouchers/codes'
-import type { VoucherCodeView } from '@/server/domain/vouchers/codes'
 import { ATTENTION_LABELS, Card, LinkButton, OrderStatusBadge } from '@/ui/components'
 import { formatMoney } from '@/ui/format'
 import { PainelFrame } from '../../../PainelFrame'
 import { requirePainelModule } from '../../../_lib/modulo'
-import { SITUACAO_DO_CODIGO } from '../../../vouchers/situacao'
 import { PedidoAcoes } from '../PedidoAcoes'
+import { ItensDoPedido, PagamentosDoPedido } from './PedidoTabelas'
 
 export const metadata: Metadata = { title: 'Pedido | Agenda Flui' }
 
@@ -31,7 +27,7 @@ const ATENCAO: Record<OrderAttention, string> = {
   double_payment:
     'Pagamento em dobro: estorne no Mercado Pago. O pedido já estava pago (ou foi cancelado depois de pago) e chegou outro pagamento aprovado. Confira os pagamentos abaixo e devolva o que passou do valor do pedido no painel do Mercado Pago.',
   payment_reversed:
-    'O pagamento foi devolvido ou contestado depois de a entrega começar ou de um voucher ser usado no balcão, então esses itens não voltaram ao estoque. Confira com o cliente o que ele recebeu e recupere o que for devido.',
+    'O pagamento foi devolvido ou contestado depois de a entrega começar, então esses itens não voltaram ao estoque. Confira com o cliente o que ele recebeu e recupere o que for devido.',
 }
 
 const SITUACAO_DO_PAGAMENTO: Record<OrderPaymentView['status'], string> = {
@@ -69,9 +65,6 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     if (err instanceof DomainError && err.code === 'not_found') notFound()
     throw err
   }
-  // Códigos de voucher: só com o módulo Vouchers ligado e a permissão de gerenciá-lo.
-  const temVoucher = pedido.items.some((i) => i.kind === 'voucher')
-  const codigos: VoucherCodeView[] = temVoucher && can(ctx.actor, 'manage_vouchers') && (await isModuleOn(ctx.db, ctx.businessId, 'vouchers')) ? await listCodesOfOrder(ctx, id) : []
   const numero = `#${pedido.number}`
   const paga = pedido.status === 'PAID'
   const passos = paga ? fulfillmentSteps(pedido.deliveryMethod, pedido.fulfillmentStatus) : { next: null, back: null }
@@ -118,85 +111,22 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
           <h2 id="pedido-itens" className="af-section__title">
             Itens
           </h2>
-          <table className="af-ordertable">
-            <thead>
-              <tr>
-                <th scope="col">Item</th>
-                <th scope="col" className="af-col--end">
-                  Preço da compra
-                </th>
-                <th scope="col" className="af-col--end">
-                  Qtd.
-                </th>
-                <th scope="col" className="af-col--end">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedido.items.map((i) => (
-                <tr key={`${i.kind}-${i.id}`}>
-                  <td>{i.name}</td>
-                  <td className="af-col--end af-tabular">{formatMoney(i.unitPriceCents)}</td>
-                  <td className="af-col--end af-tabular">{i.quantity}</td>
-                  <td className="af-col--end af-tabular">{formatMoney(i.totalCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row" colSpan={3}>
-                  Itens
-                </th>
-                <td className="af-col--end af-tabular">{formatMoney(pedido.itemsCents)}</td>
-              </tr>
-              <tr>
-                <th scope="row" colSpan={3}>
-                  Frete
-                </th>
-                <td className="af-col--end af-tabular">{formatMoney(pedido.shippingCents)}</td>
-              </tr>
-              <tr>
-                <th scope="row" colSpan={3}>
-                  Total do pedido
-                </th>
-                <td className="af-col--end af-tabular">{formatMoney(pedido.totalCents)}</td>
-              </tr>
-            </tfoot>
-          </table>
+          <ItensDoPedido itens={pedido.items.map((i) => ({ key: `${i.kind}-${i.id}`, name: i.name, unitPriceCents: i.unitPriceCents, quantity: i.quantity, totalCents: i.totalCents }))} />
+          <dl className="af-ordertotals">
+            <div>
+              <dt>Itens</dt>
+              <dd className="af-tabular">{formatMoney(pedido.itemsCents)}</dd>
+            </div>
+            <div>
+              <dt>Frete</dt>
+              <dd className="af-tabular">{formatMoney(pedido.shippingCents)}</dd>
+            </div>
+            <div className="af-ordertotals__sum">
+              <dt>Total do pedido</dt>
+              <dd className="af-tabular">{formatMoney(pedido.totalCents)}</dd>
+            </div>
+          </dl>
         </Card>
-
-        {temVoucher ? (
-          <Card as="section" aria-labelledby="pedido-vouchers" className="af-profile">
-            <h2 id="pedido-vouchers" className="af-section__title">
-              Vouchers do pedido
-            </h2>
-            {codigos.length === 0 ? (
-              <p className="af-section__help">Os códigos aparecem aqui quando o pagamento é aprovado.</p>
-            ) : (
-              <table className="af-ordertable">
-                <thead>
-                  <tr>
-                    <th scope="col">Código</th>
-                    <th scope="col">Voucher</th>
-                    <th scope="col">Validade</th>
-                    <th scope="col">Situação</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {codigos.map((c) => (
-                    <tr key={c.id}>
-                      <td className="af-codetext">{c.code}</td>
-                      <td>{c.voucher.name}</td>
-                      <td>{c.expiresLabel ?? 'Sem validade'}</td>
-                      <td>{SITUACAO_DO_CODIGO[c.status].text}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Card>
-        ) : null}
 
         <Card as="section" aria-labelledby="pedido-cliente" className="af-profile">
           <h2 id="pedido-cliente" className="af-section__title">
@@ -256,28 +186,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
           {pagamentos.length === 0 ? (
             <p className="af-section__help">Nenhum pagamento do Mercado Pago chegou para este pedido.</p>
           ) : (
-            <table className="af-ordertable">
-              <thead>
-                <tr>
-                  <th scope="col">Situação</th>
-                  <th scope="col" className="af-col--end">
-                    Valor
-                  </th>
-                  <th scope="col">Identificador no Mercado Pago</th>
-                  <th scope="col">Atualizado em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagamentos.map((p) => (
-                  <tr key={p.providerPaymentId}>
-                    <td>{SITUACAO_DO_PAGAMENTO[p.status]}</td>
-                    <td className="af-col--end af-tabular">{formatMoney(p.amountCents)}</td>
-                    <td className="af-tabular">{p.providerPaymentId}</td>
-                    <td>{p.updatedLabel}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <PagamentosDoPedido pagamentos={pagamentos.map((p) => ({ id: p.providerPaymentId, situacao: SITUACAO_DO_PAGAMENTO[p.status], amountCents: p.amountCents, updatedLabel: p.updatedLabel }))} />
           )}
         </Card>
 

@@ -3,6 +3,8 @@ import { can } from '@/server/auth/capabilities'
 import { DomainError, authorize } from '@/server/domain/errors'
 import { listAccess } from '@/server/domain/team/access'
 import type { TeamMember } from '@/server/domain/team/access'
+import { accessStatus } from '@/server/domain/team/access-status'
+import type { AccessStatus } from '@/server/domain/team/access-status'
 import { getProfessional, listProfessionals, ownProfessionalId } from '@/server/domain/team/professionals'
 import type { ProfessionalView } from '@/server/domain/team/professionals'
 import { listTimeBlocks } from '@/server/domain/team/time-blocks'
@@ -68,7 +70,7 @@ export async function getTeamSheet(ctx: TenantContext, id: string): Promise<Team
 export type TeamRow = {
   professional: ProfessionalView
   serviceNames: string[]
-  access: { role: TeamMember['role']; active: boolean; pending: boolean } | null
+  access: { role: TeamMember['role']; status: AccessStatus } | null
 }
 
 /** A lista da equipe: cada profissional com os serviços que faz e o papel do acesso ligado. Só para quem gerencia a equipe. */
@@ -85,7 +87,7 @@ export async function listTeamOverview(ctx: TenantContext): Promise<TeamRow[]> {
     return {
       professional,
       serviceNames: professional.serviceIds.flatMap((id) => nomes.get(id) ?? []),
-      access: acesso ? { role: acesso.role, active: acesso.active, pending: !acesso.hasPassword } : null,
+      access: acesso ? { role: acesso.role, status: accessStatus(acesso) } : null,
     }
   })
 }

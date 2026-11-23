@@ -62,7 +62,7 @@ describe('login condicional ao hash conferido', () => {
       })
     }) as never)
     await expect(
-      loginStaff(conta.id, { email: 'bia@exemplo.test', password: 'senha-antiga-1' }, { ip: null, userAgent: null }, new Date()),
+      loginStaff({ email: 'bia@exemplo.test', password: 'senha-antiga-1' }, { ip: null, userAgent: null }, new Date()),
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(await prisma.refreshToken.count({ where: { businessId: conta.id } })).toBe(0)
   })
@@ -73,7 +73,7 @@ describe('login condicional ao hash conferido', () => {
     await makeMembership(conta.id, user.id, 'OWNER')
     const admin = await makePlatformAdmin({ email: 'adm@exemplo.test', password: 'senha-antiga-1' })
     expect((await loginUser({ email: 'ok@exemplo.test', password: 'senha-antiga-1' })).session.user.id).toBe(user.id)
-    await loginStaff(conta.id, { email: 'ok@exemplo.test', password: 'senha-antiga-1' }, { ip: null, userAgent: null }, new Date())
+    await loginStaff({ email: 'ok@exemplo.test', password: 'senha-antiga-1' }, { ip: null, userAgent: null }, new Date())
     await loginPlatformAdmin({ email: 'adm@exemplo.test', password: 'senha-antiga-1' })
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).lastLoginAt).not.toBeNull()
     expect((await prisma.platformAdmin.findUniqueOrThrow({ where: { id: admin.id } })).lastLoginAt).not.toBeNull()

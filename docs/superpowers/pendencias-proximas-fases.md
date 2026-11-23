@@ -8,19 +8,19 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
 - Painel dev: lista de contas, aba Módulos, aba Integrações, "tentar de novo" em /sistema, ações destrutivas (a confirmação exige JavaScript).
 - Criar conta, convite, definir senha e entrar; "entrar como", faixa de suporte (contraste) e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
 - Agenda: arrastar a ficha (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, envio da foto da equipe e do logo, exportação do CSV de relatórios.
-- Módulos: telas de Fidelidade, Banners, Loja e Vouchers, envio de imagens (também sem JavaScript), pedido com "Simular pagamento aprovado", baixa de código de voucher.
+- Módulos: telas de Fidelidade, Banners e Loja, envio de imagens (também sem JavaScript), pedido com "Simular pagamento aprovado".
 - Entrada do painel do negócio sem JavaScript.
-- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar.
+- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar (`entrada.spec.ts` ainda cita as rotas `/entrar/<slug>` e `/escolher-conta`, removidas).
 
 ## Antes de abrir a loja (Mercado Pago real)
 
 - Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).
-- Sem avisos de e-mail ou push para pedido, pagamento, resgate e código de voucher; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
+- Sem avisos de e-mail ou push para pedido, pagamento, resgate; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
 - Rotação da chave de cifra dos segredos de integração (hoje derivada do `APP_SECRET`).
 
 ## Quando o app chegar
 
-- Rotas `staff/*` dos módulos (pedidos, resgates, baixa de voucher).
+- Rotas `staff/*` dos módulos (pedidos, resgates).
 - `POST /v1/store/orders` deve sempre mandar `Idempotency-Key` (sem ela, dois toques criam dois pedidos); nova cotação entre os toques dá 409 `idempotency_key_reused`.
 - Logout não apaga o aparelho: o app chama `DELETE /v1/me/devices/{token}` antes de sair, ou o logout passa a aceitar `pushToken`.
 - Esquemas de WebView (`capacitor://`, `ionic://`) nas origens do CORS.
@@ -56,3 +56,4 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
   - Anel de foco depende do contêiner (papel dentro de capa, `Checkbox` sobre capa); `Dialog` e Esc de filhos a conferir no navegador.
   - "GET / 404" no log quando uma ação redireciona atrás do proxy; `occupancy` do resumo da agenda limitado a 1 por exibição.
   - Para o dono conferir no navegador: todas as telas a 375 px, foco nos diálogos, arrastar a ficha na agenda (mouse, teclado e folha), prévia com cores extremas, envio de foto da equipe e do logo, CSV de relatórios.
+- Vouchers saíram do banco (migração `20261123030000_remove_vouchers`): os arquivos de imagem de parceiros e vouchers já apagados ficam no disco de uploads; limpar à mão no servidor, se quiser o espaço.

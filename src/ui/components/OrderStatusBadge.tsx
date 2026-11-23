@@ -4,7 +4,7 @@ import { cx } from './cx'
 
 export type OrderStatusKey = 'AWAITING_PAYMENT' | 'PAID' | 'CANCELED' | 'EXPIRED'
 export type FulfillmentKey = 'PENDING' | 'READY_FOR_PICKUP' | 'SHIPPED' | 'DELIVERED'
-export type DeliveryMethodKey = 'PICKUP' | 'SHIPPING' | 'NONE'
+export type DeliveryMethodKey = 'PICKUP' | 'SHIPPING'
 export type OrderAttentionKey = 'amount_mismatch' | 'stock_shortfall' | 'payment_reversed' | 'double_payment'
 
 /** O que a equipe precisa ver quando um pedido pede atenção. Sempre texto, nunca só cor. */
@@ -23,7 +23,7 @@ export function orderStatusText(status: OrderStatusKey, fulfillmentStatus: Fulfi
   if (fulfillmentStatus === 'DELIVERED') return 'Entregue'
   if (fulfillmentStatus === 'SHIPPED') return 'Enviado'
   if (fulfillmentStatus === 'READY_FOR_PICKUP') return 'Pronto para retirar'
-  return deliveryMethod === 'SHIPPING' ? 'Pago, a enviar' : deliveryMethod === 'PICKUP' ? 'Pago, a separar' : 'Pago, a entregar'
+  return deliveryMethod === 'SHIPPING' ? 'Pago, a enviar' : 'Pago, a separar'
 }
 
 /** A cor do selo de uma situação (o texto sempre vai junto). */

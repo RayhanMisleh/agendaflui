@@ -28,3 +28,6 @@ export const staffMemberSchema = z.object({
   role: z.enum(['OWNER', 'MANAGER', 'PROFESSIONAL']),
   professionalId: uuid.nullable(),
 })
+
+/** A loja onde a equipe entrou, descoberta pelo vínculo ativo (o app guarda o `slug` para o `X-Business`). */
+export const staffLoginBusinessSchema = z.object({ id: uuid, slug: z.string(), name: z.string() })

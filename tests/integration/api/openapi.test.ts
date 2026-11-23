@@ -98,27 +98,15 @@ describe('manifesto de rotas', () => {
   })
 })
 
-describe('lista de códigos de voucher do cliente', () => {
-  test('o documento descreve cursor, limit e nextCursor', () => {
-    const doc = buildOpenApi() as unknown as Doc
-    const op = objeto(objeto(doc.paths['/v1/me/voucher-codes'])['get'])
-    const nomes = (op.parameters as { name: string }[]).map((p) => p.name)
-    expect(nomes).toEqual(expect.arrayContaining(['cursor', 'limit']))
-    expect(JSON.stringify(op.responses)).toContain('nextCursor')
-  })
-})
-
 describe('rotas de módulo', () => {
-  const PREFIXOS = ['/v1/loyalty', '/v1/banners', '/v1/store', '/v1/vouchers', '/v1/me/addresses', '/v1/me/voucher-codes']
+  const PREFIXOS = ['/v1/loyalty', '/v1/banners', '/v1/store', '/v1/me/addresses']
 
   test('cada rota declara o módulo do seu prefixo', () => {
     const DO_PREFIXO: Record<string, string> = {
       '/v1/loyalty': 'loyalty',
       '/v1/banners': 'banners',
       '/v1/store': 'store',
-      '/v1/vouchers': 'vouchers',
       '/v1/me/addresses': 'store',
-      '/v1/me/voucher-codes': 'vouchers',
     }
     for (const def of routeDefinitions()) {
       for (const [prefixo, modulo] of Object.entries(DO_PREFIXO)) {
@@ -330,7 +318,7 @@ describe('documento OpenAPI', () => {
     const esquema = esquemaDaResposta(doc, 'get', '/v1/staff/me', 200)
     const itens = objeto(objeto(objeto(esquema.properties).capabilities).items)
     expect(itens.enum).toEqual([...CAPABILITIES])
-    expect(itens.enum).toEqual(expect.arrayContaining(['manage_loyalty', 'manage_banners', 'manage_store', 'manage_vouchers']))
+    expect(itens.enum).toEqual(expect.arrayContaining(['manage_loyalty', 'manage_banners', 'manage_store']))
   })
 
   test('uma operação para cada método de cada rota, com operationId estável derivado de método e caminho', () => {
