@@ -101,8 +101,8 @@ describe('painel do negócio: toda entrada exige uma conta ativa', () => {
     }
   })
 
-  test('toda page.tsx dos quatro módulos chama requirePainelModule do módulo certo, depois de requireTenant', () => {
-    const MODULOS: Record<string, string> = { fidelidade: 'loyalty', banners: 'banners', loja: 'store', vouchers: 'vouchers' }
+  test('toda page.tsx dos três módulos chama requirePainelModule do módulo certo, depois de requireTenant', () => {
+    const MODULOS: Record<string, string> = { fidelidade: 'loyalty', banners: 'banners', loja: 'store' }
     for (const [pasta, modulo] of Object.entries(MODULOS)) {
       const doModulo = todos.filter((f) => rel(f).startsWith(`${pasta}/`) && /\/page\.tsx$/.test(rel(f)))
       expect(doModulo.length, `${pasta} sem páginas`).toBeGreaterThanOrEqual(2)
@@ -120,7 +120,7 @@ describe('painel do negócio: toda entrada exige uma conta ativa', () => {
   })
 
   test('toda route.ts dos módulos (envio de imagem) chama requireTenant e uma função do domínio do módulo, que confere o módulo ligado', () => {
-    const DOMINIOS: Record<string, string> = { fidelidade: 'loyalty', banners: 'banners', loja: 'store', vouchers: 'vouchers' }
+    const DOMINIOS: Record<string, string> = { fidelidade: 'loyalty', banners: 'banners', loja: 'store' }
     for (const [pasta, dominio] of Object.entries(DOMINIOS)) {
       const rotas = todos.filter((f) => rel(f).startsWith(`${pasta}/`) && rel(f).endsWith('/route.ts'))
       expect(rotas.length, `${pasta} sem rotas`).toBeGreaterThan(0)

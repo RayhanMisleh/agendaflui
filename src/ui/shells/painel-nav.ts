@@ -1,4 +1,4 @@
-import { CalendarDays, ChartNoAxesColumn, Gift, House, Images, Scissors, ShoppingBag, Ticket, Settings, UserRound, UserRoundCog, Users } from 'lucide-react'
+import { CalendarDays, ChartNoAxesColumn, Gift, House, Images, Scissors, ShoppingBag, Settings, UserRound, UserRoundCog, Users } from 'lucide-react'
 import type { Capability } from '@/server/auth/capabilities'
 import type { Modules } from '@/shared/modules'
 import type { NavItem } from './nav'
@@ -7,7 +7,7 @@ import type { NavItem } from './nav'
  * Os destinos do painel do negócio para quem tem cada capacidade, na ordem do desenho. O rótulo de Clientes e de
  * Equipe segue os termos da conta ("Tutores", "Tosadores"). Quem só vê os próprios números lê "Meus números", e quem não
  * gerencia as configurações da conta chega ao seu perfil por "Meu perfil" (mesma rota). Os módulos opcionais (Fidelidade,
- * Banners, Loja, Vouchers) entram depois de Serviços, cada um só com o módulo ligado E a capacidade de gerenciá-lo.
+ * Banners, Loja) entram depois de Serviços, cada um só com o módulo ligado E a capacidade de gerenciá-lo.
  */
 export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules; terms: { customerPlural: string; professionalPlural: string } }): NavItem[] {
   const { can, terms, modules } = ctx
@@ -20,7 +20,6 @@ export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules; 
     modules.loyalty && can('manage_loyalty') ? { href: '/fidelidade', label: 'Fidelidade', icon: Gift } : null,
     modules.banners && can('manage_banners') ? { href: '/banners', label: 'Banners', icon: Images } : null,
     modules.store && can('manage_store') ? { href: '/loja', label: 'Loja', icon: ShoppingBag } : null,
-    modules.vouchers && can('manage_vouchers') ? { href: '/vouchers', label: 'Vouchers', icon: Ticket } : null,
     can('view_all_reports')
       ? { href: '/relatorios', label: 'Relatórios', icon: ChartNoAxesColumn }
       : can('view_own_reports')
