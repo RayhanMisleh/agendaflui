@@ -27,7 +27,6 @@ const ENV: SeedEnv = {
   SEED_ADMIN_EMAIL: 'admin@agendaflui.localhost',
   SEED_ADMIN_PASSWORD: 'senha-do-admin-demo',
   SEED_USER_PASSWORD: 'senha-dos-usuarios-demo',
-  SEED_MULTI_EMAIL: 'multi@agendaflui.localhost',
 }
 // Relógio fixo do seed (quarta-feira, 12:00 em São Paulo). A API usa o relógio real: o dia da marcação é sempre futuro.
 const SEED_NOW = new Date('2026-11-18T15:00:00Z')

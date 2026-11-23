@@ -209,8 +209,6 @@ export const DEMO_CONTAS = [
   },
 ] as const
 
-export const DEMO_MULTI_NOME = 'Helena Prado'
-
 /** Admin extra da plataforma, desativado: dá vida à lista de admins do painel dev. A senha dele é aleatória e descartada. */
 export const DEMO_ADMIN_INATIVO = { nome: 'Admin Inativo', email: 'inativo@agendaflui.localhost' } as const
 
@@ -220,6 +218,8 @@ export const DEMO_CONTA_SUSPENSA = {
   nome: 'Estúdio Sol Nascente',
   segmento: 'Estúdio de pilates',
   fuso: 'America/Sao_Paulo',
+  donoNome: 'Helena Prado',
+  donoEmail: `dono.sol@${DOMINIO}`,
 } as const
 
 /** Rotas do uso de API de demonstração: método e caminho como o código grava, peso do tráfego e tempo típico em ms. */

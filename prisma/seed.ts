@@ -11,7 +11,6 @@ import {
   DEMO_CONTAS,
   DEMO_CONTA_SUSPENSA,
   DEMO_EXECUCOES,
-  DEMO_MULTI_NOME,
   DEMO_ROTAS_USO,
   demoEmail, type DemoAgenda,
   type DemoModulos,
@@ -21,7 +20,7 @@ import { planejarAgenda } from './seed-plan'
 import sharp from 'sharp'
 import { addDays, addMinutes, fromEpochMs, startOfUtcHour, todayIn } from '../src/server/time'
 
-/** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD, SEED_MULTI_EMAIL). */
+/** Variáveis lidas pelo seed (SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD, SEED_USER_PASSWORD). */
 export type SeedEnv = Record<string, string | undefined>
 
 const emailSchema = z.string().trim().toLowerCase().pipe(z.email('E-mail inválido.'))
@@ -30,7 +29,6 @@ const envSchema = z.object({
   SEED_ADMIN_EMAIL: emailSchema,
   SEED_ADMIN_PASSWORD: passwordSchema,
   SEED_USER_PASSWORD: passwordSchema,
-  SEED_MULTI_EMAIL: emailSchema,
 })
 
 const PAPEIS: Record<DemoPapel, MembershipRole> = { dono: 'OWNER', gerente: 'MANAGER', profissional: 'PROFESSIONAL' }
@@ -469,8 +467,6 @@ export async function seed(
     })
   }
 
-  const multiId = await usuario(DEMO_MULTI_NOME, env.SEED_MULTI_EMAIL)
-
   for (const conta of DEMO_CONTAS) {
     const negocio = await prisma.business.upsert({
       where: { slug: conta.slug },
@@ -490,7 +486,6 @@ export async function seed(
       const userId = await usuario(conta.equipe[papel], demoEmail(conta.chave, papel))
       await vinculo(negocio.id, userId, PAPEIS[papel])
     }
-    await vinculo(negocio.id, multiId, 'OWNER')
     contas.push({ slug: negocio.slug, name: negocio.name, id: negocio.id })
     if ((await prisma.service.count({ where: { businessId: negocio.id } })) === 0) {
       agenda.push(await semearAgenda(prisma, conta, negocio, admin.id, now))
@@ -510,7 +505,7 @@ export async function seed(
 
   const ator: AdminAtor = { kind: 'platform_admin', adminId: admin.id, name: admin.name }
   await adminInativo(prisma, ator, now)
-  await contaSuspensa(prisma, ator, multiId, now)
+  await contaSuspensa(prisma, ator, await usuario(DEMO_CONTA_SUSPENSA.donoNome, DEMO_CONTA_SUSPENSA.donoEmail), now)
   const patas = contas.find((c) => c.slug === 'patas-e-cia')
   if (patas) await avisoComFalha(prisma, patas.id, now)
   await execucoesDeDemonstracao(prisma, now)

@@ -24,6 +24,7 @@ export const DOMAIN_REASONS = [
   'invalid_quote',
   'invalid_status',
   'invalid_transition',
+  'member_of_other_business',
   'membership_taken',
   'not_failed',
   'not_today',

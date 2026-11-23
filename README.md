@@ -49,7 +49,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 ## Painel do negócio
 
 - Entre em `http://painel.localhost:3000` (ou no link da conta, `/entrar/patas-e-cia`) com os e-mails de
-  demonstração do `.env.example`: dono, gerente e profissional de cada conta, e o usuário das duas contas.
+  demonstração do `.env.example`: dono, gerente e profissional de cada conta.
 - Cada conta de demonstração tem uma semana de agenda variada (concluídos, faltas, cancelado e confirmados),
   um bloqueio, um fechamento (feriado) e um cliente arquivado.
 - O que cada papel vê depende da capacidade: o profissional só abre a própria agenda, os próprios números e

@@ -13,7 +13,6 @@ const ENV: SeedEnv = {
   SEED_ADMIN_EMAIL: 'Admin@AgendaFlui.localhost ',
   SEED_ADMIN_PASSWORD: 'senha-do-admin-demo',
   SEED_USER_PASSWORD: 'senha-dos-usuarios-demo',
-  SEED_MULTI_EMAIL: ' MULTI@agendaflui.localhost',
 }
 
 // Quarta-feira, 12:00 em São Paulo e 11:00 em Manaus.
@@ -40,7 +39,7 @@ describe('contas e acessos', () => {
   test('rodar o seed duas vezes dá as mesmas contagens', async () => {
     await seed(prisma, ENV, { now: NOW })
     const primeira = await contagens()
-    expect(primeira).toEqual({ contas: 3, marcas: 3, modulos: 3, configuracoes: 3, usuarios: 7, vinculos: 9, admins: 2 })
+    expect(primeira).toEqual({ contas: 3, marcas: 3, modulos: 3, configuracoes: 3, usuarios: 7, vinculos: 7, admins: 2 })
     await seed(prisma, ENV, { now: NOW })
     expect(await contagens()).toEqual(primeira)
   })
@@ -65,24 +64,19 @@ describe('contas e acessos', () => {
     expect(navalha.modules).toMatchObject({ loyalty: true, banners: true, store: true })
   })
 
-  test('o usuário de SEED_MULTI_EMAIL é dono das duas contas', async () => {
+  test('cada login da equipe tem um vínculo ativo só, e a conta suspensa tem o próprio dono', async () => {
     await seed(prisma, ENV, { now: NOW })
-    const multi = await prisma.user.findUniqueOrThrow({
-      where: { email: 'multi@agendaflui.localhost' },
-      include: { memberships: { include: { business: true } } },
-    })
-    expect(multi.memberships.map((m) => [m.business.slug, m.role]).sort()).toEqual([
-      ['estudio-sol-nascente', 'OWNER'],
-      ['navalha-de-ouro', 'OWNER'],
-      ['patas-e-cia', 'OWNER'],
-    ])
+    const porUsuario = await prisma.membership.groupBy({ by: ['userId'], where: { active: true }, _count: true })
+    expect(porUsuario.every((u) => u._count === 1)).toBe(true)
+    const donos = await prisma.membership.findMany({ where: { business: { slug: 'estudio-sol-nascente' } }, include: { user: true } })
+    expect(donos.map((m) => [m.role, m.user.email])).toEqual([['OWNER', 'dono.sol@agendaflui.localhost']])
   })
 
   test('cada conta tem dono, gerente e profissional, e e-mails ficam normalizados', async () => {
     await seed(prisma, ENV, { now: NOW })
     for (const slug of ['patas-e-cia', 'navalha-de-ouro']) {
       const vinculos = await prisma.membership.findMany({ where: { business: { slug } } })
-      expect(vinculos.map((m) => m.role).sort()).toEqual(['MANAGER', 'OWNER', 'OWNER', 'PROFESSIONAL'])
+      expect(vinculos.map((m) => m.role).sort()).toEqual(['MANAGER', 'OWNER', 'PROFESSIONAL'])
     }
     const admin = await prisma.platformAdmin.findFirstOrThrow({ where: { active: true } })
     expect(admin.email).toBe('admin@agendaflui.localhost')

@@ -469,6 +469,7 @@ model Membership {
   @@unique([businessId, id])
   @@unique([businessId, userId])
   @@index([userId])
+  // O índice único parcial (user_id) WHERE active vive só na migração: um login da equipe tem no máximo um vínculo ativo.
   @@map("memberships")
 }
 

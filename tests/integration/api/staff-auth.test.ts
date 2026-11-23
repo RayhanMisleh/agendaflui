@@ -165,18 +165,15 @@ describe('entrada da equipe', () => {
     expect(await prisma.refreshToken.count()).toBe(0)
   })
 
-  test('a 6ª tentativa do mesmo e-mail e IP é barrada com 429, e o limite é por conta', async () => {
+  test('a 6ª tentativa do mesmo e-mail e IP é barrada com 429; outro IP não é afetado', async () => {
     const c = await novaConta()
-    const outra = await novaConta()
-    // O mesmo usuário trabalha nas duas contas.
-    const { user } = await membro(c, 'OWNER', 'dono@exemplo.test')
-    await makeMembership(outra.id, user.id, 'OWNER')
+    await membro(c, 'OWNER', 'dono@exemplo.test')
     const ip = '203.0.113.60'
     for (let i = 0; i < 5; i++) expect((await entrar(c, 'dono@exemplo.test', 'errada-errada-1', ip)).status).toBe(401)
     const sexta = await entrar(c, 'dono@exemplo.test', SENHA, ip)
     expect(sexta.status).toBe(429)
     expect(apiError(sexta.json).code).toBe('rate_limited')
-    expect((await entrar(outra, 'dono@exemplo.test', SENHA, ip)).status).toBe(200)
+    expect((await entrar(c, 'dono@exemplo.test', SENHA, '203.0.113.61')).status).toBe(200)
   })
 
   test('conta suspensa: entrar e usar o token dão 503 business_unavailable', async () => {

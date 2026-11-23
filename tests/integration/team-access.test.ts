@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import type { Actor, TenantContext } from '@/server/auth/actor'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
+import { OUTRA_LOJA_MESSAGE } from '@/server/domain/platform/access-core'
 import {
   changeAccessRole,
   inviteAccess,
@@ -442,6 +443,8 @@ describe('sendAccessPasswordReset: limite e conta arquivada', () => {
 })
 
 describe('o que o dono vê do usuário: só o que é da própria conta', () => {
+  // Quem sai de uma loja fica com o vínculo desativado (histórico): só um vínculo ativo por login.
+  const vinculoAntigo = (b: string, userId: string) => prisma.membership.create({ data: { businessId: b, userId, role: 'MANAGER', active: false } })
   const sessaoEm = (userId: string, b: string, quando: Date) =>
     prisma.session.create({ data: { userId, activeBusinessId: b, tokenHash: hashToken(randomUUID()), expiresAt: addMinutes(AGORA, 600), createdAt: quando } })
 
@@ -449,7 +452,7 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     const outra = (await makeBusiness()).id
     const pessoa = await makeUser({ lastLoginAt: new Date('2026-11-16T10:00:00.000Z') })
     const m = await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
-    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await vinculoAntigo(outra, pessoa.id)
     await sessaoEm(pessoa.id, outra, new Date('2026-11-16T10:00:00.000Z'))
     expect((await listAccess(dono)).find((x) => x.membershipId === m.id)?.lastLoginAt).toBeNull()
     await sessaoEm(pessoa.id, businessId, new Date('2026-11-10T08:00:00.000Z'))
@@ -460,7 +463,7 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
   test('convidar quem já existe em outra conta não devolve o último acesso nem a senha de lá', async () => {
     const outra = (await makeBusiness()).id
     const existente = await makeUser({ email: 'carla@exemplo.test', password: 'senha-da-carla-1', lastLoginAt: AGORA })
-    await makeMembership(outra, existente.id, 'OWNER')
+    await vinculoAntigo(outra, existente.id)
     const m = await inviteAccess(dono, { name: 'Carla', email: 'carla@exemplo.test', role: 'PROFESSIONAL' })
     expect(m.lastLoginAt).toBeNull()
     expect((await listAccess(dono)).find((x) => x.userId === existente.id)?.lastLoginAt).toBeNull()
@@ -481,7 +484,7 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     const outra = (await makeBusiness()).id
     const pessoa = await makeUser({ lastLoginAt: AGORA })
     await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
-    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await vinculoAntigo(outra, pessoa.id)
     expect((await listAccess(suporte)).find((x) => x.userId === pessoa.id)?.lastLoginAt).toBeNull()
   })
 
@@ -489,8 +492,60 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     const outra = (await makeBusiness()).id
     const pessoa = await makeUser({ lastLoginAt: AGORA })
     const m = await makeMembership(businessId, pessoa.id, 'PROFESSIONAL')
-    await makeMembership(outra, pessoa.id, 'MANAGER')
+    await vinculoAntigo(outra, pessoa.id)
     expect((await changeAccessRole(dono, m.id, 'MANAGER')).lastLoginAt).toBeNull()
     expect((await setAccessActive(dono, m.id, false)).lastLoginAt).toBeNull()
+  })
+})
+
+describe('uma loja por login da equipe', () => {
+  async function outraLoja(): Promise<string> {
+    return (await makeBusiness({ name: 'Outra Loja' })).id
+  }
+
+  test('convidar quem é ativo em outra loja: conflict member_of_other_business, nada gravado', async () => {
+    const user = await makeUser({ email: 'ana@exemplo.test' })
+    await makeMembership(await outraLoja(), user.id, 'MANAGER')
+    const e = await domainError(inviteAccess(dono, { name: 'Ana', email: 'ana@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect(e.fields).toEqual({ email: OUTRA_LOJA_MESSAGE })
+    expect(await prisma.membership.count({ where: { userId: user.id } })).toBe(1)
+    expect(await prisma.auditLog.count({ where: { action: 'team.member_invited' } })).toBe(0)
+    expect(mailTo('ana@exemplo.test')).toHaveLength(0)
+  })
+
+  test('quem foi desativado na loja A pode ser convidado na B; reativar na A depois é recusado', async () => {
+    const lojaA = await outraLoja()
+    const user = await makeUser({ email: 'bia@exemplo.test' })
+    const antigo = await makeMembership(lojaA, user.id, 'PROFESSIONAL')
+    await prisma.membership.update({ where: { id: antigo.id }, data: { active: false } })
+    await inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'PROFESSIONAL' })
+    expect(await prisma.membership.count({ where: { userId: user.id, active: true } })).toBe(1)
+    const donoA = await ctxWithRole({ id: lojaA }, 'OWNER', { now: AGORA })
+    const e = await domainError(setAccessActive(donoA, antigo.id, true))
+    expect(e).toMatchObject({ code: 'conflict', reason: 'member_of_other_business', message: OUTRA_LOJA_MESSAGE })
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: antigo.id } })).active).toBe(false)
+  })
+
+  test('dois convites simultâneos do mesmo e-mail em lojas diferentes: um passa, o outro é conflict com a mesma frase', async () => {
+    const lojaB = await outraLoja()
+    const donoB = await ctxWithRole({ id: lojaB }, 'OWNER', { now: AGORA })
+    const entrada = { name: 'Caio', email: 'caio@exemplo.test', role: 'PROFESSIONAL' as const }
+    const r = await Promise.allSettled([inviteAccess(dono, entrada), inviteAccess(donoB, entrada)])
+    expect(r.filter((x) => x.status === 'fulfilled')).toHaveLength(1)
+    const recusado = r.find((x) => x.status === 'rejected')
+    expect(recusado?.status === 'rejected' ? recusado.reason : null).toMatchObject({
+      code: 'conflict',
+      reason: 'member_of_other_business',
+      message: OUTRA_LOJA_MESSAGE,
+    })
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: 'caio@exemplo.test' } })
+    expect(await prisma.membership.count({ where: { userId: user.id, active: true } })).toBe(1)
+  })
+
+  test('o banco recusa um segundo vínculo ativo do mesmo usuário', async () => {
+    const user = await makeUser()
+    await makeMembership(businessId, user.id, 'MANAGER')
+    await expect(makeMembership(await outraLoja(), user.id, 'MANAGER')).rejects.toMatchObject({ code: 'P2002' })
   })
 })

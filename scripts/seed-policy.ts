@@ -1,4 +1,4 @@
-const SEED_VARS = ['SEED_ADMIN_EMAIL', 'SEED_ADMIN_PASSWORD', 'SEED_USER_PASSWORD', 'SEED_MULTI_EMAIL'] as const
+const SEED_VARS = ['SEED_ADMIN_EMAIL', 'SEED_ADMIN_PASSWORD', 'SEED_USER_PASSWORD'] as const
 
 export type SeedPlan = { run: true } | { run: false } | { run: false; error: string }
 

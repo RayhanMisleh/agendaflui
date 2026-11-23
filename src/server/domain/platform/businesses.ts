@@ -8,6 +8,7 @@ import { Prisma } from '@/server/db/generated/client'
 import type { BusinessStatus } from '@/server/db/generated/client'
 import { normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
 import { DomainError, isUniqueViolation, orNotFound, parse, z, zodFields } from '@/server/domain/errors'
+import { exigirSemOutraLoja, outraLoja, violouUmaLoja } from '@/server/domain/platform/access-core'
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
@@ -452,7 +453,13 @@ export async function createBusiness(
             throw err
           }
         }
-        await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' } })
+        await exigirSemOutraLoja(tx, usuario.id, conta.id, 'owner.email')
+        try {
+          await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: 'OWNER' } })
+        } catch (err) {
+          if (violouUmaLoja(err)) throw outraLoja('owner.email')
+          throw err
+        }
         const convite = !semSenha ? null : await issueInvite(tx, usuario.id, now)
         await auditar(tx, actor, 'business.created', conta.id, {
           slug: i.slug,

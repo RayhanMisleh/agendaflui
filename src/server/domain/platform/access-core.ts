@@ -97,6 +97,36 @@ const vinculoInexistente = (): DomainError => new DomainError('not_found', 'Aces
 
 class UsuarioCriadoPorOutro extends Error {}
 
+export const OUTRA_LOJA_MESSAGE = 'Este e-mail já faz parte da equipe de outra loja. Cada acesso da equipe pertence a uma loja só.'
+const INDICE_UMA_LOJA = 'memberships_one_active_per_user'
+
+/** O conflito de "uma loja por login da equipe". `campo` (ex.: `email`) leva a frase para o campo do formulário. */
+export function outraLoja(campo?: string): DomainError {
+  return new DomainError('conflict', OUTRA_LOJA_MESSAGE, {
+    reason: 'member_of_other_business',
+    ...(campo ? { fields: { [campo]: OUTRA_LOJA_MESSAGE } } : {}),
+  })
+}
+
+/** O erro é a violação do índice parcial de um vínculo ativo por usuário (e não a de `(business_id, user_id)`)? */
+export function violouUmaLoja(err: unknown): boolean {
+  if (!isUniqueViolation(err)) return false
+  const meta = typeof err === 'object' && err !== null && 'meta' in err ? err.meta : null
+  let texto = ''
+  try {
+    texto = JSON.stringify(meta) ?? ''
+  } catch {
+    texto = ''
+  }
+  return texto.includes(INDICE_UMA_LOJA)
+}
+
+/** Dentro da transação: o usuário já é ativo na equipe de OUTRA conta? Então recusa com a frase única. */
+export async function exigirSemOutraLoja(tx: Prisma.TransactionClient, userId: string, businessId: string, campo?: string): Promise<void> {
+  const outro = await tx.membership.findFirst({ where: { userId, active: true, businessId: { not: businessId } }, select: { id: true } })
+  if (outro) throw outraLoja(campo)
+}
+
 /** Lista todos os vínculos da conta (ativos ou não), do mais antigo ao mais novo. Quem chama já conferiu a permissão. */
 export async function listarEquipe(businessId: string): Promise<TeamMember[]> {
   const linhas = await prisma.membership.findMany({ where: { businessId }, select: SELECAO, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] })
@@ -240,10 +270,12 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
             throw err
           }
         }
+        await exigirSemOutraLoja(tx, usuario.id, conta.id, 'email')
         let vinculo: { id: string }
         try {
           vinculo = await tx.membership.create({ data: { businessId: conta.id, userId: usuario.id, role: i.role }, select: { id: true } })
         } catch (err) {
+          if (violouUmaLoja(err)) throw outraLoja('email')
           if (isUniqueViolation(err)) {
             throw new DomainError('conflict', 'Esta pessoa já faz parte da equipe desta conta. Se o acesso está desativado, reative-o na lista.')
           }
@@ -362,7 +394,13 @@ async function alterarVinculoEm(
       )
     }
   }
-  await tx.membership.update({ where: { id: membershipId }, data: { role: novo.role, active: novo.active } })
+  if (novo.active && !atual.active) await exigirSemOutraLoja(tx, atual.user.id, businessId)
+  try {
+    await tx.membership.update({ where: { id: membershipId }, data: { role: novo.role, active: novo.active } })
+  } catch (err) {
+    if (violouUmaLoja(err)) throw outraLoja()
+    throw err
+  }
 
   const rebaixou = DEGRAU[novo.role] < DEGRAU[atual.role]
   const desativou = atual.active && !novo.active
@@ -373,8 +411,8 @@ async function alterarVinculoEm(
     })
     await revokeMemberTokensIn(tx, businessId, membershipId, now)
   }
-  // Quem fica sem nenhum acesso ativo não define nem redefine a senha por um link antigo.
-  if (desativou && (await tx.membership.count({ where: { userId: atual.user.id, active: true } })) === 0) {
+  // Um login tem no máximo um vínculo ativo: quem é desativado fica sem acesso e não define nem redefine a senha por um link antigo.
+  if (desativou) {
     await tx.userToken.deleteMany({ where: { userId: atual.user.id, purpose: { in: ['INVITE', 'PASSWORD_RESET'] }, usedAt: null } })
   }
   if (novo.role !== atual.role) {
