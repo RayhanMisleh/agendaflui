@@ -22,7 +22,7 @@ import { ClienteForm } from '../ClienteForm'
 import { Cuidados } from '../Cuidados'
 import { PontosAcoes } from './PontosAcoes'
 
-export const metadata: Metadata = { title: 'Ficha | AgendaFlui' }
+export const metadata: Metadata = { title: 'Ficha | Agenda Flui' }
 
 function Atendimento({ a, comProfissional }: { a: AppointmentView; comProfissional: boolean }) {
   return (

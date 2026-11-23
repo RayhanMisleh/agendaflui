@@ -5,7 +5,7 @@ import { DevFrame } from '../../DevFrame'
 import { EMPTY_VALUES } from './fields'
 import { Wizard } from './Wizard'
 
-export const metadata: Metadata = { title: 'Nova conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Nova conta | Agenda Flui' }
 
 export default async function NovaContaPage() {
   const admin = await requirePlatformAdmin()

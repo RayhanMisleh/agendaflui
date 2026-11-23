@@ -385,7 +385,7 @@ async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
             link: areaLink('painel', `/definir-senha/${m.token}`),
             ttlDays: INVITE_TTL_DAYS,
           })
-    await channel.send({ to: m.to, fromName: 'AgendaFlui', ...mail })
+    await channel.send({ to: m.to, fromName: 'Agenda Flui', ...mail })
     return true
   } catch (err) {
     // Só o nome do erro: a mensagem do provedor pode trazer o endereço e o corpo (com o link do convite).

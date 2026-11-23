@@ -98,7 +98,7 @@ describe('moldura do painel dev', () => {
 
 describe('BrandMark sobre a cor da conta', () => {
   test('on-color desenha o símbolo com as variáveis da cor, sem hex da marca no corpo', () => {
-    const { container } = render(<BrandMark name="AgendaFlui" logoUrl={null} size="lg" platform variant="on-color" />)
+    const { container } = render(<BrandMark name="Agenda Flui" logoUrl={null} size="lg" platform variant="on-color" />)
     expect(container.querySelector('.af-brand--on-color')).not.toBeNull()
     expect(container.querySelector('svg rect')?.getAttribute('style')).toContain('var(--mark-ink')
   })
@@ -106,7 +106,7 @@ describe('BrandMark sobre a cor da conta', () => {
 
 describe('tela de entrada', () => {
   const theme = deriveTheme(AGENDAFLUI_BRAND)
-  const brand = { name: 'AgendaFlui', logoUrl: null, symbolUrl: null, platform: true }
+  const brand = { name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }
 
   test('duas partes: destaque com a frase e cartão com o formulário', () => {
     const { container } = render(

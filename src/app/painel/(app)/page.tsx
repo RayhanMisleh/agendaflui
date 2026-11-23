@@ -10,7 +10,7 @@ import { Card, EmptyHint, EmptyState, LinkButton, PhoneLink, StatNumber, StatusB
 import { formatDuration, shortDate, weekdayName } from '@/ui/format'
 import { PainelFrame } from './PainelFrame'
 
-export const metadata: Metadata = { title: 'Início | AgendaFlui' }
+export const metadata: Metadata = { title: 'Início | Agenda Flui' }
 
 const ATENDIMENTO = (n: number) => `${n} ${n === 1 ? 'atendimento' : 'atendimentos'}`
 

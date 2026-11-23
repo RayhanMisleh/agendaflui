@@ -8,7 +8,7 @@ import { um } from '@/app/_lib/params'
 import { carregarConta } from '../_data'
 import { AuditTable } from '../AuditTable'
 
-export const metadata: Metadata = { title: 'Auditoria da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Auditoria da conta | Agenda Flui' }
 
 export default async function AuditoriaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params

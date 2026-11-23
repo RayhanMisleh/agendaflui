@@ -6,10 +6,10 @@ import { deriveTheme } from '@/ui/theme/derive'
 import { um } from '@/app/_lib/params'
 import { PainelEntrada } from './PainelEntrada'
 
-export const metadata: Metadata = { title: 'Entrar | AgendaFlui' }
+export const metadata: Metadata = { title: 'Entrar | Agenda Flui' }
 
 const MARCA_PADRAO = {
-  name: 'AgendaFlui',
+  name: 'Agenda Flui',
   logoUrl: null,
   symbolUrl: null,
   loginImageUrl: null,

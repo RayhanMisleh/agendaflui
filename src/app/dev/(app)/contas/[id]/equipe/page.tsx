@@ -7,7 +7,7 @@ import { carregarConta } from '../_data'
 import { alternarAcesso, convidarMembro, reenviarConvite, trocarPapel } from '../actions'
 import { TeamPanel } from '../TeamPanel'
 
-export const metadata: Metadata = { title: 'Equipe da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Equipe da conta | Agenda Flui' }
 
 export default async function EquipePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -14,7 +14,7 @@ import { MENSAGENS_DE_IMAGEM } from '../../_lib/imagem'
 import { requirePainelModule } from '../../_lib/modulo'
 import { VoucherForm } from '../VoucherForm'
 
-export const metadata: Metadata = { title: 'Voucher | AgendaFlui' }
+export const metadata: Metadata = { title: 'Voucher | Agenda Flui' }
 
 export default async function VoucherPage({
   params,

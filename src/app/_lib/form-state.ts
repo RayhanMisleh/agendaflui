@@ -34,8 +34,8 @@ function conflitoDe(err: DomainError): Conflito | undefined {
 }
 
 export const MENSAGEM_GENERICA = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise quem cuida da plataforma.'
-/** A mesma frase para quem usa o painel do negócio: quem cuida é o suporte do AgendaFlui. */
-export const MENSAGEM_GENERICA_NEGOCIO = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, fale com o suporte do AgendaFlui.'
+/** A mesma frase para quem usa o painel do negócio: quem cuida é o suporte do Agenda Flui. */
+export const MENSAGEM_GENERICA_NEGOCIO = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, fale com o suporte do Agenda Flui.'
 
 /** Nomes de campo que nunca voltam ao navegador: senhas, segredos, tokens e chaves. */
 const SEGREDO = /senha|password|secret|segredo|token|apikey|api_key/i

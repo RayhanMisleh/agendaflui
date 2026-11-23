@@ -12,7 +12,7 @@ import { requirePainelModule } from '../_lib/modulo'
 import { ClubeLista, PremiosLista, RankingForm, ResgatesLista } from './FidelidadePainel'
 import type { TermosFidelidade } from './FidelidadePainel'
 
-export const metadata: Metadata = { title: 'Fidelidade | AgendaFlui' }
+export const metadata: Metadata = { title: 'Fidelidade | Agenda Flui' }
 
 const ABAS = [
   { id: 'premios', label: 'Prêmios' },

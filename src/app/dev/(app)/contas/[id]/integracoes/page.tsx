@@ -5,7 +5,7 @@ import { carregarConta } from '../_data'
 import { IntegracoesForms } from './IntegracoesForms'
 import { removerFrenet, removerMercadoPago, salvarFrenet, salvarMercadoPago } from './actions'
 
-export const metadata: Metadata = { title: 'Integrações da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Integrações da conta | Agenda Flui' }
 
 export default async function IntegracoesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -13,7 +13,7 @@ import { um, porCodigo } from '@/app/_lib/params'
 import { PainelFrame } from '../../PainelFrame'
 import { AcessoGestao, BloqueioForm, BloqueiosLista, ConviteForm, DadosForm, ExpedienteForm, RemoverProfissional, ServicosForm } from '../FichaForms'
 
-export const metadata: Metadata = { title: 'Ficha | AgendaFlui' }
+export const metadata: Metadata = { title: 'Ficha | Agenda Flui' }
 
 const ABAS = [
   { id: 'dados', label: 'Dados' },

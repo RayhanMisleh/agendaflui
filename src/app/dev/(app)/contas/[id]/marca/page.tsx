@@ -5,7 +5,7 @@ import { carregarConta } from '../_data'
 import { salvarMarca } from '../actions'
 import { ImagensForm, MarcaForm } from '../BrandForm'
 
-export const metadata: Metadata = { title: 'Marca da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Marca da conta | Agenda Flui' }
 
 /** O que cada `?imagem=` quer dizer. Só códigos fixos: nenhum texto da URL vai para a tela. */
 const IMAGEM: Record<string, { ok: boolean; texto: string }> = {

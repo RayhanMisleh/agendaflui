@@ -1,5 +1,5 @@
 /*
- * E-mail de redefinição de senha do painel: o link leva à tela de escolher a senha nova. Puro. Com a marca AgendaFlui,
+ * E-mail de redefinição de senha do painel: o link leva à tela de escolher a senha nova. Puro. Com a marca Agenda Flui,
  * porque a pessoa pode ter acesso a mais de uma conta. O token só aparece dentro do link. Tudo que vem de dado é escapado
  * no HTML (a moldura faz isso); o assunto nunca leva quebra de linha.
  */
@@ -14,10 +14,10 @@ export function renderPanelPasswordReset(i: { name: string; link: string; ttlMin
   const body = emailFrame(PLATFORM_MAIL_BRAND, title, {
     paragraphs: [
       `Olá, ${limpo(i.name)}.`,
-      `Escolha uma senha nova para entrar no AgendaFlui${conta}. O link vale por ${i.ttlMin} minutos e só pode ser usado uma vez.`,
+      `Escolha uma senha nova para entrar no Agenda Flui${conta}. O link vale por ${i.ttlMin} minutos e só pode ser usado uma vez.`,
       'Se você não pediu a redefinição, ignore este e-mail: sua senha continua a mesma.',
     ],
     action: { label: 'Redefinir minha senha', href: i.link },
   })
-  return { subject: 'AgendaFlui: redefina sua senha', ...body }
+  return { subject: 'Agenda Flui: redefina sua senha', ...body }
 }

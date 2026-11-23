@@ -6,7 +6,7 @@ import { PainelFrame } from '../../PainelFrame'
 import { requirePainelModule } from '../../_lib/modulo'
 import { VoucherForm } from '../VoucherForm'
 
-export const metadata: Metadata = { title: 'Novo voucher | AgendaFlui' }
+export const metadata: Metadata = { title: 'Novo voucher | Agenda Flui' }
 
 export default async function NovoVoucherPage() {
   const ctx = await requireTenant('manage_vouchers')

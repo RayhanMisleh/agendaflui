@@ -7,7 +7,7 @@ import { requirePainelModule } from '../_lib/modulo'
 import { BannersPainel } from './BannersPainel'
 import type { BannerLinha } from './BannersPainel'
 
-export const metadata: Metadata = { title: 'Banners | AgendaFlui' }
+export const metadata: Metadata = { title: 'Banners | Agenda Flui' }
 
 export default async function BannersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await searchParams

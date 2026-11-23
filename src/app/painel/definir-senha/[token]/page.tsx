@@ -9,7 +9,7 @@ import { DefinirSenhaForm } from './DefinirSenhaForm'
 
 // O token está na URL: nada de indexar nem de mandar o endereço a outros sites.
 export const metadata: Metadata = {
-  title: 'Definir senha | AgendaFlui',
+  title: 'Definir senha | Agenda Flui',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 }
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const MARCA = { name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }
 const TEMA = deriveTheme(AGENDAFLUI_BRAND)
 
-/** Tela do convite do dono: escolhe a senha. Ainda não há conta escolhida, então vale a marca AgendaFlui. */
+/** Tela do convite do dono: escolhe a senha. Ainda não há conta escolhida, então vale a marca Agenda Flui. */
 export default async function DefinirSenhaPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
   const convite = await readInvite(token, new Date())

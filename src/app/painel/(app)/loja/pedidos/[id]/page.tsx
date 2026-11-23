@@ -20,7 +20,7 @@ import { requirePainelModule } from '../../../_lib/modulo'
 import { SITUACAO_DO_CODIGO } from '../../../vouchers/situacao'
 import { PedidoAcoes } from '../PedidoAcoes'
 
-export const metadata: Metadata = { title: 'Pedido | AgendaFlui' }
+export const metadata: Metadata = { title: 'Pedido | Agenda Flui' }
 
 /** O que houve e o que fazer, para cada pedido que pede atenção. */
 const ATENCAO: Record<OrderAttention, string> = {

@@ -14,7 +14,7 @@ export async function deliverAccessMail(kind: string, to: string, mail: Rendered
     return
   }
   try {
-    await channel.send({ to, fromName: 'AgendaFlui', ...mail })
+    await channel.send({ to, fromName: 'Agenda Flui', ...mail })
   } catch (err) {
     console.error(
       JSON.stringify({ level: 'error', event: 'access_mail_failed', kind, to: maskEmail(to), error: err instanceof Error ? err.name : 'unknown' }),

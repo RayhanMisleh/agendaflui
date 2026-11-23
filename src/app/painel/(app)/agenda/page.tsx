@@ -7,7 +7,7 @@ import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { AgendaPainel } from './AgendaPainel'
 
-export const metadata: Metadata = { title: 'Agenda | AgendaFlui' }
+export const metadata: Metadata = { title: 'Agenda | Agenda Flui' }
 
 export default async function AgendaPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = await requireTenant('view_own_agenda')

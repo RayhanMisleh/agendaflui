@@ -9,7 +9,7 @@ import { PainelFrame } from '../PainelFrame'
 import { ServicosPainel } from './ServicosPainel'
 import type { ServicoLinha } from './ServicosPainel'
 
-export const metadata: Metadata = { title: 'Serviços | AgendaFlui' }
+export const metadata: Metadata = { title: 'Serviços | Agenda Flui' }
 
 export default async function ServicosPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = await requireTenant('manage_catalog')

@@ -13,7 +13,7 @@ import { MENSAGENS_DE_IMAGEM } from '../../../_lib/imagem'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PremioForm } from '../../FidelidadePainel'
 
-export const metadata: Metadata = { title: 'Prêmio | AgendaFlui' }
+export const metadata: Metadata = { title: 'Prêmio | Agenda Flui' }
 
 export default async function PremioPage({
   params,

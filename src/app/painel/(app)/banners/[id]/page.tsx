@@ -12,7 +12,7 @@ import { MENSAGENS_DE_IMAGEM } from '../../_lib/imagem'
 import { requirePainelModule } from '../../_lib/modulo'
 import { BannerForm } from '../BannerForm'
 
-export const metadata: Metadata = { title: 'Banner | AgendaFlui' }
+export const metadata: Metadata = { title: 'Banner | Agenda Flui' }
 
 export default async function BannerPage({
   params,

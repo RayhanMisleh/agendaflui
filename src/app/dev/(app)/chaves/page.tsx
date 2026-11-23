@@ -14,7 +14,7 @@ import { ChavesPanel, SemChaves } from './ChavesPanel'
 import type { ChaveGlobal, UsoPeriodo } from './ChavesPanel'
 import { criarChavePlataforma, revogarChave } from './actions'
 
-export const metadata: Metadata = { title: 'Chaves e API | AgendaFlui' }
+export const metadata: Metadata = { title: 'Chaves e API | Agenda Flui' }
 
 const POR_PAGINA = 50
 const TIPOS = [

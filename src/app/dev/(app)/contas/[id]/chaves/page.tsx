@@ -8,7 +8,7 @@ import { carregarConta } from '../_data'
 import { criarChave, editarOrigens, revogarChave } from '../actions'
 import { KeysPanel } from '../KeysPanel'
 
-export const metadata: Metadata = { title: 'Chaves da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Chaves da conta | Agenda Flui' }
 
 export default async function ChavesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

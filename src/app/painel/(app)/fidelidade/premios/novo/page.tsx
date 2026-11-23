@@ -6,7 +6,7 @@ import { PainelFrame } from '../../../PainelFrame'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PremioForm } from '../../FidelidadePainel'
 
-export const metadata: Metadata = { title: 'Novo prêmio | AgendaFlui' }
+export const metadata: Metadata = { title: 'Novo prêmio | Agenda Flui' }
 
 export default async function NovoPremioPage() {
   const ctx = await requireTenant('manage_loyalty')

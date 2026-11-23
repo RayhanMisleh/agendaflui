@@ -13,7 +13,7 @@ import { EntryScreen } from '@/ui/shells'
 import { chooseBusiness } from './actions'
 import { SairDaConta } from '../SairDaConta'
 
-export const metadata: Metadata = { title: 'Escolher conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Escolher conta | Agenda Flui' }
 
 const THEME = deriveTheme(AGENDAFLUI_BRAND)
 

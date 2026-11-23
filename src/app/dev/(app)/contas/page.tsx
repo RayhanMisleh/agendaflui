@@ -9,7 +9,7 @@ import { DevFrame } from '../DevFrame'
 import { um } from '@/app/_lib/params'
 import { ContasTable } from './ContasTable'
 
-export const metadata: Metadata = { title: 'Contas | AgendaFlui' }
+export const metadata: Metadata = { title: 'Contas | Agenda Flui' }
 
 const SITUACOES: BusinessStatus[] = ['ACTIVE', 'SUSPENDED', 'ARCHIVED']
 const FILTRO_SITUACAO = [

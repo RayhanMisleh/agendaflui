@@ -3,7 +3,7 @@ import { LoginForm } from '@/app/_lib/LoginForm'
 import { EntryScreen } from '@/ui/shells'
 import { loginAdmin } from './actions'
 
-export const metadata: Metadata = { title: 'Entrar | AgendaFlui' }
+export const metadata: Metadata = { title: 'Entrar | Agenda Flui' }
 
 export default function EntrarPage() {
   return (

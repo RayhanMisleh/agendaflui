@@ -23,13 +23,13 @@ const msg = { to: 'maria@exemplo.test', subject: 'Seu código é válido: ção'
 describe('canal de arquivo', () => {
   test('grava um .eml com cabeçalhos, assunto codificado e as duas partes', async () => {
     const dir = join(tmp(), 'nova-pasta')
-    await createFileChannel(dir, 'AgendaFlui <nao-responda@agendaflui.localhost>').send(msg)
+    await createFileChannel(dir, 'Agenda Flui <nao-responda@agendaflui.localhost>').send(msg)
     const arquivos = readdirSync(dir)
     expect(arquivos).toHaveLength(1)
     expect(arquivos[0]).toMatch(/\.eml$/)
     const eml = readFileSync(join(dir, arquivos[0] ?? ''), 'utf8')
     expect(eml).toContain('To: maria@exemplo.test')
-    expect(eml).toContain('From: AgendaFlui <nao-responda@agendaflui.localhost>')
+    expect(eml).toContain('From: Agenda Flui <nao-responda@agendaflui.localhost>')
     expect(eml).toMatch(/^Subject: =\?UTF-8\?B\?/m)
     expect(eml).toContain('multipart/alternative')
     expect(eml).toContain('text/plain; charset=utf-8')
@@ -105,7 +105,7 @@ describe('maskEmail', () => {
 describe('nome do remetente por conta', () => {
   test('fromName troca só o nome, mantém o endereço do remetente e nunca quebra o cabeçalho', async () => {
     const dir = tmp()
-    await createFileChannel(dir, 'AgendaFlui <nao-responda@agendaflui.localhost>').send({ ...msg, fromName: 'Tosa & Cia\r\nBcc: x@y.test' })
+    await createFileChannel(dir, 'Agenda Flui <nao-responda@agendaflui.localhost>').send({ ...msg, fromName: 'Tosa & Cia\r\nBcc: x@y.test' })
     const eml = readFileSync(join(dir, readdirSync(dir)[0] ?? ''), 'utf8')
     const from = /^From: (.*)$/m.exec(eml)?.[1] ?? ''
     expect(from).toContain('<nao-responda@agendaflui.localhost>')

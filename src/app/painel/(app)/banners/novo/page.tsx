@@ -5,7 +5,7 @@ import { PainelFrame } from '../../PainelFrame'
 import { requirePainelModule } from '../../_lib/modulo'
 import { BannerForm } from '../BannerForm'
 
-export const metadata: Metadata = { title: 'Novo banner | AgendaFlui' }
+export const metadata: Metadata = { title: 'Novo banner | Agenda Flui' }
 
 export default async function NovoBannerPage() {
   const ctx = await requireTenant('manage_banners')

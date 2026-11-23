@@ -8,7 +8,7 @@ import { RedefinirForm } from './RedefinirForm'
 
 // O token está na URL: nada de indexar nem de mandar o endereço a outros sites.
 export const metadata: Metadata = {
-  title: 'Redefinir senha | AgendaFlui',
+  title: 'Redefinir senha | Agenda Flui',
   robots: { index: false, follow: false },
   referrer: 'no-referrer',
 }

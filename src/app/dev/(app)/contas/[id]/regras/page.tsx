@@ -7,7 +7,7 @@ import { salvarAvisos, salvarRegras } from '../actions'
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { AvisosForm, RegrasForm } from '../FormsConta'
 
-export const metadata: Metadata = { title: 'Regras da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Regras da conta | Agenda Flui' }
 
 export default async function RegrasPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

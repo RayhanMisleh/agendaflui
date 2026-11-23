@@ -5,7 +5,7 @@ import { carregarConta } from '../_data'
 import { salvarTermos } from '../actions'
 import { TermosForm } from '../FormsConta'
 
-export const metadata: Metadata = { title: 'Termos da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Termos da conta | Agenda Flui' }
 
 export default async function TermosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

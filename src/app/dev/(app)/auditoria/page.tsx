@@ -11,7 +11,7 @@ import { quando } from '../_lib/format'
 import { GlobalAuditTable } from './GlobalAuditTable'
 import { TIPOS_DE_ATOR, lerFiltros } from './filtros'
 
-export const metadata: Metadata = { title: 'Auditoria | AgendaFlui' }
+export const metadata: Metadata = { title: 'Auditoria | Agenda Flui' }
 
 export default async function AuditoriaPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const admin = await requirePlatformAdmin()

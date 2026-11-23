@@ -10,7 +10,7 @@ import { quando, tamanho } from '../_lib/format'
 import { ExecucoesTable, FalhasTable, TabelasTable } from './SistemaTables'
 import { tentarDeNovo } from './actions'
 
-export const metadata: Metadata = { title: 'Sistema | AgendaFlui' }
+export const metadata: Metadata = { title: 'Sistema | Agenda Flui' }
 
 const NOMES_TAREFA: Record<string, string> = { notifications: 'Envio de avisos', cleanup: 'Limpeza', usage_flush: 'Gravação do uso da API', store: 'Varredura da loja', retention: 'Retenção de dados' }
 

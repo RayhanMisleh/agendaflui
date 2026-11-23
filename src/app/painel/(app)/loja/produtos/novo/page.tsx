@@ -6,7 +6,7 @@ import { PainelFrame } from '../../../PainelFrame'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { ProdutoForm } from '../../ProdutoForm'
 
-export const metadata: Metadata = { title: 'Novo produto | AgendaFlui' }
+export const metadata: Metadata = { title: 'Novo produto | Agenda Flui' }
 
 export default async function NovoProdutoPage() {
   const ctx = await requireTenant('manage_store')

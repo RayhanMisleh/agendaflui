@@ -7,7 +7,7 @@ import { DevFrame } from '../DevFrame'
 import { ProfileForms } from './ProfileForms'
 import { salvarPerfil, trocarSenha } from './actions'
 
-export const metadata: Metadata = { title: 'Meu perfil | AgendaFlui' }
+export const metadata: Metadata = { title: 'Meu perfil | Agenda Flui' }
 
 export default async function PerfilPage() {
   const admin = await requirePlatformAdmin()

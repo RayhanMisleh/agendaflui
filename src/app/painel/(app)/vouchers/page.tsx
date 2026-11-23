@@ -14,7 +14,7 @@ import { DarBaixa } from './DarBaixa'
 import { CodigosLista, ParceirosLista, VouchersLista } from './VouchersPainel'
 import { SITUACAO_DO_CODIGO } from './situacao'
 
-export const metadata: Metadata = { title: 'Vouchers | AgendaFlui' }
+export const metadata: Metadata = { title: 'Vouchers | Agenda Flui' }
 
 const ABAS = [
   { id: 'baixa', label: 'Dar baixa' },

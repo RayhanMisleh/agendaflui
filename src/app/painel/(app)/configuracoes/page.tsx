@@ -16,7 +16,7 @@ import { porCodigo, um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, PerfilForm, RegrasForm, SenhaForm, TermosForm } from './Formularios'
 
-export const metadata: Metadata = { title: 'Configurações | AgendaFlui' }
+export const metadata: Metadata = { title: 'Configurações | Agenda Flui' }
 
 type Secao = 'negocio' | 'aparencia' | 'agenda' | 'fechamentos' | 'avisos' | 'termos' | 'perfil'
 
@@ -127,7 +127,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             <dd>{labelOf(SIDEBAR_OPTIONS, a.material)}</dd>
           </div>
         </dl>
-        <p className="af-section__help">As cores e a barra lateral são ajustados pela equipe do AgendaFlui. Para mudar, fale com o suporte.</p>
+        <p className="af-section__help">As cores e a barra lateral são ajustados pela equipe do Agenda Flui. Para mudar, fale com o suporte.</p>
         <BrandPreview businessName={perfil.name} brand={a} terms={terms} />
       </Card>
     )

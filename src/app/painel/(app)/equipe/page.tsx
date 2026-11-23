@@ -9,7 +9,7 @@ import { PainelFrame } from '../PainelFrame'
 import { EquipeTabela } from './EquipeTabela'
 import type { EquipeLinha } from './EquipeTabela'
 
-export const metadata: Metadata = { title: 'Equipe | AgendaFlui' }
+export const metadata: Metadata = { title: 'Equipe | Agenda Flui' }
 
 export default async function EquipePage() {
   const ctx = await requireTenant('manage_team')

@@ -200,10 +200,10 @@ function build(serverUrl: string): OpenApiDocument {
   return {
     openapi: '3.1.0',
     info: {
-      title: 'API do AgendaFlui',
+      title: 'API do Agenda Flui',
       version: '1.0.0',
       description: [
-        'API do aplicativo (clientes e equipe) de uma conta do AgendaFlui.',
+        'API do aplicativo (clientes e equipe) de uma conta do Agenda Flui.',
         'Toda rota, menos a de saúde e este documento, exige a chave do app no cabeçalho X-App-Key.',
         `As rotas de cliente e de equipe também exigem Authorization: Bearer com ${TOKEN_KINDS}.`,
         'Instantes saem em ISO 8601 UTC (com Z) e vêm sempre com os rótulos locais da conta prontos: o app não faz conta de fuso.',

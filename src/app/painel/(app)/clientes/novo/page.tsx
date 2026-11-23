@@ -5,7 +5,7 @@ import { Card, LinkButton } from '@/ui/components'
 import { PainelFrame } from '../../PainelFrame'
 import { ClienteForm } from '../ClienteForm'
 
-export const metadata: Metadata = { title: 'Novo cadastro | AgendaFlui' }
+export const metadata: Metadata = { title: 'Novo cadastro | Agenda Flui' }
 
 export default async function NovoClientePage() {
   const ctx = await requireTenant('manage_clients')

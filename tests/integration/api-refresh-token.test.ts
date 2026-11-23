@@ -15,7 +15,7 @@ import { resetDb } from '../setup/db'
 import { makeBusiness, makeCustomer, makeMembership, makeUser } from '../setup/factories'
 
 const now = fromEpochMs(1_800_000_000_000)
-const meta = { ip: '203.0.113.9', userAgent: 'AgendaFlui/1.0' }
+const meta = { ip: '203.0.113.9', userAgent: 'Agenda Flui/1.0' }
 const DIA = 24 * 60
 
 beforeEach(resetDb)

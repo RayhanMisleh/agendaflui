@@ -58,7 +58,7 @@ export type WizardResult = {
 /** Valores do formulário mais o resultado da criação (só existe depois que a conta foi criada). */
 export type WizardData = WizardValues & { result?: WizardResult | undefined }
 
-/** Valores iniciais: a marca padrão AgendaFlui, os termos e as regras que o banco já usa para conta nova. */
+/** Valores iniciais: a marca padrão Agenda Flui, os termos e as regras que o banco já usa para conta nova. */
 export const EMPTY_VALUES: WizardValues = {
   name: '',
   slug: '',

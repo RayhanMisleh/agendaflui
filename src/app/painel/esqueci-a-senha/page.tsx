@@ -5,7 +5,7 @@ import { MARCA_ENTRADA, TEMA_ENTRADA } from '../_marca'
 import { esqueciASenha } from './actions'
 import { EsqueciForm } from './EsqueciForm'
 
-export const metadata: Metadata = { title: 'Esqueci a senha | AgendaFlui', robots: { index: false, follow: false } }
+export const metadata: Metadata = { title: 'Esqueci a senha | Agenda Flui', robots: { index: false, follow: false } }
 
 export default function EsqueciASenhaPage() {
   return (

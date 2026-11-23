@@ -15,7 +15,7 @@ import { AjustarEstoque } from '../../LojaPainel'
 import { ProdutoForm } from '../../ProdutoForm'
 import { ProdutoImagens } from '../../ProdutoImagens'
 
-export const metadata: Metadata = { title: 'Produto | AgendaFlui' }
+export const metadata: Metadata = { title: 'Produto | Agenda Flui' }
 
 export default async function ProdutoPage({
   params,

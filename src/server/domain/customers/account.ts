@@ -97,7 +97,7 @@ const invalidCredentials = (): AuthError => new AuthError('invalid_credentials')
 
 async function brandOf(businessId: string): Promise<AccountBrand> {
   const branding = await tenantDb(businessId).businessBranding.findFirst({ select: { displayName: true, primaryColor: true } })
-  return { name: branding?.displayName ?? 'AgendaFlui', color: branding?.primaryColor ?? '#0B6E66' }
+  return { name: branding?.displayName ?? 'Agenda Flui', color: branding?.primaryColor ?? '#0B6E66' }
 }
 
 /**

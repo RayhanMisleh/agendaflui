@@ -12,7 +12,7 @@ import { MENSAGENS_DE_IMAGEM } from '../../../_lib/imagem'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { ParceiroForm } from '../../ParceiroForm'
 
-export const metadata: Metadata = { title: 'Parceiro | AgendaFlui' }
+export const metadata: Metadata = { title: 'Parceiro | Agenda Flui' }
 
 export default async function ParceiroPage({
   params,

@@ -12,7 +12,7 @@ import { salvarDados } from './actions'
 import { DadosForm } from './FormsConta'
 import { traduzirFaltou, traduzirSuporte } from './codigos-url'
 
-export const metadata: Metadata = { title: 'Conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Conta | Agenda Flui' }
 
 export default async function ContaPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params

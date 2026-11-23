@@ -6,7 +6,7 @@ import { Card, LinkButton } from '@/ui/components'
 import { PainelFrame } from '../../PainelFrame'
 import { NovoProfissionalForm } from '../FichaForms'
 
-export const metadata: Metadata = { title: 'Nova ficha | AgendaFlui' }
+export const metadata: Metadata = { title: 'Nova ficha | Agenda Flui' }
 
 export default async function NovoProfissionalPage() {
   const ctx = await requireTenant('manage_team')

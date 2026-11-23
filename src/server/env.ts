@@ -36,7 +36,7 @@ const FASE_DE_BUILD = 'phase-production-build'
 const MARCADOR_DE_EXEMPLO = 'EXEMPLO-'
 
 /** Remetente padrão (só desenvolvimento e teste; produção com SMTP exige `MAIL_FROM`). */
-export const DEFAULT_MAIL_FROM = 'AgendaFlui <nao-responda@agendaflui.localhost>'
+export const DEFAULT_MAIL_FROM = 'Agenda Flui <nao-responda@agendaflui.localhost>'
 
 export type Env = Omit<z.infer<typeof envSchema>, 'INTEGRATIONS_MODE'> & { INTEGRATIONS_MODE: 'real' | 'fake' }
 

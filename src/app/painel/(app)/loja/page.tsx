@@ -14,7 +14,7 @@ import { requirePainelModule } from '../_lib/modulo'
 import { CategoriasLista, ConfiguracoesForm, ProdutosLista } from './LojaPainel'
 import { PedidosLista } from './PedidosLista'
 
-export const metadata: Metadata = { title: 'Loja | AgendaFlui' }
+export const metadata: Metadata = { title: 'Loja | Agenda Flui' }
 
 const ABAS = [
   { id: 'pedidos', label: 'Pedidos' },

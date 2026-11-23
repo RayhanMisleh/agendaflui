@@ -6,7 +6,7 @@ import { carregarConta } from '../_data'
 import { salvarModulos } from '../actions'
 import { ModulosForm } from '../FormsConta'
 
-export const metadata: Metadata = { title: 'Módulos da conta | AgendaFlui' }
+export const metadata: Metadata = { title: 'Módulos da conta | Agenda Flui' }
 
 export default async function ModulosPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -525,7 +525,7 @@ export async function seed(
   const admin =
     existente ??
     (await prisma.platformAdmin.create({
-      data: { name: 'Admin AgendaFlui', email: env.SEED_ADMIN_EMAIL, passwordHash: await hashPassword(env.SEED_ADMIN_PASSWORD) },
+      data: { name: 'Admin Agenda Flui', email: env.SEED_ADMIN_EMAIL, passwordHash: await hashPassword(env.SEED_ADMIN_PASSWORD) },
     }))
   emails.push(env.SEED_ADMIN_EMAIL)
 

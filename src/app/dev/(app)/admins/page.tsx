@@ -7,7 +7,7 @@ import { quando } from '../_lib/format'
 import { AdminsPanel } from './AdminsPanel'
 import { criarAdmin, desativarAdmin, reativarAdmin } from './actions'
 
-export const metadata: Metadata = { title: 'Admins | AgendaFlui' }
+export const metadata: Metadata = { title: 'Admins | Agenda Flui' }
 
 export default async function AdminsPage() {
   const admin = await requirePlatformAdmin()

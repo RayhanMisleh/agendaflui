@@ -18,7 +18,7 @@ import { PainelFrame } from '../PainelFrame'
 import { ATALHOS, periodoDaUrl } from './periodo'
 import { Detalhe, PorProfissional, PorServico } from './RelatorioTabelas'
 
-export const metadata: Metadata = { title: 'Relatórios | AgendaFlui' }
+export const metadata: Metadata = { title: 'Relatórios | Agenda Flui' }
 
 const TRACO = '—'
 const dinheiro = (c: number | null): string => (c === null ? TRACO : formatMoney(c))

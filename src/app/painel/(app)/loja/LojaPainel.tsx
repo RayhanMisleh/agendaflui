@@ -319,9 +319,9 @@ export function ConfiguracoesForm({ dados, mercadoPago, frenet }: { dados: Confi
               <Input id="loja-prazo" name="paymentWindowMin" inputMode="numeric" defaultValue={v.paymentWindowMin ?? ''} required />
             </Field>
             <h2 className="af-section__title">Integrações</h2>
-            <p className="af-section__help">Só o suporte do AgendaFlui liga as integrações.</p>
-            <StatusDot tone={mercadoPago ? 'success' : 'warning'} label={`Pagamento pelo Mercado Pago: ${mercadoPago ? 'configurado' : 'não configurado'}`} {...(mercadoPago ? {} : { detail: 'Peça ao suporte do AgendaFlui.' })} />
-            <StatusDot tone={frenet ? 'success' : 'warning'} label={`Cálculo de frete pela Frenet: ${frenet ? 'configurado' : 'não configurado'}`} {...(frenet ? {} : { detail: 'Peça ao suporte do AgendaFlui.' })} />
+            <p className="af-section__help">Só o suporte do Agenda Flui liga as integrações.</p>
+            <StatusDot tone={mercadoPago ? 'success' : 'warning'} label={`Pagamento pelo Mercado Pago: ${mercadoPago ? 'configurado' : 'não configurado'}`} {...(mercadoPago ? {} : { detail: 'Peça ao suporte do Agenda Flui.' })} />
+            <StatusDot tone={frenet ? 'success' : 'warning'} label={`Cálculo de frete pela Frenet: ${frenet ? 'configurado' : 'não configurado'}`} {...(frenet ? {} : { detail: 'Peça ao suporte do Agenda Flui.' })} />
           </>
         )
       }}

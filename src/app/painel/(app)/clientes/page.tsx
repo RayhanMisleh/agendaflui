@@ -10,7 +10,7 @@ import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { ClientesTabela } from './ClientesTabela'
 
-export const metadata: Metadata = { title: 'Clientes | AgendaFlui' }
+export const metadata: Metadata = { title: 'Clientes | Agenda Flui' }
 
 type Situacao = 'ativos' | 'arquivados' | 'clube'
 

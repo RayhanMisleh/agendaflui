@@ -11,7 +11,7 @@ import { HorariosNota } from './_lib/HorariosNota'
 import { quando, taxaDeSucesso } from './_lib/format'
 import { QuietTable } from './QuietTable'
 
-export const metadata: Metadata = { title: 'Visão geral | AgendaFlui' }
+export const metadata: Metadata = { title: 'Visão geral | Agenda Flui' }
 
 const PCT = new Intl.NumberFormat('pt-BR', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
