@@ -146,8 +146,14 @@ test('fluxo completo: do health ao cancelamento, com avisos', async () => {
     include: { membership: { include: { user: true } } },
   })
   const emailProf = prof.membership?.user.email ?? ''
-  const rodada = await processDueNotifications({ now: addMinutes(agora(), 1), channels: canais })
-  expect(rodada.failed).toBe(0)
+  // Roda até esvaziar: avisos antigos do seed vencidos podem ocupar o lote de uma rodada só.
+  let falhas = 0
+  for (let i = 0; i < 20; i++) {
+    const rodada = await processDueNotifications({ now: addMinutes(agora(), 1), channels: canais })
+    falhas += rodada.failed
+    if (rodada.sent + rodada.skipped + rodada.failed + rodada.retried === 0) break
+  }
+  expect(falhas).toBe(0)
   const doCliente = mail.sent.filter((m) => m.to === EMAIL)
   expect(doCliente).toHaveLength(2)
   expect(doCliente[0]?.text).toContain(mail.codeOf(0))
