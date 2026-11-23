@@ -52,7 +52,12 @@ function chamar(handler: RouteHandler, caminho: string, c: Conta, body: unknown,
   return callRoute(handler, apiRequest('POST', `${BASE}${caminho}`, { business: c.slug, body, headers: { 'x-forwarded-for': ip } }))
 }
 
-const entrar = (c: Conta, email: string, password: string, ip?: string) => chamar(login, '/login', c, { email, password }, ip)
+/** Login sem loja: nenhum `X-Business` (o app descobre a loja pela resposta). `naConta` manda o cabeçalho de propósito. */
+const entrar = (_c: Conta, email: string, password: string, ip: string = outroIp(), naConta?: Conta) =>
+  callRoute(
+    login,
+    apiRequest('POST', `${BASE}/login`, { ...(naConta ? { business: naConta.slug } : {}), body: { email, password }, headers: { 'x-forwarded-for': ip } }),
+  )
 
 function eu(c: Conta, token: string) {
   return callRoute(staffMe, apiRequest('GET', '/v1/staff/me', { business: c.slug, token, headers: { 'x-forwarded-for': outroIp() } }))
@@ -72,6 +77,35 @@ async function membro(c: Conta, role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', emai
 beforeEach(resetDb)
 
 describe('entrada da equipe', () => {
+  test('entra sem X-Business e recebe tokens, membro e a loja do vínculo; o token vale em staff/me com o slug devolvido', async () => {
+    const c = await novaConta()
+    const { membership } = await membro(c, 'MANAGER', 'gerente@exemplo.test')
+    const r = await callRoute(
+      login,
+      apiRequest('POST', `${BASE}/login`, { body: { email: 'gerente@exemplo.test', password: SENHA }, headers: { 'x-forwarded-for': outroIp() } }),
+    )
+    expect(r.status).toBe(200)
+    const corpo = jsonObject(r.json)
+    expect(jsonObject(corpo.business).slug).toBe(c.slug)
+    expect(jsonObject(corpo.member).membershipId).toBe(membership.id)
+    const { accessToken } = tokensDe(r.json)
+    const me = await eu({ id: c.id, slug: String(jsonObject(corpo.business).slug) }, accessToken)
+    expect(me.status).toBe(200)
+    expect(jsonObject(me.json).role).toBe('MANAGER')
+  })
+
+  test('X-Business de outra loja é ignorado: entra na loja do próprio vínculo', async () => {
+    const c = await novaConta()
+    const outra = await novaConta()
+    await membro(c, 'OWNER', 'dono@exemplo.test')
+    const r = await entrar(c, 'dono@exemplo.test', SENHA, undefined, outra)
+    expect(r.status).toBe(200)
+    expect(jsonObject(jsonObject(r.json).business).id).toBe(c.id)
+    expect((await eu(c, tokensDe(r.json).accessToken)).status).toBe(200)
+    // O token é da loja do vínculo: na outra loja não vale.
+    expect((await eu(outra, tokensDe(r.json).accessToken)).status).toBe(401)
+  })
+
   test('o dono entra; staff/me devolve papel OWNER, rótulo e todas as capacidades', async () => {
     const c = await novaConta()
     const { user, membership } = await membro(c, 'OWNER', 'dono@exemplo.test')
@@ -79,6 +113,7 @@ describe('entrada da equipe', () => {
     expect(r.status).toBe(200)
     const corpo = jsonObject(r.json)
     expect(corpo.member).toEqual({ userId: user.id, membershipId: membership.id, name: user.name, role: 'OWNER', professionalId: null })
+    expect(corpo.business).toEqual({ id: c.id, slug: c.slug, name: (await prisma.business.findUniqueOrThrow({ where: { id: c.id } })).name })
     const { accessToken, refreshToken } = tokensDe(r.json)
     expect(refreshToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
     expect(await verifyAccessToken(accessToken, new Date())).toEqual({
@@ -144,8 +179,9 @@ describe('entrada da equipe', () => {
     const c = await novaConta()
     const outra = await novaConta()
     await membro(c, 'OWNER', 'dono@exemplo.test')
-    // Usuário que só trabalha em outra conta.
-    await membro(outra, 'OWNER', 'forasteiro@exemplo.test')
+    // Usuário sem nenhum vínculo ativo (só tinha vínculo antigo, desativado, em outra conta).
+    const forasteiro = await membro(outra, 'OWNER', 'forasteiro@exemplo.test')
+    await prisma.membership.update({ where: { id: forasteiro.membership.id }, data: { active: false } })
     const inativo = await membro(c, 'MANAGER', 'inativo@exemplo.test')
     await prisma.membership.update({ where: { id: inativo.membership.id }, data: { active: false } })
     const convite = await makeUser({ email: 'convite@exemplo.test', password: null })
@@ -163,6 +199,22 @@ describe('entrada da equipe', () => {
     }
     expect(new Set(casos.map((r) => r.text)).size).toBe(1)
     expect(await prisma.refreshToken.count()).toBe(0)
+  })
+
+  test('vínculo ativo em conta suspensa ou arquivada: 503 business_unavailable só com a senha certa; senha errada segue 401', async () => {
+    for (const status of ['SUSPENDED', 'ARCHIVED'] as const) {
+      await resetDb()
+      const c = await novaConta()
+      await membro(c, 'OWNER', 'dono@exemplo.test')
+      await prisma.business.update({ where: { id: c.id }, data: { status } })
+      const errada = await entrar(c, 'dono@exemplo.test', 'senha-errada-qualquer')
+      expect(errada.status).toBe(401)
+      expect(apiError(errada.json).reason).toBe('invalid_credentials')
+      const certa = await entrar(c, 'dono@exemplo.test', SENHA)
+      expect(certa.status).toBe(503)
+      expect(apiError(certa.json).code).toBe('business_unavailable')
+      expect(await prisma.refreshToken.count()).toBe(0)
+    }
   })
 
   test('a 6ª tentativa do mesmo e-mail e IP é barrada com 429; outro IP não é afetado', async () => {
@@ -186,6 +238,16 @@ describe('entrada da equipe', () => {
     expect(me.status).toBe(503)
     expect(apiError(me.json).code).toBe('business_unavailable')
     expect((await entrar(c, 'dono@exemplo.test', SENHA)).status).toBe(503)
+  })
+
+  test('o limite por e-mail e IP não depende de loja nem do X-Business enviado', async () => {
+    const c = await novaConta()
+    const outra = await novaConta()
+    await membro(c, 'OWNER', 'dono@exemplo.test')
+    const ip = '203.0.113.70'
+    for (let i = 0; i < 3; i++) expect((await entrar(c, 'dono@exemplo.test', 'errada-errada-1', ip, c)).status).toBe(401)
+    for (let i = 0; i < 2; i++) expect((await entrar(c, 'dono@exemplo.test', 'errada-errada-1', ip, outra)).status).toBe(401)
+    expect((await entrar(c, 'dono@exemplo.test', SENHA, ip)).status).toBe(429)
   })
 })
 

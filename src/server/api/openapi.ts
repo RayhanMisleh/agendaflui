@@ -120,12 +120,15 @@ export function operation(def: AnyRouteDef): Json {
   responses[String(success)] = successResponse(success)
   for (const status of def.alternateStatuses ?? []) responses[String(status)] = successResponse(status)
   const errors: string[] = []
+  // Rota pública com limite próprio (o login da equipe) documenta 401 e 429 mesmo sem conta.
+  const limitada = def.auth === 'none' && def.limit !== undefined
   if (def.auth !== 'none') errors.push('401', '403')
+  else if (limitada) errors.push('401')
   if (def.auth !== 'none' || def.params !== undefined) errors.push('404')
   if (def.method !== 'GET') errors.push('409')
   if (def.body !== undefined) errors.push('413')
   if (hasInput) errors.push('422')
-  if (def.auth !== 'none') errors.push('429')
+  if (def.auth !== 'none' || limitada) errors.push('429')
   errors.push('500', '503')
   for (const status of errors) responses[status] = errorRef(status)
 

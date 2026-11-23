@@ -274,6 +274,20 @@ const comDataIso = defineRoute({
   handler: async () => ({ quando: new Date(1_800_000_000_000) }),
 })
 
+const publicaLimitada = defineRoute({
+  method: 'POST',
+  path: '/v1/teste/publica-limitada',
+  auth: 'none',
+  summary: 'Pública com limite próprio',
+  tag: 'teste',
+  limit: { limit: 2, windowSec: 60 },
+  response: vazio,
+  handler: async () => {
+    chamadas += 1
+    return {}
+  },
+})
+
 const limitada = defineRoute({
   method: 'GET',
   path: '/v1/teste/limitada',
@@ -993,6 +1007,23 @@ describe('limites de requisições', () => {
     const outraRota = await callRoute(porConta, apiRequest('GET', '/v1/teste/conta', comConta({ headers: { 'x-forwarded-for': '198.51.100.1' } })))
     expect(outraRota.status).toBe(200)
     expect((await pedir('198.51.100.2')).status).toBe(200)
+  })
+
+  test("rota auth 'none' com limit devolve 429 depois do teto por IP; outro IP segue; sem limit, nada é contado", async () => {
+    const pedir = (ip: string) => callRoute(publicaLimitada, apiRequest('POST', '/v1/teste/publica-limitada', { headers: { 'x-forwarded-for': ip } }))
+    expect((await pedir('198.51.100.9')).status).toBe(200)
+    expect((await pedir('198.51.100.9')).status).toBe(200)
+    const barrada = await pedir('198.51.100.9')
+    expect(barrada.status).toBe(429)
+    expect(apiError(barrada.json).code).toBe('rate_limited')
+    expect(Number(barrada.headers.get('retry-after'))).toBeGreaterThanOrEqual(1)
+    expect(chamadas).toBe(2)
+    expect((await pedir('198.51.100.10')).status).toBe(200)
+    const linhas = await prisma.rateLimitBucket.findMany()
+    expect(linhas.some((l) => l.key.startsWith('api:'))).toBe(true)
+    expect(linhas.some((l) => l.key.startsWith('api-rota:POST /v1/teste/publica-limitada:'))).toBe(true)
+    await callRoute(publica, apiRequest('GET', '/v1/teste/publica', { headers: { 'x-forwarded-for': '198.51.100.99' } }))
+    expect((await prisma.rateLimitBucket.findMany()).some((l) => l.key.includes('198.51.100.99'))).toBe(false)
   })
 
   test('requisição barrada pelo limite não chega ao handler', async () => {
