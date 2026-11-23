@@ -14,6 +14,7 @@ import { formatMoney } from '@/ui/format'
 import { PainelFrame } from '../../../PainelFrame'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PedidoAcoes } from '../PedidoAcoes'
+import { ItensDoPedido, PagamentosDoPedido } from './PedidoTabelas'
 
 export const metadata: Metadata = { title: 'Pedido | Agenda Flui' }
 
@@ -110,52 +111,21 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
           <h2 id="pedido-itens" className="af-section__title">
             Itens
           </h2>
-          <table className="af-ordertable">
-            <thead>
-              <tr>
-                <th scope="col">Item</th>
-                <th scope="col" className="af-col--end">
-                  Preço da compra
-                </th>
-                <th scope="col" className="af-col--end">
-                  Qtd.
-                </th>
-                <th scope="col" className="af-col--end">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {pedido.items.map((i) => (
-                <tr key={`${i.kind}-${i.id}`}>
-                  <td>{i.name}</td>
-                  <td className="af-col--end af-tabular">{formatMoney(i.unitPriceCents)}</td>
-                  <td className="af-col--end af-tabular">{i.quantity}</td>
-                  <td className="af-col--end af-tabular">{formatMoney(i.totalCents)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row" colSpan={3}>
-                  Itens
-                </th>
-                <td className="af-col--end af-tabular">{formatMoney(pedido.itemsCents)}</td>
-              </tr>
-              <tr>
-                <th scope="row" colSpan={3}>
-                  Frete
-                </th>
-                <td className="af-col--end af-tabular">{formatMoney(pedido.shippingCents)}</td>
-              </tr>
-              <tr>
-                <th scope="row" colSpan={3}>
-                  Total do pedido
-                </th>
-                <td className="af-col--end af-tabular">{formatMoney(pedido.totalCents)}</td>
-              </tr>
-            </tfoot>
-          </table>
+          <ItensDoPedido itens={pedido.items.map((i) => ({ key: `${i.kind}-${i.id}`, name: i.name, unitPriceCents: i.unitPriceCents, quantity: i.quantity, totalCents: i.totalCents }))} />
+          <dl className="af-ordertotals">
+            <div>
+              <dt>Itens</dt>
+              <dd className="af-tabular">{formatMoney(pedido.itemsCents)}</dd>
+            </div>
+            <div>
+              <dt>Frete</dt>
+              <dd className="af-tabular">{formatMoney(pedido.shippingCents)}</dd>
+            </div>
+            <div className="af-ordertotals__sum">
+              <dt>Total do pedido</dt>
+              <dd className="af-tabular">{formatMoney(pedido.totalCents)}</dd>
+            </div>
+          </dl>
         </Card>
 
         <Card as="section" aria-labelledby="pedido-cliente" className="af-profile">
@@ -216,28 +186,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
           {pagamentos.length === 0 ? (
             <p className="af-section__help">Nenhum pagamento do Mercado Pago chegou para este pedido.</p>
           ) : (
-            <table className="af-ordertable">
-              <thead>
-                <tr>
-                  <th scope="col">Situação</th>
-                  <th scope="col" className="af-col--end">
-                    Valor
-                  </th>
-                  <th scope="col">Identificador no Mercado Pago</th>
-                  <th scope="col">Atualizado em</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagamentos.map((p) => (
-                  <tr key={p.providerPaymentId}>
-                    <td>{SITUACAO_DO_PAGAMENTO[p.status]}</td>
-                    <td className="af-col--end af-tabular">{formatMoney(p.amountCents)}</td>
-                    <td className="af-tabular">{p.providerPaymentId}</td>
-                    <td>{p.updatedLabel}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <PagamentosDoPedido pagamentos={pagamentos.map((p) => ({ id: p.providerPaymentId, situacao: SITUACAO_DO_PAGAMENTO[p.status], amountCents: p.amountCents, updatedLabel: p.updatedLabel }))} />
           )}
         </Card>
 

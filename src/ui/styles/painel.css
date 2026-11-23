@@ -217,7 +217,7 @@
     gap: 1rem;
     align-items: start;
   }
-  @media (min-width: 30rem) {
+  @media (min-width: 40rem) {
     .af-formgrid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
@@ -902,28 +902,30 @@
     margin: 0;
     overflow-wrap: anywhere;
   }
-  .af-ordertable {
-    width: 100%;
-    border-collapse: collapse;
+  .af-ordertotals {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--line);
   }
-  .af-ordertable th,
-  .af-ordertable td {
-    padding: 0.5rem 0.5rem;
-    border-bottom: 1px solid var(--line);
-    text-align: start;
-    vertical-align: top;
+  .af-ordertotals > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.25rem 1rem;
   }
-  .af-ordertable th {
+  .af-ordertotals dt {
     color: var(--ink-muted);
     font-size: var(--text-small);
-    font-weight: 600;
   }
-  .af-ordertable .af-col--end {
-    text-align: end;
+  .af-ordertotals dd {
+    margin: 0;
   }
-  .af-ordertable tfoot th,
-  .af-ordertable tfoot td {
-    border-bottom: 0;
+  .af-ordertotals__sum dt,
+  .af-ordertotals__sum dd {
+    color: var(--ink);
+    font-size: var(--text-body);
     font-weight: 700;
   }
   .af-ordernote {

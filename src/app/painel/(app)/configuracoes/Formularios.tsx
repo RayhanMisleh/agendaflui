@@ -112,29 +112,31 @@ export function AvisosForm({ version, valores, avisos }: { version: number; valo
       {(state) => (
         <>
           <Versao version={version} />
-          <table className="af-matrix">
-            <caption className="af-sr">Avisos por tipo e canal</caption>
-            <thead>
-              <tr>
-                <th scope="col">Aviso</th>
-                <th scope="col">E-mail</th>
-                <th scope="col">No aplicativo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {avisos.map((a) => (
-                <tr key={a.kind}>
-                  <th scope="row">{a.label}</th>
-                  <td>
-                    <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={state.values[`${a.kind}__email`] === 'on'} />
-                  </td>
-                  <td>
-                    <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: no aplicativo</span>} defaultChecked={state.values[`${a.kind}__push`] === 'on'} />
-                  </td>
+          <div className="af-matrix__scroll">
+            <table className="af-matrix">
+              <caption className="af-sr">Avisos por tipo e canal</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Aviso</th>
+                  <th scope="col">E-mail</th>
+                  <th scope="col">No aplicativo</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {avisos.map((a) => (
+                  <tr key={a.kind}>
+                    <th scope="row">{a.label}</th>
+                    <td>
+                      <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={state.values[`${a.kind}__email`] === 'on'} />
+                    </td>
+                    <td>
+                      <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: no aplicativo</span>} defaultChecked={state.values[`${a.kind}__push`] === 'on'} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </>
       )}
     </PainelForm>
