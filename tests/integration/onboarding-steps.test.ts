@@ -38,6 +38,19 @@ describe('serviços sugeridos', () => {
     expect(r2.rows[0]?.prices.map((p) => p.variant)).toEqual(['DOG_SMALL', 'DOG_MEDIUM', 'DOG_LARGE', 'DOG_GIANT'])
   })
 
+  test('as sugestões seguem a grade da conta e o que se cria passa depois pela tela de serviços (onGrid)', async () => {
+    const { b, dono } = await conta()
+    await prisma.businessSettings.update({ where: { businessId: b.id }, data: { slotStepMin: 30 } })
+    const { rows, slotStepMin } = await getServiceSuggestions(dono)
+    expect(slotStepMin).toBe(30)
+    expect(rows.every((r) => r.prices.every((p) => p.durationMin % 30 === 0))).toBe(true)
+    await applyServiceSuggestions(dono, rows)
+    const unha = await prisma.service.findFirstOrThrow({ where: { businessId: b.id, name: 'Corte de unha' }, include: { prices: true } })
+    expect(unha.prices.every((p) => p.durationMin % 30 === 0)).toBe(true)
+    const fora = rows[0]!
+    await expect(applyServiceSuggestions(dono, [{ ...fora, name: 'Outro', prices: fora.prices.map((p) => ({ ...p, durationMin: 20 })) }])).rejects.toMatchObject({ code: 'validation' })
+  })
+
   test('aplicar cria BY_VARIANT com as linhas enviadas e liga aos profissionais ativos', async () => {
     const { b, dono } = await conta()
     const ativo = await makeProfessional(b.id)

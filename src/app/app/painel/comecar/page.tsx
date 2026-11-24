@@ -78,6 +78,7 @@ export default async function ComecarPage({ searchParams }: { searchParams: Prom
       corpo = (
         <PassoServicos
           rows={s.rows.map((r) => ({ name: r.name, icon: r.icon, description: r.description, exists: r.exists, prices: r.prices }))}
+          slotStepMin={s.slotStepMin}
           portes={s.variants.map((v) => ({ key: v.key, shortLabel: v.shortLabel, rangeLabel: v.rangeLabel }))}
         />
       )
