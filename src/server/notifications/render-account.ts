@@ -27,6 +27,20 @@ export function renderSignupCode(brand: AccountBrand, i: { name: string; code: s
   return { subject: `${umaLinha(semControle(brand.name))}: seu código de confirmação`, ...body }
 }
 
+/** Código para confirmar o e-mail NOVO na troca de e-mail de Minha conta. */
+export function renderEmailChangeCode(brand: AccountBrand, i: { name: string; code: string; ttlMin: number }): RenderedMail {
+  const title = 'Confirme o novo e-mail'
+  const body = layout(brand, title, {
+    paragraphs: [
+      greeting(i.name),
+      `Use o código abaixo para trocar o e-mail da sua conta no ${semControle(umaLinha(brand.name))}. Ele vale por ${i.ttlMin} minutos.`,
+      'Se não foi você, ignore este e-mail: nada será trocado.',
+    ],
+    code: i.code,
+  })
+  return { subject: `${umaLinha(semControle(brand.name))}: confirme o novo e-mail`, ...body }
+}
+
 /** Aviso para quem tenta se cadastrar com um e-mail que já tem conta. Sem código; leva à entrada da loja. */
 export function renderAccountExists(brand: AccountBrand, i: { name: string; loginUrl: string }): RenderedMail {
   const title = 'Você já tem uma conta'
