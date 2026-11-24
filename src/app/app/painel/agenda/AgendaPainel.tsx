@@ -30,15 +30,30 @@ const PLURAL = (n: number) => `${n} ${n === 1 ? 'atendimento' : 'atendimentos'}`
  * A tela da agenda: barra de visão, dia e profissional (tudo links, a URL manda), a grade do dia ou a semana e as folhas de
  * marcar, bloquear e abrir a ficha. As ações revalidam a página; o que muda chega de novo como propriedade.
  */
-export function AgendaPainel({ page, termos, abrir, podeBloquear, podeCadastrar }: { page: AgendaPage; termos: TermosAgenda; abrir: 'marcar' | 'bloquear' | null; podeBloquear: boolean; podeCadastrar: boolean }) {
+export function AgendaPainel({
+  page,
+  termos,
+  abrir,
+  agendamento = null,
+  podeBloquear,
+  podeCadastrar,
+}: {
+  page: AgendaPage
+  termos: TermosAgenda
+  abrir: 'marcar' | 'bloquear' | null
+  /** `?ag=<id>`: abre a ficha deste agendamento (o link do evento no Google). Se a pessoa não o vê, só o dia abre. */
+  agendamento?: string | null
+  podeBloquear: boolean
+  podeCadastrar: boolean
+}) {
   const router = useRouter()
   const prefillBase: Prefill = { professionalId: page.scope === 'own' ? (page.ownProfessionalId ?? '') : page.filter !== 'todos' ? page.filter : '', date: page.view === 'dia' || page.date >= page.today ? page.date : page.today, time: '' }
-  const [aberta, setAberta] = useState<Aberta>(abrir === 'marcar' ? { tipo: 'marcar', prefill: prefillBase } : abrir === 'bloquear' && podeBloquear ? { tipo: 'bloquear' } : null)
+  const [aberta, setAberta] = useState<Aberta>(abrir === 'marcar' ? { tipo: 'marcar', prefill: prefillBase } : abrir === 'bloquear' && podeBloquear ? { tipo: 'bloquear' } : agendamento !== null && page.details[agendamento] ? { tipo: 'ficha', id: agendamento } : null)
 
   const href = (o: Partial<{ visao: 'dia' | 'semana'; data: string; profissional: string }>) => agendaHref({ visao: page.view, data: page.date, profissional: page.filter, ...o })
   const fechar = () => {
     setAberta(null)
-    if (abrir !== null) router.replace(href({}))
+    if (abrir !== null || agendamento !== null) router.replace(href({}))
   }
 
   if (page.unlinked) {

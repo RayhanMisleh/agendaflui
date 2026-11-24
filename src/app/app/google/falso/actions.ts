@@ -1,6 +1,7 @@
 'use server'
 import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
+import { CALENDAR_SCOPE } from '@/server/calendar/event'
 import { GOOGLE_FLOW_COOKIE, readGoogleFlow } from '@/server/auth/google/flow'
 import { normalizeEmail } from '@/server/domain/customers/contact'
 import { env } from '@/server/env'
@@ -31,12 +32,18 @@ export async function simularGoogle(_anterior: FalsoState, form: FormData): Prom
   }
   const nome = texto(form, 'name', 120)
   const sub = texto(form, 'sub', 100) || `falso-${email}`
-  const code = await fakeGoogleAuthority().issueCode({
-    sub,
-    email,
-    email_verified: form.has('verified'),
-    nonce: fluxo.nonce,
-    ...(nome !== '' ? { name: nome } : {}),
-  })
+  const google = fakeGoogleAuthority()
+  // Ligar a agenda: com a caixa marcada o "Google" devolve a permissão e um token de renovação novo, como o consentimento real.
+  const daAgenda = fluxo.intent.kind === 'calendar' && form.has('agenda')
+  const code = await google.issueCode(
+    {
+      sub,
+      email,
+      email_verified: form.has('verified'),
+      nonce: fluxo.nonce,
+      ...(nome !== '' ? { name: nome } : {}),
+    },
+    daAgenda ? { scope: `openid email ${CALENDAR_SCOPE}`, refreshToken: google.mintRefreshToken(sub) } : {},
+  )
   redirect(`/google/retorno?code=${encodeURIComponent(code)}&state=${encodeURIComponent(fluxo.state)}`)
 }

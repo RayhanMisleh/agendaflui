@@ -5,7 +5,7 @@ import { Button, Checkbox, Field, Input } from '@/ui/components'
 import type { FalsoState } from './actions'
 
 /** O formulário da tela de simulação do Google (só em desenvolvimento e teste). */
-export function FalsoForm({ action }: { action: (anterior: FalsoState, form: FormData) => Promise<FalsoState> }) {
+export function FalsoForm({ action, agenda = false }: { action: (anterior: FalsoState, form: FormData) => Promise<FalsoState>; agenda?: boolean }) {
   const [state, formAction, pending] = useActionState(action, { error: null, fields: {} })
   return (
     <form action={formAction} className="af-entry__form">
@@ -19,6 +19,7 @@ export function FalsoForm({ action }: { action: (anterior: FalsoState, form: For
         <Input name="sub" autoComplete="off" />
       </Field>
       <Checkbox name="verified" defaultChecked label="E-mail confirmado pelo Google" />
+      {agenda ? <Checkbox name="agenda" defaultChecked label="Permitir que o Agenda Flui crie eventos na sua agenda" /> : null}
       {state.error ? (
         <p role="alert" className="af-entry__error">
           <CircleAlert size={18} aria-hidden="true" />

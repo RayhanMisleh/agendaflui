@@ -8,13 +8,14 @@ const loja = { businessId: 'b-1', slug: 'pet-bom', name: 'Pet Bom' }
 const pessoa = (id: string, o: Partial<PersonFact> = {}): PersonFact => ({ id, email: 'ana@exemplo.test', state: 'active', googleSub: null, ...o })
 
 function fatos(o: Partial<GoogleFacts> = {}): GoogleFacts {
-  return { identity: identidade, bySub: null, byEmail: null, invite: null, store: loja, current: null, ...o }
+  return { identity: identidade, bySub: null, byEmail: null, invite: null, store: loja, current: null, currentIsStaff: false, ...o }
 }
 
 const ENTRAR: GoogleIntent = { kind: 'sign_in' }
 const LOJA: GoogleIntent = { kind: 'store_signup', slug: 'pet-bom' }
 const CONVITE: GoogleIntent = { kind: 'invite', token: 't' }
 const VINCULAR: GoogleIntent = { kind: 'link' }
+const AGENDA: GoogleIntent = { kind: 'calendar' }
 
 describe('decideGoogle', () => {
   test('regra 10: e-mail não verificado é recusado em todas as intenções, mesmo com Google vinculado', () => {
@@ -95,5 +96,23 @@ describe('decideGoogle', () => {
     expect(decideGoogle(VINCULAR, fatos({ current: pessoa('u-1'), bySub: pessoa('u-2', { googleSub: 'g-1' }) }))).toEqual({ kind: 'refuse', reason: 'google_taken' })
     expect(decideGoogle(VINCULAR, fatos({ current: pessoa('u-1', { googleSub: 'g-0' }) }))).toEqual({ kind: 'refuse', reason: 'already_linked' })
     expect(decideGoogle(VINCULAR, fatos({ current: null }))).toEqual({ kind: 'refuse', reason: 'not_signed_in' })
+  })
+})
+
+describe('decideGoogle: agenda', () => {
+  const equipe = (o: Partial<PersonFact> = {}) => fatos({ current: pessoa('u-1', { googleSub: 'g-1', ...o }), currentIsStaff: true })
+
+  test('agenda: Google vinculado igual e equipe → calendar', () => {
+    expect(decideGoogle(AGENDA, equipe())).toEqual({ kind: 'calendar', userId: 'u-1' })
+    // O e-mail do Google pode ter mudado: o que vale é o `sub`.
+    expect(decideGoogle(AGENDA, { ...equipe(), identity: { ...identidade, email: 'outro@exemplo.test' } })).toEqual({ kind: 'calendar', userId: 'u-1' })
+  })
+
+  test('agenda: sem Google vinculado, Google diferente, não é equipe, não entrado e e-mail não verificado são recusados', () => {
+    expect(decideGoogle(AGENDA, equipe({ googleSub: null }))).toEqual({ kind: 'refuse', reason: 'calendar_needs_google' })
+    expect(decideGoogle(AGENDA, equipe({ googleSub: 'g-2' }))).toEqual({ kind: 'refuse', reason: 'calendar_wrong_google' })
+    expect(decideGoogle(AGENDA, { ...equipe(), currentIsStaff: false })).toEqual({ kind: 'refuse', reason: 'calendar_staff_only' })
+    expect(decideGoogle(AGENDA, fatos())).toEqual({ kind: 'refuse', reason: 'not_signed_in' })
+    expect(decideGoogle(AGENDA, { ...equipe(), identity: { ...identidade, emailVerified: false } })).toEqual({ kind: 'refuse', reason: 'email_not_verified' })
   })
 })

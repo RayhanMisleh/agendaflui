@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { beginGoogle, failureTarget, handleGoogleCallback } from '@/server/auth/google/callback'
 import type { GoogleIntent } from '@/server/auth/google/flow'
 import { readGoogleFlow } from '@/server/auth/google/flow'
@@ -6,9 +6,11 @@ import { issueInvite } from '@/server/auth/invites'
 import { getPersonSession } from '@/server/auth/session'
 import { prisma } from '@/server/db/client'
 import { clearGoogleSettings, getGoogleSettings, saveGoogleSettings } from '@/server/domain/platform/google-settings'
+import { CALENDAR_SCOPE } from '@/server/calendar/event'
 import { fakeGoogleAuthority } from '@/server/integrations/fakes'
+import { setAfterScheduler } from '@/server/after'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCustomer, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
+import { makeAppointment, makeBusiness, makeCalendarConnection, makeCustomer, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser } from '../setup/factories'
 
 const ID = '123456789012-abcdef0123456789.apps.googleusercontent.com'
 const SEGREDO = 'GOCSPX-abcdef0123456789Qz7K'
@@ -34,14 +36,14 @@ type Conta = { sub: string; email: string; name?: string; email_verified?: boole
 async function percorrer(
   intent: GoogleIntent,
   conta: Conta,
-  o: { sessionToken?: string; ip?: string; now?: Date; state?: (s: string) => string; cookie?: (c: string) => string | undefined; nonce?: string } = {},
+  o: { sessionToken?: string; ip?: string; now?: Date; state?: (s: string) => string; cookie?: (c: string) => string | undefined; nonce?: string; code?: { scope?: string; refreshToken?: string | null } } = {},
 ) {
   const now = o.now ?? AGORA
   const inicio = await beginGoogle(intent, undefined, now)
   if (!('url' in inicio)) throw new Error(`sem início: ${inicio.failure}`)
   const fluxo = await readGoogleFlow(inicio.cookie, now)
   if (!fluxo) throw new Error('fluxo ilegível')
-  const code = await google.issueCode({ ...conta, nonce: o.nonce ?? fluxo.nonce })
+  const code = await google.issueCode({ ...conta, nonce: o.nonce ?? fluxo.nonce }, o.code)
   return handleGoogleCallback({
     code,
     state: o.state ? o.state(fluxo.state) : fluxo.state,
@@ -333,5 +335,103 @@ describe('invariantes e segurança do fluxo', () => {
     expect(failureTarget({ kind: 'link' }, 'canceled')).toBe('/conta?google=canceled')
     expect(failureTarget({ kind: 'invite', token: 'abc' }, 'canceled')).toBe('/convite/abc?google=canceled')
     expect(failureTarget({ kind: 'store_signup', slug: 'x' }, 'canceled')).toBe('/x/entrar?google=canceled')
+    expect(failureTarget({ kind: 'calendar' }, 'canceled')).toBe('/conta?google=canceled#agenda')
+  })
+})
+
+describe('ligar a agenda', () => {
+  const GAGENDA = { sub: 'g-ana', email: 'ana@exemplo.test' }
+  const COM_AGENDA = { scope: `openid email ${CALENDAR_SCOPE}` }
+  let tarefas: (() => Promise<void>)[]
+
+  beforeEach(() => {
+    tarefas = []
+    setAfterScheduler((t) => {
+      tarefas.push(t)
+    })
+  })
+  afterEach(() => setAfterScheduler(undefined))
+
+  /** Pessoa da equipe com Google vinculado, ficha de profissional e um agendamento futuro. */
+  async function equipe() {
+    const u = await makeUser({ email: GAGENDA.email, password: 'senha-bem-longa', google: GAGENDA })
+    const m = await makeMembership(businessId, u.id, 'PROFESSIONAL')
+    const p = await makeProfessional(businessId, { membershipId: m.id })
+    const servico = await makeService(businessId)
+    const cliente = await makeCustomer(businessId)
+    const ag = await makeAppointment(businessId, { customerId: cliente.id, professionalId: p.id, serviceId: servico.id, startsAt: new Date('2026-12-01T12:00:00Z') })
+    const sessao = await prisma.$transaction((tx) => import('@/server/auth/session').then((x) => x.openSession(tx, { userId: u.id, now: AGORA })))
+    return { u, ag, token: sessao.token }
+  }
+
+  test('ligação CONNECTED com token selado (o banco não tem o texto), futuros enfileirados, destino /conta?google=agenda_ligada#agenda', async () => {
+    const { u, ag, token } = await equipe()
+    const antes = await prisma.session.count()
+    const r = await percorrer({ kind: 'calendar' }, GAGENDA, { sessionToken: token, code: { ...COM_AGENDA, refreshToken: 'rt-g-ana-777' } })
+    expect(r).toEqual({ ok: true, session: null, redirectTo: '/conta?google=agenda_ligada#agenda' })
+    expect(await prisma.session.count()).toBe(antes)
+    const c = await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: u.id } })
+    expect(c).toMatchObject({ status: 'CONNECTED', googleSub: 'g-ana' })
+    expect(c.refreshTokenEnc).toMatch(/^v1\./)
+    expect(JSON.stringify(c)).not.toContain('rt-g-ana-777')
+    expect(await prisma.calendarSync.findUniqueOrThrow({ where: { appointmentId: ag.id } })).toMatchObject({ generation: 1, syncedGeneration: 0 })
+  })
+
+  test('sem a permissão da agenda: calendar_scope_missing e nada gravado', async () => {
+    const { u, token } = await equipe()
+    const r = await percorrer({ kind: 'calendar' }, GAGENDA, { sessionToken: token, code: { refreshToken: 'rt-g-ana-1' } })
+    expect(r).toMatchObject({ ok: false, failure: 'calendar_scope_missing', redirectTo: '/conta?google=calendar_scope_missing#agenda' })
+    expect(await prisma.calendarConnection.count({ where: { userId: u.id } })).toBe(0)
+    expect(await prisma.calendarSync.count()).toBe(0)
+  })
+
+  test('sem token de renovação: provider_error e nada gravado', async () => {
+    const { token } = await equipe()
+    const r = await percorrer({ kind: 'calendar' }, GAGENDA, { sessionToken: token, code: COM_AGENDA })
+    expect(r).toMatchObject({ ok: false, failure: 'provider_error' })
+    expect(await prisma.calendarConnection.count()).toBe(0)
+  })
+
+  test('recusas: sem sessão, outro Google, sem Google vinculado e quem não é da equipe', async () => {
+    const { token } = await equipe()
+    const comToken = { ...COM_AGENDA, refreshToken: 'rt-x-1' }
+    expect(await percorrer({ kind: 'calendar' }, GAGENDA, { code: comToken })).toMatchObject({ failure: 'not_signed_in' })
+    expect(await percorrer({ kind: 'calendar' }, { sub: 'g-outro', email: 'ana@exemplo.test' }, { sessionToken: token, code: comToken })).toMatchObject({ failure: 'calendar_wrong_google' })
+    const solto = await makeUser({ password: 'senha-bem-longa' })
+    const s2 = await prisma.$transaction((tx) => import('@/server/auth/session').then((x) => x.openSession(tx, { userId: solto.id, now: AGORA })))
+    expect(await percorrer({ kind: 'calendar' }, { sub: 'g-s', email: solto.email }, { sessionToken: s2.token, code: comToken })).toMatchObject({ failure: 'calendar_needs_google' })
+    const cliente = await makeUser({ email: 'cli@exemplo.test', password: 'senha-bem-longa', google: { sub: 'g-cli', email: 'cli@exemplo.test' } })
+    const s3 = await prisma.$transaction((tx) => import('@/server/auth/session').then((x) => x.openSession(tx, { userId: cliente.id, now: AGORA })))
+    expect(await percorrer({ kind: 'calendar' }, { sub: 'g-cli', email: 'cli@exemplo.test' }, { sessionToken: s3.token, code: comToken })).toMatchObject({ failure: 'calendar_staff_only' })
+    expect(await prisma.calendarConnection.count()).toBe(0)
+  })
+
+  test('religar depois de revogada: volta a CONNECTED e revoga o selo antigo depois', async () => {
+    const { u, token } = await equipe()
+    await makeCalendarConnection(u.id, { googleSub: 'g-ana', refreshToken: 'rt-g-ana-5' })
+    const r = await percorrer({ kind: 'calendar' }, GAGENDA, { sessionToken: token, code: { ...COM_AGENDA, refreshToken: 'rt-g-ana-9' } })
+    expect(r.ok).toBe(true)
+    expect(await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: u.id } })).toMatchObject({ status: 'CONNECTED', revokedAt: null })
+    for (const t of tarefas) await t()
+    expect(google.calls).toEqual([{ op: 'revoke', sub: 'g-ana' }])
+    // O selo novo abre e o antigo foi revogado no Google falso (um refresh com ele já falha).
+    await expect(google.refreshAccessToken({ clientId: ID, clientSecret: SEGREDO, refreshToken: 'rt-g-ana-5' })).rejects.toMatchObject({ code: 'revoked' })
+  })
+
+  test('URL de autorização da agenda tem access_type=offline, include_granted_scopes=true, prompt=consent e o escopo calendar.events', async () => {
+    const inicio = await beginGoogle({ kind: 'calendar' }, undefined, AGORA, { loginHint: 'ana@exemplo.test' })
+    if (!('url' in inicio)) throw new Error('sem início')
+    const p = new URL(inicio.url).searchParams
+    expect(p.get('access_type')).toBe('offline')
+    expect(p.get('include_granted_scopes')).toBe('true')
+    expect(p.get('prompt')).toBe('consent')
+    expect(p.get('login_hint')).toBe('ana@exemplo.test')
+    expect(p.get('scope')).toBe(`openid email ${CALENDAR_SCOPE}`)
+    const entrar = await beginGoogle({ kind: 'sign_in' }, undefined, AGORA)
+    if (!('url' in entrar)) throw new Error('sem início')
+    const q = new URL(entrar.url).searchParams
+    expect(q.get('scope')).toBe('openid email profile')
+    expect(q.get('access_type')).toBeNull()
+    expect(q.get('prompt')).toBe('select_account')
   })
 })

@@ -28,3 +28,13 @@ export async function openCalendarToken(userId: string): Promise<{ refreshToken:
     return null
   }
 }
+
+/** Abre um selo antigo já em mãos (para revogá-lo no Google); selo que não abre vira `null`. */
+export function openSealedCalendarToken(userId: string, sealed: string): string | null {
+  try {
+    return openSecret(sealed, calendarTokenAad(userId))
+  } catch (err) {
+    console.error(JSON.stringify({ level: 'error', event: 'calendar_token_unreadable', error: err instanceof Error ? err.name : 'unknown' }))
+    return null
+  }
+}

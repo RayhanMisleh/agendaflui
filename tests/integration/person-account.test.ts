@@ -16,7 +16,7 @@ import { prisma } from '@/server/db/client'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { makeBusiness, makeCustomer, makeMembership, makeUser } from '../setup/factories'
+import { makeBusiness, makeCalendarConnection, makeCustomer, makeMembership, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const mail = fakeMail()
@@ -312,5 +312,25 @@ describe('invariante', () => {
     expect((await lerUser(u.id)).passwordHash).not.toBeNull()
     await updatePersonProfile(u.id, { name: 'Novo Nome' })
     expect(await ativa()).toBe(true)
+  })
+})
+
+describe('getPersonAccount: Google Agenda', () => {
+  test('calendar é null para cliente e traz o estado para a equipe', async () => {
+    const cliente = await makeUser({ password: SENHA })
+    expect((await getPersonAccount(cliente.id, null)).calendar).toBeNull()
+
+    const b = await makeBusiness()
+    const membro = await makeUser({ password: SENHA, google: GOOGLE })
+    await makeMembership(b.id, membro.id, 'PROFESSIONAL')
+    expect((await getPersonAccount(membro.id, null)).calendar).toMatchObject({ state: 'off', hasGoogle: true, syncedLabel: null })
+
+    await makeCalendarConnection(membro.id)
+    await prisma.calendarConnection.update({ where: { userId: membro.id }, data: { lastSyncedAt: new Date('2026-11-24T15:30:00Z') } })
+    expect((await getPersonAccount(membro.id, null)).calendar).toMatchObject({ state: 'on', syncedLabel: '24/11/2026 12:30' })
+
+    const semGoogle = await makeUser({ password: SENHA })
+    await makeMembership(b.id, semGoogle.id, 'PROFESSIONAL')
+    expect((await getPersonAccount(semGoogle.id, null)).calendar).toMatchObject({ hasGoogle: false, available: false })
   })
 })

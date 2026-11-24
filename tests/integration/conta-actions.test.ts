@@ -5,7 +5,7 @@ import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCustomer, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
+import { makeBusiness, makeCalendarConnection, makeCustomer, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const jar = new Map<string, string>()
@@ -35,6 +35,7 @@ vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '
 
 import {
   confirmarEmail,
+  desligarAgenda,
   desvincularGoogle,
   pedirCodigoDeEmail,
   salvarAvisosDaLoja,
@@ -180,6 +181,23 @@ describe('Google', () => {
     const eu = await makeUser({ google: GOOGLE, email: GOOGLE.email, password: SENHA })
     await entrar(eu.id)
     expect(await desvincularGoogle(ESTADO_CONTA)).toMatchObject({ ok: true, message: 'Google desvinculado.' })
+  })
+})
+
+describe('Google Agenda', () => {
+  test('desligarAgenda usa a pessoa da sessão e volta com agenda_desligada', async () => {
+    const eu = await makeUser({ google: GOOGLE, email: GOOGLE.email, password: SENHA })
+    const outra = await makeUser({ password: SENHA })
+    await makeCalendarConnection(eu.id)
+    await makeCalendarConnection(outra.id)
+    await entrar(eu.id)
+    await expect(desligarAgenda(ESTADO_CONTA)).rejects.toMatchObject({ to: '/conta?google=agenda_desligada#agenda' })
+    expect(await prisma.calendarConnection.findUnique({ where: { userId: eu.id } })).toBeNull()
+    expect(await prisma.calendarConnection.findUnique({ where: { userId: outra.id } })).not.toBeNull()
+  })
+
+  test('sem sessão, desligarAgenda vai para a entrada', async () => {
+    await expect(desligarAgenda(ESTADO_CONTA)).rejects.toMatchObject({ to: expect.stringContaining('/entrar') })
   })
 })
 

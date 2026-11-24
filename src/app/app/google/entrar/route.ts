@@ -1,8 +1,9 @@
 import { mesmaOrigem } from '@/app/_lib/upload-multipart'
-import { beginGoogle, failureTarget } from '@/server/auth/google/callback'
+import { beginGoogle, beginGoogleCalendar, failureTarget } from '@/server/auth/google/callback'
 import type { GoogleFailure } from '@/server/auth/google/callback'
 import { GOOGLE_FLOW_COOKIE, FLOW_TTL_SEC } from '@/server/auth/google/flow'
 import type { GoogleIntent } from '@/server/auth/google/flow'
+import { APP_COOKIE, readCookie } from '@/server/auth/guards'
 import { readInvite } from '@/server/auth/invites'
 import { requestInfo } from '@/server/auth/request-info'
 import { findOpenStore } from '@/server/auth/store-join'
@@ -49,12 +50,23 @@ export async function POST(request: Request): Promise<Response> {
     case 'vincular':
       intent = { kind: 'link' }
       break
+    case 'agenda': {
+      // Ligar a agenda é da pessoa que já entrou: a sessão vem do cookie, nunca do formulário.
+      const inicioAgenda = await beginGoogleCalendar(await readCookie(APP_COOKIE), (await requestInfo()).ip, agora)
+      if ('failure' in inicioAgenda) return voltar({ kind: 'calendar' }, inicioAgenda.failure)
+      return irAoGoogle(inicioAgenda)
+    }
     default:
       intent = { kind: 'sign_in' }
   }
   const info = await requestInfo()
   const inicio = await beginGoogle(intent, info.ip, agora)
   if ('failure' in inicio) return voltar(intent, inicio.failure)
+  return irAoGoogle(inicio)
+}
+
+/** 303 para o Google com o cookie assinado do fluxo (caminho `/google`, 10 minutos). */
+function irAoGoogle(inicio: { url: string; cookie: string }): Response {
   const cookie = [`${GOOGLE_FLOW_COOKIE}=${inicio.cookie}`, 'Path=/google', `Max-Age=${FLOW_TTL_SEC}`, 'HttpOnly', 'SameSite=Lax', ...(env.NODE_ENV === 'production' ? ['Secure'] : [])].join('; ')
   return new Response(null, { status: 303, headers: { ...CABECALHOS, Location: inicio.url, 'Set-Cookie': cookie } })
 }

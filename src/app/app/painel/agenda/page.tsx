@@ -23,6 +23,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
       <AgendaPainel
         page={page}
         termos={{ customerSingular: TERMS.customerSingular, professionalSingular: TERMS.professionalSingular, professionalPlural: TERMS.professionalPlural }}
+        agendamento={um(q.ag) || null}
         abrir={acao === 'marcar' || acao === 'bloquear' ? acao : null}
         podeBloquear={can(ctx.actor, 'manage_own_availability')}
         podeCadastrar={can(ctx.actor, 'manage_clients')}

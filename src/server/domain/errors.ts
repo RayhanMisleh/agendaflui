@@ -12,6 +12,7 @@ export const DOMAIN_REASONS = [
   'already_started',
   'blocked',
   'busy',
+  'calendar_wrong_google',
   'changed',
   'club_only',
   'customer_email_taken',

@@ -22,6 +22,16 @@ beforeEach(async () => {
   await resetDb()
 })
 
+describe('startGoogleFlow: agenda', () => {
+  test('a intenção calendar sobrevive ao cookie e a dica de conta vai na URL', async () => {
+    await ligar()
+    const r = await startGoogleFlow({ kind: 'calendar' }, NOW, { loginHint: 'ana@exemplo.test' })
+    expect((await readGoogleFlow(r?.cookie, NOW))?.intent).toEqual({ kind: 'calendar' })
+    expect(new URL(r?.url ?? '').searchParams.get('login_hint')).toBe('ana@exemplo.test')
+    expect(r?.url).not.toContain('calendar%22')
+  })
+})
+
 describe('startGoogleFlow', () => {
   test('sem chaves: null', async () => {
     expect(await startGoogleFlow({ kind: 'sign_in' }, NOW)).toBeNull()
