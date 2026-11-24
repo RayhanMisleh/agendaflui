@@ -86,7 +86,7 @@ export function BannersPainel({ banners }: { banners: BannerLinha[] }) {
   return (
     <>
       <div className="af-toolbar">
-        <p className="af-section__help">O app mostra, na ordem abaixo, os banners ativos que estão dentro do período.</p>
+        <p className="af-section__help">A tela inicial dos clientes mostra, na ordem abaixo, os banners ativos que estão dentro do período.</p>
         <LinkButton href="/painel/banners/novo" variant="primary" icon={<Plus size={18} />}>
           Novo banner
         </LinkButton>

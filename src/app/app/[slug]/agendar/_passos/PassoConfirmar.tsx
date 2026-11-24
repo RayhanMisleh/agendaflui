@@ -34,7 +34,7 @@ export function PassoConfirmar({
 }) {
   const [state, formAction, pending] = useActionState(action, ESTADO_VAZIO)
   return (
-    <Passo id="confirmar" title={remarcar ? 'Remarcar para quando?' : 'Tudo certo?'}>
+    <Passo id="confirmar" title={remarcar ? 'Confirmar remarcação' : 'Tudo certo?'}>
       <form action={formAction} className="af-cl-form" noValidate>
         {Object.entries(hidden).map(([nome, valor]) => (
           <input key={nome} type="hidden" name={nome} value={valor} />

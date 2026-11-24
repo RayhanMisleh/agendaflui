@@ -125,7 +125,7 @@ export function ProdutosLista({ produtos, vazio }: { produtos: ProdutoLinha[]; v
       key: 'situacao',
       header: 'Situação',
       nowrap: true,
-      cell: (p) => (p.archived ? <StatusDot tone="neutral" label="Arquivado" /> : p.active ? <StatusDot tone="success" label="À venda" /> : <StatusDot tone="warning" label="Fora de uso" detail="Não aparece no app" />),
+      cell: (p) => (p.archived ? <StatusDot tone="neutral" label="Arquivado" /> : p.active ? <StatusDot tone="success" label="À venda" /> : <StatusDot tone="warning" label="Fora de uso" detail="Não aparece para os clientes" />),
     },
     {
       key: 'acoes',

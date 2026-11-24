@@ -27,13 +27,13 @@ function Pessoas({ valores, erros }: { valores: Record<string, string>; erros: R
       <ul className="af-onb__people">
         {Array.from({ length: n }, (_, i) => (
           <li key={i} className="af-onb__person">
-            <Field label="Nome" error={erros[`t_${i}_name`]}>
+            <Field label={<><span className="af-sr">Pessoa {i + 1}: </span>Nome</>} error={erros[`t_${i}_name`]}>
               <Input name={`t_${i}_name`} defaultValue={valores[`t_${i}_name`] ?? ''} maxLength={80} autoComplete="off" />
             </Field>
-            <Field label="E-mail" error={erros[`t_${i}_email`]}>
+            <Field label={<><span className="af-sr">Pessoa {i + 1}: </span>E-mail</>} error={erros[`t_${i}_email`]}>
               <Input name={`t_${i}_email`} type="email" inputMode="email" defaultValue={valores[`t_${i}_email`] ?? ''} autoComplete="off" />
             </Field>
-            <Field label="Papel">
+            <Field label={<><span className="af-sr">Pessoa {i + 1}: </span>Papel</>}>
               <Select name={`t_${i}_role`} defaultValue={valores[`t_${i}_role`] === 'MANAGER' ? 'MANAGER' : 'PROFESSIONAL'}>
                 <option value="PROFESSIONAL">Profissional</option>
                 <option value="MANAGER">Gerente</option>

@@ -123,6 +123,7 @@ function Linha({
         aria-label={`Preço e duração por porte de ${sugestao?.name ?? `serviço ${i + 1}`}`}
       >
         {portes.map((p) => {
+          const nomeServico = valores[`s_${i}_name`] ?? sugestao?.name ?? `Serviço ${i + 1}`;
           const exemplo = sugestao?.prices.find((x) => x.variant === p.key);
           const preco =
             valores[`s_${i}_${p.key}_price`] ??
@@ -138,14 +139,14 @@ function Linha({
                 {p.shortLabel}
                 {p.rangeLabel ? <small> · {p.rangeLabel}</small> : null}
               </span>
-              <Field label="Preço (R$)" error={erros[`s_${i}_${p.key}_price`]}>
+              <Field label={<><span className="af-sr">{nomeServico} · {p.shortLabel}: </span>Preço (R$)</>} error={erros[`s_${i}_${p.key}_price`]}>
                 <MoneyField
                   name={`s_${i}_${p.key}_price`}
                   defaultValue={preco}
                   disabled={!ligada}
                 />
               </Field>
-              <Field label="Duração" error={erros[`s_${i}_${p.key}_duration`]}>
+              <Field label={<><span className="af-sr">{nomeServico} · {p.shortLabel}: </span>Duração</>} error={erros[`s_${i}_${p.key}_duration`]}>
                 <DurationField
                   name={`s_${i}_${p.key}_duration`}
                   stepMin={slotStepMin}

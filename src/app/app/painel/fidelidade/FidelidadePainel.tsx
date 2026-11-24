@@ -117,7 +117,7 @@ export function PremiosLista({ premios, termos }: { premios: PremioLinha[]; term
     },
     { key: 'custo', header: 'Custo', nowrap: true, align: 'end', cell: (p) => <span className="af-tabular">{pontosDe(p.costPoints, termos)}</span> },
     { key: 'estoque', header: 'Estoque', nowrap: true, align: 'end', cell: (p) => <span className="af-tabular">{p.stock === null ? 'Sem limite' : p.stock === 0 ? 'Esgotado' : formatInt(p.stock)}</span> },
-    { key: 'situacao', header: 'Situação', nowrap: true, cell: (p) => (p.active ? <StatusDot tone="success" label="Disponível" /> : <StatusDot tone="warning" label="Fora de uso" detail="Não aparece no app" />) },
+    { key: 'situacao', header: 'Situação', nowrap: true, cell: (p) => (p.active ? <StatusDot tone="success" label="Disponível" /> : <StatusDot tone="warning" label="Fora de uso" detail="Não aparece para os clientes" />) },
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
