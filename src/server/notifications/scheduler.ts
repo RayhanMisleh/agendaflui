@@ -60,6 +60,7 @@ export function startScheduler(deps: Deps = {}): { stop: () => void } {
   const cleanup = deps.cleanup ?? (() => cleanupRound())
   const record = deps.record ?? recordSchedulerRun
   let busy = false
+  let calendarBusy = false
   let cleaning = false
   let retaining = false
   let lastCleanup = Number.NEGATIVE_INFINITY
@@ -93,18 +94,27 @@ export function startScheduler(deps: Deps = {}): { stop: () => void } {
       .catch((err: unknown) => report('registro da execução', err))
   }
 
+  /** Só grava execução quando a agenda gravou, apagou, desligou, adiou ou desistiu de algo (ou falhou). Nunca duas ao mesmo tempo. */
+  const calendarRound = async (task: () => Promise<unknown>): Promise<void> => {
+    if (calendarBusy) return
+    calendarBusy = true
+    try {
+      await timed('calendar', 'agenda do Google', task, (r) => {
+        const n = r as Record<string, unknown>
+        return ['upserted', 'deleted', 'revoked', 'retried', 'failed'].some((k) => typeof n[k] === 'number' && n[k] > 0)
+      })
+    } finally {
+      calendarBusy = false
+    }
+  }
+
   const tick = async (): Promise<void> => {
     if (busy) return
     busy = true
     try {
       await timed('notifications', 'rodada de envio', run)
-      // Só grava execução quando a agenda gravou, apagou, desligou, adiou ou desistiu de algo (ou falhou).
-      if (calendar !== null) {
-        await timed('calendar', 'agenda do Google', calendar, (r) => {
-          const n = r as Record<string, unknown>
-          return ['upserted', 'deleted', 'revoked', 'retried', 'failed'].some((k) => typeof n[k] === 'number' && n[k] > 0)
-        })
-      }
+      // A agenda do Google roda por conta própria: um Google lento nunca segura os avisos nem a varredura.
+      if (calendar !== null) void calendarRound(calendar)
       // Só grava execução quando a varredura conferiu ou venceu algo, ou falhou (1.440 linhas por dia seriam ruído).
       if (sweep !== null) {
         await timed('store', 'varredura da loja', sweep, (r) => {

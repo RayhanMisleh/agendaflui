@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test } from 'vitest'
+import { setAfterScheduler } from '@/server/after'
 import { calendarEventId } from '@/server/calendar/event'
 import { sealCalendarToken } from '@/server/calendar/token'
 import { processCalendarSyncs } from '@/server/calendar/worker'
+import { connectCalendar, disconnectCalendar } from '@/server/calendar/connection'
 import { prisma } from '@/server/db/client'
 import { anonymizeCustomer } from '@/server/domain/customers/customers'
 import { saveGoogleSettings } from '@/server/domain/platform/google-settings'
@@ -34,7 +36,10 @@ const AGORA = new Date('2026-11-16T11:00:00Z')
 const hora = (h: number, m = 0): Date => new Date(Date.UTC(2026, 10, 16, h + 3, m))
 const google = fakeGoogleAuthority()
 
-afterEach(() => setIntegrationsForTests(null))
+afterEach(() => {
+  setIntegrationsForTests(null)
+  setAfterScheduler(undefined)
+})
 
 async function montar(o: { semGoogle?: boolean; semLigacao?: boolean } = {}) {
   await resetDb()
@@ -228,6 +233,26 @@ describe('falhas do Google', () => {
     expect((await linha(v.id)).syncedGeneration).toBe(2)
   })
 
+  test('timeout do Google: só a primeira linha da pessoa tenta; as outras esperam sem contar tentativa', async () => {
+    const s = await montar()
+    const [a, b] = [await marcar(s, hora(9)), await marcar(s, hora(10))]
+    google.failNext('upsert', 'timeout', 20)
+    expect(await rodar()).toMatchObject({ retried: 1, skipped: 1 })
+    expect(chamadas('upsert')).toHaveLength(1)
+    const ls = [await linha(a.id), await linha(b.id)]
+    expect(ls.map((l) => l.attempts).sort()).toEqual([0, 1])
+    expect(ls.every((l) => l.lockedBy === null && l.syncedGeneration === 0)).toBe(true)
+  })
+
+  test('sem tempo na rodada: as linhas voltam sem tentativa e sem chamar o Google', async () => {
+    const s = await montar()
+    const [a, b] = [await marcar(s, hora(9)), await marcar(s, hora(10))]
+    expect(await processCalendarSyncs({ now: AGORA, budgetMs: 0 })).toMatchObject({ skipped: 2, upserted: 0 })
+    expect(google.calls).toHaveLength(0)
+    for (const v of [a, b]) expect(await linha(v.id)).toMatchObject({ attempts: 0, syncedGeneration: 0, lockedBy: null, lockedUntil: null })
+    expect(await rodar()).toMatchObject({ upserted: 2 })
+  })
+
   test('429 numa linha deixa as outras da mesma pessoa para depois sem contar tentativa', async () => {
     const s = await montar()
     const [a, b, c] = [await marcar(s, hora(9)), await marcar(s, hora(10)), await marcar(s, hora(11))]
@@ -282,6 +307,25 @@ describe('falhas do Google', () => {
     expect((await rodar()).revoked).toBe(0)
     expect(await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: s.pessoa.id } })).toMatchObject({ status: 'CONNECTED', refreshTokenEnc: novo })
     expect(await linha(v.id)).toMatchObject({ syncedGeneration: 1 })
+  })
+})
+
+describe('cancelado com a agenda desligada', () => {
+  test('desligou, cancelou, religou: o evento que ficou no Google é apagado', async () => {
+    const s = await montar()
+    await prisma.user.update({ where: { id: s.pessoa.id }, data: { googleSub: 'g-ana', googleEmail: 'ana@exemplo.test', googleLinkedAt: AGORA } })
+    const v = await marcar(s)
+    await rodar()
+    expect(agenda().has(calendarEventId(v.id))).toBe(true)
+    setAfterScheduler(() => undefined)
+    await disconnectCalendar(s.pessoa.id)
+    await cancelAppointment(s.gerente, v.id)
+    await rodar()
+    expect(agenda().has(calendarEventId(v.id))).toBe(true)
+    await connectCalendar({ userId: s.pessoa.id, googleSub: 'g-ana', refreshToken: 'rt-g-ana-2', now: AGORA })
+    await rodar()
+    expect(agenda().size).toBe(0)
+    expect(await linha(v.id)).toMatchObject({ placedUserId: null, attempts: 0 })
   })
 })
 

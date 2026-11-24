@@ -19,6 +19,8 @@ export const CALENDAR_MAX_ATTEMPTS = 6
 const DEFAULT_LIMIT = 50
 const LIMITED_WAIT_MIN = 1
 const UNCONFIGURED_WAIT_MIN = 15
+/** Quanto tempo uma rodada trabalha antes de soltar o resto: bem menos que a reserva (`CALENDAR_CLAIM_MINUTES`). */
+export const CALENDAR_ROUND_BUDGET_MS = 60_000
 
 export type CalendarRoundResult = { upserted: number; deleted: number; revoked: number; retried: number; failed: number; skipped: number }
 
@@ -121,6 +123,11 @@ async function withAccess(round: Round, userId: string, call: (accessToken: stri
         return { kind: 'wait', minutes: LIMITED_WAIT_MIN }
       case 'rejected':
         return { kind: 'fatal', code: err.code }
+      case 'timeout':
+      case 'unavailable':
+        // O Google está lento ou fora: as outras linhas desta pessoa nem tentam nesta rodada (cada tentativa custaria o tempo limite).
+        round.access.set(userId, { kind: 'wait', minutes: LIMITED_WAIT_MIN })
+        return { kind: 'error', code: err.code }
       default:
         return { kind: 'error', code: err.code }
     }
@@ -227,6 +234,11 @@ async function processLine(round: Round, line: ClaimedSync): Promise<void> {
     if (await stopped(round, line, step)) return
     if (step.kind === 'done') round.result.deleted += 1
     placed = null
+  } else if (placed === null && !want && target !== null) {
+    // Não se sabe onde o evento está (ligação desligada ou revogada no meio do caminho esquece o lugar): apaga na agenda atual.
+    // O Google responde 404/410 se não há evento, e isso já conta como feito.
+    const step = await withAccess(round, target, (accessToken) => google.deleteEvent({ accessToken, eventId }))
+    if (await stopped(round, line, step)) return
   }
 
   if (want && target !== null) {
@@ -261,12 +273,23 @@ async function processLine(round: Round, line: ClaimedSync): Promise<void> {
  * Uma rodada: reserva as linhas atrasadas e as deixa iguais ao Google, uma de cada vez. Nunca lança por causa de uma linha; o
  * que não terminou volta com espera (ver `CALENDAR_RETRY_MINUTES`). Um token de acesso por pessoa por rodada.
  */
-export async function processCalendarSyncs(o: { now?: Date; limit?: number } = {}): Promise<CalendarRoundResult> {
+export async function processCalendarSyncs(o: { now?: Date; limit?: number; budgetMs?: number } = {}): Promise<CalendarRoundResult> {
   const now = o.now ?? new Date()
   const result: CalendarRoundResult = { upserted: 0, deleted: 0, revoked: 0, retried: 0, failed: 0, skipped: 0 }
   const round: Round = { now, result, access: new Map(), touched: new Set(), client: undefined }
   const lines = await claimCalendarSyncs(now, o.limit ?? DEFAULT_LIMIT)
+  const deadline = Date.now() + (o.budgetMs ?? CALENDAR_ROUND_BUDGET_MS)
   for (const line of lines) {
+    if (Date.now() >= deadline) {
+      // Sem tempo: devolve a linha sem contar tentativa; a próxima rodada a pega (e a reserva nunca vence com a rodada ainda mexendo nela).
+      try {
+        await release(line, null)
+      } catch (err) {
+        console.error(`[agenda] erro ao soltar a linha: ${nameOf(err)}`)
+      }
+      round.result.skipped += 1
+      continue
+    }
     try {
       await processLine(round, line)
     } catch (err) {

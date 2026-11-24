@@ -162,6 +162,19 @@ describe('startScheduler: registro das execuções', () => {
     expect(JSON.stringify(gravadas)).not.toContain('maria')
   })
 
+  test('uma agenda do Google que demora não segura os avisos nem a varredura das rodadas seguintes', async () => {
+    vi.useFakeTimers()
+    const run = vi.fn(async () => undefined)
+    const sweep = vi.fn(async () => undefined)
+    const calendar = vi.fn(() => sleep(10 * 60_000))
+    const s = startScheduler({ run, sweep, calendar, cleanup: async () => undefined, record: noRecord })
+    await vi.advanceTimersByTimeAsync(2_500 + 60_000 * 4)
+    s.stop()
+    expect(run.mock.calls.length).toBeGreaterThanOrEqual(5)
+    expect(sweep.mock.calls.length).toBeGreaterThanOrEqual(5)
+    expect(calendar).toHaveBeenCalledTimes(1)
+  })
+
   test('limpeza que lança grava ok: false', async () => {
     vi.useFakeTimers()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
