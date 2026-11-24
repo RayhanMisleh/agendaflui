@@ -13,6 +13,8 @@ export type WizardValues = {
   primary: string
   accent: string
   material: CoverMaterial
+  // Nicho: o nicho é sempre pet shop; a opção é se a loja atende gatos
+  servesCats: boolean
   // Módulos
   loyalty: boolean
   banners: boolean
@@ -56,6 +58,7 @@ export const EMPTY_VALUES: WizardValues = {
   primary: '#0B6E66',
   accent: '#F2A93B',
   material: 'LEATHER',
+  servesCats: false,
   loyalty: false,
   banners: false,
   store: false,
@@ -69,11 +72,12 @@ export const EMPTY_VALUES: WizardValues = {
   ownerEmail: '',
 }
 
-export type StepId = 'dados' | 'marca' | 'modulos' | 'regras' | 'dono'
+export type StepId = 'dados' | 'marca' | 'nicho' | 'modulos' | 'regras' | 'dono'
 
 export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly string[] }> = [
   { id: 'dados', label: 'Dados', fields: ['name', 'slug', 'document', 'contactEmail', 'contactPhone'] },
   { id: 'marca', label: 'Marca', fields: ['displayName', 'primary', 'accent', 'material'] },
+  { id: 'nicho', label: 'Nicho', fields: ['niche', 'servesCats'] },
   { id: 'modulos', label: 'Módulos', fields: ['loyalty', 'banners', 'store'] },
   {
     id: 'regras',
@@ -106,7 +110,7 @@ export function stepsWithError(fields: Record<string, string>): number[] {
   return [...new Set(Object.keys(fields).map(stepOfField).filter((i): i is number => i !== null))].sort((a, b) => a - b)
 }
 
-const BOOLEANOS = ['loyalty', 'banners', 'store', 'autoConfirm'] as const
+const BOOLEANOS = ['servesCats', 'loyalty', 'banners', 'store', 'autoConfirm'] as const
 const TEXTOS = Object.keys(EMPTY_VALUES).filter((k) => !(BOOLEANOS as readonly string[]).includes(k)) as Array<
   Exclude<keyof WizardValues, (typeof BOOLEANOS)[number]>
 >

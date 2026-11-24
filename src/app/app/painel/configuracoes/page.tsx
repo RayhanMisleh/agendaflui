@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { getBusinessAppearance, getBusinessProfile } from '@/server/domain/settings/business-profile'
 import { listClosuresFor } from '@/server/domain/settings/closures'
 import { getNotificationSettingsView } from '@/server/domain/settings/notification-settings'
@@ -11,11 +12,11 @@ import { ACCENT_FIELD_LABEL, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, 
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
-import { AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, RegrasForm } from './Formularios'
+import { AnimaisForm, AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, RegrasForm } from './Formularios'
 
 export const metadata: Metadata = { title: 'Configurações | Agenda Flui' }
 
-type Secao = 'negocio' | 'aparencia' | 'agenda' | 'fechamentos' | 'avisos' | 'perfil'
+type Secao = 'negocio' | 'aparencia' | 'agenda' | 'animais' | 'fechamentos' | 'avisos' | 'perfil'
 
 const LOGO: Record<string, { texto: string; ok: boolean }> = {
   ok: { texto: 'Logo atualizada.', ok: true },
@@ -37,11 +38,13 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
   const donoDaConta = can(ctx.actor, 'manage_account')
   const gerencia = can(ctx.actor, 'manage_settings')
 
+  const nicho = gerencia ? await getNicheSettings(ctx) : null
   const secoes: { id: Secao; label: string }[] = [
     ...(donoDaConta ? [{ id: 'negocio' as const, label: 'Negócio' }, { id: 'aparencia' as const, label: 'Aparência' }] : []),
     ...(gerencia
       ? [
           { id: 'agenda' as const, label: 'Agenda' },
+          ...(nicho?.niche ? [{ id: 'animais' as const, label: 'Animais' }] : []),
           { id: 'fechamentos' as const, label: 'Fechamentos' },
           { id: 'avisos' as const, label: 'Avisos' },
         ]
@@ -145,6 +148,16 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             autoConfirm: caixa(r.autoConfirm),
           }}
         />
+      </Card>
+    )
+  } else if (secao === 'animais' && nicho) {
+    corpo = (
+      <Card as="section" aria-labelledby="cfg-titulo" className="af-settings__section">
+        <h2 id="cfg-titulo" className="af-section__title">
+          Animais atendidos
+        </h2>
+        <p className="af-section__help">Cães são sempre atendidos.</p>
+        <AnimaisForm version={nicho.version} servesCats={nicho.options.servesCats} />
       </Card>
     )
   } else if (secao === 'fechamentos') {

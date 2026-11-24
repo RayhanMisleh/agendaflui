@@ -3,6 +3,7 @@ import { updateBusinessProfile } from '@/server/domain/settings/business-profile
 import { createClosure, deleteClosure, previewClosure } from '@/server/domain/settings/closures'
 import { DEFAULT_NOTIFICATION_SETTINGS, updateNotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
+import { updateNicheOptions } from '@/server/domain/settings/niche-settings'
 import { updateSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { erroDeCampo, feito, ler } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
@@ -67,6 +68,22 @@ export const salvarRegras = tenantAction(
     }
     atualizarPainel()
     return 'Regras salvas.'
+  },
+  (mensagem, v) => feito(mensagem, v),
+)
+
+/** "Animais atendidos": a caixa `servesCats` só chega marcada (o interruptor escreve um campo escondido). */
+export const salvarAnimais = tenantAction(
+  'manage_settings',
+  (fd) => ler(fd, ['version'], ['servesCats']),
+  async (ctx, v) => {
+    try {
+      await updateNicheOptions(ctx, { servesCats: v.servesCats === 'on', version: versao(v) })
+    } catch (err) {
+      throw comConflito(err)
+    }
+    atualizarPainel()
+    return 'Animais atendidos salvos.'
   },
   (mensagem, v) => feito(mensagem, v),
 )

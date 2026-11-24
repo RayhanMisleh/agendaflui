@@ -26,6 +26,8 @@ function dadosDaConta(v: WizardData) {
     ...(vazio(v.document) ? {} : { document: v.document }),
     ...(vazio(v.contactEmail) ? {} : { contactEmail: v.contactEmail }),
     ...(vazio(v.contactPhone) ? {} : { contactPhone: v.contactPhone }),
+    niche: 'PET' as const,
+    nicheOptions: { servesCats: v.servesCats },
     owner: { name: v.ownerName, email: v.ownerEmail },
   }
 }

@@ -17,6 +17,8 @@ import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/r
 import { isReservedSlug } from '@/shared/reserved-slugs'
 import type { Modules } from '@/shared/modules'
 import { fromIsoInstant, toIsoInstant } from '@/server/time'
+import { parseNicheOptions } from '@/server/niches'
+import type { NicheKey } from '@/server/niches'
 
 export type { BusinessStatus }
 
@@ -39,6 +41,10 @@ export type BusinessDetail = BusinessRow & {
   contactPhone: string | null
   timeZone: string
   modules: Modules
+  /** Nicho da conta; nulo para conta antiga sem nicho. */
+  niche: NicheKey | null
+  /** Opção do nicho pet: a loja atende gatos. */
+  servesCats: boolean
   /** O link que a loja passa aos clientes (`<APP_HOST>/<slug>`). */
   customerLinkUrl: string
 }
@@ -140,6 +146,8 @@ const criarSchema = z.object({
   name: nomeSchema,
   slug: slugSchema,
   ...camposOpcionais,
+  niche: z.literal('PET', { error: 'Escolha o nicho da conta.' }),
+  nicheOptions: z.object({ servesCats: z.boolean() }).optional(),
   owner: z.object({
     name: nomeSchema,
     email: z.string().transform((v, ctx) => {
@@ -214,7 +222,9 @@ const SELECAO_DETALHE = {
   email: true,
   phone: true,
   timezone: true,
+  niche: true,
   modules: { select: { loyalty: true, banners: true, store: true } },
+  settings: { select: { nicheOptions: true } },
 } satisfies Prisma.BusinessSelect
 
 type DetalheBruto = Prisma.BusinessGetPayload<{ select: typeof SELECAO_DETALHE }>
@@ -228,6 +238,8 @@ function paraDetalhe(b: DetalheBruto): BusinessDetail {
     contactPhone: b.phone,
     timeZone: b.timezone,
     modules: b.modules ?? { loyalty: false, banners: false, store: false },
+    niche: b.niche,
+    servesCats: parseNicheOptions(b.niche, b.settings?.nicheOptions).servesCats,
     customerLinkUrl: customerLinkUrl(b.slug),
   }
 }
@@ -400,6 +412,8 @@ export async function createBusiness(
     document?: string
     contactEmail?: string
     contactPhone?: string
+    niche: 'PET'
+    nicheOptions?: { servesCats: boolean }
     owner: { name: string; email: string }
   },
   now: Date = new Date(),
@@ -421,9 +435,10 @@ export async function createBusiness(
               document: i.document ?? null,
               email: i.contactEmail ?? null,
               phone: i.contactPhone ?? null,
+              niche: i.niche,
               branding: { create: { displayName: i.name } },
               modules: { create: {} },
-              settings: { create: {} },
+              settings: { create: { nicheOptions: { servesCats: i.nicheOptions?.servesCats ?? false } } },
             },
             select: { id: true },
           })
