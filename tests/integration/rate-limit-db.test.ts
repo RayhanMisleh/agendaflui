@@ -122,6 +122,8 @@ test('os limites combinados', () => {
     apiIp: { limit: 120, windowSec: 60 },
     authIp: { limit: 30, windowSec: 900 },
     panelResetIp: { limit: 10, windowSec: 900 },
+    emailChangePerson: { limit: 5, windowSec: 3600 },
+    emailChangePersonDaily: { limit: 10, windowSec: 86400 },
     codeEmail: { limit: 3, windowSec: 900 },
     codeEmailDaily: { limit: 6, windowSec: 86400 },
     codeFailures: { limit: 10, windowSec: 86400 },
