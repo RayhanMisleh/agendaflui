@@ -4,13 +4,14 @@ import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, LinkButton } from '@/ui/components'
 import { PainelFrame } from '../../PainelFrame'
 import { ClienteForm } from '../ClienteForm'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Novo cadastro | Agenda Flui' }
 
 export default async function NovoClientePage() {
   const ctx = await requireTenant('manage_clients')
   const painel = await getPainelContext(ctx)
-  const { terms } = painel
+  const terms = TERMS
   return (
     <PainelFrame
       ctx={ctx}
@@ -22,7 +23,7 @@ export default async function NovoClientePage() {
       }
     >
       <Card as="section" aria-label="Dados do cadastro" className="af-profile af-profile--narrow">
-        <ClienteForm cliente={null} clube={painel.modules.loyalty ? painel.terms.club : null} singular={terms.customerSingular} />
+        <ClienteForm cliente={null} clube={painel.modules.loyalty ? TERMS.club : null} singular={terms.customerSingular} />
       </Card>
     </PainelFrame>
   )

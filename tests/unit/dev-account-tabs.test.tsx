@@ -29,5 +29,5 @@ test('o resumo só fica ativo na rota exata da conta, não nas subrotas', () => 
 })
 
 test('as abas da conta não têm mais a aba Chaves; Integrações vem depois de Equipe', () => {
-  expect(ACCOUNT_TABS.map((t) => t.label)).toEqual(['Resumo', 'Marca', 'Termos', 'Módulos', 'Regras', 'Equipe', 'Integrações', 'Auditoria'])
+  expect(ACCOUNT_TABS.map((t) => t.label)).toEqual(['Resumo', 'Marca', 'Módulos', 'Regras', 'Equipe', 'Integrações', 'Auditoria'])
 })

@@ -8,6 +8,7 @@ import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { ServicosPainel } from './ServicosPainel'
 import type { ServicoLinha } from './ServicosPainel'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Serviços | Agenda Flui' }
 
@@ -41,7 +42,7 @@ export default async function ServicosPage({ searchParams }: { searchParams: Pro
         <ServicosPainel
           servicos={servicos}
           arquivados={arquivados}
-          ctx={{ step: regras.slotStepMin, loyalty: painel.modules.loyalty, pontos: painel.terms.pointsPlural, clube: painel.terms.club }}
+          ctx={{ step: regras.slotStepMin, loyalty: painel.modules.loyalty, pontos: TERMS.pointsPlural, clube: TERMS.club }}
         />
       </Card>
     </PainelFrame>

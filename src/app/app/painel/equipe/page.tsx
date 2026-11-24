@@ -8,13 +8,14 @@ import { Card, EmptyState, LinkButton } from '@/ui/components'
 import { PainelFrame } from '../PainelFrame'
 import { EquipeTabela } from './EquipeTabela'
 import type { EquipeLinha } from './EquipeTabela'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Equipe | Agenda Flui' }
 
 export default async function EquipePage() {
   const ctx = await requireTenant('manage_team')
-  const [painel, equipe] = await Promise.all([getPainelContext(ctx), listTeamOverview(ctx)])
-  const { terms } = painel
+  const [, equipe] = await Promise.all([getPainelContext(ctx), listTeamOverview(ctx)])
+  const terms = TERMS
   const novo = `Adicionar ${terms.professionalSingular.toLowerCase()}`
   const linhas = equipe.map((r): EquipeLinha => ({
     id: r.professional.id,
@@ -22,7 +23,7 @@ export default async function EquipePage() {
     avatarUrl: r.professional.avatarUrl,
     servicos: r.serviceNames,
     ativo: r.professional.active === true,
-    papel: r.access ? roleLabel(r.access.role, terms.professionalSingular) : null,
+    papel: r.access ? roleLabel(r.access.role) : null,
     acesso: r.access?.status ?? 'none',
   }))
 

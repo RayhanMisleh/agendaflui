@@ -28,7 +28,6 @@ export function loaded(o: Overrides = {}): LoadedNotification {
       name: 'Tosa & Cia',
       color: '#2F6B4F',
       timeZone: 'America/Manaus',
-      terms: { professional: 'Tosador', customer: 'Tutor' },
       changeWindowMin: 120,
       enabled: Object.fromEntries(
         [

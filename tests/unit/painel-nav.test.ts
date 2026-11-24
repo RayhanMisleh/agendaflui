@@ -1,34 +1,24 @@
 import { CAPABILITIES, can } from '@/server/auth/capabilities'
 import type { Actor } from '@/server/auth/actor'
-import type { Terms } from '@/server/domain/settings/terms'
 import type { Modules } from '@/shared/modules'
 import { isNavActive } from '@/ui/shells/nav'
 import { painelNav } from '@/ui/shells/painel-nav'
 
-const TERMOS: Terms = {
-  professionalSingular: 'Tosador',
-  professionalPlural: 'Tosadores',
-  customerSingular: 'Tutor',
-  customerPlural: 'Tutores',
-  pointsSingular: 'Ponto',
-  pointsPlural: 'Pontos',
-  club: 'Clube',
-}
 const MODULOS: Modules = { loyalty: false, banners: false, store: false }
 const TODOS_LIGADOS: Modules = { loyalty: true, banners: true, store: true }
 
 function navDe(role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', modules = MODULOS) {
   const actor: Actor = { kind: 'member', userId: 'u', membershipId: 'm', name: 'Ana', role }
-  return painelNav({ can: (c) => can(actor, c), modules, terms: TERMOS })
+  return painelNav({ can: (c) => can(actor, c), modules })
 }
 const rotulos = (role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL', modules?: Modules) => navDe(role, modules).map((i) => i.label)
 
-test('o dono vê as sete divisões, na ordem, com os termos da conta', () => {
+test('o dono vê as sete divisões, na ordem, com os termos do sistema', () => {
   expect(navDe('OWNER').map((i) => [i.label, i.href])).toEqual([
     ['Início', '/painel'],
     ['Agenda', '/painel/agenda'],
-    ['Tutores', '/painel/clientes'],
-    ['Tosadores', '/painel/equipe'],
+    ['Clientes', '/painel/clientes'],
+    ['Profissionais', '/painel/equipe'],
     ['Serviços', '/painel/servicos'],
     ['Relatórios', '/painel/relatorios'],
     ['Configurações', '/painel/configuracoes'],
@@ -41,33 +31,32 @@ test('o gerente vê as mesmas divisões do dono (os dados da conta ficam dentro 
 
 test('o profissional não vê Equipe, Serviços, relatórios gerais nem as configurações do negócio', () => {
   const r = rotulos('PROFESSIONAL')
-  expect(r).toEqual(['Início', 'Agenda', 'Tutores', 'Meus números', 'Meu perfil'])
-  expect(r).not.toContain('Tosadores')
+  expect(r).toEqual(['Início', 'Agenda', 'Clientes', 'Meus números', 'Meu perfil'])
+  expect(r).not.toContain('Profissionais')
   expect(r).not.toContain('Relatórios')
   expect(r).not.toContain('Configurações')
 })
 
 test('cada divisão só aparece para quem tem a capacidade dela', () => {
-  const sem = (faltando: string) => painelNav({ can: (c) => c !== faltando, modules: MODULOS, terms: TERMOS }).map((i) => i.href)
+  const sem = (faltando: string) => painelNav({ can: (c) => c !== faltando, modules: MODULOS }).map((i) => i.href)
   expect(sem('view_own_agenda')).not.toContain('/painel/agenda')
   expect(sem('view_clients')).not.toContain('/painel/clientes')
   expect(sem('manage_team')).not.toContain('/painel/equipe')
   expect(sem('manage_catalog')).not.toContain('/painel/servicos')
-  expect(painelNav({ can: () => false, modules: MODULOS, terms: TERMOS })).toEqual([])
+  expect(painelNav({ can: () => false, modules: MODULOS })).toEqual([])
 })
 
-test('o rótulo acompanha o termo da conta, não um texto fixo', () => {
-  const nav = painelNav({ can: () => true, modules: MODULOS, terms: { ...TERMOS, customerPlural: 'Hóspedes', professionalPlural: 'Guias' } })
-  expect(nav.map((i) => i.label)).toEqual(expect.arrayContaining(['Hóspedes', 'Guias']))
-  expect(nav.map((i) => i.label)).not.toContain('Clientes')
+test('os rótulos são os termos fixos do sistema, iguais para todas as contas', () => {
+  const nav = painelNav({ can: () => true, modules: MODULOS })
+  expect(nav.map((i) => i.label)).toEqual(expect.arrayContaining(['Clientes', 'Profissionais']))
 })
 
 test('com os módulos ligados, o dono vê Fidelidade, Banners e Loja entre Serviços e Relatórios', () => {
   expect(navDe('OWNER', TODOS_LIGADOS).map((i) => [i.label, i.href])).toEqual([
     ['Início', '/painel'],
     ['Agenda', '/painel/agenda'],
-    ['Tutores', '/painel/clientes'],
-    ['Tosadores', '/painel/equipe'],
+    ['Clientes', '/painel/clientes'],
+    ['Profissionais', '/painel/equipe'],
     ['Serviços', '/painel/servicos'],
     ['Fidelidade', '/painel/fidelidade'],
     ['Banners', '/painel/banners'],
@@ -91,7 +80,7 @@ test('o profissional não vê módulo nenhum, nem com todos ligados', () => {
 })
 
 test('módulo ligado sem a capacidade também some', () => {
-  const sem = painelNav({ can: (c) => c !== 'manage_store', modules: TODOS_LIGADOS, terms: TERMOS }).map((i) => i.label)
+  const sem = painelNav({ can: (c) => c !== 'manage_store', modules: TODOS_LIGADOS }).map((i) => i.label)
   expect(sem).not.toContain('Loja')
   expect(sem).toContain('Banners')
 })

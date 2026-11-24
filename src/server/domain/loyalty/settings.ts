@@ -42,10 +42,3 @@ export async function updateLoyaltySettings(
     return { rankingEnabled: row.loyaltyRankingEnabled, version: row.version }
   })
 }
-
-/** Os termos da conta para os rótulos de pontos e clube no app (sem permissão de equipe: o cliente os vê). */
-export async function getLoyaltyTerms(ctx: TenantContext): Promise<{ points: { singular: string; plural: string }; club: string }> {
-  await requireModule(ctx, 'loyalty')
-  const s = orNotFound(await ctx.db.businessSettings.findUnique({ where: { businessId: ctx.businessId } }), 'Configurações da conta')
-  return { points: { singular: s.termPointsSingular, plural: s.termPointsPlural }, club: s.termClub }
-}

@@ -11,6 +11,7 @@ import { um } from '@/app/_lib/params'
 import { LinkParaClientes } from '../_lib/LinkParaClientes'
 import { PainelFrame } from '../PainelFrame'
 import { ClientesTabela } from './ClientesTabela'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Clientes | Agenda Flui' }
 
@@ -29,7 +30,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const ctx = await requireTenant('view_clients')
   const q = await searchParams
   const [painel, link] = await Promise.all([getPainelContext(ctx), getCustomerLink(ctx)])
-  const { terms } = painel
+  const terms = TERMS
   const plural = terms.customerPlural
   const clube = painel.modules.loyalty
   const pedida = um(q.situacao)
@@ -91,7 +92,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const filtros: { id: Situacao; label: string }[] = [
     { id: 'ativos', label: 'Ativos' },
     { id: 'arquivados', label: 'Arquivados' },
-    ...(clube ? [{ id: 'clube' as const, label: `Do ${painel.terms.club}` }] : []),
+    ...(clube ? [{ id: 'clube' as const, label: `Do ${TERMS.club}` }] : []),
   ]
   const params = { search: search || undefined, situacao: situacao === 'ativos' ? undefined : situacao }
 
@@ -120,7 +121,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
             clearHref="/painel/clientes"
           />
           <NavTabs label="Situação" items={filtros.map((f) => ({ id: f.id, label: f.label, href: enderecoDaLista(search, f.id), active: situacao === f.id }))} />
-          <ClientesTabela clientes={clientes} vazio={vazio} clube={clube ? painel.terms.club : null} />
+          <ClientesTabela clientes={clientes} vazio={vazio} clube={clube ? TERMS.club : null} />
           {clientes.length > 0 ? (
             <p className="af-listpanel__summary">
               {clientes.length === 1 ? '1 cadastro nesta página.' : `${clientes.length} cadastros nesta página.`}

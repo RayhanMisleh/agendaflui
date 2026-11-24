@@ -3,7 +3,7 @@ import { AuthError } from '@/server/auth/actor'
 import { APP_COOKIE, readCookie } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { changeOwnAccountPassword, updateOwnAccountProfile } from '@/server/domain/account/profile'
-import { updateBusinessProfile, updateTermsAsOwner } from '@/server/domain/settings/business-profile'
+import { updateBusinessProfile } from '@/server/domain/settings/business-profile'
 import { createClosure, deleteClosure, previewClosure } from '@/server/domain/settings/closures'
 import { DEFAULT_NOTIFICATION_SETTINGS, updateNotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
@@ -90,31 +90,6 @@ export const salvarAvisos = tenantAction(
     }
     atualizarPainel()
     return 'Avisos salvos.'
-  },
-  (mensagem, v) => feito(mensagem, v),
-)
-
-const TERMOS = ['professionalSingular', 'professionalPlural', 'customerSingular', 'customerPlural', 'pointsSingular', 'pointsPlural', 'club'] as const
-
-export const salvarTermos = tenantAction(
-  'manage_settings',
-  (fd) => ler(fd, ['version', ...TERMOS]),
-  async (ctx, v) => {
-    try {
-      await updateTermsAsOwner(ctx, versao(v), {
-        professionalSingular: v.professionalSingular ?? '',
-        professionalPlural: v.professionalPlural ?? '',
-        customerSingular: v.customerSingular ?? '',
-        customerPlural: v.customerPlural ?? '',
-        pointsSingular: v.pointsSingular ?? '',
-        pointsPlural: v.pointsPlural ?? '',
-        club: v.club ?? '',
-      })
-    } catch (err) {
-      throw comConflito(err)
-    }
-    atualizarPainel()
-    return 'Termos salvos.'
   },
   (mensagem, v) => feito(mensagem, v),
 )

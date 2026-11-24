@@ -4,7 +4,6 @@ import type { NavTabItem } from '@/ui/components/NavTabs'
 export const ACCOUNT_TABS: ReadonlyArray<{ id: string; label: string; path: string }> = [
   { id: 'resumo', label: 'Resumo', path: '' },
   { id: 'marca', label: 'Marca', path: '/marca' },
-  { id: 'termos', label: 'Termos', path: '/termos' },
   { id: 'modulos', label: 'Módulos', path: '/modulos' },
   { id: 'regras', label: 'Regras', path: '/regras' },
   { id: 'equipe', label: 'Equipe', path: '/equipe' },

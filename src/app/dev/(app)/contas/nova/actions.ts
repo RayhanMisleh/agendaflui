@@ -3,7 +3,7 @@ import { redirect, unstable_rethrow } from 'next/navigation'
 import { customerLinkUrl } from '@/server/customer-link'
 import { DomainError } from '@/server/domain/errors'
 import { createBusiness, validateNewBusiness } from '@/server/domain/platform/businesses'
-import { getCustomization, updateBrand, updateModules, updateRulesAsAdmin, updateTerms, validateAccountSetup } from '@/server/domain/platform/customization'
+import { getCustomization, updateBrand, updateModules, updateRulesAsAdmin, validateAccountSetup } from '@/server/domain/platform/customization'
 import type { BrandInput } from '@/server/domain/platform/customization'
 import type { SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { adminAction } from '../../_lib/action'
@@ -11,7 +11,7 @@ import type { PlatformAdminActor } from '../../_lib/action'
 import { renomear } from '@/app/_lib/campos'
 import type { FormState } from '@/app/_lib/form-state'
 import { pickValues, readValues } from './fields'
-import type { TermSet, WizardData, WizardResult } from './fields'
+import type { WizardData, WizardResult } from './fields'
 
 function vazio(valor: string): boolean {
   return valor.trim() === ''
@@ -27,18 +27,6 @@ function dadosDaConta(v: WizardData) {
     ...(vazio(v.contactEmail) ? {} : { contactEmail: v.contactEmail }),
     ...(vazio(v.contactPhone) ? {} : { contactPhone: v.contactPhone }),
     owner: { name: v.ownerName, email: v.ownerEmail },
-  }
-}
-
-function termosDe(v: WizardData): TermSet {
-  return {
-    professionalSingular: v.professionalSingular,
-    professionalPlural: v.professionalPlural,
-    customerSingular: v.customerSingular,
-    customerPlural: v.customerPlural,
-    pointsSingular: v.pointsSingular,
-    pointsPlural: v.pointsPlural,
-    club: v.club,
   }
 }
 
@@ -63,7 +51,6 @@ function conferirAntes(v: WizardData): Record<string, string> {
     erros,
     validateAccountSetup({
       brand: marcaDe(v),
-      terms: termosDe(v),
       modules: { loyalty: v.loyalty, banners: v.banners, store: v.store },
       rules: regrasDe(v),
     }),
@@ -87,7 +74,6 @@ function regrasDe(v: WizardData): Partial<SchedulingRules> {
 
 const PENDENCIA = {
   marca: 'A marca (cores e barra lateral) não foi salva',
-  termos: 'Os termos não foram salvos',
   modulos: 'Os módulos não foram salvos',
   regras: 'As regras de agenda não foram salvas',
 } as const
@@ -129,9 +115,6 @@ async function executar(admin: PlatformAdminActor, v: WizardData): Promise<Wizar
     const atual = await getCustomization(admin, id)
     await updateBrand(admin, id, atual.brand.version, marcaDe(v))
   })
-  await passo(falhas, 'termos', async () => {
-    await updateTerms(admin, id, termosDe(v))
-  })
   await passo(falhas, 'modulos', async () => {
     await updateModules(admin, id, { loyalty: v.loyalty, banners: v.banners, store: v.store })
   })
@@ -159,5 +142,5 @@ function concluir({ faltou, ...resultado }: WizardResult & { faltou: string[] },
   return { ok: true, message: null, fields: {}, values: { ...pickValues(v), result: resultado } }
 }
 
-/** Cria a conta inteira numa ação só: conta e dono, marca, logo, termos, módulos e regras, nesta ordem. */
+/** Cria a conta inteira numa ação só: conta e dono, marca, logo, módulos e regras, nesta ordem. */
 export const criarConta = adminAction<WizardData, WizardResult & { faltou: string[] }>(readValues, executar, concluir)

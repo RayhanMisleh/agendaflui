@@ -265,9 +265,9 @@ model SchedulerRun {
 
 model Business {
   id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// O CHECK `businesses_slug_not_reserved` (só no SQL) recusa os nomes de `RESERVED_SLUGS` (rotas do sistema).
   slug          String         @unique
   name          String
-  segment       String?
   document      String?
   email         String?
   phone         String?
@@ -391,16 +391,9 @@ model BusinessSettings {
   customerChangeWindowMin  Int      @default(120) @map("customer_change_window_min")
   bufferMin                Int      @default(0) @map("buffer_min")
   autoConfirm              Boolean  @default(true) @map("auto_confirm")
-  termProfessionalSingular String   @default("Profissional") @map("term_professional_singular")
-  termProfessionalPlural   String   @default("Profissionais") @map("term_professional_plural")
-  termCustomerSingular     String   @default("Cliente") @map("term_customer_singular")
-  termCustomerPlural       String   @default("Clientes") @map("term_customer_plural")
-  termPointsSingular       String   @default("Ponto") @map("term_points_singular")
-  termPointsPlural         String   @default("Pontos") @map("term_points_plural")
-  termClub                 String   @default("Clube") @map("term_club")
   loyaltyRankingEnabled    Boolean  @default(false) @map("loyalty_ranking_enabled")
   notifications            Json     @default("{}")
-  /// Controle de edição de termos, regras de agenda e avisos (uma versão só para o conjunto): cada gravação que muda algo a incrementa.
+  /// Controle de edição de regras de agenda e avisos (uma versão só para o conjunto): cada gravação que muda algo a incrementa.
   version                  Int      @default(1)
   createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)

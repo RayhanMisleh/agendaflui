@@ -30,7 +30,7 @@ export async function PainelFrame({
   const [session, marca, painel] = await Promise.all([requireMemberSession(), getPublicBrandById(ctx.businessId), getPainelContext(ctx)])
   if (!marca) redirect('/entrar')
 
-  const nav = painelNav({ can: (c) => can(ctx.actor, c), modules: painel.modules, terms: painel.terms }).map((item) => ({
+  const nav = painelNav({ can: (c) => can(ctx.actor, c), modules: painel.modules }).map((item) => ({
     ...item,
     disabled: !ROTAS_PRONTAS.has(item.href),
   }))

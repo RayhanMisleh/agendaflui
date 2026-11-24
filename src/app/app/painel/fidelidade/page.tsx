@@ -11,6 +11,7 @@ import { PainelFrame } from '../PainelFrame'
 import { requirePainelModule } from '../_lib/modulo'
 import { ClubeLista, PremiosLista, RankingForm, ResgatesLista } from './FidelidadePainel'
 import type { TermosFidelidade } from './FidelidadePainel'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Fidelidade | Agenda Flui' }
 
@@ -35,8 +36,8 @@ export default async function FidelidadePage({ searchParams }: { searchParams: P
   const q = await searchParams
   const aba: Aba = ABAS.find((a) => a.id === um(q.aba))?.id ?? 'premios'
   const cursor = um(q.cursor) || null
-  const painel = await getPainelContext(ctx)
-  const { terms } = painel
+  await getPainelContext(ctx)
+  const terms = TERMS
   const termos: TermosFidelidade = { ponto: terms.pointsSingular, pontos: terms.pointsPlural, clube: terms.club, cliente: terms.customerPlural }
   const abas = ABAS.map((a) => ({ id: a.id, label: a.id === 'clube' ? terms.club : a.label, href: a.id === 'premios' ? '/painel/fidelidade' : `/painel/fidelidade?aba=${a.id}`, active: aba === a.id }))
 

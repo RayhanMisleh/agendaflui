@@ -36,14 +36,12 @@ import {
   salvarMarca,
   salvarModulos,
   salvarRegras,
-  salvarTermos,
   suspenderConta,
   convidarMembro,
   trocarPapel,
 } from '@/app/dev/(app)/contas/[id]/actions'
 import { updateNotificationSettings } from '@/server/domain/settings/notification-settings'
 import { updateSchedulingRules } from '@/server/domain/settings/scheduling-rules'
-import { updateTermsAsOwner } from '@/server/domain/settings/business-profile'
 import type { FormState } from '@/app/_lib/form-state'
 
 const vazio: FormState<Record<string, never>> = { ok: false, message: null, fields: {}, values: {} }
@@ -144,24 +142,8 @@ describe('marca', () => {
 })
 
 describe('versão das configurações nas gravações do painel dev', () => {
-  const termos = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' }
   const regras = { slotStepMin: '15', minLeadMin: '60', maxAdvanceDays: '30', customerChangeWindowMin: '120', bufferMin: '0' }
   const versao = async (businessId: string) => (await prisma.businessSettings.findUniqueOrThrow({ where: { businessId } })).version
-
-  test('termos: o dono muda um termo; o admin, com a versão antiga, recebe conflito e o termo do dono continua', async () => {
-    const conta = await makeBusiness()
-    const dono = await makeCtx(conta)
-    const lida = await versao(conta.id)
-    await updateTermsAsOwner(dono, lida, { ...termos, club: 'VIP' })
-    const r = await salvarTermos(conta.id, ini, form({ ...termos, professionalSingular: 'Groomer', version: String(lida) }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toBe(MSG_CONFLITO)
-    expect(r.values.professionalSingular).toBe('Groomer')
-    expect(await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).toMatchObject({ termClub: 'VIP', termProfessionalSingular: expect.not.stringMatching(/^Groomer$/) })
-    const ok = await salvarTermos(conta.id, ini, form({ ...termos, club: 'VIP', professionalSingular: 'Groomer', version: String(lida + 1) }))
-    expect(ok.ok).toBe(true)
-    expect(ok.values.version).toBe(String(lida + 2))
-  })
 
   test('regras: o dono muda o intervalo; o admin com a versão antiga recebe conflito e o intervalo do dono continua', async () => {
     const conta = await makeBusiness()
@@ -194,17 +176,7 @@ describe('versão das configurações nas gravações do painel dev', () => {
   })
 })
 
-describe('termos, módulos, regras e avisos', () => {
-  test('termos gravam e termo vazio erra no campo', async () => {
-    const conta = await makeBusiness()
-    const base = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube Pata' }
-    const v1 = String((await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).version)
-    expect((await salvarTermos(conta.id, ini, form({ ...base, version: v1 }))).ok).toBe(true)
-    expect((await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: conta.id } })).termClub).toBe('Clube Pata')
-    const vazioClube = await salvarTermos(conta.id, ini, form({ ...base, club: '', version: String(Number(v1) + 1) }))
-    expect(vazioClube.ok).toBe(false)
-    expect(vazioClube.fields.club).toBeTruthy()
-  })
+describe('módulos, regras e avisos', () => {
 
   test('salvar módulos grava os que estão marcados e desliga os outros', async () => {
     const conta = await makeBusiness()
@@ -374,7 +346,7 @@ describe('o id da conta vem do servidor, não do formulário', () => {
   })
 
   test('id ligado que não é UUID não grava nada e não vaza erro técnico', async () => {
-    const r = await salvarTermos('nao-e-uuid', ini, form({ club: 'X' }))
+    const r = await salvarRegras('nao-e-uuid', ini, form({ bufferMin: '10' }))
     expect(r.ok).toBe(false)
     expect(r.message).toBeTruthy()
   })

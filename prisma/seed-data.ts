@@ -159,7 +159,6 @@ export const DEMO_CONTAS = [
     chave: 'patas',
     slug: 'patas-e-cia',
     nome: 'Patas & Cia',
-    segmento: 'Pet shop',
     fuso: 'America/Sao_Paulo',
     marca: {
       primaryColor: '#2F7D5B',
@@ -167,14 +166,6 @@ export const DEMO_CONTAS = [
       coverMaterial: 'LEATHER',
     },
     modulos: { loyalty: true, banners: true, store: false },
-    termos: {
-      termProfessionalSingular: 'Tosador',
-      termProfessionalPlural: 'Tosadores',
-      termCustomerSingular: 'Cliente',
-      termCustomerPlural: 'Clientes',
-      termPointsSingular: 'Patinha',
-      termPointsPlural: 'Patinhas',
-    },
     equipe: {
       dono: 'Marina Duarte',
       gerente: 'Caio Ribeiro',
@@ -187,7 +178,6 @@ export const DEMO_CONTAS = [
     chave: 'navalha',
     slug: 'navalha-de-ouro',
     nome: 'Navalha de Ouro',
-    segmento: 'Barbearia',
     fuso: 'America/Manaus',
     marca: {
       primaryColor: '#243B6B',
@@ -195,10 +185,6 @@ export const DEMO_CONTAS = [
       coverMaterial: 'WOOD',
     },
     modulos: { loyalty: true, banners: true, store: true },
-    termos: {
-      termProfessionalSingular: 'Barbeiro',
-      termProfessionalPlural: 'Barbeiros',
-    },
     equipe: {
       dono: 'Rafael Menezes',
       gerente: 'Tiago Albuquerque',
@@ -216,7 +202,6 @@ export const DEMO_ADMIN_INATIVO = { nome: 'Admin Inativo', email: 'inativo@agend
 export const DEMO_CONTA_SUSPENSA = {
   slug: 'estudio-sol-nascente',
   nome: 'Estúdio Sol Nascente',
-  segmento: 'Estúdio de pilates',
   fuso: 'America/Sao_Paulo',
   donoNome: 'Helena Prado',
   donoEmail: `dono.sol@${DOMINIO}`,

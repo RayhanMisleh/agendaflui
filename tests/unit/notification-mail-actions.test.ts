@@ -21,7 +21,7 @@ describe('links de ação dos e-mails viram botão em pílula', () => {
   })
 
   test('convite de equipe', () => {
-    const m = renderMemberInvite({ name: 'Davi', businessName: 'Patas', roleLabel: 'Tosador', link: 'https://painel.test/definir-senha/t2', ttlDays: 7 })
+    const m = renderMemberInvite({ name: 'Davi', businessName: 'Patas', roleLabel: 'Profissional', link: 'https://painel.test/definir-senha/t2', ttlDays: 7 })
     expect(botao(m.html, 'https://painel.test/definir-senha/t2')).toBe(true)
     expect(m.html).toContain('>Escolher minha senha</a>')
     expect(m.text).toContain('https://painel.test/definir-senha/t2')
@@ -45,7 +45,7 @@ describe('links de ação dos e-mails viram botão em pílula', () => {
 test('convite, dono e aviso de acesso citam o app, no texto e no HTML', () => {
   expect(APP_LINE).toBe('Baixe o app Agenda Flui para ver sua agenda no celular.')
   const mails = [
-    renderMemberInvite({ name: 'Davi', businessName: 'Patas', roleLabel: 'Tosador', link: 'https://painel.test/definir-senha/t2', ttlDays: 7 }),
+    renderMemberInvite({ name: 'Davi', businessName: 'Patas', roleLabel: 'Profissional', link: 'https://painel.test/definir-senha/t2', ttlDays: 7 }),
     renderOwnerInvite({ ownerName: 'Ana', businessName: 'Patas', link: 'https://painel.test/definir-senha/tok', ttlDays: 7 }),
     renderAccessGranted({ ownerName: 'Ana', businessName: 'Patas', entryLink: 'https://painel.test/entrar' }),
   ]

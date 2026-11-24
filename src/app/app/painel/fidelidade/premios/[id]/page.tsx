@@ -12,6 +12,7 @@ import { ImagemUpload } from '../../../_lib/ImagemUpload'
 import { MENSAGENS_DE_IMAGEM } from '../../../_lib/imagem'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PremioForm } from '../../FidelidadePainel'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Prêmio | Agenda Flui' }
 
@@ -33,7 +34,8 @@ export default async function PremioPage({
     if (err instanceof DomainError && err.code === 'not_found') notFound()
     throw err
   }
-  const { terms } = await getPainelContext(ctx)
+  await getPainelContext(ctx)
+  const terms = TERMS
   const aviso = porCodigo(MENSAGENS_DE_IMAGEM, um(q.imagem))
   return (
     <PainelFrame

@@ -109,7 +109,6 @@ function escoparPorConta(modelo: string, operacao: string, args: Args, businessI
 /** Campos que o código da conta pode alterar na própria conta; o resto é da plataforma. */
 const CAMPOS_DA_CONTA_EDITAVEIS: readonly string[] = [
   'name',
-  'segment',
   'document',
   'email',
   'phone',

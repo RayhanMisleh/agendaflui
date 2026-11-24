@@ -37,10 +37,10 @@ describe('renderNotification', () => {
     expect(r.email.html).not.toMatch(/<img|https?:\/\//)
   })
 
-  test('confirmado: serviços, profissional com o termo da conta, total em reais, prazo e nome do negócio', () => {
+  test('confirmado: serviços, profissional, total em reais, prazo e nome do negócio', () => {
     const r = renderNotification(one('APPOINTMENT_CONFIRMED'))
     expect(r.email.subject).toBe('Agendamento confirmado: Banho e Tosa em 16/11/2026 às 15:00')
-    expect(r.email.text).toContain('Tosador: Ana')
+    expect(r.email.text).toContain('Profissional: Ana')
     expect(r.email.text).toContain('Banho')
     expect(r.email.text).toContain('R$ 123,45')
     // 15:00 menos o prazo de 120 min
@@ -54,9 +54,9 @@ describe('renderNotification', () => {
     expect(r.email.text).toMatch(/confirm/i)
   })
 
-  test('a equipe fala do cliente com o termo da conta', () => {
+  test('a equipe fala do cliente', () => {
     const r = renderNotification(one('STAFF_NEW_APPOINTMENT'))
-    expect(r.email.text).toContain('Tutor: Maria Souza')
+    expect(r.email.text).toContain('Cliente: Maria Souza')
     expect(r.email.subject).toMatch(/Novo agendamento/)
   })
 
@@ -72,7 +72,7 @@ describe('renderNotification', () => {
 
     test.each(STAFF_KINDS)('%s: o e-mail do observador diz de qual profissional é o atendimento', (kind) => {
       const r = renderNotification(para(kind, 'watcher'))
-      expect(r.email.text).toContain('Tosador: Ana')
+      expect(r.email.text).toContain('Profissional: Ana')
       expect(r.email.text).toContain('Maria Souza')
       expect(r.email.text).toContain('16/11/2026')
       expect(r.email.text).not.toMatch(/undefined|null/)
@@ -111,8 +111,8 @@ describe('renderNotification', () => {
     const r = renderNotification(n)
     expect(r.email.subject).toMatch(/passou para outro|transferido/i)
     expect(r.email.text).not.toMatch(/cancelou/i)
-    expect(r.email.text).toContain('para outro Tosador')
-    expect(r.email.subject).toContain('outro Tosador')
+    expect(r.email.text).toContain('para outro Profissional')
+    expect(r.email.subject).toContain('outro Profissional')
   })
 
   test('remarcação mostra o horário anterior quando o payload o traz', () => {

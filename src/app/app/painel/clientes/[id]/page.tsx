@@ -21,6 +21,7 @@ import { PainelFrame } from '../../PainelFrame'
 import { ClienteForm } from '../ClienteForm'
 import { Cuidados } from '../Cuidados'
 import { PontosAcoes } from './PontosAcoes'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Ficha | Agenda Flui' }
 
@@ -85,7 +86,7 @@ export default async function ClientePage({
     listCustomerAppointments(ctx, { customerId: id, scope: 'upcoming', limit: 10 }),
     listCustomerAppointments(ctx, { customerId: id, scope: 'past', limit: 10, ...(cursor ? { cursor } : {}) }),
   ])
-  const { terms } = painel
+  const terms = TERMS
   const podeEscrever = can(ctx.actor, 'manage_clients')
   const removido = await isCustomerAnonymized(ctx, id)
   const todos = can(ctx.actor, 'view_all_agendas')

@@ -3,7 +3,7 @@ import { audit } from '@/server/domain/audit'
 import { normalizeContactPhone, formatPhone, normalizeEmail } from '@/server/domain/customers/contact'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
 import { replaceBrandImage } from '@/server/domain/platform/brand-image'
-import { displayNameSchema, readTerms, termsOf, updateTermsOf, type Terms } from '@/server/domain/settings/terms'
+import { displayNameSchema } from '@/server/domain/settings/text-rules'
 import { staleSettings } from '@/server/domain/settings/versioned'
 import { uploadUrl } from '@/server/storage/images'
 import type { CoverMaterial } from '@/shared/theme/derive'
@@ -127,22 +127,6 @@ export async function setBusinessLogo(ctx: TenantContext, file: { bytes: Uint8Ar
   authorize(ctx, 'manage_account')
   await replaceBrandImage(ctx, 'logo', file)
   return getBusinessProfile(ctx)
-}
-
-/** Os rótulos dos termos (profissional, cliente, pontos, clube) para as telas de todos os papéis: qualquer membro da equipe lê. */
-export async function getTermLabels(ctx: TenantContext): Promise<Terms> {
-  authorize(ctx, 'view_dashboard')
-  const row = await ctx.db.businessSettings.findUniqueOrThrow({ where: { businessId: ctx.businessId } })
-  return termsOf(row)
-}
-
-export function getTerms(ctx: TenantContext): Promise<{ terms: Terms; version: number }> {
-  return readTerms(ctx)
-}
-
-/** Termos gravados pela mesma função do painel dev (`applyTerms`), com a versão lida na tela. */
-export function updateTermsAsOwner(ctx: TenantContext, version: number, input: Terms): Promise<{ terms: Terms; version: number }> {
-  return updateTermsOf(ctx, input, parse(versionSchema, version))
 }
 
 /** O visual da conta como o painel dev gravou: o dono só vê (e troca a logo); cores e barra lateral são do painel dev. */

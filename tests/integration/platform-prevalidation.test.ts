@@ -16,7 +16,6 @@ beforeEach(async () => {
 
 const setup = {
   brand: { displayName: 'Pata Viva', primary: '#2F6B4F', accent: '#E8833A', material: 'LINEN' },
-  terms: { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' },
   modules: { loyalty: true, banners: false, store: true },
   rules: { slotStepMin: 30, minLeadMin: 60, maxAdvanceDays: 60, customerChangeWindowMin: 120, bufferMin: 0, autoConfirm: true },
 } as const
@@ -29,20 +28,20 @@ describe('validateAccountSetup usa os mesmos esquemas das funções de escrita',
   test('cada regra devolve o erro no campo certo, e vários erros vêm juntos', () => {
     const ruim = {
       brand: { ...setup.brand, displayName: '<b>x</b>', primary: 'vermelho' },
-      terms: { ...setup.terms, club: '', professionalSingular: 'x'.repeat(31) },
       modules: { loyalty: false, banners: false, store: false },
       rules: { ...setup.rules, slotStepMin: 7, bufferMin: 3 },
     }
     const e = validateAccountSetup(ruim as never)
-    expect(Object.keys(e).sort()).toEqual(['bufferMin', 'club', 'displayName', 'primary', 'professionalSingular', 'slotStepMin'])
+    expect(Object.keys(e).sort()).toEqual(['bufferMin', 'displayName', 'primary', 'slotStepMin'])
     expect(e.primary).toMatch(/#rrggbb/)
   })
 
   test('é o mesmo texto que a função de escrita daria (um esquema só)', async () => {
-    const { updateTerms } = await import('@/server/domain/platform/customization')
+    const { updateBrand } = await import('@/server/domain/platform/customization')
     const conta = await makeBusiness()
-    const e = validateAccountSetup({ ...structuredClone(setup), terms: { ...setup.terms, club: '' } } as never)
-    await expect(updateTerms(admin, conta.id, { ...setup.terms, club: '' })).rejects.toMatchObject({ fields: { club: e.club } })
+    const ruim = { ...setup.brand, displayName: '<b>x</b>' }
+    const e = validateAccountSetup({ ...structuredClone(setup), brand: ruim } as never)
+    await expect(updateBrand(admin, conta.id, 1, ruim)).rejects.toMatchObject({ fields: { displayName: e.displayName } })
   })
 })
 

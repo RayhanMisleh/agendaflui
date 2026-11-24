@@ -13,6 +13,7 @@ import { formatPercentInput } from '@/shared/percent'
 import { um, porCodigo } from '@/app/_lib/params'
 import { PainelFrame } from '../../PainelFrame'
 import { AcessoGestao, BloqueioForm, BloqueiosLista, ConviteForm, DadosForm, ExpedienteForm, RemoverProfissional, ServicosForm } from '../FichaForms'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Ficha | Agenda Flui' }
 
@@ -57,8 +58,8 @@ export default async function FichaPage({
     if (err instanceof DomainError && (err.code === 'not_found' || err.code === 'forbidden')) notFound()
     throw err
   }
-  const painel = await getPainelContext(ctx)
-  const { terms } = painel
+  await getPainelContext(ctx)
+  const terms = TERMS
   const p = ficha.professional
   const abasVisiveis = ABAS.filter((a) => ficha.fullAccess || ABAS_DO_PROFISSIONAL.includes(a.id))
   const pedida = um(q.aba)

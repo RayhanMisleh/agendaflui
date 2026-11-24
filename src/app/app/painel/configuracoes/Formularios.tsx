@@ -11,7 +11,6 @@ import {
   salvarNegocio,
   salvarPerfil,
   salvarRegras,
-  salvarTermos,
   trocarSenha,
 } from './actions'
 
@@ -132,37 +131,6 @@ export function AvisosForm({ version, valores, avisos }: { version: number; valo
                 ))}
               </tbody>
             </table>
-          </div>
-        </>
-      )}
-    </PainelForm>
-  )
-}
-
-// ---------------------------------------------------------------- termos
-
-const CAMPOS_TERMOS: { name: string; label: string; hint?: string }[] = [
-  { name: 'professionalSingular', label: 'Profissional (singular)' },
-  { name: 'professionalPlural', label: 'Profissional (plural)' },
-  { name: 'customerSingular', label: 'Cliente (singular)' },
-  { name: 'customerPlural', label: 'Cliente (plural)' },
-  { name: 'pointsSingular', label: 'Pontos (singular)' },
-  { name: 'pointsPlural', label: 'Pontos (plural)' },
-  { name: 'club', label: 'Clube', hint: 'O nome do programa de fidelidade.' },
-]
-
-export function TermosForm({ version, valores }: { version: number; valores: Record<string, string> }) {
-  return (
-    <PainelForm action={salvarTermos} initial={estado(valores)} submit="Salvar termos" labels={Object.fromEntries(CAMPOS_TERMOS.map((c) => [c.name, c.label]))}>
-      {(state) => (
-        <>
-          <Versao version={version} />
-          <div className="af-formgrid">
-            {CAMPOS_TERMOS.map((c) => (
-              <Field key={c.name} label={c.label} {...(c.hint ? { hint: c.hint } : {})} error={state.fields[c.name]}>
-                <Input name={c.name} defaultValue={state.values[c.name] ?? ''} maxLength={30} autoComplete="off" />
-              </Field>
-            ))}
           </div>
         </>
       )}

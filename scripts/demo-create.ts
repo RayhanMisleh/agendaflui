@@ -1,8 +1,8 @@
 /**
  * `npm run demo:create`: cria (uma vez só) a conta de demonstração "Pet Shop Demonstração", com equipe, clientes, agenda de
  * 4 semanas atrás a 2 semanas à frente, fidelidade, banners e loja, com marca própria (nome, paleta, logo, símbolo e favicon). Roda em produção (`INTEGRATIONS_MODE=real`) sem
- * chamar nenhum serviço externo. Pode rodar de novo: não duplica nada, nunca troca a senha do dono, reaplica a marca e os
- * termos da demo se estiverem diferentes e realinha os pedidos (de uma demo antiga) pelo cliente e pelos produtos.
+ * chamar nenhum serviço externo. Pode rodar de novo: não duplica nada, nunca troca a senha do dono, reaplica a marca da demo se estiver diferente e
+ * realinha os pedidos (de uma demo antiga) pelo cliente e pelos produtos.
  *
  * Tudo passa pelas funções de domínio, exceto o que não tem função (marcado "cru" abaixo): negócio, usuários e vínculos
  * (`createBusiness` exige um admin da plataforma ativo e manda e-mail de convite), a linha de módulos e a marca, as auditorias
@@ -55,7 +55,7 @@ export type DemoResultado = {
 }
 
 async function dominio() {
-  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca] =
+  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca] =
     await Promise.all([
       import('../src/server/auth/context'),
       import('../src/server/domain/customers/customers'),
@@ -65,7 +65,6 @@ async function dominio() {
       import('../src/server/domain/team/time-blocks'),
       import('../src/server/domain/settings/closures'),
       import('../src/server/domain/scheduling/appointments'),
-      import('../src/server/domain/settings/terms'),
       import('../src/server/domain/settings/notification-settings'),
       import('../src/server/domain/loyalty/prizes'),
       import('../src/server/domain/loyalty/redemptions'),
@@ -80,7 +79,7 @@ async function dominio() {
       import('../src/server/domain/audit'),
       import('../src/server/domain/platform/brand-image'),
     ])
-  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca }
+  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca }
 }
 
 /** Imagem simples (cor da marca e duas formas), sem texto: não depende de fontes do sistema. */
@@ -96,16 +95,6 @@ async function imagem(largura: number, altura: number, cor: string): Promise<{ b
     .png()
     .toBuffer()
   return { bytes: new Uint8Array(png) }
-}
-
-const TERMOS_DEMO = {
-  professionalSingular: 'Profissional',
-  professionalPlural: 'Profissionais',
-  customerSingular: 'Cliente',
-  customerPlural: 'Clientes',
-  pointsSingular: 'Patinha',
-  pointsPlural: 'Patinhas',
-  club: 'Clube Patudo',
 }
 
 function senhaAleatoria(): string {
@@ -159,7 +148,6 @@ export async function criarDemo(prisma: PrismaClient, opts: {
           slug: DEMO_SLUG,
           name: DEMO_NOME,
           searchName: searchKey(DEMO_NOME),
-          segment: 'Pet shop',
           addressLine: 'Rua das Acácias, 120',
           city: 'São Paulo',
           state: 'SP',
@@ -224,7 +212,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     await concluirSecao(nome)
   }
 
-  // ---- 2. Configuração (avisos, termos, logo) -------------------------------------------------------------------
+  // ---- 2. Configuração (avisos) -------------------------------------------------------------------
   await secao('configuracao', async () => {
     // Avisos para a equipe usariam os e-mails fictícios da equipe: desligados. Os avisos ao cliente ficam ligados, mas os
     // clientes não têm e-mail cadastrado, então nada sai (e a fila é descartada no fim).
@@ -234,15 +222,9 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       STAFF_APPOINTMENT_RESCHEDULED: { email: false },
       PROFESSIONAL_FREE_EARLY: { email: false },
     })
-    const { version } = await d.termos.readTerms(ctx)
-    await d.termos.updateTermsOf(
-      ctx,
-      TERMOS_DEMO,
-      version,
-    )
   })
 
-  // ---- 2b. Marca e termos (a cada rodada) ----------------------------------------------------------------------
+  // ---- 2b. Marca (a cada rodada) ----------------------------------------------------------------------
   // Uma demo antiga volta para o nome, a paleta e as imagens atuais; sem mudança, nada é regravado.
   {
     const imagens = await renderDemoBrandImages()
@@ -278,10 +260,6 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       await d.marca.replaceBrandImage(ctx, 'favicon', { bytes: imagens.favicon })
       await d.audit.audit(ctx, { action: ACAO_MARCA, targetType: 'demo', targetId: 'marca', metadata: { assinatura } })
       log('Marca da demonstração aplicada.')
-    }
-    const { terms, version } = await d.termos.readTerms(ctx)
-    if (terms.customerSingular !== TERMOS_DEMO.customerSingular || terms.customerPlural !== TERMOS_DEMO.customerPlural) {
-      await d.termos.updateTermsOf(ctx, { ...terms, customerSingular: TERMOS_DEMO.customerSingular, customerPlural: TERMOS_DEMO.customerPlural }, version)
     }
   }
 

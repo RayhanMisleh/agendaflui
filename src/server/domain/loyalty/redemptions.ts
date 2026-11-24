@@ -180,7 +180,7 @@ export async function redeemPrize(
       }
       const balance = await getBalance(tx, customerId)
       if (balance < prize.costPoints) {
-        throw new DomainError('conflict', `Faltam ${await pointsLabel(tx, ctx.businessId, prize.costPoints - balance)} para este prêmio.`, {
+        throw new DomainError('conflict', `Faltam ${pointsLabel(prize.costPoints - balance)} para este prêmio.`, {
           reason: 'insufficient_points',
           details: { missing: prize.costPoints - balance },
         })

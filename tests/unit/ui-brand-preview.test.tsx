@@ -5,10 +5,9 @@ import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import { previewTheme } from '@/shared/theme/preview'
 
 const marca = { primary: '#7A1F2B', accent: '#F2A93B', material: 'LEATHER' } as const
-const termos = { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores' }
 
 test('aplica os tokens de previewTheme no elemento raiz, sem vazar para a página', () => {
-  render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
+  render(<BrandPreview brand={marca} businessName="Pata Viva" />)
   const raiz = screen.getByTestId('brand-preview')
   const { tokens } = previewTheme(marca)
   for (const [variavel, valor] of Object.entries(tokens)) expect(raiz.style.getPropertyValue(variavel)).toBe(valor)
@@ -17,56 +16,54 @@ test('aplica os tokens de previewTheme no elemento raiz, sem vazar para a págin
   expect(document.documentElement.style.getPropertyValue('--brand')).toBe('')
 })
 
-test('mostra o nome do negócio e os termos da conta na ficha e nas abas', () => {
-  render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
+test('mostra o nome do negócio e os termos do sistema na ficha e nas abas', () => {
+  render(<BrandPreview brand={marca} businessName="Pata Viva" />)
   expect(screen.getAllByText('Pata Viva').length).toBeGreaterThan(0)
-  expect(screen.getAllByText(/Tosador/).length).toBeGreaterThan(0)
-  expect(screen.getAllByText(/Tutor/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/Profissional/).length).toBeGreaterThan(0)
+  expect(screen.getAllByText(/Cliente/).length).toBeGreaterThan(0)
   expect(screen.getByText('Confirmado')).toBeInTheDocument()
 })
 
-test('muda com a marca: outra cor e outro termo atualizam a prévia', () => {
-  const { rerender } = render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
-  rerender(<BrandPreview brand={{ ...marca, primary: '#1F4E7A', material: 'WOOD' }} terms={{ ...termos, professionalSingular: 'Barbeiro', professionalPlural: 'Barbeiros' }} businessName="Pata Viva" />)
+test('muda com a marca: outra cor atualiza a prévia', () => {
+  const { rerender } = render(<BrandPreview brand={marca} businessName="Pata Viva" />)
+  rerender(<BrandPreview brand={{ ...marca, primary: '#1F4E7A', material: 'WOOD' }} businessName="Pata Viva" />)
   const raiz = screen.getByTestId('brand-preview')
   expect(raiz.style.getPropertyValue('--brand')).toBe(previewTheme({ ...marca, primary: '#1F4E7A', material: 'WOOD' }).tokens['--brand'])
-  expect(screen.getAllByText(/Barbeiro/).length).toBeGreaterThan(0)
-  expect(screen.queryByText(/Tosador/)).toBeNull()
 })
 
 test('os avisos do motor aparecem em texto ao lado da prévia', () => {
   const extrema = { ...marca, primary: '#FFFFFF' }
   const { warnings } = previewTheme(extrema)
   expect(warnings.length).toBeGreaterThan(0)
-  render(<BrandPreview brand={extrema} terms={termos} businessName="Pata Viva" />)
+  render(<BrandPreview brand={extrema} businessName="Pata Viva" />)
   for (const w of warnings) expect(screen.getByText(THEME_WARNING_TEXT[w])).toBeInTheDocument()
 })
 
 test('cor incompleta usa a cor padrão e avisa que o formato está errado', () => {
-  render(<BrandPreview brand={{ ...marca, primary: '#7A1' }} terms={termos} businessName="Pata Viva" />)
+  render(<BrandPreview brand={{ ...marca, primary: '#7A1' }} businessName="Pata Viva" />)
   expect(screen.getByText(THEME_WARNING_TEXT.invalid_color)).toBeInTheDocument()
 })
 
 test('sem aviso nenhum, a lista de avisos não existe', () => {
-  render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
+  render(<BrandPreview brand={marca} businessName="Pata Viva" />)
   expect(previewTheme(marca).warnings).toEqual([])
   expect(screen.queryByRole('list', { name: 'Avisos da marca' })).toBeNull()
 })
 
 test('a miniatura não é interativa: fora do foco e escondida de leitor de tela, com resumo em texto', () => {
-  render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
+  render(<BrandPreview brand={marca} businessName="Pata Viva" />)
   expect(screen.getByTestId('brand-preview-mock')).toHaveAttribute('aria-hidden', 'true')
   expect(screen.getByTestId('brand-preview-mock')).toHaveAttribute('inert')
   expect(screen.getByRole('group', { name: 'Prévia do painel de Pata Viva' })).toBeInTheDocument()
 })
 
 test('com logo, mostra a imagem com o nome como texto alternativo', () => {
-  render(<BrandPreview brand={{ ...marca, logoUrl: 'data:image/png;base64,AAAA' }} terms={termos} businessName="Pata Viva" />)
+  render(<BrandPreview brand={{ ...marca, logoUrl: 'data:image/png;base64,AAAA' }} businessName="Pata Viva" />)
   expect(screen.getByRole('img', { name: 'Pata Viva', hidden: true })).toHaveAttribute('src', 'data:image/png;base64,AAAA')
 })
 
 test('desenha o painel no desenho novo: bloco Hoje com bolhas, próximo atendimento e a agenda com vaga livre', () => {
-  const { container } = render(<BrandPreview brand={marca} terms={termos} businessName="Pata Viva" />)
+  const { container } = render(<BrandPreview brand={marca} businessName="Pata Viva" />)
   const mock = screen.getByTestId('brand-preview-mock')
   expect(mock.querySelector('.af-bp__today .af-bubbles')).not.toBeNull()
   expect(mock.querySelector('.af-bp__next')).toHaveTextContent('10:30')

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
-import type { Actor, TenantContext } from '@/server/auth/actor'
+import type { TenantContext } from '@/server/auth/actor'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
 import { OUTRA_LOJA_MESSAGE } from '@/server/domain/platform/access-core'
@@ -16,7 +16,7 @@ import {
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const AGORA = new Date('2026-11-17T12:00:00.000Z')

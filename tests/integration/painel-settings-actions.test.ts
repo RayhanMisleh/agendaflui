@@ -16,7 +16,6 @@ import {
   salvarNegocio,
   salvarPerfil,
   salvarRegras,
-  salvarTermos,
   trocarSenha,
 } from '@/app/app/painel/configuracoes/actions'
 
@@ -85,19 +84,14 @@ describe('regras da agenda', () => {
     expect((await config()).minLeadMin).toBe(90)
   })
 
-  test('três formulários, uma versão: depois de salvar as regras, os termos pedem a versão nova', async () => {
+  test('dois formulários, uma versão: depois de salvar as regras, os avisos pedem a versão nova', async () => {
     const v = (await config()).version
     await salvarRegras(ini, form({ ...REGRAS, version: String(v) }))
-    const termos = {
-      professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores',
-      pointsSingular: 'ponto', pointsPlural: 'pontos', club: 'Clube',
-    }
-    const velha = await salvarTermos(ini, form({ ...termos, version: String(v) }))
+    const velha = await salvarAvisos(ini, form({ version: String(v), APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(velha.message).toBe(CONFLITO)
-    const nova = await salvarTermos(ini, form({ ...termos, version: String(v + 1) }))
+    const nova = await salvarAvisos(ini, form({ version: String(v + 1), APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(nova.ok).toBe(true)
-    expect(nova.message).toBe('Termos salvos.')
-    expect((await config()).termProfessionalPlural).toBe('Tosadores')
+    expect(nova.message).toBe('Avisos salvos.')
   })
 })
 

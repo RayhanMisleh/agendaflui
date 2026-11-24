@@ -45,7 +45,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
   const time = formatTime(startsAt, tz)
   const services = joinNames(a.services.map(limpo))
   const customer = limpo(a.customerName)
-  const professional = `${limpo(n.business.terms.professional)}: ${limpo(a.professionalName)}`
+  const professional = `Profissional: ${limpo(a.professionalName)}`
   const reason = a.cancelReason ? limpo(a.cancelReason) : ''
   const hello = `Olá, ${limpo(n.recipient?.name ?? '')}.`
   const previous = n.payload.previousStartsAt ? instantOf(n.payload.previousStartsAt, startsAt) : null
@@ -53,9 +53,9 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
   const details: [string, string][] = [
     ['Serviços', services],
     ['Data e hora', `${date} às ${time}`],
-    ...(STAFF_KINDS.includes(n.kind) ? ([[limpo(n.business.terms.customer), customer]] as [string, string][]) : ([[limpo(n.business.terms.professional), limpo(a.professionalName)]] as [string, string][])),
+    ...(STAFF_KINDS.includes(n.kind) ? ([['Cliente', customer]] as [string, string][]) : ([['Profissional', limpo(a.professionalName)]] as [string, string][])),
     // Quem recebe os avisos de toda a loja precisa saber de quem é o atendimento (o próprio profissional já sabe).
-    ...(n.payload.audience === 'watcher' ? ([[limpo(n.business.terms.professional), limpo(a.professionalName)]] as [string, string][]) : []),
+    ...(n.payload.audience === 'watcher' ? ([['Profissional', limpo(a.professionalName)]] as [string, string][]) : []),
     ['Total', formatBrl(a.totalCents)],
   ]
   const detailsPrevious: [string, string][] = previous ? [['Horário anterior', formatDateTime(previous, tz)], ...details] : details
@@ -124,9 +124,9 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
     case 'STAFF_APPOINTMENT_CANCELED':
       return moved
         ? {
-            title: `O horário passou para outro ${limpo(n.business.terms.professional)}`,
-            subject: `Agendamento passou para outro ${limpo(n.business.terms.professional)}: ${customer} em ${when}`,
-            content: { paragraphs: paragraphs(hello, `Este horário passou para outro ${limpo(n.business.terms.professional)} e saiu da sua agenda.`), rows: details },
+            title: 'O horário passou para outro Profissional',
+            subject: `Agendamento passou para outro Profissional: ${customer} em ${when}`,
+            content: { paragraphs: paragraphs(hello, 'Este horário passou para outro Profissional e saiu da sua agenda.'), rows: details },
           }
         : {
             title: 'Agendamento cancelado',

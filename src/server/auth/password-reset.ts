@@ -148,7 +148,7 @@ export async function requestPanelPasswordReset(email: string, meta: RequestMeta
         renderMemberInvite({
           name: usuario.name,
           businessName: vinculo.business.name,
-          roleLabel: roleLabel(vinculo.role, 'Profissional'),
+          roleLabel: roleLabel(vinculo.role),
           link: areaLink('app', `/convite/${convite.token}`),
           ttlDays: INVITE_TTL_DAYS,
         }),

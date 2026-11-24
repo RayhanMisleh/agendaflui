@@ -38,13 +38,6 @@ export type SettingsWrite = {
       | 'customerChangeWindowMin'
       | 'bufferMin'
       | 'autoConfirm'
-      | 'termProfessionalSingular'
-      | 'termProfessionalPlural'
-      | 'termCustomerSingular'
-      | 'termCustomerPlural'
-      | 'termPointsSingular'
-      | 'termPointsPlural'
-      | 'termClub'
       | 'loyaltyRankingEnabled'
     >
   > & { notifications?: Prisma.InputJsonObject }

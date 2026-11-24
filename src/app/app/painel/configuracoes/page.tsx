@@ -3,10 +3,9 @@ import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { getOwnAccountProfile } from '@/server/domain/account/profile'
-import { getBusinessAppearance, getBusinessProfile, getTerms } from '@/server/domain/settings/business-profile'
+import { getBusinessAppearance, getBusinessProfile } from '@/server/domain/settings/business-profile'
 import { listClosuresFor } from '@/server/domain/settings/closures'
 import { getNotificationSettingsView } from '@/server/domain/settings/notification-settings'
-import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { getSchedulingRules, RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
 import { addDays, todayIn } from '@/server/time'
 import { BrandPreview, Button, Card, EmptyHint, NavTabs } from '@/ui/components'
@@ -14,11 +13,11 @@ import { ACCENT_FIELD_LABEL, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, 
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
-import { AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, PerfilForm, RegrasForm, SenhaForm, TermosForm } from './Formularios'
+import { AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, PerfilForm, RegrasForm, SenhaForm } from './Formularios'
 
 export const metadata: Metadata = { title: 'Configurações | Agenda Flui' }
 
-type Secao = 'negocio' | 'aparencia' | 'agenda' | 'fechamentos' | 'avisos' | 'termos' | 'perfil'
+type Secao = 'negocio' | 'aparencia' | 'agenda' | 'fechamentos' | 'avisos' | 'perfil'
 
 const LOGO: Record<string, { texto: string; ok: boolean }> = {
   ok: { texto: 'Logo atualizada.', ok: true },
@@ -39,8 +38,6 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
   const q = await searchParams
   const donoDaConta = can(ctx.actor, 'manage_account')
   const gerencia = can(ctx.actor, 'manage_settings')
-  const painel = await getPainelContext(ctx)
-  const { terms } = painel
 
   const secoes: { id: Secao; label: string }[] = [
     ...(donoDaConta ? [{ id: 'negocio' as const, label: 'Negócio' }, { id: 'aparencia' as const, label: 'Aparência' }] : []),
@@ -49,7 +46,6 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
           { id: 'agenda' as const, label: 'Agenda' },
           { id: 'fechamentos' as const, label: 'Fechamentos' },
           { id: 'avisos' as const, label: 'Avisos' },
-          { id: 'termos' as const, label: 'Termos' },
         ]
       : []),
     { id: 'perfil' as const, label: 'Meu perfil' },
@@ -128,7 +124,7 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
           </div>
         </dl>
         <p className="af-section__help">As cores e a barra lateral são ajustados pela equipe do Agenda Flui. Para mudar, fale com o suporte.</p>
-        <BrandPreview businessName={perfil.name} brand={a} terms={terms} />
+        <BrandPreview businessName={perfil.name} brand={a} />
       </Card>
     )
   } else if (secao === 'agenda') {
@@ -188,17 +184,6 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
         </h2>
         <p className="af-section__help">Desmarcar um aviso para de mandar aquele e-mail.</p>
         <AvisosForm version={version} valores={valores} avisos={lista} />
-      </Card>
-    )
-  } else if (secao === 'termos') {
-    const { terms: t, version } = await getTerms(ctx)
-    corpo = (
-      <Card as="section" aria-labelledby="cfg-titulo" className="af-settings__section">
-        <h2 id="cfg-titulo" className="af-section__title">
-          Termos
-        </h2>
-        <p className="af-section__help">As palavras que o painel e o aplicativo usam no lugar de &quot;profissional&quot; e &quot;cliente&quot;.</p>
-        <TermosForm version={version} valores={{ ...t }} />
       </Card>
     )
   } else {

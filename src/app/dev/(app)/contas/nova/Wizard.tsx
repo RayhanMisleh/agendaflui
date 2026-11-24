@@ -27,7 +27,7 @@ import { ACCENT_FIELD_LABEL, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL } from '@/
 import type { FormState } from '@/app/_lib/form-state'
 import type { LimitesDeRegras } from '../[id]/FormsConta'
 import { criarConta } from './actions'
-import { STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
+import { STEPS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
 import type { WizardData, WizardResult, WizardValues } from './fields'
 
 const ROTULOS: Record<string, string> = {
@@ -206,41 +206,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             />
           </Etapa>
 
-          <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Termos" ajuda="Como esta conta chama as pessoas e os pontos. Aparecem nas telas, nos e-mails e na API.">
-            <div className="af-wizard__presets" role="group" aria-label="Sugestões por ramo">
-              <span className="af-wizard__presets-label">Preencher com sugestão:</span>
-              {TERM_PRESETS.map((p) => (
-                <Button key={p.label} size="sm" onClick={() => setV((x) => ({ ...x, ...p.terms }))}>
-                  {p.label}
-                </Button>
-              ))}
-            </div>
-            <div className="af-wizard__grid">
-              <Field label="Profissional (singular)" error={erro('professionalSingular')}>
-                <Input name="professionalSingular" value={v.professionalSingular} onChange={texto('professionalSingular')} autoComplete="off" />
-              </Field>
-              <Field label="Profissional (plural)" error={erro('professionalPlural')}>
-                <Input name="professionalPlural" value={v.professionalPlural} onChange={texto('professionalPlural')} autoComplete="off" />
-              </Field>
-              <Field label="Cliente (singular)" error={erro('customerSingular')}>
-                <Input name="customerSingular" value={v.customerSingular} onChange={texto('customerSingular')} autoComplete="off" />
-              </Field>
-              <Field label="Cliente (plural)" error={erro('customerPlural')}>
-                <Input name="customerPlural" value={v.customerPlural} onChange={texto('customerPlural')} autoComplete="off" />
-              </Field>
-              <Field label="Pontos (singular)" error={erro('pointsSingular')}>
-                <Input name="pointsSingular" value={v.pointsSingular} onChange={texto('pointsSingular')} autoComplete="off" />
-              </Field>
-              <Field label="Pontos (plural)" error={erro('pointsPlural')}>
-                <Input name="pointsPlural" value={v.pointsPlural} onChange={texto('pointsPlural')} autoComplete="off" />
-              </Field>
-              <Field label="Clube" hint="O nome do programa de fidelidade." error={erro('club')}>
-                <Input name="club" value={v.club} onChange={texto('club')} autoComplete="off" />
-              </Field>
-            </div>
-          </Etapa>
-
-          <Etapa i={3} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu, das telas e da API.">
+          <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu e das telas.">
             <div className="af-wizard__checks">
               <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" checked={v.loyalty} onChange={(e) => set('loyalty', e.target.checked)} />
               <Checkbox name="banners" label="Banners: avisos e promoções no app" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
@@ -248,7 +214,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             </div>
           </Etapa>
 
-          <Etapa i={4} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Regras de agenda" ajuda="Os valores começam no padrão do sistema. O dono pode ajustá-los depois.">
+          <Etapa i={3} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Regras de agenda" ajuda="Os valores começam no padrão do sistema. O dono pode ajustá-los depois.">
             <div className="af-wizard__grid">
               <Field label="Grade de horários" hint="De quanto em quanto tempo um horário pode começar." error={erro('slotStepMin')}>
                 <Select name="slotStepMin" value={v.slotStepMin} onChange={texto('slotStepMin')}>
@@ -275,7 +241,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             <Checkbox name="autoConfirm" label="Confirmar os agendamentos sozinho" checked={v.autoConfirm} onChange={(e) => set('autoConfirm', e.target.checked)} />
           </Etapa>
 
-          <Etapa i={5} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Dono da conta" ajuda="Quem manda na conta. Se o e-mail já tem cadastro, a pessoa é vinculada sem trocar a senha e recebe um aviso de acesso novo. Senão, recebe o convite para definir a senha.">
+          <Etapa i={4} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Dono da conta" ajuda="Quem manda na conta. Se o e-mail já tem cadastro, a pessoa é vinculada sem trocar a senha e recebe um aviso de acesso novo. Senão, recebe o convite para definir a senha.">
             <div className="af-wizard__grid">
               <Field label="Nome do dono" error={erro('ownerName')}>
                 <Input name="ownerName" value={v.ownerName} onChange={texto('ownerName')} autoComplete="off" />
@@ -320,7 +286,6 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             <BrandPreview
               businessName={v.displayName || v.name}
               brand={{ primary: v.primary, accent: v.accent, material: v.material }}
-              terms={v}
             />
           </FoldablePreview>
         ) : null}

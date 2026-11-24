@@ -8,13 +8,6 @@ import { Bubbles } from './Bubbles'
 import { StatusBadge } from './StatusBadge'
 import { cx } from './cx'
 
-export type PreviewTerms = {
-  professionalSingular: string
-  professionalPlural: string
-  customerSingular: string
-  customerPlural: string
-}
-
 export type PreviewBrand = {
   primary: string
   accent: string
@@ -25,19 +18,17 @@ export type PreviewBrand = {
 /**
  * Miniatura do painel do negócio no desenho da marca: a barra lateral no estilo e na cor escolhidos (com a logo ou o nome),
  * o bloco "Hoje" na cor da conta com bolhas e o próximo atendimento num cartão branco, e a agenda com blocos cheios, um
- * em caramelo e uma vaga livre tracejada, tudo com os termos da conta. Roda no navegador: usa `previewTheme` (o mesmo
+ * em caramelo e uma vaga livre tracejada, tudo com os termos do sistema. Roda no navegador: usa `previewTheme` (o mesmo
  * motor do painel real) e aplica as variáveis no PRÓPRIO elemento, então nada vaza para a página. Os avisos do motor
  * aparecem em texto ao lado. A miniatura é só para olhar: fica fora do foco e escondida de leitor de tela, que recebe
  * um resumo em texto.
  */
 export function BrandPreview({
   brand,
-  terms,
   businessName,
   className,
 }: {
   brand: PreviewBrand
-  terms: PreviewTerms
   businessName: string
   className?: string
 }) {
@@ -47,7 +38,7 @@ export function BrandPreview({
     <div role="group" aria-label={`Prévia do painel de ${nome}`} className={cx('af-bp', className)}>
       <p className="af-sr">
         Miniatura do painel com a barra lateral {labelOf(SIDEBAR_OPTIONS, brand.material).toLowerCase()}.
-        Ela muda sozinha quando você troca as cores, a barra lateral ou os termos.
+        Ela muda sozinha quando você troca as cores, ou a barra lateral.
       </p>
       <div data-testid="brand-preview" className="af-bp__scope" {...themeAttrs(theme)}>
         <div data-testid="brand-preview-mock" aria-hidden="true" inert className="af-bp__window">
@@ -62,8 +53,8 @@ export function BrandPreview({
             </div>
             <ul className="af-bp__nav">
               <li className="af-bp__navitem af-bp__navitem--active">Agenda</li>
-              <li className="af-bp__navitem">{terms.customerPlural || 'Clientes'}</li>
-              <li className="af-bp__navitem">{terms.professionalPlural || 'Profissionais'}</li>
+              <li className="af-bp__navitem">Clientes</li>
+              <li className="af-bp__navitem">Profissionais</li>
             </ul>
           </div>
           <div className="af-bp__page">
@@ -74,12 +65,8 @@ export function BrandPreview({
                 <span className="af-bp__hour">10:30</span>
                 <span className="af-bp__what">
                   <strong>Banho e tosa</strong>
-                  <span>
-                    {terms.customerSingular || 'Cliente'}: Ana Souza
-                  </span>
-                  <span>
-                    {terms.professionalSingular || 'Profissional'}: Marina
-                  </span>
+                  <span>Cliente: Ana Souza</span>
+                  <span>Profissional: Marina</span>
                 </span>
                 <StatusBadge tone="confirmed">Confirmado</StatusBadge>
               </div>

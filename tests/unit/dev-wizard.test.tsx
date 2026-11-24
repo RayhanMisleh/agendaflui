@@ -22,9 +22,9 @@ test('sem JavaScript todas as etapas aparecem num formulário só, com os campos
   const html = renderToString(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const secoes = doc.querySelectorAll('section.af-wizard__step')
-  expect(secoes).toHaveLength(6)
+  expect(secoes).toHaveLength(5)
   for (const s of secoes) expect(s.hasAttribute('hidden')).toBe(false)
-  for (const nome of ['name', 'slug', 'primary', 'material', 'club', 'bufferMin', 'ownerEmail']) {
+  for (const nome of ['name', 'slug', 'primary', 'material', 'bufferMin', 'ownerEmail']) {
     expect(doc.querySelector(`form [name="${nome}"]`), nome).not.toBeNull()
   }
   expect(doc.querySelector('form [name="keyName"]')).toBeNull()
@@ -42,8 +42,8 @@ test('com JavaScript mostra uma etapa por vez; Continuar e o trilho trocam a eta
   expect(within(trilho).getByRole('link', { name: /Marca/ })).toHaveAttribute('aria-current', 'step')
   expect(screen.getByRole('heading', { name: 'Marca' })).toBeVisible()
   expect(screen.getByRole('heading', { name: 'Marca' })).toHaveFocus()
-  await userEvent.click(within(trilho).getByRole('link', { name: /Termos/ }))
-  expect(screen.getByRole('heading', { name: 'Termos' })).toBeVisible()
+  await userEvent.click(within(trilho).getByRole('link', { name: /Módulos/ }))
+  expect(screen.getByRole('heading', { name: 'Módulos' })).toBeVisible()
   // O que foi digitado numa etapa continua no formulário quando a etapa fica escondida.
   expect(document.querySelector('form [name="slug"]')).toBeInTheDocument()
 })
@@ -65,14 +65,11 @@ test('Enter num campo de etapa do meio avança em vez de enviar o formulário', 
   expect(screen.getByRole('heading', { name: 'Marca' })).toBeVisible()
 })
 
-test('o termo escolhido aparece na prévia e as sugestões por ramo só mexem nos termos', async () => {
+test('não há etapa de termos: os termos são fixos para todas as contas', () => {
   render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
-  await userEvent.click(screen.getByRole('link', { name: /Termos/ }))
-  await userEvent.click(screen.getByRole('button', { name: 'Pet shop' }))
-  expect(screen.getByLabelText('Profissional (singular)')).toHaveValue('Tosador')
-  expect(within(screen.getByTestId('brand-preview-mock')).getAllByText(/Tosador/).length).toBeGreaterThan(0)
-  await userEvent.click(screen.getByRole('link', { name: /Dados/ }))
-  expect(screen.getByLabelText('Nome da conta')).toHaveValue('')
+  const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
+  expect(within(trilho).queryByRole('link', { name: /Termos/ })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Profissional (singular)')).not.toBeInTheDocument()
 })
 
 test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valores e liga a mensagem ao campo', async () => {

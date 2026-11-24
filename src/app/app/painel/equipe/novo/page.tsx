@@ -4,13 +4,14 @@ import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, LinkButton } from '@/ui/components'
 import { PainelFrame } from '../../PainelFrame'
 import { NovoProfissionalForm } from '../FichaForms'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Nova ficha | Agenda Flui' }
 
 export default async function NovoProfissionalPage() {
   const ctx = await requireTenant('manage_team')
-  const painel = await getPainelContext(ctx)
-  const { terms } = painel
+  await getPainelContext(ctx)
+  const terms = TERMS
   return (
     <PainelFrame
       ctx={ctx}

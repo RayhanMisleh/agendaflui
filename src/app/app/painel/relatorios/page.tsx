@@ -17,6 +17,7 @@ import { um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
 import { ATALHOS, periodoDaUrl } from './periodo'
 import { Detalhe, PorProfissional, PorServico } from './RelatorioTabelas'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Relatórios | Agenda Flui' }
 
@@ -37,8 +38,8 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
   const ctx = await requireTenant()
   const q = await searchParams
   const todos = can(ctx.actor, 'view_all_reports')
-  const painel = await getPainelContext(ctx)
-  const { terms } = painel
+  await getPainelContext(ctx)
+  const terms = TERMS
   const titulo = todos ? 'Relatórios' : 'Meus números'
   const periodo = periodoDaUrl({ atalho: um(q.atalho), de: um(q.de), ate: um(q.ate) }, todayIn(ctx.timeZone, ctx.clock()))
   const profissional = todos ? um(q.profissional) : ''

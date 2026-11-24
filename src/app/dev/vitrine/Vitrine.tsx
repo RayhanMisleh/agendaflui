@@ -98,7 +98,7 @@ const HORARIOS: ReadonlyArray<{ time: string; busy?: true }> = [
 const ETAPAS = [
   { id: 'dados', label: 'Dados' },
   { id: 'marca', label: 'Marca' },
-  { id: 'termos', label: 'Termos' },
+  { id: 'modulos', label: 'Módulos' },
   { id: 'chave', label: 'Chave' },
 ]
 
@@ -433,7 +433,6 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
           <Spec title="Prévia do painel" note="A miniatura muda com a conta, a cor e o estilo da barra." wide>
             <BrandPreview
               brand={{ ...account.brand, material: barra, primary: cor && /^#[0-9a-fA-F]{6}$/.test(cor) ? cor : account.brand.primary }}
-              terms={{ professionalSingular: 'Banhista', professionalPlural: 'Banhistas', customerSingular: 'Cliente', customerPlural: 'Clientes' }}
               businessName={account.name}
             />
           </Spec>

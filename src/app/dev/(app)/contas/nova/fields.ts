@@ -13,14 +13,6 @@ export type WizardValues = {
   primary: string
   accent: string
   material: CoverMaterial
-  // Termos
-  professionalSingular: string
-  professionalPlural: string
-  customerSingular: string
-  customerPlural: string
-  pointsSingular: string
-  pointsPlural: string
-  club: string
   // Módulos
   loyalty: boolean
   banners: boolean
@@ -53,7 +45,7 @@ export type WizardResult = {
 /** Valores do formulário mais o resultado da criação (só existe depois que a conta foi criada). */
 export type WizardData = WizardValues & { result?: WizardResult | undefined }
 
-/** Valores iniciais: a marca padrão Agenda Flui, os termos e as regras que o banco já usa para conta nova. */
+/** Valores iniciais: a marca padrão Agenda Flui e as regras que o banco já usa para conta nova. */
 export const EMPTY_VALUES: WizardValues = {
   name: '',
   slug: '',
@@ -64,13 +56,6 @@ export const EMPTY_VALUES: WizardValues = {
   primary: '#0B6E66',
   accent: '#F2A93B',
   material: 'LEATHER',
-  professionalSingular: 'Profissional',
-  professionalPlural: 'Profissionais',
-  customerSingular: 'Cliente',
-  customerPlural: 'Clientes',
-  pointsSingular: 'Ponto',
-  pointsPlural: 'Pontos',
-  club: 'Clube',
   loyalty: false,
   banners: false,
   store: false,
@@ -84,16 +69,11 @@ export const EMPTY_VALUES: WizardValues = {
   ownerEmail: '',
 }
 
-export type StepId = 'dados' | 'marca' | 'termos' | 'modulos' | 'regras' | 'dono'
+export type StepId = 'dados' | 'marca' | 'modulos' | 'regras' | 'dono'
 
 export const STEPS: ReadonlyArray<{ id: StepId; label: string; fields: readonly string[] }> = [
   { id: 'dados', label: 'Dados', fields: ['name', 'slug', 'document', 'contactEmail', 'contactPhone'] },
   { id: 'marca', label: 'Marca', fields: ['displayName', 'primary', 'accent', 'material'] },
-  {
-    id: 'termos',
-    label: 'Termos',
-    fields: ['professionalSingular', 'professionalPlural', 'customerSingular', 'customerPlural', 'pointsSingular', 'pointsPlural', 'club'],
-  },
   { id: 'modulos', label: 'Módulos', fields: ['loyalty', 'banners', 'store'] },
   {
     id: 'regras',
@@ -150,31 +130,6 @@ export function readValues(fd: FormData): WizardData {
   for (const k of BOOLEANOS) v[k] = fd.get(k) === 'on'
   return v
 }
-
-export type TermSet = Pick<
-  WizardValues,
-  'professionalSingular' | 'professionalPlural' | 'customerSingular' | 'customerPlural' | 'pointsSingular' | 'pointsPlural' | 'club'
->
-
-/** Sugestões por ramo: só preenchem os campos de termos; a pessoa ajusta depois. */
-export const TERM_PRESETS: ReadonlyArray<{ label: string; terms: TermSet }> = [
-  {
-    label: 'Barbearia',
-    terms: { professionalSingular: 'Barbeiro', professionalPlural: 'Barbeiros', customerSingular: 'Cliente', customerPlural: 'Clientes', pointsSingular: 'Ponto', pointsPlural: 'Pontos', club: 'Clube' },
-  },
-  {
-    label: 'Pet shop',
-    terms: { professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Cliente', customerPlural: 'Clientes', pointsSingular: 'Patinha', pointsPlural: 'Patinhas', club: 'Clube' },
-  },
-  {
-    label: 'Clínica',
-    terms: { professionalSingular: 'Terapeuta', professionalPlural: 'Terapeutas', customerSingular: 'Paciente', customerPlural: 'Pacientes', pointsSingular: 'Ponto', pointsPlural: 'Pontos', club: 'Programa' },
-  },
-  {
-    label: 'Estúdio',
-    terms: { professionalSingular: 'Instrutor', professionalPlural: 'Instrutores', customerSingular: 'Aluno', customerPlural: 'Alunos', pointsSingular: 'Ponto', pointsPlural: 'Pontos', club: 'Clube' },
-  },
-]
 
 /** "Pata Viva Pet Shop" vira "pata-viva-pet-shop": sugestão de identificador, sem acento e com hífens. */
 export function slugify(texto: string): string {

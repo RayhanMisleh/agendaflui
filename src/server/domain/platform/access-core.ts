@@ -341,7 +341,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
           ? renderMemberInvite({
               name: feito.nomeDoUsuario,
               businessName: conta.name,
-              roleLabel: roleLabel(i.role, 'Profissional'),
+              roleLabel: roleLabel(i.role),
               link: areaLink('app', `/convite/${convite.token}`),
               ttlDays: INVITE_TTL_DAYS,
             })
@@ -497,7 +497,7 @@ export async function reenviarConvite(autor: Autor, businessId: string, membersh
     renderMemberInvite({
       name: feito.m.user.name,
       businessName: feito.m.business.name,
-      roleLabel: roleLabel(feito.m.role, 'Profissional'),
+      roleLabel: roleLabel(feito.m.role),
       link: areaLink('app', `/convite/${feito.convite.token}`),
       ttlDays: INVITE_TTL_DAYS,
     }),

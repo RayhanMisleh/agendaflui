@@ -35,38 +35,6 @@ export function DadosForm({ action, valores }: { action: AcaoConta; valores: Cam
   )
 }
 
-export function TermosForm({ action, valores }: { action: AcaoConta; valores: Campos }) {
-  return (
-    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar termos">
-      {({ values: v, fields }) => (
-        <div className="af-wizard__grid">
-          <Field label="Profissional (singular)" error={fields.professionalSingular}>
-            <Input name="professionalSingular" defaultValue={v.professionalSingular} autoComplete="off" />
-          </Field>
-          <Field label="Profissional (plural)" error={fields.professionalPlural}>
-            <Input name="professionalPlural" defaultValue={v.professionalPlural} autoComplete="off" />
-          </Field>
-          <Field label="Cliente (singular)" error={fields.customerSingular}>
-            <Input name="customerSingular" defaultValue={v.customerSingular} autoComplete="off" />
-          </Field>
-          <Field label="Cliente (plural)" error={fields.customerPlural}>
-            <Input name="customerPlural" defaultValue={v.customerPlural} autoComplete="off" />
-          </Field>
-          <Field label="Pontos (singular)" error={fields.pointsSingular}>
-            <Input name="pointsSingular" defaultValue={v.pointsSingular} autoComplete="off" />
-          </Field>
-          <Field label="Pontos (plural)" error={fields.pointsPlural}>
-            <Input name="pointsPlural" defaultValue={v.pointsPlural} autoComplete="off" />
-          </Field>
-          <Field label="Clube" hint="O nome do programa de fidelidade." error={fields.club}>
-            <Input name="club" defaultValue={v.club} autoComplete="off" />
-          </Field>
-        </div>
-      )}
-    </ContaForm>
-  )
-}
-
 /** O que está em andamento na conta, como a página lê (`getModuleUsage`). */
 export type UsoDosModulos = { openOrders: number; pendingRedemptions: number; mercadoPagoConfigured: boolean }
 

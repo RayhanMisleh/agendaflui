@@ -1,21 +1,21 @@
 import { CalendarDays, ChartNoAxesColumn, Gift, House, Images, Scissors, ShoppingBag, Settings, UserRound, UserRoundCog, Users } from 'lucide-react'
 import type { Capability } from '@/server/auth/capabilities'
 import type { Modules } from '@/shared/modules'
+import { TERMS } from '@/shared/terms'
 import type { NavItem } from './nav'
 
 /**
- * Os destinos do painel do negócio para quem tem cada capacidade, na ordem do desenho. O rótulo de Clientes e de
- * Equipe segue os termos da conta ("Clientes", "Tosadores"). Quem só vê os próprios números lê "Meus números", e quem não
+ * Os destinos do painel do negócio para quem tem cada capacidade, na ordem do desenho. Quem só vê os próprios números lê "Meus números", e quem não
  * gerencia as configurações da conta chega ao seu perfil por "Meu perfil" (mesma rota). Os módulos opcionais (Fidelidade,
  * Banners, Loja) entram depois de Serviços, cada um só com o módulo ligado E a capacidade de gerenciá-lo.
  */
-export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules; terms: { customerPlural: string; professionalPlural: string } }): NavItem[] {
-  const { can, terms, modules } = ctx
+export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules }): NavItem[] {
+  const { can, modules } = ctx
   const items: (NavItem | null)[] = [
     can('view_dashboard') ? { href: '/painel', label: 'Início', icon: House, exact: true } : null,
     can('view_own_agenda') ? { href: '/painel/agenda', label: 'Agenda', icon: CalendarDays } : null,
-    can('view_clients') ? { href: '/painel/clientes', label: terms.customerPlural, icon: Users } : null,
-    can('manage_team') ? { href: '/painel/equipe', label: terms.professionalPlural, icon: UserRound } : null,
+    can('view_clients') ? { href: '/painel/clientes', label: TERMS.customerPlural, icon: Users } : null,
+    can('manage_team') ? { href: '/painel/equipe', label: TERMS.professionalPlural, icon: UserRound } : null,
     can('manage_catalog') ? { href: '/painel/servicos', label: 'Serviços', icon: Scissors } : null,
     modules.loyalty && can('manage_loyalty') ? { href: '/painel/fidelidade', label: 'Fidelidade', icon: Gift } : null,
     modules.banners && can('manage_banners') ? { href: '/painel/banners', label: 'Banners', icon: Images } : null,

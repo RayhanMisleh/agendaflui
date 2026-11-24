@@ -33,7 +33,7 @@ export default async function MarcaPage({
   const bruto = Array.isArray(q.imagem) ? q.imagem[0] : q.imagem
   const aviso = bruto !== undefined && Object.hasOwn(IMAGEM, bruto) ? IMAGEM[bruto] : undefined
   const { admin, conta } = await carregarConta(id)
-  const { brand, terms } = await getCustomization(admin, conta.id)
+  const { brand } = await getCustomization(admin, conta.id)
   return (
     <>
       <Card className="af-listpanel">
@@ -47,7 +47,6 @@ export default async function MarcaPage({
             accent: brand.accent,
             material: brand.material,
           }}
-          termos={terms}
           logoUrl={brand.logoUrl}
         />
       </Card>

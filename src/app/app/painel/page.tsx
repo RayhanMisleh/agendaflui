@@ -11,6 +11,7 @@ import { Card, EmptyHint, EmptyState, LinkButton, PhoneLink, StatNumber, StatusB
 import { formatDuration, shortDate, weekdayName } from '@/ui/format'
 import { LinkParaClientes } from './_lib/LinkParaClientes'
 import { PainelFrame } from './PainelFrame'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Início | Agenda Flui' }
 
@@ -36,9 +37,9 @@ function Situacao({ status }: { status: AppointmentView['status'] }) {
 
 export default async function InicioPage() {
   const ctx = await requireTenant('view_dashboard')
-  const [home, painel, link] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx), getCustomerLink(ctx)])
+  const [home, , link] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx), getCustomerLink(ctx)])
   const semFicha = home.unlinked
-  const avisoSemFicha = `Seu acesso ainda não está ligado a uma ficha de ${painel.terms.professionalSingular.toLowerCase()}. Peça ao dono da conta para resolver isso em ${painel.terms.professionalPlural}.`
+  const avisoSemFicha = `Seu acesso ainda não está ligado a uma ficha de ${TERMS.professionalSingular.toLowerCase()}. Peça ao dono da conta para resolver isso em ${TERMS.professionalPlural}.`
   const todos = home.scope === 'all'
   const { next, later, summary, counts } = home
   const concluidos = summary.byStatus.COMPLETED

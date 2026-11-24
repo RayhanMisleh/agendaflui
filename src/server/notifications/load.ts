@@ -52,7 +52,6 @@ export type LoadedNotification = {
     name: string
     color: string
     timeZone: string
-    terms: { professional: string; customer: string }
     changeWindowMin: number
     enabled: NotificationSettings
   }
@@ -125,7 +124,7 @@ export async function loadNotification(id: string, businessId: string): Promise<
       status: true,
       branding: { select: { displayName: true, primaryColor: true } },
       settings: {
-        select: { termProfessionalSingular: true, termCustomerSingular: true, customerChangeWindowMin: true, notifications: true },
+        select: { customerChangeWindowMin: true, notifications: true },
       },
     },
   })
@@ -154,10 +153,6 @@ export async function loadNotification(id: string, businessId: string): Promise<
       name: b.branding?.displayName || b.name,
       color: b.branding?.primaryColor ?? '',
       timeZone: b.timezone,
-      terms: {
-        professional: b.settings?.termProfessionalSingular ?? 'Profissional',
-        customer: b.settings?.termCustomerSingular ?? 'Cliente',
-      },
       changeWindowMin: b.settings?.customerChangeWindowMin ?? 0,
       enabled: resolveNotificationSettings(b.settings?.notifications),
     },

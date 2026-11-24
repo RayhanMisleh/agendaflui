@@ -5,13 +5,15 @@ import { Card, LinkButton } from '@/ui/components'
 import { PainelFrame } from '../../../PainelFrame'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PremioForm } from '../../FidelidadePainel'
+import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Novo prêmio | Agenda Flui' }
 
 export default async function NovoPremioPage() {
   const ctx = await requireTenant('manage_loyalty')
   await requirePainelModule(ctx, 'loyalty')
-  const { terms } = await getPainelContext(ctx)
+  await getPainelContext(ctx)
+  const terms = TERMS
   return (
     <PainelFrame
       ctx={ctx}

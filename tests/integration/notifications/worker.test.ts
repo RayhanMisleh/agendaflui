@@ -38,7 +38,6 @@ function fake(): Fake {
 async function cena(o: { inicio?: Date } = {}) {
   const business = await makeBusiness({ timezone: 'America/Manaus', name: 'Tosa & Cia' })
   await prisma.businessBranding.update({ where: { businessId: business.id }, data: { displayName: 'Tosa & Cia' } })
-  await prisma.businessSettings.update({ where: { businessId: business.id }, data: { termProfessionalSingular: 'Tosador' } })
   const servico = await makeService(business.id, { name: 'Banho', priceCents: 8000 })
   const user = await makeUser({ name: 'Ana Prof', email: 'ana@exemplo.test' })
   const vinculo = await makeMembership(business.id, user.id, 'PROFESSIONAL')
@@ -80,7 +79,7 @@ describe('processDueNotifications', () => {
     expect(f.emails).toHaveLength(1)
     expect(f.emails[0]).toMatchObject({ to: 'maria@exemplo.test', fromName: 'Tosa & Cia' })
     expect(f.emails[0]!.subject).toBe('Agendamento confirmado: Banho em 16/11/2026 às 15:00')
-    expect(f.emails[0]!.text).toContain('Tosador: Ana')
+    expect(f.emails[0]!.text).toContain('Profissional: Ana')
     const depois = await reload(n.id)
     expect(depois).toMatchObject({ status: 'SENT', attempts: 0, lastError: null, lockedUntil: null })
     expect(depois.sentAt?.getTime()).toBe(AGORA.getTime())
