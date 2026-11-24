@@ -6,6 +6,7 @@ import { searchKey } from '@/server/domain/customers/contact'
 import { isUniqueViolation } from '@/server/domain/errors'
 import { integrations, IntegrationError } from '@/server/integrations'
 import { ipLimitKeyPart } from '@/server/auth/client-ip'
+import { customerLandingPath, resolveStoreVisit } from '@/server/auth/customer-access'
 import { destinationForUser, destinationPath } from '@/server/auth/destination'
 import { readInvite } from '@/server/auth/invites'
 import { lockUserAccess, revokeUserAccess } from '@/server/auth/password-reset'
@@ -240,7 +241,14 @@ export async function handleGoogleCallback(i: {
   })
   if ('refuse' in aplicado) return recusa(aplicado.refuse, intent)
   if (flow.intent.kind === 'link') return { ok: true, session: null, redirectTo: '/conta?google=vinculado' }
-  if (flow.intent.kind === 'store_signup' && store) return { ok: true, session: aplicado.session, redirectTo: `/${store.slug}` }
+  if (flow.intent.kind === 'store_signup' && store) {
+    // Cliente novo (ou antigo) da loja vai para o quiz ou para o `volta`; conta desativada na loja só vê a página da loja.
+    const visita = aplicado.session
+      ? await resolveStoreVisit({ token: aplicado.session.token, slug: store.slug, request: { ip: i.ip ?? null, userAgent: i.userAgent ?? null }, now: i.now })
+      : null
+    const destino = visita?.kind === 'customer' ? await customerLandingPath(visita, flow.intent.back ?? null) : `/${store.slug}`
+    return { ok: true, session: aplicado.session, redirectTo: destino }
+  }
   const destino = await destinationForUser(aplicado.userId, null)
   return { ok: true, session: aplicado.session, redirectTo: destinationPath(destino) }
 }

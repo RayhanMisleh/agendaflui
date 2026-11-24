@@ -35,12 +35,15 @@ export function GoogleButton({
   fluxo,
   slug,
   convite,
+  volta,
   label = 'Continuar com Google',
 }: {
   enabled: boolean
   fluxo: GoogleFluxo
   slug?: string
   convite?: string
+  /** Caminho da loja para onde seguir depois de entrar (só no fluxo da loja). */
+  volta?: string
   label?: string
 }) {
   if (!enabled) return null
@@ -49,6 +52,7 @@ export function GoogleButton({
       <input type="hidden" name="fluxo" value={fluxo} />
       {slug !== undefined ? <input type="hidden" name="slug" value={slug} /> : null}
       {convite !== undefined ? <input type="hidden" name="convite" value={convite} /> : null}
+      {volta !== undefined ? <input type="hidden" name="volta" value={volta} /> : null}
       <Botao label={label} />
     </form>
   )

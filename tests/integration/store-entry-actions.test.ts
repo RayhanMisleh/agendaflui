@@ -27,6 +27,8 @@ vi.mock('next/navigation', () => ({
     throw new Error('NEXT_NOT_FOUND')
   },
 }))
+const quiz = vi.hoisted(() => ({ needs: vi.fn(async () => false) }))
+vi.mock('@/server/auth/pet-onboarding', () => ({ needsPetQuiz: quiz.needs }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
 import { entrarNaLoja } from '@/app/app/[slug]/entrar/actions'
@@ -44,6 +46,8 @@ function form(campos: Record<string, string>): FormData {
 }
 
 beforeEach(async () => {
+  quiz.needs.mockReset()
+  quiz.needs.mockResolvedValue(false)
   jar.clear()
   await resetDb()
   mail.install()
@@ -65,6 +69,29 @@ describe('/[slug]/entrar', () => {
     expect(jar.has(APP_COOKIE)).toBe(true)
     expect(await prisma.customer.count({ where: { businessId: b.id, userId: u.id } })).toBe(1)
     expect(await getPersonSession(jar.get(APP_COOKIE))).toMatchObject({ customerBusinessId: b.id })
+  })
+
+  test('entrar com volta=/pet-bom/agendar e pet cadastrado vai para /pet-bom/agendar', async () => {
+    await makeBusiness({ slug: 'pet-bom' })
+    const u = await makeUser({ password: SENHA })
+    await expect(entrarNaLoja({ error: null, email: '' }, form({ slug: 'pet-bom', email: u.email, password: SENHA, volta: '/pet-bom/agendar' }))).rejects.toMatchObject({ to: '/pet-bom/agendar' })
+  })
+
+  test('loja pet sem pet: entrar vai para o quiz levando o volta', async () => {
+    quiz.needs.mockResolvedValue(true)
+    await makeBusiness({ slug: 'pet-bom' })
+    const u = await makeUser({ password: SENHA })
+    await expect(entrarNaLoja({ error: null, email: '' }, form({ slug: 'pet-bom', email: u.email, password: SENHA, volta: '/pet-bom/agendar' }))).rejects.toMatchObject({
+      to: '/pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar',
+    })
+  })
+
+  test('volta de outra loja é ignorada', async () => {
+    await makeBusiness({ slug: 'pet-bom' })
+    await makeBusiness({ slug: 'pet-mau' })
+    const u = await makeUser({ password: SENHA })
+    await expect(entrarNaLoja({ error: null, email: '' }, form({ slug: 'pet-bom', email: u.email, password: SENHA, volta: '/pet-mau/agendar' }))).rejects.toMatchObject({ to: '/pet-bom' })
+    await expect(entrarNaLoja({ error: null, email: '' }, form({ slug: 'pet-bom', email: u.email, password: SENHA, volta: 'https://x.test/pet-bom' }))).rejects.toMatchObject({ to: '/pet-bom' })
   })
 
   test('senha errada: mensagem, sem cookie e sem cliente', async () => {
@@ -98,6 +125,16 @@ describe('/[slug]/cadastro', () => {
     const u = await prisma.user.findUniqueOrThrow({ where: { email: 'ana@exemplo.test' } })
     expect(await prisma.customer.count({ where: { businessId: b.id, userId: u.id } })).toBe(1)
     expect(jar.has(APP_COOKIE)).toBe(true)
+  })
+
+  test('cadastro novo de loja pet vai para /pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar', async () => {
+    quiz.needs.mockResolvedValue(true)
+    await makeBusiness({ slug: 'pet-bom' })
+    await pedirCodigo(ini, form({ slug: 'pet-bom', name: 'Ana', email: 'ana@exemplo.test', phone: '', password: SENHA, volta: '/pet-bom/agendar' }))
+    for (const t of tarefas) await t()
+    await expect(
+      confirmarCadastro({ error: null, fields: {} }, form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf(), volta: '/pet-bom/agendar' })),
+    ).rejects.toMatchObject({ to: '/pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar' })
   })
 
   test('dados inválidos voltam por campo, sem agendar envio', async () => {
@@ -141,6 +178,13 @@ describe('"Usar minha conta nesta loja"', () => {
     await expect(usarMinhaConta({ error: null }, form({ slug: 'pet-bom' }))).rejects.toMatchObject({ to: '/pet-bom' })
     expect(await prisma.customer.count({ where: { businessId: b.id, userId } })).toBe(1)
     expect(await prisma.session.findFirstOrThrow({ where: { tokenHash: hashToken(token) } })).toMatchObject({ customerBusinessId: b.id })
+  })
+
+  test('com volta: segue para o volta dentro da loja; volta de outra loja é ignorada', async () => {
+    await makeBusiness({ slug: 'pet-bom' })
+    await entrarComoPessoa()
+    await expect(usarMinhaConta({ error: null }, form({ slug: 'pet-bom', volta: '/pet-bom/agendar' }))).rejects.toMatchObject({ to: '/pet-bom/agendar' })
+    await expect(usarMinhaConta({ error: null }, form({ slug: 'pet-bom', volta: '/outra/agendar' }))).rejects.toMatchObject({ to: '/pet-bom' })
   })
 
   test('cadastro arquivado: "Sua conta nesta loja está desativada. Fale com a loja." e nada muda', async () => {

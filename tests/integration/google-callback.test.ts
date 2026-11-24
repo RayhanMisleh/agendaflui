@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest'
+import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { beginGoogle, failureTarget, handleGoogleCallback } from '@/server/auth/google/callback'
 import type { GoogleIntent } from '@/server/auth/google/flow'
 import { readGoogleFlow } from '@/server/auth/google/flow'
@@ -10,6 +10,9 @@ import { fakeGoogleAuthority } from '@/server/integrations/fakes'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makeCustomer, makeMembership, makePlatformAdmin, makeUser } from '../setup/factories'
 
+const quiz = vi.hoisted(() => ({ needs: vi.fn(async () => false) }))
+vi.mock('@/server/auth/pet-onboarding', () => ({ needsPetQuiz: quiz.needs }))
+
 const ID = '123456789012-abcdef0123456789.apps.googleusercontent.com'
 const SEGREDO = 'GOCSPX-abcdef0123456789Qz7K'
 const AGORA = new Date('2026-11-23T15:00:00.000Z')
@@ -20,6 +23,8 @@ let businessId: string
 
 beforeEach(async () => {
   await resetDb()
+  quiz.needs.mockReset()
+  quiz.needs.mockResolvedValue(false)
   google.reset()
   const a = await makePlatformAdmin()
   await saveGoogleSettings({ kind: 'platform_admin', adminId: a.id, name: a.name }, { clientId: ID, clientSecret: SEGREDO }, 0, AGORA)
@@ -144,6 +149,20 @@ describe('regra 4: cliente novo pela loja', () => {
     expect(clientes[0]).toMatchObject({ id: balcao.id, userId: pessoa.id, name: 'Ana do Balcão' })
     const sessao = await prisma.session.findFirstOrThrow({ where: { userId: pessoa.id } })
     expect(sessao.customerBusinessId).toBe(businessId)
+  })
+
+  test('store_signup com back: cliente novo cai no quiz com volta; back inválido é descartado no início do fluxo', async () => {
+    quiz.needs.mockResolvedValue(true)
+    const r = await percorrer({ kind: 'store_signup', slug, back: `/${slug}/agendar` }, GA)
+    expect(r).toMatchObject({ ok: true, redirectTo: `/${slug}/boas-vindas?volta=${encodeURIComponent(`/${slug}/agendar`)}` })
+    quiz.needs.mockResolvedValue(false)
+    const volta = await percorrer({ kind: 'store_signup', slug, back: `/${slug}/agendar` }, GA)
+    expect(volta).toMatchObject({ ok: true, redirectTo: `/${slug}/agendar` })
+    for (const ruim of ['/outra/agendar', 'https://x.test/', `//${slug}`]) {
+      const inicio = await beginGoogle({ kind: 'store_signup', slug, back: ruim }, undefined, AGORA)
+      if (!('url' in inicio)) throw new Error('sem início')
+      expect((await readGoogleFlow(inicio.cookie, AGORA))?.intent).toEqual({ kind: 'store_signup', slug })
+    }
   })
 
   test('sem balcão, cria o cliente da loja; loja fechada recusa sem criar pessoa', async () => {

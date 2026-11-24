@@ -2,11 +2,13 @@
 import { redirect } from 'next/navigation'
 import { runAfterResponse } from '@/server/after'
 import { APP_COOKIE, readCookie, setSessionCookie } from '@/server/auth/guards'
+import { customerLandingPath, resolveStoreVisit } from '@/server/auth/customer-access'
 import { requestInfo } from '@/server/auth/request-info'
 import { confirmStoreSignup, requestStoreSignup } from '@/server/auth/store-signup'
 import { DomainError } from '@/server/domain/errors'
 import { MENSAGEM_GENERICA } from '@/app/_lib/form-state'
 import { AuthError, mensagemDeEspera } from '@/server/auth/actor'
+import { safeReturnPath } from '@/shared/return-path'
 
 export type EstadoCadastro = {
   step: 'dados' | 'codigo'
@@ -45,13 +47,15 @@ export async function pedirCodigo(anterior: EstadoCadastro, form: FormData): Pro
 /** Passo 2: confere o código, cria a conta, liga à loja e entra. */
 export async function confirmarCadastro(_anterior: EstadoCodigo, form: FormData): Promise<EstadoCodigo> {
   const slug = texto(form, 'slug', 60)
+  const volta = safeReturnPath(slug, texto(form, 'volta', 400))
+  const info = await requestInfo()
   let sessao: Awaited<ReturnType<typeof confirmStoreSignup>>
   try {
     const anterior = await readCookie(APP_COOKIE)
     sessao = await confirmStoreSignup(
       slug,
       { email: texto(form, 'email'), code: texto(form, 'code', 20) },
-      { ...(await requestInfo()), ...(anterior ? { previousToken: anterior } : {}) },
+      { ...info, ...(anterior ? { previousToken: anterior } : {}) },
       new Date(),
     )
   } catch (erro) {
@@ -61,5 +65,6 @@ export async function confirmarCadastro(_anterior: EstadoCodigo, form: FormData)
     return { error: MENSAGEM_GENERICA, fields: {} }
   }
   await setSessionCookie(APP_COOKIE, sessao.token, sessao.expiresAt)
-  redirect(`/${slug}`)
+  const visita = await resolveStoreVisit({ token: sessao.token, slug, request: { ip: info.ip ?? null, userAgent: info.userAgent ?? null } })
+  redirect(visita.kind === 'customer' ? await customerLandingPath(visita, volta) : `/${slug}`)
 }
