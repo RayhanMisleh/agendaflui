@@ -6,6 +6,10 @@ import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settin
 import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
 import { computeSlots, type Interval, type WorkingRange } from '@/server/domain/scheduling/slots'
 import { toServiceView, type ServiceView } from '@/server/domain/catalog/services'
+import { isServiceOffered, priceFor } from '@/server/domain/catalog/pricing'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
+import { variantDef } from '@/server/niches'
+import type { PriceVariant } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import {
   addDays,
@@ -49,23 +53,45 @@ const serviceIdsSchema = z.object({
     .refine((ids) => new Set(ids).size === ids.length, 'Há serviços repetidos na lista. Escolha cada serviço uma vez.'),
 })
 
-/** Valida a lista e devolve os serviços na ordem pedida, com duração e total somados. */
+/** O serviço já com preço e tempo da variante do pet (ou os únicos) e a variante atendida. */
+export type ResolvedItem = ServiceView & { variant: PriceVariant | null }
+
+/**
+ * Valida a lista e devolve os serviços na ordem pedida, com duração e total somados. Com `pricing.variant` (o animal e
+ * o porte do pet), cada serviço é conferido pela regra única de elegibilidade e vem com o preço e o tempo da variante.
+ */
 export async function resolveServices(
   ctx: TenantContext,
   serviceIds: string[],
   db: Db = ctx.db,
-): Promise<{ items: ServiceView[]; durationMin: number; totalCents: number }> {
+  pricing: { variant: PriceVariant | null } = { variant: null },
+): Promise<{ items: ResolvedItem[]; durationMin: number; totalCents: number }> {
   const ids = parse(serviceIdsSchema, { serviceIds }).serviceIds
+  const { variant } = pricing
 
   const rows = await db.service.findMany({
     where: { id: { in: ids }, active: true, archivedAt: null },
+    include: { prices: true },
   })
   const byId = new Map(rows.map((row) => [row.id, row]))
-  const items: ServiceView[] = []
+  const customer = isCustomer(ctx)
+  const servesCats = variant === 'CAT' ? (await getNicheSettings(ctx, db)).options.servesCats : false
+  const items: ResolvedItem[] = []
   for (const id of ids) {
     const row = byId.get(id)
     if (!row) throw invalidServices('Um dos serviços não está disponível. Escolha outro e tente de novo.')
-    items.push(toServiceView(row))
+    const view = toServiceView(row, row.prices)
+    if (variant === 'CAT' && customer && !servesCats) {
+      throw new DomainError('conflict', 'A loja não atende gatos no momento.', { reason: 'not_offered' })
+    }
+    if (!isServiceOffered(view, variant, { who: customer ? 'customer' : 'staff', servesCats })) {
+      if (variant === null) throw invalidServices(`Escolha o pet para ver o preço de ${view.name}.`)
+      const message = `${view.name} não é feito para ${variantDef(variant).label}.`
+      throw new DomainError('validation', message, { reason: 'not_offered', fields: { serviceIds: message } })
+    }
+    const price = priceFor(view, variant)
+    if (price === null) throw invalidServices(`Escolha o pet para ver o preço de ${view.name}.`)
+    items.push({ ...view, ...price, variant })
   }
 
   const durationMin = items.reduce((sum, item) => sum + item.durationMin, 0)

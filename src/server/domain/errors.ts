@@ -30,6 +30,7 @@ export const DOMAIN_REASONS = [
   'needs_password',
   'niche_unavailable',
   'not_failed',
+  'not_offered',
   'not_today',
   'out_of_stock',
   'payment_unavailable',
