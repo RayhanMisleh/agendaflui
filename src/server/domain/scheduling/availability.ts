@@ -363,12 +363,12 @@ async function chooseProfessionals(ctx: TenantContext, serviceIds: string[], pro
 async function reschedulingOf(
   ctx: TenantContext,
   id: string,
-): Promise<{ id: string; serviceIds: string[]; petId: string | null }> {
+): Promise<{ id: string; serviceIds: string[]; petId: string | null; durationMin: number; totalCents: number }> {
   const who = actorKind(ctx)
   const row = await loadForActor(ctx, ctx.db, id, who, await staffScope(ctx, who))
   if (!OPEN_STATUSES.includes(row.status)) throw invalidTransition('Só dá para remarcar agendamentos pendentes ou confirmados.')
   if (who === 'customer') assertCustomerWindow(ctx, await getSchedulingRules(ctx), row.startsAt, 'remarcar')
-  return { id: row.id, serviceIds: row.items.map((item) => item.serviceId), petId: row.petId }
+  return { id: row.id, serviceIds: row.items.map((item) => item.serviceId), petId: row.petId, durationMin: row.totalDurationMin, totalCents: row.totalCents }
 }
 
 /**
@@ -398,11 +398,19 @@ export async function getAvailability(
   }
   const moving = q.rescheduling ? await reschedulingOf(ctx, q.rescheduling) : null
   const serviceIds = q.serviceIds ?? moving?.serviceIds ?? []
-  const petId = askedPet ?? moving?.petId ?? null
-  const variant = await variantOfQuery(ctx, petId)
-  const resolved = await resolveServices(ctx, serviceIds, ctx.db, { variant })
-  const durationMin = asked ?? resolved.durationMin
-  const totalCents = resolved.totalCents
+  // Remarcar sem serviços novos: vale o que foi combinado (tempo e valor gravados), como na própria remarcação.
+  const snapshot = moving !== null && q.serviceIds === undefined ? moving : null
+  let durationMin: number
+  let totalCents: number
+  if (snapshot) {
+    durationMin = asked ?? snapshot.durationMin
+    totalCents = snapshot.totalCents
+  } else {
+    const variant = await variantOfQuery(ctx, askedPet ?? moving?.petId ?? null)
+    const resolved = await resolveServices(ctx, serviceIds, ctx.db, { variant })
+    durationMin = asked ?? resolved.durationMin
+    totalCents = resolved.totalCents
+  }
   const view = (slots: SlotView[]): AvailabilityView => ({ date, durationMin, totalCents, slots })
 
   const chosen = await chooseProfessionals(ctx, serviceIds, professionalId)
@@ -453,8 +461,13 @@ export async function listAvailableDays(
   }
   const moving = q.rescheduling ? await reschedulingOf(ctx, q.rescheduling) : null
   const serviceIds = q.serviceIds ?? moving?.serviceIds ?? []
-  const variant = await variantOfQuery(ctx, petId ?? moving?.petId ?? null)
-  const { durationMin } = await resolveServices(ctx, serviceIds, ctx.db, { variant })
+  let durationMin: number
+  if (moving !== null && q.serviceIds === undefined) {
+    durationMin = moving.durationMin
+  } else {
+    const variant = await variantOfQuery(ctx, petId ?? moving?.petId ?? null)
+    durationMin = (await resolveServices(ctx, serviceIds, ctx.db, { variant })).durationMin
+  }
   const chosen = await chooseProfessionals(ctx, serviceIds, professionalId)
 
   const rules = await getSchedulingRules(ctx)

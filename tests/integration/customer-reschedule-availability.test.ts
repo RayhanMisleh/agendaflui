@@ -44,6 +44,30 @@ describe('remarcar com os horários livres', () => {
     expect(r.local.start).toBe('14:30')
   })
 
+  test('remarcar oferece só horários em que cabe a duração gravada, não a da tabela de hoje', async () => {
+    const s = await montar()
+    await prisma.appointment.update({ where: { id: s.thor.id }, data: { totalDurationMin: 90, endsAt: sp(18, 15, 30) } })
+    const livre = await getAvailability(s.ctxMarina, { date: QUARTA, rescheduling: s.thor.id })
+    expect(livre.durationMin).toBe(90)
+    // Expediente até 17:00: 15:30 cabe (90 min), 16:00 só caberia em 60.
+    expect(horas(livre.slots)).toContain('15:30')
+    expect(horas(livre.slots)).not.toContain('16:00')
+    const dias = await listAvailableDays(s.ctxMarina, { from: QUARTA, to: QUARTA, rescheduling: s.thor.id })
+    expect(dias[0]?.available).toBe(true)
+    const r = await rescheduleAppointment(s.ctxMarina, s.thor.id, { startsAt: sp(18, 15, 30) })
+    expect(r.local.start).toBe('15:30')
+  })
+
+  test('remarcar não depende do pet atual estar ativo', async () => {
+    const s = await montar()
+    const pet = await makePet(s.b.id, s.marina.id, { name: 'Thor', species: 'DOG', size: 'MEDIUM' })
+    await prisma.appointment.update({ where: { id: s.thor.id }, data: { petId: pet.id } })
+    await prisma.pet.update({ where: { id: pet.id }, data: { archivedAt: new Date() } })
+    const livre = await getAvailability(s.ctxMarina, { date: QUARTA, rescheduling: s.thor.id })
+    expect(horas(livre.slots)).toContain('14:30')
+    await listAvailableDays(s.ctxMarina, { from: QUARTA, to: QUARTA, rescheduling: s.thor.id })
+  })
+
   test('o horário de outro cliente continua ocupado na lista de remarcar', async () => {
     const s = await montar()
     const livre = await getAvailability(s.ctxMarina, { date: QUARTA, rescheduling: s.thor.id })
@@ -119,14 +143,16 @@ describe('arquivo de agenda do agendamento', () => {
 })
 
 describe('remarcar em loja de pet shop', () => {
-  test('sem petId, a duração vem do porte do pet do agendamento; o .ics leva o nome do pet', async () => {
+  test('sem serviços novos, a duração e o valor são os gravados (o porte de hoje não muda); o .ics leva o nome do pet', async () => {
     const s = await montar()
     await prisma.business.update({ where: { id: s.b.id }, data: { niche: 'PET' } })
     await makeServicePrice(s.b.id, s.banho.id, 'DOG_LARGE', { priceCents: 9000, durationMin: 90 })
     const rex = await makePet(s.b.id, s.marina.id, { name: 'Rex', species: 'DOG', size: 'LARGE' })
     await prisma.appointment.update({ where: { id: s.thor.id }, data: { petId: rex.id } })
     const livre = await getAvailability(s.ctxMarina, { date: QUARTA, rescheduling: s.thor.id })
-    expect(livre).toMatchObject({ durationMin: 90, totalCents: 9000 })
+    expect(livre).toMatchObject({ durationMin: 60, totalCents: 5000 })
+    const novos = await getAvailability(s.ctxMarina, { date: QUARTA, serviceIds: [s.banho.id], petId: rex.id, rescheduling: s.thor.id })
+    expect(novos).toMatchObject({ durationMin: 90, totalCents: 9000 })
     const dias = await listAvailableDays(s.ctxMarina, { from: QUARTA, to: QUARTA, rescheduling: s.thor.id })
     expect(dias.length).toBe(1)
     const i = { storeName: 'Focinho Feliz', address: null, url: 'https://app.exemplo.test/loja/horarios' }
