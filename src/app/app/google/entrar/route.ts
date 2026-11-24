@@ -8,6 +8,7 @@ import { readInvite } from '@/server/auth/invites'
 import { requestInfo } from '@/server/auth/request-info'
 import { findOpenStore } from '@/server/auth/store-join'
 import { env } from '@/server/env'
+import { safeReturnPath } from '@/shared/return-path'
 
 const CABECALHOS = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }
 
@@ -37,7 +38,8 @@ export async function POST(request: Request): Promise<Response> {
   switch (fluxo) {
     case 'loja': {
       const slug = texto(form, 'slug', 40)
-      intent = { kind: 'store_signup', slug: slug === '' ? '-' : slug }
+      const back = safeReturnPath(slug, texto(form, 'volta', 300))
+      intent = { kind: 'store_signup', slug: slug === '' ? '-' : slug, ...(back ? { back } : {}) }
       if ((await findOpenStore(slug)) === null) return voltar(intent, 'store_unavailable')
       break
     }

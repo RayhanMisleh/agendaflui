@@ -5,7 +5,9 @@ import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settin
 import { computeFreeStarts, loadDayOccupancy, type Candidate } from '@/server/domain/scheduling/availability'
 import type { Db, Row, Who } from '@/server/domain/scheduling/appointment-view'
 import { acknowledgementOf, needsConfirmation, staffIssues, type ConfirmIssue, type NearestSlot } from '@/server/domain/scheduling/staff-issues'
-import { withinCustomerWindow } from '@/server/domain/scheduling/change-window'
+import { assertCustomerWindow } from '@/server/domain/scheduling/change-window'
+
+export { assertCustomerWindow }
 import { overlaps } from '@/server/domain/scheduling/slots'
 import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
 import { addMinutes, formatTimeDistinct, localDayRange, localParts } from '@/server/time'
@@ -38,21 +40,6 @@ function isOverlapViolation(err: unknown): boolean {
     cause.code === '23P01' &&
     namesOverlapConstraint(cause)
   )
-}
-
-function windowLabel(min: number): string {
-  return min >= 60 && min % 60 === 0 ? `${min / 60} h` : `${min} min`
-}
-
-/** O cliente só cancela ou remarca até `customerChangeWindowMin` antes do início. */
-export function assertCustomerWindow(ctx: TenantContext, rules: SchedulingRules, startsAt: Date, verb: string): void {
-  if (!withinCustomerWindow(ctx.clock(), startsAt, rules.customerChangeWindowMin)) {
-    throw new DomainError(
-      'conflict',
-      `O prazo para ${verb} pelo link da loja é de ${windowLabel(rules.customerChangeWindowMin)} antes do horário. Fale com o estabelecimento.`,
-      { reason: 'too_late' },
-    )
-  }
 }
 
 export function assertStaffStart(ctx: TenantContext, startsAt: Date): void {

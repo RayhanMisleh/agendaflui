@@ -23,7 +23,7 @@ function Alerta({ children }: { children: string }) {
  * Cadastro em dois passos no mesmo formulário: dados, depois o código de 6 dígitos enviado por e-mail. A senha só existe
  * neste componente (na memória, para "Reenviar código"): nunca volta do servidor.
  */
-export function CadastroForm({ slug }: { slug: string }) {
+export function CadastroForm({ slug, volta = null }: { slug: string; volta?: string | null }) {
   const [pedido, pedir, pedindo] = useActionState(pedirCodigo, INICIAL)
   const [confirmacao, confirmar, confirmando] = useActionState(confirmarCadastro, SEM_ERRO)
   const [voltou, setVoltou] = useState(false)
@@ -42,6 +42,7 @@ export function CadastroForm({ slug }: { slug: string }) {
     if (!d) return
     const form = new FormData()
     form.set('slug', slug)
+    if (volta) form.set('volta', volta)
     for (const [nome, valor] of Object.entries(d)) form.set(nome, valor)
     pedir(form)
   }
@@ -50,6 +51,7 @@ export function CadastroForm({ slug }: { slug: string }) {
     return (
       <form action={confirmar} className="af-entry__form">
         <input type="hidden" name="slug" value={slug} />
+        {volta ? <input type="hidden" name="volta" value={volta} /> : null}
         <input type="hidden" name="email" value={pedido.values.email} />
         <p role="status" className="af-entry__notice">
           <MailCheck size={18} aria-hidden="true" />
@@ -79,6 +81,7 @@ export function CadastroForm({ slug }: { slug: string }) {
   return (
     <form action={enviarDados} className="af-entry__form">
       <input type="hidden" name="slug" value={slug} />
+      {volta ? <input type="hidden" name="volta" value={volta} /> : null}
       <Field label="Nome" error={f['name']}>
         <Input name="name" autoComplete="name" required maxLength={120} defaultValue={pedido.values.name} invalid={Boolean(f['name'])} />
       </Field>

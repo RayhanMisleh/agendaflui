@@ -110,11 +110,11 @@ test('motion.css deixa os cliques passarem durante a transição', () => {
   expect(MOTION).toMatch(/::view-transition\s*\{[^}]*pointer-events:\s*none/)
 })
 
-test('nenhuma duração de movimento passa de 250ms (exceto af-spin e af-pulse)', () => {
+test('nenhuma duração de movimento passa de 250ms (exceto af-spin, af-pulse e as bolhas da celebração, 1,2 s uma vez só)', () => {
   for (const r of TODAS.filter((x) => !x.prelude.startsWith('@'))) {
     for (const [prop, valor] of declaracoes(r.body)) {
       if (!/^(animation|transition)$/.test(prop)) continue
-      if (/af-spin|af-pulse/.test(valor)) continue
+      if (/af-spin|af-pulse|af-cl-bubble-up/.test(valor)) continue
       for (const parte of resolve(valor).split(/,(?![^(]*\))/)) {
         const tempo = /(\d+(?:\.\d+)?)(ms|s)\b/.exec(parte)
         if (!tempo) continue

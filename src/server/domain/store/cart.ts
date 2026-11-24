@@ -3,7 +3,7 @@ import type { TenantContext } from '@/server/auth/actor'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { DomainError, parse, z } from '@/server/domain/errors'
 import { requireModule } from '@/server/domain/modules'
-import { PUBLIC_PRODUCT_FILTER } from '@/server/domain/store/products'
+import { getPublicProduct, PUBLIC_PRODUCT_FILTER, type PublicProduct } from '@/server/domain/store/products'
 import { loadStoreSettings } from '@/server/domain/store/settings'
 
 /** Uma linha do carrinho como o app a manda: só o produto e a quantidade. Preço, nome e medidas vêm sempre do banco. */
@@ -125,4 +125,20 @@ export async function priceCart(ctx: TenantContext, lines: RawCartLine[], db: Db
   const itemsCents = priced.reduce((sum, l) => sum + l.totalCents, 0)
   if (itemsCents > MAX_ITEMS_CENTS) throw fieldError('lines', 'O valor do carrinho passa do limite. Tire alguns itens e tente de novo.')
   return { lines: priced, itemsCents, physical: priced.length > 0, hash: cartHash(wanted) }
+}
+
+/**
+ * Dá para ter `quantity` unidades deste produto no carrinho? O produto precisa estar à venda e com estoque (a reserva de
+ * verdade é a do pedido, sob trava: aqui só se avisa cedo, na hora de pôr ou mudar a quantidade). Devolve o produto como o app
+ * o vê. Produto inexistente, arquivado ou de outra loja: `not_found` ("Produto não encontrado.").
+ */
+export async function assertCartQuantity(ctx: TenantContext, productId: string, quantity: number): Promise<PublicProduct> {
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) throw fieldError('quantity', 'Informe a quantidade, de 1 a 99.')
+  const product = await getPublicProduct(ctx, productId)
+  if (!product.available) throw new DomainError('conflict', `${product.name} está esgotado.`, { reason: 'out_of_stock' })
+  if (quantity > product.maxQuantity) {
+    const resta = product.maxQuantity === 1 ? 'Só resta 1 unidade' : `Só restam ${product.maxQuantity} unidades`
+    throw new DomainError('conflict', `${resta} de ${product.name}.`, { reason: 'out_of_stock' })
+  }
+  return product
 }

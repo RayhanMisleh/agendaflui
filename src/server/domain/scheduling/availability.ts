@@ -3,7 +3,9 @@ import { DomainError, parse, z } from '@/server/domain/errors'
 import { isCustomer } from '@/server/domain/input'
 import { isClosedOn, listClosures } from '@/server/domain/settings/closures'
 import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
-import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
+import { actorKind, invalidTransition, loadForActor, staffScope } from '@/server/domain/scheduling/appointment-view'
+import { assertCustomerWindow } from '@/server/domain/scheduling/change-window'
+import { ACTIVE_STATUSES, OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { computeSlots, type Interval, type WorkingRange } from '@/server/domain/scheduling/slots'
 import { toServiceView, type ServiceView } from '@/server/domain/catalog/services'
 import { isServiceOffered, priceFor } from '@/server/domain/catalog/pricing'
@@ -354,12 +356,38 @@ async function chooseProfessionals(ctx: TenantContext, serviceIds: string[], pro
   return [professionalId]
 }
 
-/** Inícios livres no dia local para os serviços escolhidos; cada início traz os profissionais livres nele. */
+/**
+ * Remarcar: o agendamento que está sendo movido. O cliente só passa um agendamento próprio, aberto e dentro do prazo; a
+ * equipe, um do seu escopo. A mesma checagem da própria remarcação, para a lista de horários não prometer o que ela recusaria.
+ */
+async function reschedulingOf(
+  ctx: TenantContext,
+  id: string,
+): Promise<{ id: string; serviceIds: string[]; petId: string | null }> {
+  const who = actorKind(ctx)
+  const row = await loadForActor(ctx, ctx.db, id, who, await staffScope(ctx, who))
+  if (!OPEN_STATUSES.includes(row.status)) throw invalidTransition('Só dá para remarcar agendamentos pendentes ou confirmados.')
+  if (who === 'customer') assertCustomerWindow(ctx, await getSchedulingRules(ctx), row.startsAt, 'remarcar')
+  return { id: row.id, serviceIds: row.items.map((item) => item.serviceId), petId: row.petId }
+}
+
+/**
+ * Inícios livres no dia local para os serviços escolhidos; cada início traz os profissionais livres nele. Com `rescheduling`
+ * (id de um agendamento), os serviços vêm dele quando não enviados e o horário dele deixa de ocupar a agenda (os demais,
+ * inclusive encaixes, continuam ocupando).
+ */
 export async function getAvailability(
   ctx: TenantContext,
-  q: { date: string; serviceIds: string[]; professionalId?: string | null; petId?: string | null; durationMin?: number },
+  q: {
+    date: string
+    serviceIds?: string[]
+    professionalId?: string | null
+    petId?: string | null
+    durationMin?: number
+    rescheduling?: string | null
+  },
 ): Promise<AvailabilityView> {
-  const { date, professionalId, petId, durationMin: asked } = parse(availabilitySchema, {
+  const { date, professionalId, petId: askedPet, durationMin: asked } = parse(availabilitySchema, {
     date: q.date,
     professionalId: q.professionalId,
     petId: q.petId,
@@ -368,16 +396,19 @@ export async function getAvailability(
   if (asked !== undefined && isCustomer(ctx)) {
     throw new DomainError('forbidden', 'A duração é definida pelos serviços.')
   }
+  const moving = q.rescheduling ? await reschedulingOf(ctx, q.rescheduling) : null
+  const serviceIds = q.serviceIds ?? moving?.serviceIds ?? []
+  const petId = askedPet ?? moving?.petId ?? null
   const variant = await variantOfQuery(ctx, petId)
-  const resolved = await resolveServices(ctx, q.serviceIds, ctx.db, { variant })
+  const resolved = await resolveServices(ctx, serviceIds, ctx.db, { variant })
   const durationMin = asked ?? resolved.durationMin
   const totalCents = resolved.totalCents
   const view = (slots: SlotView[]): AvailabilityView => ({ date, durationMin, totalCents, slots })
 
-  const chosen = await chooseProfessionals(ctx, q.serviceIds, professionalId)
+  const chosen = await chooseProfessionals(ctx, serviceIds, professionalId)
 
   const rules = await getSchedulingRules(ctx)
-  const starts = await computeFreeStarts(ctx, { date, durationMin, professionalIds: chosen, rules })
+  const starts = await computeFreeStarts(ctx, { date, durationMin, professionalIds: chosen, rules, ...(moving ? { ignoreAppointmentId: moving.id } : {}) })
   return view(
     [...starts.values()]
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
@@ -398,7 +429,14 @@ export type AvailableDay = { date: string; weekday: Weekday; available: boolean 
  */
 export async function listAvailableDays(
   ctx: TenantContext,
-  q: { from: string; to: string; serviceIds: string[]; professionalId?: string | null; petId?: string | null },
+  q: {
+    from: string
+    to: string
+    serviceIds?: string[]
+    professionalId?: string | null
+    petId?: string | null
+    rescheduling?: string | null
+  },
 ): Promise<AvailableDay[]> {
   const { from, to, professionalId, petId } = parse(daysSchema, { from: q.from, to: q.to, professionalId: q.professionalId, petId: q.petId })
   const dates: string[] = []
@@ -413,15 +451,18 @@ export async function listAvailableDays(
     const message = `Peça no máximo ${MAX_AVAILABLE_DAYS} dias por vez.`
     throw new DomainError('validation', message, { fields: { to: message } })
   }
-  const { durationMin } = await resolveServices(ctx, q.serviceIds, ctx.db, { variant: await variantOfQuery(ctx, petId) })
-  const chosen = await chooseProfessionals(ctx, q.serviceIds, professionalId)
+  const moving = q.rescheduling ? await reschedulingOf(ctx, q.rescheduling) : null
+  const serviceIds = q.serviceIds ?? moving?.serviceIds ?? []
+  const variant = await variantOfQuery(ctx, petId ?? moving?.petId ?? null)
+  const { durationMin } = await resolveServices(ctx, serviceIds, ctx.db, { variant })
+  const chosen = await chooseProfessionals(ctx, serviceIds, professionalId)
 
   const rules = await getSchedulingRules(ctx)
   const today = todayIn(ctx.timeZone, ctx.clock())
   const closures = await listClosures(ctx, { from, to })
   const closed = (date: string): boolean =>
     closures.some((c) => compareLocalDates(c.startDate, date) <= 0 && compareLocalDates(c.endDate, date) >= 0)
-  const rows = await loadRangeRows(ctx, { professionalIds: chosen, dates, bufferMin: rules.bufferMin }, ctx.db)
+  const rows = await loadRangeRows(ctx, { professionalIds: chosen, dates, bufferMin: rules.bufferMin, ...(moving ? { ignoreAppointmentId: moving.id } : {}) }, ctx.db)
 
   return dates.map((date) => {
     const weekday = weekdayOf(date)

@@ -37,6 +37,7 @@ export const DOMAIN_REASONS = [
   'payment_unavailable',
   'pickup_unavailable',
   'quote_expired',
+  'rate_limited',
   'shipping_unavailable',
   'slot_taken',
   'slot_unavailable',

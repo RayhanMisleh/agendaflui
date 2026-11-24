@@ -5,6 +5,7 @@ import { areaLink } from '@/server/area-links'
 import { CALENDAR_SCOPE } from '@/server/calendar/event'
 import { z } from '@/server/domain/errors'
 import { env } from '@/server/env'
+import { safeReturnPath } from '@/shared/return-path'
 import { integrations } from '@/server/integrations'
 import { googleClient } from './config'
 
@@ -21,7 +22,8 @@ export const FLOW_TTL_SEC = 600
 /** `calendar` liga o Google Agenda (escopo `calendar.events`, acesso offline) para a pessoa da sessão. Intenção desconhecida não passa. */
 export type GoogleIntent =
   | { kind: 'sign_in' }
-  | { kind: 'store_signup'; slug: string }
+  /** `back`: caminho da própria loja para onde seguir depois de entrar (já validado por `safeReturnPath`; inválido = ausente). */
+  | { kind: 'store_signup'; slug: string; back?: string }
   | { kind: 'invite'; token: string }
   | { kind: 'link' }
   | { kind: 'calendar' }
@@ -30,7 +32,7 @@ export type GoogleFlow = { v: 1; state: string; nonce: string; verifier: string;
 
 const intentSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('sign_in') }),
-  z.object({ kind: z.literal('store_signup'), slug: z.string().min(1).max(40) }),
+  z.object({ kind: z.literal('store_signup'), slug: z.string().min(1).max(40), back: z.string().max(300).optional() }),
   z.object({ kind: z.literal('invite'), token: z.string().min(1).max(200) }),
   z.object({ kind: z.literal('link') }),
   z.object({ kind: z.literal('calendar') }),
@@ -43,6 +45,13 @@ const flowSchema = z.object({
   verifier: z.string().min(43).max(128),
   intent: intentSchema,
 })
+
+/** `back` fora do formato (ou de outra loja) é descartado: a intenção segue sem ele. */
+function cleanIntent(intent: GoogleIntent): GoogleIntent {
+  if (intent.kind !== 'store_signup') return intent
+  const back = safeReturnPath(intent.slug, intent.back)
+  return back === null ? { kind: 'store_signup', slug: intent.slug } : { kind: 'store_signup', slug: intent.slug, back }
+}
 
 let chave: Uint8Array | undefined
 function flowKey(): Uint8Array {
@@ -67,7 +76,7 @@ export async function startGoogleFlow(
 ): Promise<{ url: string; cookie: string } | null> {
   const client = await googleClient()
   if (client === null) return null
-  const flow: GoogleFlow = { v: 1, state: aleatorio(), nonce: aleatorio(), verifier: aleatorio(), intent: intentSchema.parse(intent) }
+  const flow: GoogleFlow = { v: 1, state: aleatorio(), nonce: aleatorio(), verifier: aleatorio(), intent: cleanIntent(intentSchema.parse(intent)) }
   const cookie = await new SignJWT({ ...flow })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt(epoch(now))
@@ -102,7 +111,7 @@ export async function readGoogleFlow(cookie: string | undefined, now: Date): Pro
   try {
     const { payload } = await jwtVerify(cookie, flowKey(), { algorithms: ['HS256'], currentDate: now, requiredClaims: ['exp'] })
     const lido = flowSchema.safeParse(payload)
-    return lido.success ? lido.data : null
+    return lido.success ? { ...lido.data, intent: cleanIntent(lido.data.intent) } : null
   } catch {
     return null
   }

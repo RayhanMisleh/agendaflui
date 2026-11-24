@@ -7,6 +7,7 @@ import { um } from '@/app/_lib/params'
 import { GoogleAviso, GoogleOu } from '@/app/app/google/GoogleAviso'
 import { isGoogleConfigured } from '@/server/domain/platform/google-settings'
 import { GoogleButton } from '@/ui/components'
+import { safeReturnPath } from '@/shared/return-path'
 import { AbasEntrada } from '../_lib/AbasEntrada'
 import { LojaIndisponivel } from '../_lib/LojaIndisponivel'
 import { carregarLoja, marcaDaLoja, metadataDaLoja } from '../_lib/loja'
@@ -20,12 +21,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CadastroPage({ params, searchParams }: Props) {
   const { slug } = await params
-  const googleCode = um((await searchParams).google)
+  const query = await searchParams
+  const googleCode = um(query.google)
   const google = await isGoogleConfigured()
   const loja = await carregarLoja(slug)
   if (!loja) return <LojaIndisponivel />
+  const volta = safeReturnPath(slug, um(query.volta))
   const session = await readPersonSession()
-  if (session?.kind === 'person' && (await storeRelation(session.user.id, loja.ref.businessId)).isCustomer) redirect(`/${slug}`)
+  if (session?.kind === 'person' && (await storeRelation(session.user.id, loja.ref.businessId)).isCustomer) redirect(volta ?? `/${slug}`)
   return (
     <EntryScreen
       theme={loja.brand.theme}
@@ -35,11 +38,11 @@ export default async function CadastroPage({ params, searchParams }: Props) {
       message="Crie sua conta em um minuto. Enviamos um código para confirmar o seu e-mail."
       testId="loja-cadastro"
     >
-      <AbasEntrada slug={slug} />
+      <AbasEntrada slug={slug} volta={volta} />
       <GoogleAviso codigo={googleCode} />
-      <GoogleButton enabled={google} fluxo="loja" slug={slug} />
+      <GoogleButton enabled={google} fluxo="loja" slug={slug} {...(volta ? { volta } : {})} />
       {google ? <GoogleOu /> : null}
-      <CadastroForm slug={slug} />
+      <CadastroForm slug={slug} volta={volta} />
     </EntryScreen>
   )
 }

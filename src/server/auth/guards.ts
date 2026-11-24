@@ -8,6 +8,7 @@ import type { Actor, TenantContext } from './actor'
 import { can, type Capability } from './capabilities'
 import { getPersonSession, getStaffContext, type PersonSession } from './session'
 import { getPlatformActor } from './platform-auth'
+import { resolveStoreVisit, type CustomerVisit, type StoreVisit } from './customer-access'
 
 export const DEV_COOKIE = 'af_dev_session'
 export const APP_COOKIE = 'af_session'
@@ -75,4 +76,36 @@ export async function requireTenant(capability?: Capability): Promise<TenantCont
   if (capability && !can(ctx.actor, capability)) notFound()
   const info = await requestInfo()
   return { ...ctx, request: { ip: info.ip ?? null, userAgent: info.userAgent ?? null } }
+}
+
+const lerVisita = cache((slug: string, token: string | undefined, ip: string | null, userAgent: string | null) =>
+  resolveStoreVisit({ token, slug, request: { ip, userAgent } }),
+)
+
+/**
+ * A visita à loja desta requisição: loja aberta, pessoa entrada e vínculo de cliente (`StoreVisit`). Lida uma vez por requisição
+ * (uma ação é outra requisição, então relê o vínculo): nunca confia no slug nem na loja lembrada pela sessão.
+ */
+export async function readStoreVisit(slug: string): Promise<StoreVisit> {
+  const info = await requestInfo()
+  return lerVisita(slug, await readCookie(APP_COOKIE), info.ip ?? null, info.userAgent ?? null)
+}
+
+/**
+ * Cliente ativo da loja `slug`, ou redireciona: loja indisponível → página da loja; sem sessão → entrar da loja; pessoa que
+ * não é cliente (ou foi desativada) → página da loja, que explica e oferece "Usar minha conta". `here` é o caminho de volta.
+ */
+export async function requireCustomer(slug: string, here: string): Promise<CustomerVisit> {
+  const visita = await readStoreVisit(slug)
+  const volta = encodeURIComponent(here)
+  switch (visita.kind) {
+    case 'unavailable':
+      return redirect(`/${slug}`)
+    case 'anonymous':
+      return redirect(`/${slug}/entrar?volta=${volta}`)
+    case 'visitor':
+      return redirect(`/${slug}?volta=${volta}`)
+    case 'customer':
+      return visita
+  }
 }
