@@ -383,6 +383,23 @@ model BusinessIntegration {
   @@map("business_integrations")
 }
 
+/// Configurações da plataforma, uma linha só (CHECK `platform_settings_single_row` e `platform_settings_google_together`, só no SQL).
+/// Hoje guarda as chaves do "Entrar com Google": o segredo selado (secret-box, AAD `platform:google:client_secret`) e os 4 últimos.
+/// Modelo de PLATAFORMA: `tenantDb` o recusa; só o painel dev grava e só `auth/google` lê (`google-secrets.ts`).
+model PlatformSetting {
+  id                      Int       @id @default(1)
+  googleClientId          String?   @map("google_client_id")
+  googleClientSecretEnc   String?   @map("google_client_secret_enc")
+  googleClientSecretLast4 String?   @map("google_client_secret_last4") @db.VarChar(4)
+  googleUpdatedAt         DateTime? @map("google_updated_at") @db.Timestamptz(3)
+  /// Controle de edição: cada gravação pelo painel dev exige a versão lida e a incrementa.
+  version                 Int       @default(1)
+  createdAt               DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("platform_settings")
+}
+
 model BusinessSettings {
   businessId               String   @id @map("business_id") @db.Uuid
   slotStepMin              Int      @default(15) @map("slot_step_min")

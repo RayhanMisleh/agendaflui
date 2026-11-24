@@ -53,4 +53,5 @@ export const PLATFORM_MODELS: Modelos = [
   'UserToken',
   'RateLimitBucket',
   'EmailCode',
+  'PlatformSetting',
 ]

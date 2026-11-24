@@ -9,6 +9,7 @@ import { HorariosNota } from '../_lib/HorariosNota'
 import { quando, tamanho } from '../_lib/format'
 import { ExecucoesTable, FalhasTable, TabelasTable } from './SistemaTables'
 import { EmailDeTeste } from './EmailDeTeste'
+import { SistemaTabs } from './SistemaTabs'
 import { enviarEmailDeTeste, tentarDeNovo } from './actions'
 
 export const metadata: Metadata = { title: 'Sistema | Agenda Flui' }
@@ -42,6 +43,7 @@ export default async function SistemaPage() {
 
   return (
     <DevFrame admin={admin} title="Sistema">
+      <SistemaTabs />
       <HorariosNota />
       <div className="af-global">
         <Card className="af-listpanel">
