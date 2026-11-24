@@ -1,12 +1,16 @@
 'use client'
 import { Trash2 } from 'lucide-react'
 import { useState } from 'react'
-import { Checkbox, EmptyHint, Field, Input, MaskedInput, Select, Switch } from '@/ui/components'
+import { BrandPreview, Checkbox, ColorField, EmptyHint, Field, Input, MaskedInput, Select, Switch } from '@/ui/components'
+import { previewTheme } from '@/shared/theme/preview'
+import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
+import type { CoverMaterial } from '@/shared/theme/derive'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import {
   criarFechamento,
+  salvarCores,
   removerFechamento,
   salvarAnimais,
   salvarAvisos,
@@ -42,6 +46,64 @@ export function NegocioForm({ version, name, contactEmail, contactPhone }: { ver
             </Field>
           </div>
         </>
+      )}
+    </PainelForm>
+  )
+}
+
+// ---------------------------------------------------------------- cores
+
+function Cores({ version, storeName, material, logoUrl, primary: p0, accent: a0, erros }: {
+  version: number
+  storeName: string
+  material: CoverMaterial
+  logoUrl: string | null
+  primary: string
+  accent: string
+  erros: Record<string, string>
+}) {
+  const [primary, setPrimary] = useState(p0)
+  const [accent, setAccent] = useState(a0)
+  const { warnings } = previewTheme({ primary, accent, material })
+  return (
+    <>
+      <Versao version={version} />
+      <div className="af-formgrid">
+        <ColorField
+          label="Cor principal"
+          name="primary"
+          value={primary}
+          onChange={setPrimary}
+          {...(erros.primary ? { error: erros.primary } : {})}
+          {...(warnings.includes('text_adjusted') ? { warning: THEME_WARNING_TEXT.text_adjusted } : {})}
+        />
+        <ColorField
+          label="Cor de destaque"
+          name="accent"
+          value={accent}
+          onChange={setAccent}
+          {...(erros.accent ? { error: erros.accent } : {})}
+          {...(warnings.includes('accent_adjusted') ? { warning: THEME_WARNING_TEXT.accent_adjusted } : {})}
+        />
+      </div>
+      <BrandPreview businessName={storeName} brand={{ primary, accent, material, logoUrl }} />
+    </>
+  )
+}
+
+/** As duas cores da marca, com a prévia mudando enquanto a pessoa escolhe (a mesma edição do assistente de contas). */
+export function CoresForm({ version, storeName, primary, accent, material, logoUrl }: {
+  version: number
+  storeName: string
+  primary: string
+  accent: string
+  material: CoverMaterial
+  logoUrl: string | null
+}) {
+  return (
+    <PainelForm action={salvarCores} initial={estado({ primary, accent })} submit="Salvar cores" labels={{ primary: 'Cor principal', accent: 'Cor de destaque' }}>
+      {(state) => (
+        <Cores version={version} storeName={storeName} material={material} logoUrl={logoUrl} primary={state.values.primary ?? primary} accent={state.values.accent ?? accent} erros={state.fields} />
       )}
     </PainelForm>
   )

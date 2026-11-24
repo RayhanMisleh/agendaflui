@@ -7,13 +7,13 @@ import { listClosuresFor } from '@/server/domain/settings/closures'
 import { getNotificationSettingsView } from '@/server/domain/settings/notification-settings'
 import { getSchedulingRules, RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
 import { addDays, todayIn } from '@/server/time'
-import { BrandPreview, Card, EmptyHint, LinkButton, NavTabs, SubmitButton } from '@/ui/components'
-import { ACCENT_FIELD_LABEL, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
+import { Card, EmptyHint, LinkButton, NavTabs, SubmitButton } from '@/ui/components'
+import { labelOf, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
 import { LOGO } from '../_lib/logo-mensagens'
 import { PainelFrame } from '../PainelFrame'
-import { AnimaisForm, AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, RegrasForm } from './Formularios'
+import { AnimaisForm, AvisosForm, CoresForm, FechamentoForm, FechamentosLista, NegocioForm, RegrasForm } from './Formularios'
 
 export const metadata: Metadata = { title: 'Configurações | Agenda Flui' }
 
@@ -93,28 +93,14 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             ) : null}
           </div>
         </form>
+        <CoresForm version={a.version} storeName={perfil.name} primary={a.primary} accent={a.accent} material={a.material} logoUrl={a.logoUrl} />
         <dl className="af-settings__readonly">
-          <div>
-            <dt>{PRIMARY_FIELD_LABEL}</dt>
-            <dd>
-              <span className="af-settings__swatch" style={{ backgroundColor: a.primary }} aria-hidden="true" />
-              {a.primary}
-            </dd>
-          </div>
-          <div>
-            <dt>{ACCENT_FIELD_LABEL}</dt>
-            <dd>
-              <span className="af-settings__swatch" style={{ backgroundColor: a.accent }} aria-hidden="true" />
-              {a.accent}
-            </dd>
-          </div>
           <div>
             <dt>{SIDEBAR_FIELD_LABEL}</dt>
             <dd>{labelOf(SIDEBAR_OPTIONS, a.material)}</dd>
           </div>
         </dl>
-        <p className="af-section__help">As cores e a barra lateral são ajustados pela equipe do Agenda Flui. Para mudar, fale com o suporte.</p>
-        <BrandPreview businessName={perfil.name} brand={a} />
+        <p className="af-section__help">A barra lateral é ajustada pela equipe do Agenda Flui. Para mudar, fale com o suporte.</p>
       </Card>
     )
   } else if (secao === 'agenda') {

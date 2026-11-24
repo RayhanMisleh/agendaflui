@@ -1,5 +1,5 @@
 'use server'
-import { updateBusinessProfile } from '@/server/domain/settings/business-profile'
+import { updateBrandColors, updateBusinessProfile } from '@/server/domain/settings/business-profile'
 import { createClosure, deleteClosure, previewClosure } from '@/server/domain/settings/closures'
 import { DEFAULT_NOTIFICATION_SETTINGS, updateNotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
@@ -37,6 +37,21 @@ export const salvarNegocio = tenantAction(
     }
     atualizarPainel()
     return 'Dados salvos.'
+  },
+  (mensagem, v) => feito(mensagem, v),
+)
+
+export const salvarCores = tenantAction(
+  'manage_account',
+  (fd) => ler(fd, ['version', 'primary', 'accent']),
+  async (ctx, v) => {
+    try {
+      await updateBrandColors(ctx, versao(v), { primary: (v.primary ?? '').trim(), accent: (v.accent ?? '').trim() })
+    } catch (err) {
+      throw comConflito(err)
+    }
+    atualizarPainel()
+    return 'Cores salvas.'
   },
   (mensagem, v) => feito(mensagem, v),
 )
