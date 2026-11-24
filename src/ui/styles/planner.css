@@ -109,6 +109,18 @@
     padding-block: 6px; /* o anel de foco não é cortado pela rolagem */
     overflow-x: auto;
   }
+  /* Profissionais: a fileira rola até a borda do cartão e as pontas esmaecem. */
+  .af-planner__tabs {
+    margin-inline: calc(var(--bleed) * -1);
+    padding-inline: var(--bleed);
+    scroll-padding-inline: var(--bleed);
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+    mask-image: linear-gradient(90deg, transparent 0, var(--ink) var(--bleed), var(--ink) calc(100% - var(--bleed)), transparent 100%);
+  }
+  .af-planner__tabs::-webkit-scrollbar {
+    display: none;
+  }
   .af-planner__tab {
     flex: none;
     min-height: 44px;
