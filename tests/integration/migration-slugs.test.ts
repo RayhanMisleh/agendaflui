@@ -1,7 +1,10 @@
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { RESERVED_SLUGS } from '@/shared/reserved-slugs'
 import { applyMigration, applyMigrationsThrough, withScratchDb } from '../setup/migrations'
+
+// Aplicar a pilha de migrações num banco novo passa de 5 s com a suíte inteira rodando em paralelo.
+vi.setConfig({ testTimeout: 30_000 })
 
 const ANTES = '20261123070000_sem_api_e_push'
 const MIGRACAO = '20261123080000_termos_fixos_e_slugs'
