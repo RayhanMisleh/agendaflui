@@ -95,7 +95,7 @@ describe('painel dev: toda entrada exige admin', () => {
           usados.add(chave)
           continue
         }
-        const passa = /\badminAction\b|\bporAlvo\(|\bporConta\(|\bporIntegracao\(|\bsituacao\(/.test(p)
+        const passa = /\badminAction\b|\bporAlvo\(|\bporConta\(|\bporIntegracao\(|\bporGoogle\(|\bsituacao\(/.test(p)
         expect(passa, `${chave} não passa por adminAction`).toBe(true)
       }
     }
