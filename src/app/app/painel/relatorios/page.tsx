@@ -10,7 +10,8 @@ import { getReportSummary } from '@/server/domain/reports/summary'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { listProfessionals } from '@/server/domain/team/professionals'
 import { todayIn } from '@/server/time'
-import { BarList, Button, Card, DateRangeField, EmptyHint, Field, NavTabs, Pagination, Select, StatNumber } from '@/ui/components'
+import Form from 'next/form'
+import { BarList, Card, DateRangeField, EmptyHint, Field, NavTabs, Pagination, Select, StatNumber, SubmitButton } from '@/ui/components'
 import type { BarItem } from '@/ui/components'
 import { formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
@@ -96,7 +97,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
       <div className="af-report">
         <Card as="section" aria-label="Período e filtros" className="af-report__filters">
           <NavTabs label="Períodos prontos" items={atalhos} />
-          <form method="get" action="/painel/relatorios" className="af-report__form">
+          <Form action="/painel/relatorios" className="af-report__form">
             <DateRangeField from={periodo.from} to={periodo.to} />
             {todos ? (
               <Field label={terms.professionalSingular}>
@@ -120,10 +121,10 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
                 ))}
               </Select>
             </Field>
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary">
               Ver período
-            </Button>
-          </form>
+            </SubmitButton>
+          </Form>
           <p className="af-report__note">
             {periodo.from === periodo.to ? formatLocalDate(periodo.from) : `${formatLocalDate(periodo.from)} a ${formatLocalDate(periodo.to)}`}. Contam os atendimentos que terminaram no período.
           </p>

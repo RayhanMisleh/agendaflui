@@ -7,7 +7,7 @@ import { listClosuresFor } from '@/server/domain/settings/closures'
 import { getNotificationSettingsView } from '@/server/domain/settings/notification-settings'
 import { getSchedulingRules, RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
 import { addDays, todayIn } from '@/server/time'
-import { BrandPreview, Button, Card, EmptyHint, LinkButton, NavTabs } from '@/ui/components'
+import { BrandPreview, Card, EmptyHint, LinkButton, NavTabs, SubmitButton } from '@/ui/components'
 import { ACCENT_FIELD_LABEL, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
@@ -89,13 +89,13 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
             <input id="cfg-logo" type="file" name="file" accept="image/png,image/jpeg,image/webp" className="af-input" />
           </div>
           <div className="af-acctform__foot">
-            <Button type="submit" variant="primary">
+            <SubmitButton variant="primary">
               Enviar logo
-            </Button>
+            </SubmitButton>
             {a.logoUrl ? (
-              <Button type="submit" name="intent" value="remove" formNoValidate>
+              <SubmitButton name="intent" value="remove" formNoValidate>
                 Remover logo
-              </Button>
+              </SubmitButton>
             ) : null}
             {logo ? (
               <p role={logo.ok ? 'status' : 'alert'} className={logo.ok ? 'af-acctform__ok' : 'af-field__error'}>

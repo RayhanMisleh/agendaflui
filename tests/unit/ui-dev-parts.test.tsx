@@ -29,7 +29,6 @@ test('SearchBar é uma busca por GET, com rótulos e filtro, e limpar só aparec
   ]
   render(<SearchBar action="/contas" label="Buscar contas" query="pata" filters={filtros} clearHref="/contas" />)
   const form = screen.getByRole('search')
-  expect(form).toHaveAttribute('method', 'get')
   expect(form).toHaveAttribute('action', '/contas')
   expect(screen.getByLabelText('Buscar contas')).toHaveValue('pata')
   expect(screen.getByLabelText('Situação')).toHaveValue('ACTIVE')

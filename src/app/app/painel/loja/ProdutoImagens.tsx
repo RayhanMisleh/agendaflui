@@ -1,5 +1,5 @@
 import { ArrowDown, ArrowUp, Trash2 } from 'lucide-react'
-import { Button } from '@/ui/components'
+import { SubmitButton } from '@/ui/components'
 import { ImagemUpload } from '../_lib/ImagemUpload'
 
 const MAXIMO = 6
@@ -14,9 +14,9 @@ export function ProdutoImagens({ productId, nome, imagens }: { productId: string
     <form method="post" action={action} encType="multipart/form-data">
       <input type="hidden" name="intent" value={intent} />
       <input type="hidden" name="imageId" value={imageId} />
-      <Button type="submit" size="sm" variant={intent === 'remove' ? 'ghost' : 'secondary'} icon={icone} disabled={desativado} aria-label={rotulo}>
+      <SubmitButton size="sm" variant={intent === 'remove' ? 'ghost' : 'secondary'} icon={icone} disabled={desativado} aria-label={rotulo}>
         {intent === 'remove' ? 'Remover' : ''}
-      </Button>
+      </SubmitButton>
     </form>
   )
   return (
