@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Pet, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Pet, Prisma, PriceVariant, Professional, Service, ServicePrice, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
@@ -111,6 +111,19 @@ export async function makeService(
 ): Promise<Service> {
   return prisma.service.create({
     data: { name: `Serviço ${sufixo()}`, priceCents: 5000, durationMin: 30, ...overrides, businessId },
+  })
+}
+
+/** Linha de preço por variante (padrão 5000 / 30) e marca o serviço como `BY_VARIANT`. */
+export async function makeServicePrice(
+  businessId: string,
+  serviceId: string,
+  variant: PriceVariant,
+  o: { priceCents?: number; durationMin?: number } = {},
+): Promise<ServicePrice> {
+  await prisma.service.update({ where: { id: serviceId }, data: { pricingMode: 'BY_VARIANT' } })
+  return prisma.servicePrice.create({
+    data: { businessId, serviceId, variant, priceCents: o.priceCents ?? 5000, durationMin: o.durationMin ?? 30 },
   })
 }
 

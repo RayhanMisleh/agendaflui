@@ -47,6 +47,13 @@ enum PriceVariant {
   @@map("price_variant")
 }
 
+enum PricingMode {
+  SINGLE
+  BY_VARIANT
+
+  @@map("pricing_mode")
+}
+
 enum BusinessStatus {
   ACTIVE
   SUSPENDED
@@ -340,6 +347,7 @@ model Business {
   pets                 Pet[]
   professionals        Professional[]
   services             Service[]
+  servicePrices        ServicePrice[]
   professionalServices ProfessionalService[]
   workingHours         WorkingHours[]
   timeBlocks           TimeBlock[]
@@ -700,6 +708,7 @@ model Service {
   clubOnly     Boolean   @default(false) @map("club_only")
   active       Boolean   @default(true)
   displayOrder Int       @default(0) @map("display_order")
+  pricingMode  PricingMode @default(SINGLE) @map("pricing_mode")
   archivedAt   DateTime? @map("archived_at") @db.Timestamptz(3)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -708,6 +717,7 @@ model Service {
 
   professionals ProfessionalService[]
   items         AppointmentItem[]
+  prices        ServicePrice[]
 
   @@unique([businessId, id])
   @@map("services")
@@ -1293,4 +1303,25 @@ model Pet {
   @@index([businessId, customerId])
   @@index([businessId, searchName])
   @@map("pets")
+}
+
+/// Preço e tempo de um serviço por variante (animal e porte). Só no SQL: FK composta
+/// `service_prices_service_id_same_business_fkey` e CHECKs `service_prices_price_cents_check` (0 a 10.000.000)
+/// e `service_prices_duration_min_check` (5 a 600, múltiplo de 5).
+model ServicePrice {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId  String       @map("business_id") @db.Uuid
+  serviceId   String       @map("service_id") @db.Uuid
+  variant     PriceVariant
+  priceCents  Int          @map("price_cents")
+  durationMin Int          @map("duration_min")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@unique([serviceId, variant])
+  @@map("service_prices")
 }

@@ -12,6 +12,7 @@ export const TENANT_MODELS: Modelos = [
   'Pet',
   'Professional',
   'Service',
+  'ServicePrice',
   'ProfessionalService',
   'WorkingHours',
   'TimeBlock',
