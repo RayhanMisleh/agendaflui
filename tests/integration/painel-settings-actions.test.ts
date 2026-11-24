@@ -1,9 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { TenantContext } from '@/server/auth/actor'
-import { verifyPassword } from '@/server/auth/password'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService } from '../setup/factories'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn(), readCookie: vi.fn(), APP_COOKIE: 'painel' }))
 vi.mock('@/server/auth/guards', () => guards)
