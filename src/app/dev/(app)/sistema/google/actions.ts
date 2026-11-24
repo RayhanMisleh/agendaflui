@@ -36,7 +36,7 @@ function porGoogle(run: (admin: PlatformAdminActor, v: Campos, segredo: string |
         }
       },
       (view, v) => {
-        revalidatePath('/sistema/google')
+        revalidatePath('/dev/sistema/google')
         return feito(mensagem, v, { version: String(view.version), clientId: view.clientId ?? '' })
       },
     )(prev, fd)

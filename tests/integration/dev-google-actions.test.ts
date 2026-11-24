@@ -6,6 +6,7 @@ const guards = vi.hoisted(() => ({ requirePlatformAdmin: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
+import { revalidatePath } from 'next/cache'
 import { removerGoogle, salvarGoogle } from '@/app/dev/(app)/sistema/google/actions'
 import { getGoogleSettings, isGoogleConfigured } from '@/server/domain/platform/google-settings'
 
@@ -36,6 +37,8 @@ describe('ações da tela Google', () => {
     const rem = await removerGoogle(ini, form({ version: String(v), clientId: ID }))
     expect(rem.ok).toBe(true)
     expect(await isGoogleConfigured()).toBe(false)
+    // As telas do painel dev vivem em /dev/...: a página só atualiza com o caminho certo.
+    expect(vi.mocked(revalidatePath).mock.calls.every(([c]) => c === '/dev/sistema/google')).toBe(true)
   })
 
   test('chave inválida: erro no campo e sem eco do valor', async () => {

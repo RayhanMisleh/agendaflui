@@ -19,7 +19,8 @@ const ROTULOS = { clientId: 'ID do cliente', clientSecret: 'Chave secreta' }
 export function GoogleForm({ dados, acoes }: { dados: GoogleDados; acoes: { salvar: AcaoConta; remover: AcaoConta } }) {
   const [state, formAction, pending] = useActionState(acoes.salvar, estadoInicial({ version: String(dados.version), clientId: dados.clientId ?? '' }))
   const [aberto, setAberto] = useState(false)
-  const versao = state.values.version ?? String(dados.version)
+  // A versão vem sempre da página (revalidada por salvar e por remover): a do estado do salvar ficaria velha depois de remover.
+  const versao = String(dados.version)
   return (
     <div className="af-keys__list">
       <Card as="section" className="af-keycard" aria-labelledby="google-titulo">
