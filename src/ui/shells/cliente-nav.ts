@@ -8,7 +8,7 @@ import { isNavActive, type NavItem } from './nav'
  */
 export function clienteNav(slug: string, i: { pets: boolean }, pathname: string): NavItem[] {
   const base = `/${slug}`
-  const emMais = ['/mais', '/premios', '/loja'].some((p) => isNavActive(pathname, `${base}${p}`))
+  const emMais = ['mais', 'premios', 'loja'].some((p) => isNavActive(pathname, `${base}/${p}`))
   const itens: NavItem[] = [
     { href: base, label: 'Início', shortLabel: 'Início', icon: House, exact: true, active: isNavActive(pathname, base, true) },
     { href: `${base}/agendar`, label: 'Agendar', shortLabel: 'Agendar', icon: CalendarPlus, active: isNavActive(pathname, `${base}/agendar`) },
