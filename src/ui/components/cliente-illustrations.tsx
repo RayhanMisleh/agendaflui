@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { PetIllustration } from './pet-illustrations'
 
 /*
  * Ilustrações em traço da área do cliente, no estilo dos ícones Lucide: `currentColor`, 1,75 de espessura, pontas
@@ -23,31 +24,9 @@ function Traco({ size, children }: { size: number; children: ReactNode }) {
   )
 }
 
-/** Cão ou gato, de frente. */
+/** Cão ou gato: os mesmos desenhos em traço dos portes (`PetIllustration`), para a espécie ter uma só cara no app. */
 export function SpeciesIllustration({ species, size = 64 }: { species: 'DOG' | 'CAT'; size?: number }) {
-  if (species === 'CAT') {
-    return (
-      <Traco size={size}>
-        <path d="M17 27 19 10l10 7M47 27 45 10l-10 7" />
-        <path d="M17 28c0-6 6-11 15-11s15 5 15 11v6c0 9-7 15-15 15s-15-6-15-15z" />
-        <circle cx="26" cy="31" r="1.4" fill="currentColor" stroke="none" />
-        <circle cx="38" cy="31" r="1.4" fill="currentColor" stroke="none" />
-        <path d="M30 37h4l-2 2.4z" fill="currentColor" />
-        <path d="M32 39.4v2.2M28.5 43c1.1 1 2.3 1.4 3.5 1.4s2.4-.4 3.5-1.4" />
-        <path d="M9 34l9 1.5M9 40l9-1.5M55 34l-9 1.5M55 40l-9-1.5" />
-      </Traco>
-    )
-  }
-  return (
-    <Traco size={size}>
-      <path d="M20 26c0-8 5-13 12-13s12 5 12 13v8c0 9-5 15-12 15s-12-6-12-15z" />
-      <path d="M20 24c-6 0-9 5-9 12 0 4 2 6 5 6 2 0 4-2 4-6M44 24c6 0 9 5 9 12 0 4-2 6-5 6-2 0-4-2-4-6" />
-      <circle cx="27" cy="31" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="37" cy="31" r="1.4" fill="currentColor" stroke="none" />
-      <ellipse cx="32" cy="38" rx="3.2" ry="2.3" fill="currentColor" stroke="none" />
-      <path d="M32 40.5v3M28.5 44.5c1.2 1.4 2.4 1.9 3.5 1.9s2.3-.5 3.5-1.9" />
-    </Traco>
-  )
+  return <PetIllustration variant={species === 'CAT' ? 'CAT' : 'DOG_MEDIUM'} size={size} />
 }
 
 export type EmptyIllustrationName = 'horarios' | 'pets' | 'premios' | 'carrinho' | 'pedidos' | 'loja-fechada'

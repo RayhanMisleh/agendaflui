@@ -1,12 +1,14 @@
 import 'server-only'
+import { listMyPets } from '@/server/domain/pets/pets'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import type { CustomerVisit } from './customer-access'
 
 /**
- * Costura com a fase 2 (pets): "a loja é de pet shop e esta pessoa ainda não tem pet ativo?" decide se o primeiro destino
- * depois de entrar é o quiz. Sem o cadastro de pets nesta base, nenhuma loja pede o quiz. A integração troca o corpo por
- * `getNicheSettings` (nicho pet) e `listMyPets` (nenhum pet ativo).
+ * "A loja é de pet shop e esta pessoa ainda não tem pet ativo?" Decide se o primeiro destino depois de entrar, cadastrar ou
+ * usar a conta na loja é o quiz (`/<slug>/boas-vindas`). Loja de outro ramo nunca pede o quiz.
  */
 export async function needsPetQuiz(visit: CustomerVisit): Promise<boolean> {
-  void visit
-  return false
+  const nicho = await getNicheSettings(visit.ctx)
+  if (nicho.niche === null) return false
+  return (await listMyPets(visit.ctx)).length === 0
 }

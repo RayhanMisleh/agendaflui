@@ -29,12 +29,17 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
 
 ## Fase 3 (área do cliente): entregue e o que fica
 
-- Entregue: acesso e domínio do cliente, tema da loja, moldura, página pública, Prêmios e Loja; vitrine, Início, "Agendar de novo",
-  remarcar e `.ics` já usam pet, preço por porte e o nicho reais.
-- Falta: quiz e boas-vindas (`/<slug>/boas-vindas`), pets, agendar, Horários, Início definitivo (troca `InicioProvisorio`) e a
-  tela Mais completa. `needsPetQuiz` (`src/server/auth/pet-onboarding.ts`) continua devolvendo `false` até a rota de boas-vindas
-  existir; depois, troca o corpo por `getNicheSettings` (nicho pet) e `listMyPets` (nenhum pet ativo).
-- A fumaça (`scripts/smoke-pages.ts`) ainda não pede as telas do cliente (Prêmios, Loja, pedidos): precisa de uma sessão de cliente.
+- Entregue: acesso e domínio do cliente, tema da loja, moldura, página pública, quiz do pet (`/<slug>/boas-vindas`), Início, Agendar e
+  Remarcar, Meus horários (cancelar no prazo e `.ics`), Meus pets, Prêmios, Loja, Mais (avisos por e-mail e excluir a conta na loja).
+  `needsPetQuiz` agora leva a loja de pet shop sem pet ativo ao quiz depois de entrar.
+- A fumaça (`scripts/smoke-pages.ts`) pede as telas do cliente com um cliente temporário da conta de demonstração e a loja sem sessão.
+  Não foi rodada nesta etapa (pede `npm run build` e o banco local de pé).
+- Para o dono conferir no celular: cadastro pela loja até o quiz; quiz com e sem gatos (e a tela de boas-vindas); agendar com "Qualquer um"
+  e com um profissional; horário tomado entre escolher e confirmar (sugestões); sucesso e `.ics` no calendário do celular; remarcar perto do
+  próprio horário; cancelar fora do prazo (mensagem com o telefone); Meus pets com gato e gatos desligados; Prêmios; Loja até o Mercado Pago
+  de teste; excluir a conta na loja (com senha e só com Google); tudo a 360 px; modo de movimento reduzido; cor de loja clara demais.
+- Decisões a revisar: o sucesso do agendamento não mostra pontos a ganhar (a visão do agendamento não traz a recompensa); o quiz guarda
+  "Sem raça definida" como texto em `breed`.
 
 ## Antes de abrir a loja (Mercado Pago real)
 

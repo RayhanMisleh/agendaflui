@@ -48,6 +48,8 @@ export function ClienteShell(p: {
   hideTitle?: boolean
   back?: { href: string; label: string }
   actions?: ReactNode
+  /** Tela de fluxo (quiz): sem a navegação flutuante da base, para a barra "Continuar" ocupar o lugar dela. */
+  immersive?: boolean
   children: ReactNode
   testId?: string
 }) {
@@ -65,7 +67,7 @@ export function ClienteShell(p: {
           </Link>
         ) : null}
       </header>
-      <main id="conteudo" tabIndex={-1} className="af-cl-main">
+      <main id="conteudo" tabIndex={-1} className={cx('af-cl-main', p.immersive && 'af-cl-main--immersive')}>
         <PageTransition>
           <div className="af-cl-inner">
             {p.back ? (
@@ -83,7 +85,7 @@ export function ClienteShell(p: {
           </div>
         </PageTransition>
       </main>
-      <ClienteNavBar slug={p.store.slug} pets={p.pets} placement="bottom" />
+      {p.immersive ? null : <ClienteNavBar slug={p.store.slug} pets={p.pets} placement="bottom" />}
     </div>
   )
 }

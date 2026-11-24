@@ -27,5 +27,5 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
   }
   const params = await searchParams
   const senhaNova = um(params.senha) === 'nova'
-  return <Entrada marca={MARCA_PADRAO} senhaNova={senhaNova} googleEnabled={await isGoogleConfigured()} googleCode={um(params.google)} />
+  return <Entrada marca={MARCA_PADRAO} senhaNova={senhaNova} contaExcluida={um(params.conta) === 'excluida'} googleEnabled={await isGoogleConfigured()} googleCode={um(params.google)} />
 }

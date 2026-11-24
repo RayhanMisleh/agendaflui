@@ -20,6 +20,38 @@ test.each(ROTAS_COM_DADOS)('%s tem loading.tsx com ShellSkeleton', async (rota) 
   expect(screen.getByRole('status')).toHaveTextContent('Carregando')
 })
 
+const CLIENTE = [
+  '',
+  'boas-vindas',
+  'agendar',
+  'agendar/feito/[id]',
+  'horarios',
+  'horarios/[id]',
+  'horarios/[id]/remarcar',
+  'pets',
+  'pets/[petId]',
+  'premios',
+  'premios/extrato',
+  'loja',
+  'loja/produto/[id]',
+  'loja/carrinho',
+  'loja/finalizar',
+  'loja/enderecos',
+  'loja/pedidos',
+  'loja/pedidos/[id]',
+  'mais',
+  'mais/excluir',
+].map((r) => `src/app/app/[slug]/${r}`.replace(/\/$/, ''))
+
+test.each(CLIENTE)('%s tem loading.tsx com ClienteSkeleton', async (rota) => {
+  const arquivo = join(RAIZ, rota, 'loading.tsx')
+  expect(existsSync(arquivo), `falta ${arquivo}`).toBe(true)
+  expect(readFileSync(arquivo, 'utf8')).toContain('ClienteSkeleton')
+  const { default: Loading } = (await import(/* @vite-ignore */ arquivo)) as { default: () => React.JSX.Element }
+  render(<Loading />)
+  expect(screen.getByRole('status')).toHaveTextContent('Carregando')
+})
+
 test.each(['dashboard', 'list', 'detail', 'planner'] as const)('ShellSkeleton %s anuncia carregamento', (variant) => {
   render(<ShellSkeleton variant={variant} />)
   const estado = screen.getByRole('status')

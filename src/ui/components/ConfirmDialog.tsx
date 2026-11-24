@@ -22,6 +22,7 @@ export function ConfirmForm({
   hidden = {},
   description,
   onCancel,
+  cancelLabel = 'Cancelar',
 }: {
   // Sintaxe de método: a ação pode devolver um estado com mais campos (`values`) do que estes três.
   action(prev: ConfirmState, form: FormData): Promise<ConfirmState>
@@ -31,6 +32,8 @@ export function ConfirmForm({
   hidden?: Record<string, string>
   description?: string
   onCancel?: () => void
+  /** O texto do botão que desiste (padrão "Cancelar"; em quem cancela algo, "Manter ..."). */
+  cancelLabel?: string
 }) {
   const [state, formAction, pending] = useActionState(action, initialState)
   const [typed, setTyped] = useState('')
@@ -64,7 +67,7 @@ export function ConfirmForm({
       <div className="af-confirm__actions">
         {onCancel ? (
           <Button variant="ghost" onClick={onCancel}>
-            Cancelar
+            {cancelLabel}
           </Button>
         ) : null}
         <Button type="submit" variant={exige ? 'danger' : 'primary'} disabled={hidratado && !confere} loading={pending}>
@@ -92,6 +95,7 @@ export function ConfirmDialog({
   confirmLabel: string
   targetName?: string
   hidden?: Record<string, string>
+  cancelLabel?: string
 }) {
   return (
     <Dialog open={open} onClose={onClose} title={title}>
