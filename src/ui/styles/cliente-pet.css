@@ -275,9 +275,7 @@
   @media (prefers-reduced-motion: no-preference) {
     .af-cl-quiz__back,
     .af-cl-quiz__breed {
-      transition:
-        transform var(--af-dur-fast) var(--af-ease),
-        background-color var(--af-dur-fast) var(--af-ease);
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
     .af-cl-quiz--welcome .af-cl-quiz__welcome {
       animation: af-cl-step-in var(--af-dur-slow) var(--af-ease) both;
