@@ -88,7 +88,7 @@ export async function startSupport(actor: PlatformAdminActor, businessId: string
     })
     await auditPlatform(tx, actor, { businessId: conta.id, action: 'support.link_issued', targetType: 'business', targetId: conta.id })
   })
-  return { url: areaLink('painel', `/suporte/${token}`) }
+  return { url: areaLink('app', `/suporte/${token}`) }
 }
 
 /**

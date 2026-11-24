@@ -201,6 +201,81 @@
     }
   }
 
+  /* Código de 6 dígitos: números grandes, bem espaçados, alinhados ao centro. */
+  .af-code {
+    font-size: var(--text-h3);
+    font-weight: 700;
+    letter-spacing: 0.35em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+    padding-inline-start: 0.35em;
+  }
+  .af-code::placeholder {
+    letter-spacing: 0.35em;
+    opacity: 0.35;
+  }
+
+  /* Abas de entrada da loja (Entrar | Criar conta) logo abaixo do título. */
+  .af-entry__tabs {
+    margin-top: 1rem;
+  }
+  .af-entry__tabs + .af-entry__form {
+    margin-top: 1rem;
+  }
+  .af-entry__or {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-entry__or::before,
+  .af-entry__or::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background-color: var(--line);
+  }
+  .af-google__form + .af-entry__or + .af-entry__form,
+  .af-entry__or + .af-entry__form {
+    margin-top: 1rem;
+  }
+  .af-entry__tabs + .af-google__form {
+    margin-top: 1rem;
+  }
+  .af-entry__actions {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+  }
+  .af-entry__actions .af-button {
+    width: 100%;
+  }
+  .af-entry__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .af-entry__link {
+    appearance: none;
+    padding: 0.5rem 0;
+    border: 0;
+    background: none;
+    color: var(--brand-text);
+    font: inherit;
+    font-size: var(--text-small);
+    font-weight: 600;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .af-entry__link:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
   .af-link-break {
     color: var(--brand-text);
     overflow-wrap: break-word;

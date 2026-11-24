@@ -9,8 +9,8 @@ import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessio
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 
-import { GET } from '@/app/painel/(app)/relatorios/exportar/route'
-import { periodoDaUrl } from '@/app/painel/(app)/relatorios/periodo'
+import { GET } from '@/app/app/painel/relatorios/exportar/route'
+import { periodoDaUrl } from '@/app/app/painel/relatorios/periodo'
 
 const MANAUS = 'America/Manaus'
 const AGORA = new Date('2026-11-17T15:00:00Z')
@@ -19,7 +19,7 @@ const AGORA = new Date('2026-11-17T15:00:00Z')
 const mn = (dia: number, h: number, m = 0): Date => new Date(Date.UTC(2026, 10, dia, h + 4, m))
 
 function pedido(consulta: string): Request {
-  return new Request(`http://painel.localhost:3000/relatorios/exportar${consulta}`)
+  return new Request(`http://app.localhost:3000/relatorios/exportar${consulta}`)
 }
 
 async function montar() {

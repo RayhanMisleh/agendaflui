@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, CalendarConnection, CalendarConnectionStatus, Customer, Membership, MembershipRole, OnboardingProgress, OnboardingStep, Pet, Prisma, PriceVariant, Professional, Service, ServicePrice, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
+import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
+import { sealCalendarToken } from '@/server/calendar/token'
 import type { Actor, Channel, TenantContext } from '@/server/auth/actor'
 import { addMinutes, type Weekday } from '@/server/time'
 import { createTenantContext } from '@/server/auth/context'
@@ -34,19 +36,28 @@ export async function makeBusiness(overrides: Partial<Prisma.BusinessUncheckedCr
 type MakeUserInput = Omit<Prisma.UserUncheckedCreateInput, 'passwordHash' | 'name' | 'email'> & {
   name?: string
   email?: string
-  /** Texto puro (vira hash). `null` = convite pendente, sem senha. */
+  /** Texto puro (vira hash). `null` = sem senha. Sem `password` nem `google`, a pessoa nasce com a senha padrão. */
   password?: string | null
+  /** Google vinculado (sem `password`, a pessoa fica só com o Google). */
+  google?: GoogleLink
+  /** Padrão: verificada se tem senha ou Google. `true` força a verificação (conta pendente já provada). */
+  verified?: boolean
 }
 
 export async function makeUser(overrides: MakeUserInput = {}): Promise<User> {
   const id = sufixo()
-  const { password = 'senha-bem-longa', ...rest } = overrides
+  const { password, google, verified, ...rest } = overrides
+  const texto = password === undefined ? (google ? null : 'senha-bem-longa') : password
+  const ativa = texto !== null || google !== undefined
+  const verificada = verified ?? ativa
   return prisma.user.create({
     data: {
       name: `Usuário ${id}`,
       searchName: `usuario ${id}`,
       email: `usuario-${id}@exemplo.test`,
-      passwordHash: password === null ? null : await hashPassword(password),
+      passwordHash: texto === null ? null : await hashPassword(texto),
+      ...(verificada ? { emailVerifiedAt: new Date() } : {}),
+      ...(google ? { googleSub: google.sub, googleEmail: google.email, googleLinkedAt: new Date() } : {}),
       ...rest,
     },
   })
@@ -104,6 +115,31 @@ export async function makeService(
   })
 }
 
+/** Linha de preço por variante (padrão 5000 / 30) e marca o serviço como `BY_VARIANT`. */
+export async function makeServicePrice(
+  businessId: string,
+  serviceId: string,
+  variant: PriceVariant,
+  o: { priceCents?: number; durationMin?: number } = {},
+): Promise<ServicePrice> {
+  await prisma.service.update({ where: { id: serviceId }, data: { pricingMode: 'BY_VARIANT' } })
+  return prisma.servicePrice.create({
+    data: { businessId, serviceId, variant, priceCents: o.priceCents ?? 5000, durationMin: o.durationMin ?? 30 },
+  })
+}
+
+/** Pet direto no banco (cão médio, nome único). */
+export async function makePet(
+  businessId: string,
+  customerId: string,
+  overrides: Partial<Omit<Prisma.PetUncheckedCreateInput, 'businessId' | 'customerId'>> = {},
+): Promise<Pet> {
+  const name = overrides.name ?? `Pet ${sufixo()}`
+  return prisma.pet.create({
+    data: { species: 'DOG', size: 'MEDIUM', searchName: searchKey(name), ...overrides, name, businessId, customerId },
+  })
+}
+
 /** Profissional direto no banco. Sem `serviceIds`, não liga nenhum serviço. */
 export async function makeProfessional(
   businessId: string,
@@ -121,7 +157,10 @@ export async function makeProfessional(
   return professional
 }
 
-/** Cliente direto no banco (origem balcão, telefone válido único, sem e-mail). */
+/**
+ * Cliente direto no banco (origem balcão, telefone válido único, sem e-mail). Com `userId`, liga à pessoa: `linkedAt` agora
+ * e o e-mail da pessoa, se não vierem.
+ */
 export async function makeCustomer(
   businessId: string,
   overrides: Partial<Omit<Prisma.CustomerUncheckedCreateInput, 'businessId'>> = {},
@@ -129,8 +168,17 @@ export async function makeCustomer(
   contador += 1
   const phone = `5511${(900000000 + contador).toString()}`
   const name = overrides.name ?? `Cliente ${sufixo()}`
+  const pessoa = overrides.userId ? await prisma.user.findUniqueOrThrow({ where: { id: overrides.userId } }) : null
   return prisma.customer.create({
-    data: { phone, origin: 'PANEL', searchName: searchKey(name), ...overrides, name, businessId },
+    data: {
+      phone,
+      origin: pessoa ? 'APP' : 'PANEL',
+      searchName: searchKey(name),
+      ...(pessoa ? { email: pessoa.email, linkedAt: new Date() } : {}),
+      ...overrides,
+      name,
+      businessId,
+    },
   })
 }
 
@@ -157,6 +205,8 @@ export async function makeAppointment(
     startsAt: Date
     durationMin?: number
     status?: AppointmentStatus
+    petId?: string | null
+    isSqueezeIn?: boolean
   },
 ): Promise<Appointment> {
   const service = await prisma.service.findFirstOrThrow({ where: { id: o.serviceId, businessId } })
@@ -169,6 +219,8 @@ export async function makeAppointment(
       startsAt: o.startsAt,
       endsAt: addMinutes(o.startsAt, durationMin),
       status: o.status ?? 'CONFIRMED',
+      petId: o.petId ?? null,
+      isSqueezeIn: o.isSqueezeIn ?? false,
       source: 'PANEL',
       totalCents: service.priceCents,
       totalDurationMin: durationMin,
@@ -226,4 +278,36 @@ export async function ctxWithRole(
 export function memberOf(ctx: TenantContext): Extract<Actor, { kind: 'member' }> {
   if (ctx.actor.kind !== 'member') throw new Error('O ator do contexto não é um membro.')
   return ctx.actor
+}
+
+/**
+ * Ligação da pessoa com o Google Agenda, direto no banco. `CONNECTED` (padrão) sela o token (padrão `rt-<sub>-1`); `REVOKED` fica
+ * sem token e com `revokedAt` agora.
+ */
+export async function makeCalendarConnection(
+  userId: string,
+  o: { status?: CalendarConnectionStatus; googleSub?: string; refreshToken?: string } = {},
+): Promise<CalendarConnection> {
+  const status = o.status ?? 'CONNECTED'
+  const googleSub = o.googleSub ?? `sub-${userId}`
+  const agora = new Date()
+  return prisma.calendarConnection.create({
+    data: {
+      userId,
+      googleSub,
+      status,
+      connectedAt: agora,
+      ...(status === 'CONNECTED'
+        ? { refreshTokenEnc: sealCalendarToken(userId, o.refreshToken ?? `rt-${googleSub}-1`) }
+        : { revokedAt: agora }),
+    },
+  })
+}
+
+/** Progresso do começo do dono, direto no banco (vazio por padrão). */
+export async function makeOnboarding(
+  businessId: string,
+  o: Partial<{ doneSteps: OnboardingStep[]; skippedSteps: OnboardingStep[]; wizardFinishedAt: Date; dismissedAt: Date }> = {},
+): Promise<OnboardingProgress> {
+  return prisma.onboardingProgress.create({ data: { businessId, ...o } })
 }

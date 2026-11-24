@@ -11,6 +11,7 @@ import {
   rescheduleAppointment,
   undoOutcome,
 } from '@/server/domain/scheduling/appointments'
+import { confirmando } from '../setup/agenda'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
@@ -73,7 +74,7 @@ describe('bookAppointment pelo cliente', () => {
     expect(v.local).toEqual({ date: '2026-11-16', start: '10:00', end: '11:00' })
     expect(v.startsAt.toISOString()).toBe('2026-11-16T13:00:00.000Z')
     expect(v.endsAt.toISOString()).toBe('2026-11-16T14:00:00.000Z')
-    expect(v.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60 }])
+    expect(v.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60, variant: null }])
     expect(v.totalCents).toBe(8000)
     expect(v.totalDurationMin).toBe(60)
     expect(v.professional).toEqual({ id: s.ana.id, name: 'Ana' })
@@ -118,7 +119,7 @@ describe('bookAppointment pelo cliente', () => {
     await prisma.service.update({ where: { id: s.banho.id }, data: { priceCents: 9999, name: 'Banho premium', durationMin: 90 } })
     const depois = await getAppointment(s.gerente, v.id)
     expect(depois.totalCents).toBe(8000)
-    expect(depois.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60 }])
+    expect(depois.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60, variant: null }])
     expect(depois.endsAt.toISOString()).toBe('2026-11-16T14:00:00.000Z')
   })
 
@@ -197,26 +198,33 @@ describe('bookAppointment pela equipe', () => {
     expect(a.status).toBe('CONFIRMED')
     expect(a.source).toBe('PANEL')
     expect(a.local.start).toBe('10:10')
-    const b = await bookAppointment(s.gerente, {
-      customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(7),
-    })
+    const b = await confirmando((acknowledged) =>
+      bookAppointment(s.gerente, {
+        customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(7), acknowledged,
+      }),
+    )
     expect(b.local).toEqual({ date: '2026-11-16', start: '07:00', end: '07:30' })
   })
 
-  test('23:30 por 60 min atravessa a meia-noite: 00:15 do dia seguinte dá slot_taken e 00:30 é aceito', async () => {
+  test('23:30 por 60 min atravessa a meia-noite: 00:15 do dia seguinte pede confirmação (já tem agendamento) e 00:30 só pelo expediente', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
-    const noite = await bookAppointment(s.gerente, {
-      customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: hora(23, 30),
-    })
+    const noite = await confirmando((acknowledged) =>
+      bookAppointment(s.gerente, {
+        customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: hora(23, 30), acknowledged,
+      }),
+    )
     expect(noite.local).toEqual({ date: '2026-11-16', start: '23:30', end: '00:30' })
     const cedo = await domainError(
       bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(24, 15) }),
     )
-    expect(cedo.reason).toBe('slot_taken')
-    const depois = await bookAppointment(s.gerente, {
-      customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(24, 30),
-    })
+    expect(cedo.reason).toBe('needs_confirmation')
+    expect((cedo.details?.['issues'] as { kind: string }[]).map((x) => x.kind)).toEqual(['outside_hours', 'busy'])
+    const depois = await confirmando((acknowledged) =>
+      bookAppointment(s.gerente, {
+        customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(24, 30), acknowledged,
+      }),
+    )
     expect(depois.local).toEqual({ date: '2026-11-17', start: '00:30', end: '01:00' })
     expect(await total(s.b.id)).toBe(2)
   })
@@ -238,11 +246,15 @@ describe('bookAppointment pela equipe', () => {
     await prisma.businessClosure.create({
       data: { businessId: s.b.id, startDate: new Date('2026-11-16T00:00:00Z'), endDate: new Date('2026-11-16T00:00:00Z') },
     })
-    const fechado = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
+    const fechado = await confirmando((acknowledged) =>
+      bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ, acknowledged }),
+    )
     expect(fechado.status).toBe('CONFIRMED')
-    const passado = await bookAppointment(s.gerente, {
-      customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: new Date('2026-11-10T13:00:00Z'),
-    })
+    const passado = await confirmando((acknowledged) =>
+      bookAppointment(s.gerente, {
+        customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: new Date('2026-11-10T13:00:00Z'), acknowledged,
+      }),
+    )
     expect(passado.local.date).toBe('2026-11-10')
   })
 
@@ -278,7 +290,7 @@ describe('bookAppointment pela equipe', () => {
     expect(await total(s.b.id)).toBe(0)
   })
 
-  test('sobre outro agendamento ativo: slot_taken com os próximos inícios livres', async () => {
+  test('sobre outro agendamento ativo: pede confirmação com os próximos inícios livres', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
     await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ })
@@ -286,8 +298,8 @@ describe('bookAppointment pela equipe', () => {
       bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: new Date('2026-11-16T13:30:00Z') }),
     )
     expect(e.code).toBe('conflict')
-    expect(e.reason).toBe('slot_taken')
-    expect(e.message).toBe('Esse horário acabou de ser ocupado. Escolha outro.')
+    expect(e.reason).toBe('needs_confirmation')
+    expect(e.message).toBe('Confira o horário antes de salvar.')
     const nearest = e.details?.['nearest'] as { startsAt: Date; label: string; date: string }[]
     expect(nearest).toHaveLength(3)
     expect(nearest.map((n) => n.date)).toEqual(['2026-11-16', '2026-11-16', '2026-11-16'])
@@ -296,7 +308,7 @@ describe('bookAppointment pela equipe', () => {
     expect(await total(s.b.id)).toBe(1)
   })
 
-  test('sobre bloqueio do profissional: blocked', async () => {
+  test('sobre bloqueio do profissional: pede confirmação com o texto do bloqueio', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
     await prisma.timeBlock.create({
@@ -306,7 +318,8 @@ describe('bookAppointment pela equipe', () => {
       bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: hora(11) }),
     )
     expect(e.code).toBe('conflict')
-    expect(e.reason).toBe('blocked')
+    expect(e.reason).toBe('needs_confirmation')
+    expect((e.details?.['issues'] as { text: string }[]).map((x) => x.text)).toEqual(['Agenda de Ana bloqueada das 10:00 às 12:00'])
     expect(await total(s.b.id)).toBe(0)
   })
 
@@ -345,7 +358,7 @@ describe('bookAppointment pela equipe', () => {
     const livre = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: null, serviceIds: [s.banho.id], startsAt: DEZ })
     expect(livre.professional.id).toBe(s.caio.id)
     const cheio = await domainError(bookAppointment(s.gerente, { customerId: cli.id, serviceIds: [s.banho.id], startsAt: DEZ }))
-    expect(cheio.reason).toBe('slot_taken')
+    expect(cheio.reason).toBe('needs_confirmation')
   })
 
   test('cliente do app em qualquer profissional: escolhe entre os livres', async () => {
@@ -512,7 +525,7 @@ describe('remarcar', () => {
     expect(await prisma.appointmentItem.count({ where: { appointmentId: v.id } })).toBe(2)
   })
 
-  test('remarcar para o próprio horário atual funciona e para o horário de outro dá slot_taken', async () => {
+  test('remarcar para o próprio horário atual funciona e para o horário de outro pede confirmação', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
     const v = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
@@ -520,7 +533,7 @@ describe('remarcar', () => {
     expect((await rescheduleAppointment(s.gerente, v.id, { startsAt: new Date('2026-11-16T13:30:00Z') })).local.start).toBe('10:30')
     await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: hora(14) })
     const e = await domainError(rescheduleAppointment(s.gerente, v.id, { startsAt: hora(14, 30) }))
-    expect(e.reason).toBe('slot_taken')
+    expect(e.reason).toBe('needs_confirmation')
     expect((await getAppointment(s.gerente, v.id)).local.start).toBe('10:30')
   })
 
@@ -639,7 +652,7 @@ describe('agendamento que mudou de profissional entre a leitura e a trava', () =
       expect(rs[0].status).toBe('rejected')
       if (rs[0].status === 'rejected') {
         expect(rs[0].reason).toBeInstanceOf(DomainError)
-        expect(['changed', 'slot_taken']).toContain((rs[0].reason as DomainError).reason)
+        expect(['changed', 'needs_confirmation']).toContain((rs[0].reason as DomainError).reason)
       }
       expect(rs[1].status).toBe('fulfilled')
       const todos = await prisma.appointment.findMany({ where: { businessId: s.b.id }, orderBy: { startsAt: 'asc' } })
@@ -705,7 +718,7 @@ describe('situação', () => {
     expect((await domainError(undoOutcome(s.gerente, a.id))).reason).toBe('invalid_transition')
   })
 
-  test('falta libera o horário; desfazer a falta com o horário ocupado dá slot_taken', async () => {
+  test('falta libera o horário; desfazer a falta com o horário ocupado pede confirmação e, confirmado, volta como encaixe', async () => {
     const s = await montar({ now: hora(12) })
     const cli = await makeCustomer(s.b.id)
     const a = await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ })
@@ -716,9 +729,11 @@ describe('situação', () => {
     expect(novo.id).not.toBe(a.id)
     const e = await domainError(undoOutcome(s.gerente, a.id))
     expect(e.code).toBe('conflict')
-    expect(e.reason).toBe('slot_taken')
-    expect(e.message).toBe('Não dá para desfazer: o horário já está ocupado por outro agendamento.')
+    expect(e.reason).toBe('needs_confirmation')
     expect((await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } })).status).toBe('NO_SHOW')
+    const volta = await undoOutcome(s.gerente, a.id, { acknowledged: e.details?.['acknowledgement'] as string })
+    expect(volta.status).toBe('CONFIRMED')
+    expect(volta.isSqueezeIn).toBe(true)
   })
 
   test('concluir ou marcar falta de PENDING ou CANCELED dá invalid_transition', async () => {
@@ -748,7 +763,7 @@ describe('adjustAppointment', () => {
     expect((await adjustAppointment(s.gerente, v.id, { totalCents: 0 })).totalCents).toBe(0)
   })
 
-  test('trocar serviços para um que invade bloqueio da agenda: blocked, com mensagem própria do ajuste', async () => {
+  test('trocar serviços para um que invade bloqueio da agenda: pede confirmação com o texto do bloqueio', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
     const v = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: DEZ })
@@ -757,10 +772,8 @@ describe('adjustAppointment', () => {
     })
     const e = await domainError(adjustAppointment(s.gerente, v.id, { serviceIds: [s.banho.id] }))
     expect(e.code).toBe('conflict')
-    expect(e.reason).toBe('blocked')
-    expect(e.message).toBe(
-      'Com esses serviços o atendimento invade um bloqueio da agenda. Escolha outros serviços ou remova o bloqueio.',
-    )
+    expect(e.reason).toBe('needs_confirmation')
+    expect((e.details?.['issues'] as { text: string }[]).map((x) => x.text)).toEqual(['Agenda de Ana bloqueada das 10:30 às 12:00'])
   })
 
   test('trocar serviços refaz itens, total e fim; observações até 2000 caracteres', async () => {
@@ -778,13 +791,13 @@ describe('adjustAppointment', () => {
     expect([comPreco.totalCents, comPreco.local.end]).toEqual([100, '10:30'])
   })
 
-  test('estender para cima do próximo agendamento é recusado e nada muda', async () => {
+  test('estender para cima do próximo agendamento pede confirmação e nada muda', async () => {
     const s = await montar()
     const cli = await makeCustomer(s.b.id)
     const v = await bookAppointment(s.gerente, { customerId: cli.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: DEZ })
     await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: hora(11) })
     const e = await domainError(adjustAppointment(s.gerente, v.id, { serviceIds: [s.banho.id, s.tosa.id] }))
-    expect(e.reason).toBe('slot_taken')
+    expect(e.reason).toBe('needs_confirmation')
     const depois = await getAppointment(s.gerente, v.id)
     expect(depois.items).toHaveLength(1)
     expect(depois.local.end).toBe('11:00')

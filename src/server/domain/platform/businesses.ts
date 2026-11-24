@@ -3,6 +3,7 @@ import type { Actor } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
 import { customerLinkUrl } from '@/server/customer-link'
 import { issueInvite, INVITE_TTL_DAYS } from '@/server/auth/invites'
+import { personState } from '@/server/auth/person'
 import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
@@ -13,8 +14,11 @@ import { exigirSemOutraLoja, marcarEnvio, outraLoja, violouUmaLoja } from '@/ser
 import { getEmailChannel } from '@/server/notifications/channels'
 import { isSafeRecipient, maskEmail } from '@/server/notifications/channels/types'
 import { renderAccessGranted, renderOwnerInvite } from '@/server/notifications/render-invite'
+import { isReservedSlug } from '@/shared/reserved-slugs'
 import type { Modules } from '@/shared/modules'
 import { fromIsoInstant, toIsoInstant } from '@/server/time'
+import { parseNicheOptions } from '@/server/niches'
+import type { NicheKey } from '@/server/niches'
 
 export type { BusinessStatus }
 
@@ -37,24 +41,16 @@ export type BusinessDetail = BusinessRow & {
   contactPhone: string | null
   timeZone: string
   modules: Modules
-  /** O link que a loja passa aos clientes (`<APP_WEB_URL>/<slug>`). */
+  /** Nicho da conta; nulo para conta antiga sem nicho. */
+  niche: NicheKey | null
+  /** Opção do nicho pet: a loja atende gatos. */
+  servesCats: boolean
+  /** O link que a loja passa aos clientes (`<APP_HOST>/<slug>`). */
   customerLinkUrl: string
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const SLUG = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/
-const SLUGS_RESERVADOS: readonly string[] = [
-  'entrar',
-  'sair',
-  'api',
-  'dev',
-  'painel',
-  'arquivos',
-  'suporte',
-  'definir-senha',
-  'admin',
-  'www',
-]
 /** Toda conta usa este fuso (fixo); a coluna `businesses.timezone` continua sendo lida pela agenda. */
 const FUSO_PADRAO = 'America/Sao_Paulo'
 const LIMITE_PADRAO = 50
@@ -67,7 +63,7 @@ export const slugSchema = z
   .min(3, MSG_SLUG)
   .max(40, MSG_SLUG)
   .regex(SLUG, MSG_SLUG)
-  .refine((s) => !SLUGS_RESERVADOS.includes(s), 'Este identificador é reservado pelo sistema. Escolha outro.')
+  .refine((s) => !isReservedSlug(s), 'Este identificador é reservado pelo sistema. Escolha outro.')
 
 function normalizarDocumento(v: string): string {
   return v.replace(/[.\-/\s]/g, '').toUpperCase()
@@ -150,6 +146,8 @@ const criarSchema = z.object({
   name: nomeSchema,
   slug: slugSchema,
   ...camposOpcionais,
+  niche: z.literal('PET', { error: 'Escolha o nicho da conta.' }),
+  nicheOptions: z.object({ servesCats: z.boolean() }).optional(),
   owner: z.object({
     name: nomeSchema,
     email: z.string().transform((v, ctx) => {
@@ -224,7 +222,9 @@ const SELECAO_DETALHE = {
   email: true,
   phone: true,
   timezone: true,
+  niche: true,
   modules: { select: { loyalty: true, banners: true, store: true } },
+  settings: { select: { nicheOptions: true } },
 } satisfies Prisma.BusinessSelect
 
 type DetalheBruto = Prisma.BusinessGetPayload<{ select: typeof SELECAO_DETALHE }>
@@ -238,6 +238,8 @@ function paraDetalhe(b: DetalheBruto): BusinessDetail {
     contactPhone: b.phone,
     timeZone: b.timezone,
     modules: b.modules ?? { loyalty: false, banners: false, store: false },
+    niche: b.niche,
+    servesCats: parseNicheOptions(b.niche, b.settings?.nicheOptions).servesCats,
     customerLinkUrl: customerLinkUrl(b.slug),
   }
 }
@@ -378,11 +380,11 @@ async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
   try {
     const mail =
       m.token === null
-        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: areaLink('painel', '/entrar') })
+        ? renderAccessGranted({ name: m.ownerName, businessName: m.businessName, entryLink: areaLink('app', '/entrar') })
         : renderOwnerInvite({
             ownerName: m.ownerName,
             businessName: m.businessName,
-            link: areaLink('painel', `/definir-senha/${m.token}`),
+            link: areaLink('app', `/convite/${m.token}`),
             ttlDays: INVITE_TTL_DAYS,
           })
     await channel.send({ to: m.to, fromName: 'Agenda Flui', ...mail })
@@ -410,6 +412,8 @@ export async function createBusiness(
     document?: string
     contactEmail?: string
     contactPhone?: string
+    niche: 'PET'
+    nicheOptions?: { servesCats: boolean }
     owner: { name: string; email: string }
   },
   now: Date = new Date(),
@@ -431,9 +435,11 @@ export async function createBusiness(
               document: i.document ?? null,
               email: i.contactEmail ?? null,
               phone: i.contactPhone ?? null,
+              niche: i.niche,
               branding: { create: { displayName: i.name } },
               modules: { create: {} },
-              settings: { create: {} },
+              settings: { create: { nicheOptions: { servesCats: i.nicheOptions?.servesCats ?? false } } },
+              onboarding: { create: {} },
             },
             select: { id: true },
           })
@@ -441,12 +447,12 @@ export async function createBusiness(
           if (isUniqueViolation(err)) throw slugEmUso()
           throw err
         }
-        let usuario = await tx.user.findUnique({ where: { email: i.owner.email }, select: { id: true, name: true } })
+        let usuario = await tx.user.findUnique({ where: { email: i.owner.email }, select: { id: true, name: true, passwordHash: true, googleSub: true } })
         const existente = usuario !== null
-        const semSenha = usuario === null || (await tx.user.findUniqueOrThrow({ where: { id: usuario.id }, select: { passwordHash: true } })).passwordHash === null
+        const semSenha = usuario === null || personState(usuario) === 'pending'
         if (usuario === null) {
           try {
-            usuario = await tx.user.create({ data: { name: i.owner.name, searchName: searchKey(i.owner.name), email: i.owner.email }, select: { id: true, name: true } })
+            usuario = await tx.user.create({ data: { name: i.owner.name, searchName: searchKey(i.owner.name), email: i.owner.email }, select: { id: true, name: true, passwordHash: true, googleSub: true } })
           } catch (err) {
             if (isUniqueViolation(err)) throw new DonoCriadoPorOutro()
             throw err

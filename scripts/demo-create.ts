@@ -1,12 +1,16 @@
 /**
- * `npm run demo:create`: cria (uma vez só) a conta de demonstração "Pet Shop Demonstração", com equipe, clientes, agenda de
- * 4 semanas atrás a 2 semanas à frente, fidelidade, banners e loja, com marca própria (nome, paleta, logo, símbolo e favicon). Roda em produção (`INTEGRATIONS_MODE=real`) sem
- * chamar nenhum serviço externo. Pode rodar de novo: não duplica nada, nunca troca a senha do dono, reaplica a marca e os
- * termos da demo se estiverem diferentes e realinha os pedidos (de uma demo antiga) pelo cliente e pelos produtos.
+ * `npm run demo:create`: cria (uma vez só) a conta de demonstração "Focinho Feliz Pet Shop" no modelo de pet shop: serviços por
+ * porte, gatos atendidos, 14 clientes (8 com conta, 6 de balcão) com pets de todos os portes e três gatos, equipe, agenda de
+ * 4 semanas atrás a 2 semanas à frente (com um encaixe), fidelidade, banners e loja, com marca própria. O começo do dono já
+ * vem concluído (a demonstração não abre o passo a passo). Roda em produção (`INTEGRATIONS_MODE=real`) sem chamar nenhum serviço externo.
+ *
+ * Pode rodar de novo: não duplica nada, nunca troca a senha de uma pessoa que já existia e completa o que faltar.
+ * `--recriar` desliga a demonstração antiga (identificador `demo-antiga-<AAAAMMDD>`, suspensa, acessos inativos; nunca apaga)
+ * e cria a nova com o identificador `demo`. As senhas do dono e do cliente de teste são geradas e mostradas uma vez, só no terminal.
  *
  * Tudo passa pelas funções de domínio, exceto o que não tem função (marcado "cru" abaixo): negócio, usuários e vínculos
- * (`createBusiness` exige um admin da plataforma ativo e manda e-mail de convite), a linha de módulos e a marca, as auditorias
- * de marcação e o descarte dos avisos na fila.
+ * (`createBusiness` exige um admin da plataforma ativo e manda e-mail de convite), clientes com conta, a linha de módulos e a
+ * marca, as auditorias de marcação e o descarte dos avisos na fila.
  */
 import { createHash, randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
@@ -14,16 +18,18 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import type { Actor, TenantContext } from '../src/server/auth/actor'
 import type { PrismaClient } from '../src/server/db/generated/client'
+import { NotificationKind } from '../src/server/db/generated/enums'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
-import { searchKey } from '../src/server/domain/customers/contact'
-import { hostConfigFromEnv } from '../src/server/hosts'
-import { addDays, addMinutes, fromIsoInstant, minuteToInstant, todayIn } from '../src/server/time'
+import { DomainError } from '../src/server/domain/errors'
+import { normalizeContactPhone, searchKey } from '../src/server/domain/customers/contact'
+import { addDays, addMinutes, fromIsoInstant, minuteToInstant, toIsoInstant, todayIn } from '../src/server/time'
 import { DEMO_MARCA, renderDemoBrandImages } from './demo-brand'
 import {
   DEMO_BANNERS,
   DEMO_CATEGORIAS,
   DEMO_CLIENTES,
   DEMO_DONO_NOME,
+  DEMO_EMAIL_CLIENTE_TESTE,
   DEMO_EMAIL_DONO,
   DEMO_GERENTE,
   DEMO_NOME,
@@ -37,35 +43,51 @@ import {
   demoEmailEquipe,
   desfechoDe,
   DIAS_FUTURO,
+  diaDoEncaixe,
+  emailDoCliente,
+  JANELA_DO_ENCAIXE,
   planejarAgenda,
+  variantesDoCliente,
 } from './demo-data'
 
 const ACAO_CRIADA = 'demo.conta_criada'
 const ACAO_SECAO = 'demo.secao_concluida'
 const ACAO_AGENDA = 'demo.agenda_iniciada'
 const ACAO_MARCA = 'demo.marca_aplicada'
+const ACAO_RECRIADA = 'demo.recriada'
 
 export type DemoResultado = {
   slug: string
   jaExistia: boolean
+  /** A demonstração antiga foi desligada (`--recriar`) e esta é a nova. */
+  recriada: boolean
   /** A senha do dono foi gerada nesta rodada (e entregue a `aoCriar`, que a imprime uma vez). */
   senhaGerada: boolean
   donoJaTinhaSenha: boolean
+  /** A senha do cliente de teste foi gerada nesta rodada (entregue a `aoCriar`). */
+  senhaClienteGerada: boolean
+  clienteTesteJaExistia: boolean
   resumo: Record<string, number>
 }
 
+/** As senhas geradas nesta rodada, entregues uma única vez a `aoCriar`. `null` = a pessoa já existia e mantém a senha. */
+export type DemoSenhas = { dono: string | null; cliente: string | null }
+
+/** Os sete passos do começo do dono, todos feitos: a demonstração já nasce montada. */
+const PASSOS_DO_COMECO = ['STORE', 'BRAND', 'ANIMALS', 'SERVICES', 'HOURS', 'TEAM', 'LINK'] as const
+
 async function dominio() {
-  const [contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca] =
+  const [contexto, clientes, pets, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca] =
     await Promise.all([
       import('../src/server/auth/context'),
       import('../src/server/domain/customers/customers'),
+      import('../src/server/domain/pets/pets'),
       import('../src/server/domain/catalog/services'),
       import('../src/server/domain/team/professionals'),
       import('../src/server/domain/team/working-hours'),
       import('../src/server/domain/team/time-blocks'),
       import('../src/server/domain/settings/closures'),
       import('../src/server/domain/scheduling/appointments'),
-      import('../src/server/domain/settings/terms'),
       import('../src/server/domain/settings/notification-settings'),
       import('../src/server/domain/loyalty/prizes'),
       import('../src/server/domain/loyalty/redemptions'),
@@ -80,7 +102,7 @@ async function dominio() {
       import('../src/server/domain/audit'),
       import('../src/server/domain/platform/brand-image'),
     ])
-  return { contexto, clientes, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, termos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca }
+  return { contexto, clientes, pets, servicos, profissionais, horarios, bloqueios, fechamentos, agendamentos, avisos, premios, resgates, ledger, fidelidade, banners, categorias, produtos, pedidos, pagamentos, loja, audit, marca }
 }
 
 /** Imagem simples (cor da marca e duas formas), sem texto: não depende de fontes do sistema. */
@@ -98,16 +120,6 @@ async function imagem(largura: number, altura: number, cor: string): Promise<{ b
   return { bytes: new Uint8Array(png) }
 }
 
-const TERMOS_DEMO = {
-  professionalSingular: 'Profissional',
-  professionalPlural: 'Profissionais',
-  customerSingular: 'Cliente',
-  customerPlural: 'Clientes',
-  pointsSingular: 'Patinha',
-  pointsPlural: 'Patinhas',
-  club: 'Clube Patudo',
-}
-
 function senhaAleatoria(): string {
   return randomBytes(18).toString('base64url')
 }
@@ -117,12 +129,68 @@ function antes(instante: Date, limite: Date): Date {
   return instante.getTime() > limite.getTime() ? limite : instante
 }
 
-export async function criarDemo(prisma: PrismaClient, opts: {
+/** Pessoa por e-mail: acha a que existe (mantém a senha) ou cria uma com senha aleatória que ninguém conhece (cru). */
+async function garantirPessoa(
+  prisma: PrismaClient,
+  p: { nome: string; email: string },
+  senha: string | null,
+): Promise<{ id: string; criada: boolean }> {
+  const existente = await prisma.user.findUnique({ where: { email: p.email }, select: { id: true } })
+  if (existente) return { id: existente.id, criada: false }
+  const hash = await hashPassword(senha ?? senhaAleatoria())
+  const criada = await prisma.user.create({
+    data: { name: p.nome, searchName: searchKey(p.nome), email: p.email, passwordHash: hash, emailVerifiedAt: new Date() },
+    select: { id: true },
+  })
+  return { id: criada.id, criada: true }
+}
+
+/** O identificador livre para a demonstração antiga: `demo-antiga-AAAAMMDD`, com `-2`, `-3`... se já houver. */
+async function slugDaAntiga(prisma: PrismaClient, now: Date): Promise<string> {
+  const base = `demo-antiga-${toIsoInstant(now).slice(0, 10).replaceAll('-', '')}`
+  for (let n = 1; ; n += 1) {
+    const slug = n === 1 ? base : `${base}-${String(n)}`
+    if ((await prisma.business.findUnique({ where: { slug }, select: { id: true } })) === null) return slug
+  }
+}
+
+/** Desliga a demonstração antiga: troca o identificador, suspende a conta e inativa os acessos. Nada é apagado. */
+async function desligarAntiga(prisma: PrismaClient, businessId: string, now: Date): Promise<string> {
+  const slug = await slugDaAntiga(prisma, now)
+  await prisma.$transaction(async (tx) => {
+    await tx.business.update({ where: { id: businessId }, data: { slug, status: 'SUSPENDED', version: { increment: 1 } } })
+    await tx.membership.updateMany({ where: { businessId }, data: { active: false } })
+    await tx.auditLog.create({
+      data: { businessId, actorType: 'SYSTEM', actorName: 'Demonstração', action: ACAO_RECRIADA, targetType: 'business', targetId: businessId, metadata: { novoSlug: slug } },
+    })
+  })
+  return slug
+}
+
+/** Faz o que a tela faz com um conflito da equipe: chama sem impressão e, se o servidor pedir confirmação, chama de novo com a que ele devolveu. */
+async function confirmando<T>(rodar: (acknowledged?: string) => Promise<T>): Promise<T> {
+  try {
+    return await rodar()
+  } catch (e) {
+    if (e instanceof DomainError && e.reason === 'needs_confirmation') {
+      const ack = e.details?.['acknowledgement']
+      if (typeof ack === 'string') return rodar(ack)
+    }
+    throw e
+  }
+}
+
+export async function criarDemo(
+  prisma: PrismaClient,
+  opts: {
     now?: Date
     log?: (t: string) => void
-    /** Recebe a senha do dono logo depois de a conta ser gravada (antes do resto, que é demorado e pode falhar). Nunca é guardada. */
-    aoCriar?: (senha: string) => void
-  } = {},): Promise<DemoResultado> {
+    /** Refaz a demonstração: a antiga é desligada (nunca apagada) e a nova nasce com o identificador `demo`. */
+    recriar?: boolean
+    /** Recebe as senhas geradas logo depois de a conta ser gravada (antes do resto, que é demorado e pode falhar). Nunca são guardadas. */
+    aoCriar?: (senhas: DemoSenhas) => void
+  } = {},
+): Promise<DemoResultado> {
   const now = opts.now ?? new Date()
   const log = opts.log ?? (() => undefined)
   const resumo: Record<string, number> = {}
@@ -131,11 +199,26 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   let negocio = await prisma.business.findUnique({ where: { slug: DEMO_SLUG }, select: { id: true } })
   let senhaGerada = false
   let donoJaTinhaSenha = false
-  const jaExistia = negocio !== null
+  let recriada = false
   if (negocio) {
     const nossa = await prisma.auditLog.findFirst({ where: { businessId: negocio.id, action: ACAO_CRIADA }, select: { id: true } })
     if (!nossa) throw new Error(`Já existe uma conta com o identificador "${DEMO_SLUG}" que não é a de demonstração. Nada foi alterado.`)
-  } else {
+    if (opts.recriar) {
+      const slug = await desligarAntiga(prisma, negocio.id, now)
+      log(`Demonstração antiga desligada (identificador ${slug}).`)
+      negocio = null
+      recriada = true
+    }
+  }
+  const jaExistia = negocio !== null
+  // O cliente de teste é uma pessoa à parte (existe em qualquer loja): a senha só nasce se ela ainda não existia.
+  const testeCadastrado = (await prisma.user.findUnique({ where: { email: DEMO_EMAIL_CLIENTE_TESTE }, select: { id: true } })) !== null
+  const senhaTeste = testeCadastrado ? null : senhaAleatoria()
+  const clienteTeste = DEMO_CLIENTES.find((c) => c.teste === true)
+  if (!clienteTeste) throw new Error('A demonstração precisa de um cliente de teste.')
+  await garantirPessoa(prisma, { nome: clienteTeste.nome, email: DEMO_EMAIL_CLIENTE_TESTE }, senhaTeste)
+  let senhaDonoGerada: string | null = null
+  if (!negocio) {
     const { outraLoja, violouUmaLoja } = await import('../src/server/domain/platform/access-core')
     const senha = senhaAleatoria()
     passwordSchema.parse(senha)
@@ -153,50 +236,59 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       ...DEMO_PROFISSIONAIS.map((p) => ({ nome: p.nome, email: demoEmailEquipe(p.apelido), papel: 'PROFESSIONAL' as const })),
     ]
     const hashesEquipe = await Promise.all(equipe.map(() => hashPassword(senhaAleatoria())))
-    negocio = await prisma.$transaction(async (tx) => {
-      const conta = await tx.business.create({
-        data: {
-          slug: DEMO_SLUG,
-          name: DEMO_NOME,
-          searchName: searchKey(DEMO_NOME),
-          segment: 'Pet shop',
-          addressLine: 'Rua das Acácias, 120',
-          city: 'São Paulo',
-          state: 'SP',
-          branding: { create: { displayName: DEMO_NOME, primaryColor: DEMO_MARCA.primaria, accentColor: DEMO_MARCA.destaque } },
-          modules: { create: { loyalty: true, banners: true, store: true } },
-          settings: { create: {} },
-        },
-        select: { id: true },
+    negocio = await prisma
+      .$transaction(async (tx) => {
+        const conta = await tx.business.create({
+          data: {
+            slug: DEMO_SLUG,
+            name: DEMO_NOME,
+            searchName: searchKey(DEMO_NOME),
+            niche: 'PET',
+            addressLine: 'Rua das Acácias, 120',
+            city: 'São Paulo',
+            state: 'SP',
+            branding: { create: { displayName: DEMO_NOME, primaryColor: DEMO_MARCA.primaria, accentColor: DEMO_MARCA.destaque } },
+            modules: { create: { loyalty: true, banners: true, store: true } },
+            settings: { create: { nicheOptions: { servesCats: true } } },
+          },
+          select: { id: true },
+        })
+        const donoId =
+          donoExistente?.id ??
+          (await tx.user.create({ data: { name: DEMO_DONO_NOME, searchName: searchKey(DEMO_DONO_NOME), email: DEMO_EMAIL_DONO, passwordHash: hashDono, emailVerifiedAt: new Date() }, select: { id: true } })).id
+        await tx.membership.create({ data: { businessId: conta.id, userId: donoId, role: 'OWNER' } })
+        for (const [n, pessoa] of equipe.entries()) {
+          const email = pessoa.email
+          const existente = await tx.user.findUnique({ where: { email }, select: { id: true } })
+          const userId =
+            existente?.id ??
+            (await tx.user.create({ data: { name: pessoa.nome, searchName: searchKey(pessoa.nome), email, passwordHash: hashesEquipe[n] ?? null, ...(hashesEquipe[n] ? { emailVerifiedAt: new Date() } : {}) }, select: { id: true } })).id
+          await tx.membership.create({ data: { businessId: conta.id, userId, role: pessoa.papel } })
+        }
+        await tx.auditLog.create({
+          data: { businessId: conta.id, actorType: 'SYSTEM', actorName: 'Demonstração', action: ACAO_CRIADA, targetType: 'business', targetId: conta.id, metadata: {} },
+        })
+        return conta
       })
-      const donoId =
-        donoExistente?.id ??
-        (await tx.user.create({ data: { name: DEMO_DONO_NOME, searchName: searchKey(DEMO_DONO_NOME), email: DEMO_EMAIL_DONO, passwordHash: hashDono }, select: { id: true } })).id
-      await tx.membership.create({ data: { businessId: conta.id, userId: donoId, role: 'OWNER' } })
-      for (const [n, pessoa] of equipe.entries()) {
-        const email = pessoa.email
-        const existente = await tx.user.findUnique({ where: { email }, select: { id: true } })
-        const userId =
-          existente?.id ??
-          (await tx.user.create({ data: { name: pessoa.nome, searchName: searchKey(pessoa.nome), email, passwordHash: hashesEquipe[n] ?? null }, select: { id: true } })).id
-        await tx.membership.create({ data: { businessId: conta.id, userId, role: pessoa.papel } })
-      }
-      await tx.auditLog.create({
-        data: { businessId: conta.id, actorType: 'SYSTEM', actorName: 'Demonstração', action: ACAO_CRIADA, targetType: 'business', targetId: conta.id, metadata: {} },
+      .catch((e: unknown) => {
+        // A corrida com outro convite é barrada pelo índice de um vínculo ativo por login: mesma resposta clara.
+        if (violouUmaLoja(e)) throw new Error(`${outraLoja().message} A conta de demonstração não foi criada e nada foi gravado.`)
+        throw e
       })
-      return conta
-    }).catch((e: unknown) => {
-      // A corrida com outro convite é barrada pelo índice de um vínculo ativo por login: mesma resposta clara.
-      if (violouUmaLoja(e)) throw new Error(`${outraLoja().message} A conta de demonstração não foi criada e nada foi gravado.`)
-      throw e
-    })
     if (donoExistente) donoJaTinhaSenha = true
     else {
       senhaGerada = true
-      opts.aoCriar?.(senha)
+      senhaDonoGerada = senha
     }
   }
   const businessId = negocio.id
+  // O começo do dono já vem concluído e dispensado: a demonstração não abre o passo a passo (cru: a linha só nasce com a conta).
+  await prisma.onboardingProgress.upsert({
+    where: { businessId },
+    create: { businessId, doneSteps: [...PASSOS_DO_COMECO], wizardFinishedAt: now, completedAt: now, dismissedAt: now },
+    update: {},
+  })
+  if (senhaDonoGerada !== null || senhaTeste !== null) opts.aoCriar?.({ dono: senhaDonoGerada, cliente: senhaTeste })
   log(jaExistia ? 'Conta de demonstração já existe; conferindo o que falta.' : 'Conta criada.')
 
   const d = await dominio()
@@ -211,6 +303,18 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   const hoje = todayIn(tz, now)
   const doCliente = (c: { id: string; name: string }) => d.contexto.createTenantContext({ businessId, actor: { kind: 'customer', customerId: c.id, name: c.name }, clock, channel: 'app' })
 
+  // Os clientes da demo têm e-mail de formato real. Em produção o agendador roda junto e pega qualquer aviso PENDING já
+  // vencido: então, antes de qualquer marcação, todos os avisos ficam desligados (nada é enfileirado) e os do cliente só
+  // voltam a ligar no fim. Se a execução parar no meio, os avisos seguem desligados até a próxima rodada concluir.
+  const tipos = Object.values(NotificationKind)
+  const tiposDoCliente = tipos.filter((k) => !k.startsWith('STAFF_') && !k.startsWith('PROFESSIONAL_'))
+  const emTodos = (email: boolean, lista: readonly NotificationKind[]) => {
+    const patch: Partial<Record<NotificationKind, { email: boolean }>> = {}
+    for (const k of lista) patch[k] = { email }
+    return patch
+  }
+  await d.avisos.updateNotificationSettings(ctx, emTodos(false, tipos))
+
   const secaoFeita = async (secao: string) => (await prisma.auditLog.count({ where: { businessId, action: ACAO_SECAO, targetId: secao } })) > 0
   const concluirSecao = async (secao: string) => {
     await d.audit.audit(ctx, { action: ACAO_SECAO, targetType: 'demo', targetId: secao })
@@ -224,25 +328,19 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     await concluirSecao(nome)
   }
 
-  // ---- 2. Configuração (avisos, termos, logo) -------------------------------------------------------------------
+  // ---- 2. Configuração (avisos) -------------------------------------------------------------------
   await secao('configuracao', async () => {
-    // Avisos para a equipe usariam os e-mails fictícios da equipe: desligados. Os avisos ao cliente ficam ligados, mas os
-    // clientes não têm e-mail nem aparelho cadastrado, então nada sai (e a fila é descartada no fim).
+    // Avisos para a equipe usariam os e-mails fictícios da equipe: ficam desligados para sempre. Os do cliente só são
+    // religados no fim da rodada (veja acima).
     await d.avisos.updateNotificationSettings(ctx, {
-      STAFF_NEW_APPOINTMENT: { email: false, push: false },
-      STAFF_APPOINTMENT_CANCELED: { email: false, push: false },
-      STAFF_APPOINTMENT_RESCHEDULED: { email: false, push: false },
-      PROFESSIONAL_FREE_EARLY: { email: false, push: false },
+      STAFF_NEW_APPOINTMENT: { email: false },
+      STAFF_APPOINTMENT_CANCELED: { email: false },
+      STAFF_APPOINTMENT_RESCHEDULED: { email: false },
+      PROFESSIONAL_FREE_EARLY: { email: false },
     })
-    const { version } = await d.termos.readTerms(ctx)
-    await d.termos.updateTermsOf(
-      ctx,
-      TERMOS_DEMO,
-      version,
-    )
   })
 
-  // ---- 2b. Marca e termos (a cada rodada) ----------------------------------------------------------------------
+  // ---- 2b. Marca (a cada rodada) ----------------------------------------------------------------------
   // Uma demo antiga volta para o nome, a paleta e as imagens atuais; sem mudança, nada é regravado.
   {
     const imagens = await renderDemoBrandImages()
@@ -279,10 +377,6 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       await d.audit.audit(ctx, { action: ACAO_MARCA, targetType: 'demo', targetId: 'marca', metadata: { assinatura } })
       log('Marca da demonstração aplicada.')
     }
-    const { terms, version } = await d.termos.readTerms(ctx)
-    if (terms.customerSingular !== TERMOS_DEMO.customerSingular || terms.customerPlural !== TERMOS_DEMO.customerPlural) {
-      await d.termos.updateTermsOf(ctx, { ...terms, customerSingular: TERMOS_DEMO.customerSingular, customerPlural: TERMOS_DEMO.customerPlural }, version)
-    }
   }
 
   // ---- 3. Catálogo e equipe ------------------------------------------------------------------------------------
@@ -296,10 +390,15 @@ export async function criarDemo(prisma: PrismaClient, opts: {
           (await d.servicos.createService(ctx, {
             name: s.nome,
             description: s.descricao,
-            priceCents: s.centavos,
-            durationMin: s.minutos,
+            icon: s.icone,
             rewardPoints: s.pontos,
-            clubOnly: 'clube' in s ? s.clube : false,
+            clubOnly: s.clube ?? false,
+            ...(s.porVariante === null
+              ? { pricingMode: 'SINGLE' as const, priceCents: s.unico?.priceCents ?? 0, durationMin: s.unico?.durationMin ?? 30 }
+              : {
+                  pricingMode: 'BY_VARIANT' as const,
+                  variantPrices: Object.entries(s.porVariante).map(([variant, v]) => ({ variant: variant as 'DOG_SMALL', priceCents: v.priceCents, durationMin: v.durationMin })),
+                }),
           })),
       )
     }
@@ -327,12 +426,50 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     resumo['serviços'] = servicos.length
   })
 
-  // ---- 4. Clientes ---------------------------------------------------------------------------------------------
+  // ---- 4. Clientes e pets --------------------------------------------------------------------------------------
+  // Cliente com conta: a pessoa (senha aleatória que ninguém conhece, exceto a do cliente de teste) e o cliente ligado a ela
+  // (cru: ligar uma pessoa a um cliente nasce do cadastro pela loja). Cliente de balcão: pela função de domínio, sem pessoa.
   await secao('clientes', async () => {
     const jaTem = new Set((await ctx.db.customer.findMany({ select: { name: true } })).map((c) => c.name))
     for (const [n, c] of DEMO_CLIENTES.entries()) {
       if (jaTem.has(c.nome)) continue
-      await d.clientes.createCustomer(ctx, { name: c.nome, phone: `(11) 90000-${String(1000 + n)}`, email: null, notes: c.pet, isClubMember: c.clube ?? false })
+      const telefone = `(11) 90000-${String(1000 + n)}`
+      if (c.conta) {
+        const email = emailDoCliente(c)
+        const pessoa = await garantirPessoa(prisma, { nome: c.nome, email }, null)
+        await prisma.customer.create({
+          data: {
+            businessId,
+            name: c.nome,
+            searchName: searchKey(c.nome),
+            email,
+            phone: normalizeContactPhone(telefone),
+            userId: pessoa.id,
+            linkedAt: now,
+            origin: 'APP',
+            isClubMember: c.clube ?? false,
+          },
+        })
+      } else {
+        await d.clientes.createCustomer(ctx, { name: c.nome, phone: telefone, email: null, notes: null, isClubMember: c.clube ?? false })
+      }
+    }
+    const donos = await ctx.db.customer.findMany({ where: { name: { in: DEMO_CLIENTES.map((c) => c.nome) } }, select: { id: true, name: true } })
+    for (const c of DEMO_CLIENTES) {
+      const dono = donos.find((x) => x.name === c.nome)
+      if (!dono) continue
+      const jaPets = new Set((await ctx.db.pet.findMany({ where: { customerId: dono.id }, select: { name: true } })).map((p) => p.name))
+      for (const p of c.pets) {
+        if (jaPets.has(p.nome)) continue
+        await d.pets.createPet(ctx, dono.id, {
+          name: p.nome,
+          species: p.especie,
+          size: p.porte,
+          breed: p.raca,
+          coat: p.pelagem,
+          careNotes: p.cuidados ?? null,
+        })
+      }
     }
   })
   const clientes = await ctx.db.customer.findMany({ where: { name: { in: DEMO_CLIENTES.map((c) => c.nome) } }, select: { id: true, name: true } })
@@ -341,6 +478,19 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     if (!achado) throw new Error(`Cliente de demonstração ausente: ${c.nome}.`)
     return achado
   })
+  // Os ids dos pets de cada cliente, na ordem de `DEMO_CLIENTES[i].pets`.
+  const petsDoCliente: string[][] = []
+  for (const [i, c] of DEMO_CLIENTES.entries()) {
+    const cliente = clientePorIdx[i]
+    const rows = await ctx.db.pet.findMany({ where: { customerId: cliente?.id ?? '' }, select: { id: true, name: true } })
+    petsDoCliente.push(
+      c.pets.map((p) => {
+        const achado = rows.find((r) => r.name === p.nome)
+        if (!achado) throw new Error(`Pet de demonstração ausente: ${p.nome}.`)
+        return achado.id
+      }),
+    )
+  }
   const profissionais = DEMO_PROFISSIONAIS.map((p) => p.nome)
   const profRows = await ctx.db.professional.findMany({ where: { name: { in: profissionais } }, select: { id: true, name: true } })
   const profPorIdx = DEMO_PROFISSIONAIS.map((p) => {
@@ -353,6 +503,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
 
   // ---- 5. Agenda -----------------------------------------------------------------------------------------------
   // Roda em toda rodada: estende o plano até hoje + 14 dias e liquida o que já ficou no passado (só acrescenta).
+  let diaEncaixe = ''
   {
     // A âncora fica registrada na primeira rodada: uma rodada retomada refaz exatamente o mesmo plano.
     const inicio = await prisma.auditLog.findFirst({ where: { businessId, action: ACAO_AGENDA }, select: { metadata: true } })
@@ -378,19 +529,31 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       if (!ja) await d.bloqueios.createTimeBlock(ctx, { professionalId: dono.id, startsAt, endsAt: minuteToInstant(b.data, b.endMin, tz), reason: b.motivo })
     }
 
-    const plano = planejarAgenda({ ancora, fuso: tz, fechados: [feriado], bloqueios: bloqueiosPlano, ate: addDays(hoje, DIAS_FUTURO), clubeDosClientes: DEMO_CLIENTES.map((c) => c.clube === true) })
+    // A janela do encaixe (manhã do primeiro dia útil depois da âncora) fica livre no plano; a seção "encaixe" a usa.
+    diaEncaixe = diaDoEncaixe(ancora, [feriado])
+    const reservas = [...bloqueiosPlano, { profissional: JANELA_DO_ENCAIXE.profissional, data: diaEncaixe, startMin: JANELA_DO_ENCAIXE.startMin, endMin: JANELA_DO_ENCAIXE.endMin }]
+    const plano = planejarAgenda({
+      ancora,
+      fuso: tz,
+      fechados: [feriado],
+      bloqueios: reservas,
+      ate: addDays(hoje, DIAS_FUTURO),
+      clientes: DEMO_CLIENTES.map((c) => ({ clube: c.clube === true, variantes: variantesDoCliente(c) })),
+    })
     const existentes = await ctx.db.appointment.findMany({ select: { id: true, status: true, professionalId: true, startsAt: true } })
     const porChave = new Map(existentes.map((a) => [`${a.professionalId}|${String(a.startsAt.getTime())}`, a]))
     let n = 0
     for (const m of plano) {
       const prof = profPorIdx[m.profissional]
       const cliente = clientePorIdx[m.cliente]
-      if (!prof || !cliente) continue
+      const petId = petsDoCliente[m.cliente]?.[m.pet]
+      if (!prof || !cliente || !petId) continue
       let ag: { id: string; status: string } | undefined = porChave.get(`${prof.id}|${String(m.startsAt.getTime())}`)
       if (!ag) {
         relogio.t = now
         const marcado = await d.agendamentos.bookAppointment(ctx, {
           customerId: cliente.id,
+          petId,
           professionalId: prof.id,
           serviceIds: m.servicos.map((i) => servPorIdx[i] ?? ''),
           startsAt: m.startsAt,
@@ -414,6 +577,38 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     }
     relogio.t = now
   }
+
+  // ---- 5b. Encaixe ----------------------------------------------------------------------------------------------
+  // Um só, no futuro: o atendimento normal da Bia às 10:00 e, por cima dele, o encaixe das 10:30 (a equipe confirma o conflito,
+  // como a tela faz). Só roda quando o dia ainda não passou.
+  await secao('encaixe', async () => {
+    const bia = profPorIdx[JANELA_DO_ENCAIXE.profissional]
+    if (!bia || diaEncaixe <= hoje) {
+      log('O dia do encaixe já passou: nenhum encaixe foi criado.')
+      return
+    }
+    const cliente = (indice: number) => {
+      const c = clientePorIdx[indice]
+      const pet = petsDoCliente[indice]?.[0]
+      if (!c || !pet) throw new Error('Cliente do encaixe ausente.')
+      return { customerId: c.id, petId: pet }
+    }
+    await d.agendamentos.bookAppointment(ctx, {
+      ...cliente(3),
+      professionalId: bia.id,
+      serviceIds: [servPorIdx[0] ?? ''],
+      startsAt: minuteToInstant(diaEncaixe, JANELA_DO_ENCAIXE.startMin, tz),
+    })
+    await confirmando((acknowledged) =>
+      d.agendamentos.bookAppointment(ctx, {
+        ...cliente(8),
+        professionalId: bia.id,
+        serviceIds: [servPorIdx[4] ?? ''],
+        startsAt: minuteToInstant(diaEncaixe, JANELA_DO_ENCAIXE.startMin + 30, tz),
+        ...(acknowledged ? { acknowledged } : {}),
+      }),
+    )
+  })
 
   // ---- 6. Fidelidade ------------------------------------------------------------------------------------------
   await secao('fidelidade', async () => {
@@ -563,8 +758,10 @@ export async function criarDemo(prisma: PrismaClient, opts: {
   }
 
   // ---- 10. Fila de avisos (cru) ---------------------------------------------------------------------------------
-  // As marcações e pedidos enfileiraram avisos aos clientes (sem e-mail nem aparelho): nenhum deve tentar sair.
+  // Rede de segurança: com os avisos desligados nada deveria estar na fila, mas uma demo antiga pode ter deixado linhas.
+  // Só depois disso os avisos ao cliente voltam a ligar.
   await prisma.notification.updateMany({ where: { businessId, status: 'PENDING' }, data: { status: 'SKIPPED', skipReason: 'demonstracao' } })
+  await d.avisos.updateNotificationSettings(ctx, emTodos(true, tiposDoCliente))
 
   const contar = async () => {
     resumo['clientes'] = await ctx.db.customer.count()
@@ -573,7 +770,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     resumo['produtos'] = await ctx.db.product.count()
   }
   await contar()
-  return { slug: DEMO_SLUG, jaExistia, senhaGerada, donoJaTinhaSenha, resumo }
+  return { slug: DEMO_SLUG, jaExistia, recriada, senhaGerada, donoJaTinhaSenha, senhaClienteGerada: senhaTeste !== null, clienteTesteJaExistia: testeCadastrado, resumo }
 }
 
 async function main(): Promise<void> {
@@ -588,37 +785,40 @@ async function main(): Promise<void> {
     const simulada = process.env['DEMO_NOW']
     if (simulada && process.env['NODE_ENV'] === 'production') throw new Error('DEMO_NOW não vale em produção.')
     const now = simulada ? fromIsoInstant(simulada) : undefined
-    const { painel } = hostConfigFromEnv(process.env)
-    const esquema = process.env['NODE_ENV'] === 'production' ? 'https' : 'http'
-    const link = `${esquema}://${painel}/entrar`
-    // Depois do `.env`: o módulo lê o ambiente ao ser carregado.
+    const recriar = process.argv.includes('--recriar')
+    // Depois do `.env`: os módulos leem o ambiente ao serem carregados.
+    const { areaLink } = await import('../src/server/area-links')
+    const link = areaLink('app', '/entrar')
     const { customerLinkUrl } = await import('../src/server/customer-link')
     const linkClientes = customerLinkUrl(DEMO_SLUG)
     const r = await criarDemo(prisma, {
       ...(now ? { now } : {}),
+      recriar,
       log: (t) => console.log(t),
-      aoCriar: (senha) => {
+      // As senhas só existem aqui, no terminal: não vão para o log, a auditoria nem o banco (só o hash).
+      aoCriar: (senhas) => {
         console.log('')
-        console.log(`E-mail de acesso: ${DEMO_EMAIL_DONO}`)
-        console.log(`Link de entrada: ${link}`)
-        console.log(`Link para clientes: ${linkClientes}`)
-        console.log(`Senha (aparece só desta vez; anote agora): ${senha}`)
+        if (senhas.dono !== null) {
+          console.log(`Dono: ${DEMO_EMAIL_DONO}`)
+          console.log(`Senha do dono (aparece só desta vez; anote agora): ${senhas.dono}`)
+        }
+        if (senhas.cliente !== null) {
+          console.log(`Cliente de teste: ${DEMO_EMAIL_CLIENTE_TESTE}`)
+          console.log(`Senha do cliente de teste (aparece só desta vez; anote agora): ${senhas.cliente}`)
+        }
         console.log('')
       },
     })
     console.log('')
-    console.log(`Conta de demonstração: ${r.slug}`)
-    console.log(`E-mail de acesso: ${DEMO_EMAIL_DONO}`)
+    console.log(`Conta de demonstração: ${r.slug}${r.recriada ? ' (refeita do zero)' : ''}`)
     console.log(`Link de entrada: ${link}`)
     console.log(`Link para clientes: ${linkClientes}`)
-    if (r.senhaGerada) {
-      console.log('A senha foi mostrada acima, uma única vez.')
-    } else if (r.donoJaTinhaSenha) {
-      console.log('O e-mail do dono já era de um usuário existente: a senha dele não foi alterada.')
-    } else {
-      console.log('A conta já existia: a senha não foi alterada. Para trocá-la, use a redefinição de senha do painel.')
+    if (!r.senhaGerada) {
+      console.log(r.donoJaTinhaSenha ? `O e-mail do dono (${DEMO_EMAIL_DONO}) já era de uma pessoa existente: a senha dela não foi alterada.` : `A conta já existia: a senha do dono (${DEMO_EMAIL_DONO}) não foi alterada. Para trocá-la, use a redefinição de senha do painel.`)
     }
+    if (!r.senhaClienteGerada) console.log(`O cliente de teste (${DEMO_EMAIL_CLIENTE_TESTE}) já existia: a senha dele não foi alterada.`)
     console.log(`Resumo: ${Object.entries(r.resumo).map(([k, v]) => `${String(v)} ${k}`).join(', ')}.`)
+    if (r.jaExistia) console.log('Rode com --recriar para refazer a demonstração do zero.')
   } finally {
     await prisma.$disconnect()
   }

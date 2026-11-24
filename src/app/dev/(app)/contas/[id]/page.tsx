@@ -51,12 +51,12 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
               <StatNumber label="Próximos 7 dias" value={metricas.appointments.next7d} />
               <StatNumber label="Agendamentos no mês" value={metricas.appointments.month.current} />
               <StatNumber label="Clientes" value={metricas.customers.total} />
+              <StatNumber label="Clientes com conta" value={metricas.customersWithAccount} />
               <StatNumber label="Clientes novos no mês" value={metricas.customers.newMonth} />
               <StatNumber label="Receita do mês" value={metricas.revenueCents.month.current} format="brl" />
               {metricas.store ? <StatNumber label="Pedidos pagos da loja no mês" value={metricas.store.paidOrders.current} /> : null}
               {metricas.store ? <StatNumber label="Receita da loja no mês" value={metricas.store.revenueCents.current} format="brl" /> : null}
               <StatNumber label="Equipe ativa" value={metricas.team.active} />
-              <StatNumber label="Pessoas no app no mês" value={metricas.appUsers.activeMonth} />
             </div>
             <p className="af-listpanel__summary">
               Mês passado: {metricas.appointments.month.previous} agendamentos

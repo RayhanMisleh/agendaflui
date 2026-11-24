@@ -25,11 +25,11 @@ import {
   renomearCategoria,
   salvarConfiguracoes,
   salvarProduto,
-} from '@/app/painel/(app)/loja/actions'
-import LojaPage from '@/app/painel/(app)/loja/page'
-import ProdutoPage from '@/app/painel/(app)/loja/produtos/[id]/page'
-import NovoProdutoPage from '@/app/painel/(app)/loja/produtos/novo/page'
-import * as rotaImagens from '@/app/painel/(app)/loja/produtos/[id]/imagens/route'
+} from '@/app/app/painel/loja/actions'
+import LojaPage from '@/app/app/painel/loja/page'
+import ProdutoPage from '@/app/app/painel/loja/produtos/[id]/page'
+import NovoProdutoPage from '@/app/app/painel/loja/produtos/novo/page'
+import * as rotaImagens from '@/app/app/painel/loja/produtos/[id]/imagens/route'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -57,7 +57,7 @@ const CAMPOS = { name: 'Shampoo', description: '', price: '19,90', promoPrice: '
 
 describe('produtos', () => {
   test('criar converte "19,90" em 1990 centavos, grava e leva à ficha', async () => {
-    await expect(criarProduto(ini, form({ ...CAMPOS, active: 'on' }))).rejects.toThrow(/NEXT_REDIRECT \/loja\/produtos\//)
+    await expect(criarProduto(ini, form({ ...CAMPOS, active: 'on' }))).rejects.toThrow(/NEXT_REDIRECT \/painel\/loja\/produtos\//)
     const [p] = await produtos()
     expect(p).toMatchObject({ name: 'Shampoo', priceCents: 1990, promoPriceCents: null, stock: 10, active: true, categoryId: null })
   })
@@ -214,7 +214,7 @@ describe('páginas', () => {
 })
 
 describe('rota de imagens do produto', () => {
-  const OK = { host: 'painel.localhost:3000', origin: 'http://painel.localhost:3000' }
+  const OK = { host: 'app.localhost:3000', origin: 'http://app.localhost:3000' }
   let productId: string
   beforeEach(async () => {
     productId = (await createProduct(dono, dadosDoProduto())).id
@@ -222,7 +222,7 @@ describe('rota de imagens do produto', () => {
   async function enviar(campos: Record<string, string | File>, headers: Record<string, string> = OK) {
     const fd = new FormData()
     for (const [k, v] of Object.entries(campos)) fd.set(k, v)
-    return rotaImagens.POST(new Request(`http://painel.localhost:3000/loja/produtos/${productId}/imagens`, { method: 'POST', headers, body: fd }), { params: Promise.resolve({ id: productId }) })
+    return rotaImagens.POST(new Request(`http://app.localhost:3000/loja/produtos/${productId}/imagens`, { method: 'POST', headers, body: fd }), { params: Promise.resolve({ id: productId }) })
   }
   const arquivo = async () => new File([(await png()).bytes as BlobPart], 'i.png', { type: 'image/png' })
   const imagens = () => prisma.productImage.findMany({ where: { productId }, orderBy: { position: 'asc' } })
@@ -232,7 +232,7 @@ describe('rota de imagens do produto', () => {
   })
 
   test('envia, sobe, desce e remove, sempre voltando à ficha com ?imagem=ok (303)', async () => {
-    const volta = `/loja/produtos/${productId}?imagem=`
+    const volta = `/painel/loja/produtos/${productId}?imagem=`
     for (let i = 0; i < 3; i++) {
       const r = await enviar({ file: await arquivo() })
       expect(r.status).toBe(303)
@@ -249,7 +249,7 @@ describe('rota de imagens do produto', () => {
   })
 
   test('sem arquivo, sétima imagem, imagem de outro produto e intent desconhecida voltam com o código certo', async () => {
-    const volta = `/loja/produtos/${productId}?imagem=`
+    const volta = `/painel/loja/produtos/${productId}?imagem=`
     expect((await enviar({})).headers.get('location')).toBe(`${volta}no_file`)
     expect((await enviar({ intent: 'remove', imageId: 'nao-uuid' })).headers.get('location')).toBe(`${volta}not_found`)
     expect((await enviar({ intent: 'explodir' })).headers.get('location')).toBe(`${volta}refused`)
@@ -258,18 +258,18 @@ describe('rota de imagens do produto', () => {
   })
 
   test('de outra origem é 403 e nada muda; módulo desligado volta com refused', async () => {
-    expect((await enviar({ file: await arquivo() }, { host: 'painel.localhost:3000', origin: 'http://evil.example' })).status).toBe(403)
+    expect((await enviar({ file: await arquivo() }, { host: 'app.localhost:3000', origin: 'http://evil.example' })).status).toBe(403)
     expect(await imagens()).toHaveLength(0)
     await prisma.businessModules.update({ where: { businessId }, data: { store: false } })
-    expect((await enviar({ file: await arquivo() })).headers.get('location')).toBe(`/loja/produtos/${productId}?imagem=refused`)
+    expect((await enviar({ file: await arquivo() })).headers.get('location')).toBe(`/painel/loja/produtos/${productId}?imagem=refused`)
     expect(await imagens()).toHaveLength(0)
   })
 
   test('profissional recusado (refused) e produto inexistente volta com not_found', async () => {
     guards.requireTenant.mockResolvedValue(await ctxWithRole({ id: businessId }, 'PROFESSIONAL'))
-    expect((await enviar({ file: await arquivo() })).headers.get('location')).toBe(`/loja/produtos/${productId}?imagem=refused`)
+    expect((await enviar({ file: await arquivo() })).headers.get('location')).toBe(`/painel/loja/produtos/${productId}?imagem=refused`)
     guards.requireTenant.mockResolvedValue(dono)
     productId = '00000000-0000-4000-8000-000000000000'
-    expect((await enviar({ file: await arquivo() })).headers.get('location')).toBe(`/loja/produtos/${productId}?imagem=not_found`)
+    expect((await enviar({ file: await arquivo() })).headers.get('location')).toBe(`/painel/loja/produtos/${productId}?imagem=not_found`)
   })
 })

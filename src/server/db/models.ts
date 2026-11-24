@@ -9,8 +9,10 @@ export const TENANT_MODELS: Modelos = [
   'BusinessModules',
   'BusinessSettings',
   'Customer',
+  'Pet',
   'Professional',
   'Service',
+  'ServicePrice',
   'ProfessionalService',
   'WorkingHours',
   'TimeBlock',
@@ -18,9 +20,6 @@ export const TENANT_MODELS: Modelos = [
   'Appointment',
   'AppointmentItem',
   'Notification',
-  'RefreshToken',
-  'Device',
-  'VerificationCode',
   'LoyaltyTransaction',
   'Prize',
   'PrizeRedemption',
@@ -33,6 +32,8 @@ export const TENANT_MODELS: Modelos = [
   'Order',
   'OrderItem',
   'Payment',
+  'CalendarSync',
+  'OnboardingProgress',
 ]
 
 /**
@@ -55,5 +56,7 @@ export const PLATFORM_MODELS: Modelos = [
   'Session',
   'UserToken',
   'RateLimitBucket',
-  'ApiUsageHourly',
+  'EmailCode',
+  'PlatformSetting',
+  'CalendarConnection',
 ]

@@ -7,13 +7,6 @@ export type EmailMessage = {
   html: string
 }
 
-export type PushMessage = { tokens: string[]; title: string; body: string; data: Record<string, string> }
-
-/** Canal de push. `invalidTokens`: tokens que o provedor disse não existirem mais (quem envia os apaga). */
-export interface PushChannel {
-  send(m: PushMessage): Promise<{ invalidTokens: string[] }>
-}
-
 /** Códigos curtos e fechados de falha de canal: é só o que vai para `lastError` (nunca a mensagem do provedor, que pode ter e-mail). */
 export type ChannelErrorCode = 'not_configured' | 'channel_error' | 'timeout' | 'invalid_recipient' | 'internal_error'
 

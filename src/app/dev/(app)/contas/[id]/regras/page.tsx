@@ -18,7 +18,6 @@ export default async function RegrasPage({ params }: { params: Promise<{ id: str
   for (const a of lista) {
     const canais = notifications[a.kind as keyof typeof notifications]
     avisos[`${a.kind}__email`] = canais?.email ? 'on' : ''
-    avisos[`${a.kind}__push`] = canais?.push ? 'on' : ''
   }
   return (
     <>

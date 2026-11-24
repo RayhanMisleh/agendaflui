@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from 'vitest'
 import type { TenantContext } from '@/server/auth/actor'
 import type { BusinessSettings } from '@/server/db/generated/client'
 import { writeSettings, type SettingsTx } from '@/server/domain/settings/versioned'
-import { SEM_CONTROLE, SEM_JUNCAO_SOLTA } from '@/server/domain/settings/terms'
+import { SEM_CONTROLE, SEM_JUNCAO_SOLTA } from '@/server/domain/settings/text-rules'
 
 const ctx = { businessId: 'b1' } as TenantContext
 const linha = { businessId: 'b1', version: 4, slotStepMin: 15, autoConfirm: true } as BusinessSettings

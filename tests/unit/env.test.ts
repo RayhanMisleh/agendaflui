@@ -1,13 +1,14 @@
 import { migrationDatabaseUrl, parseEnv, productionWarnings, runtimeDatabaseUrl } from '@/server/env'
 
 const ok = { DATABASE_URL: 'postgres://u:p@localhost:5432/d', APP_SECRET: 'x'.repeat(32) }
-const hostsDeProducao = { DEV_HOST: 'dev.exemplo.com', PAINEL_HOST: 'painel.exemplo.com', API_HOST: 'api.exemplo.com' }
+const hostsDeProducao = { DEV_HOST: 'dev.exemplo.com', APP_HOST: 'app.exemplo.com' }
 
 test('aplica os padrões de host', () => {
   const env = parseEnv(ok)
   expect(env.DEV_HOST).toBe('dev.localhost:3000')
-  expect(env.PAINEL_HOST).toBe('painel.localhost:3000')
-  expect(env.API_HOST).toBe('api.localhost:3000')
+  expect(env.APP_HOST).toBe('app.localhost:3000')
+  expect(env.LEGACY_PAINEL_HOST).toBeUndefined()
+  for (const removida of ['PAINEL_HOST', 'API_HOST', 'APP_WEB_URL', 'APP_WEB_ORIGINS', 'EXPO_ACCESS_TOKEN']) expect(env).not.toHaveProperty(removida)
   expect(env.STORAGE_DIR).toBe('.local/storage')
 })
 
@@ -66,13 +67,11 @@ test('em produção com SMTP_URL, MAIL_FROM precisa ser informado; a fase de bui
   expect(parseEnv({ ...prod, NODE_ENV: 'development' }).NODE_ENV).toBe('development')
 })
 
-test('WORKER_ENABLED (padrão ligado) e EXPO_ACCESS_TOKEN (opcional)', () => {
+test('WORKER_ENABLED (padrão ligado)', () => {
   expect(parseEnv(ok).WORKER_ENABLED).toBe(true)
   expect(parseEnv({ ...ok, WORKER_ENABLED: 'false' }).WORKER_ENABLED).toBe(false)
   expect(parseEnv({ ...ok, WORKER_ENABLED: 'true' }).WORKER_ENABLED).toBe(true)
   expect(() => parseEnv({ ...ok, WORKER_ENABLED: 'talvez' })).toThrow(/WORKER_ENABLED/)
-  expect(parseEnv(ok).EXPO_ACCESS_TOKEN).toBeUndefined()
-  expect(parseEnv({ ...ok, EXPO_ACCESS_TOKEN: 'abc' }).EXPO_ACCESS_TOKEN).toBe('abc')
 })
 
 describe('hosts em produção', () => {
@@ -86,26 +85,29 @@ describe('hosts em produção', () => {
     return ''
   }
 
-  test('aceita três hosts públicos distintos', () => {
-    expect(parseEnv(prod).PAINEL_HOST).toBe('painel.exemplo.com')
+  test('aceita dois hosts públicos distintos', () => {
+    expect(parseEnv(prod).APP_HOST).toBe('app.exemplo.com')
     expect(parseEnv({ ...prod, DEV_HOST: 'dev.exemplo.com:8443' }).DEV_HOST).toBe('dev.exemplo.com:8443')
   })
 
-  test.each(['DEV_HOST', 'PAINEL_HOST', 'API_HOST'])('%s ausente ou vazio é recusado e nomeia a variável', (nome) => {
+  test.each(['DEV_HOST', 'APP_HOST'])('%s ausente ou vazio é recusado e nomeia a variável', (nome) => {
     expect(mensagem({ ...prod, [nome]: undefined })).toMatch(new RegExp(nome))
     expect(mensagem({ ...prod, [nome]: '' })).toMatch(new RegExp(nome))
   })
 
-  test.each(['localhost', 'localhost:3000', 'dev.localhost:3000', 'API.LOCALHOST', '127.0.0.1:3000', '[::1]:3000'])(
+  test('a mensagem de APP_HOST ausente diz o que informar', () => {
+    expect(mensagem({ ...prod, APP_HOST: undefined })).toContain('APP_HOST: obrigatório em produção (o endereço público, ex.: app.seudominio.com)')
+  })
+
+  test.each(['localhost', 'localhost:3000', 'dev.localhost:3000', 'APP.LOCALHOST', '127.0.0.1:3000', '[::1]:3000'])(
     'host local %s é recusado',
     (valor) => {
-      expect(mensagem({ ...prod, API_HOST: valor })).toMatch(/API_HOST/)
+      expect(mensagem({ ...prod, APP_HOST: valor })).toMatch(/APP_HOST/)
     },
   )
 
   test('hosts repetidos são recusados, mesmo com maiúsculas, espaço ou ponto final', () => {
-    expect(mensagem({ ...prod, PAINEL_HOST: 'dev.exemplo.com' })).toMatch(/PAINEL_HOST/)
-    expect(mensagem({ ...prod, API_HOST: ' DEV.exemplo.com. ' })).toMatch(/API_HOST/)
+    expect(mensagem({ ...prod, APP_HOST: ' DEV.exemplo.com. ' })).toMatch(/APP_HOST/)
   })
 
   test('host com protocolo ou barra é recusado', () => {
@@ -113,8 +115,16 @@ describe('hosts em produção', () => {
     expect(mensagem({ ...prod, DEV_HOST: 'dev.exemplo.com/' })).toMatch(/DEV_HOST/)
   })
 
+  test('LEGACY_PAINEL_HOST é opcional; se vier, não pode ser local nem igual aos outros', () => {
+    expect(parseEnv(prod).LEGACY_PAINEL_HOST).toBeUndefined()
+    expect(parseEnv({ ...prod, LEGACY_PAINEL_HOST: 'painel.exemplo.com' }).LEGACY_PAINEL_HOST).toBe('painel.exemplo.com')
+    expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'app.localhost:3000' })).toMatch(/LEGACY_PAINEL_HOST/)
+    expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'app.exemplo.com' })).toMatch(/LEGACY_PAINEL_HOST/)
+    expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'dev.exemplo.com' })).toMatch(/LEGACY_PAINEL_HOST/)
+  })
+
   test('a mensagem não traz o valor dos hosts', () => {
-    expect(mensagem({ ...prod, API_HOST: 'api.localhost:3000' })).not.toContain('api.localhost:3000')
+    expect(mensagem({ ...prod, APP_HOST: 'app.localhost:3000' })).not.toContain('app.localhost:3000')
   })
 
   test('build e ambientes que não são produção dispensam as regras', () => {
@@ -125,7 +135,7 @@ describe('hosts em produção', () => {
 })
 
 describe('avisos de produção', () => {
-  const prod = parseEnv({ ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), TRUSTED_PROXY_HOPS: '1', SMTP_URL: 'smtp://u:senha-secreta@h:587', MAIL_FROM: 'A <a@exemplo.com>', NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: 'chave-de-teste', APP_WEB_ORIGINS: 'https://app.exemplo.com' })
+  const prod = parseEnv({ ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40), TRUSTED_PROXY_HOPS: '1', SMTP_URL: 'smtp://u:senha-secreta@h:587', MAIL_FROM: 'A <a@exemplo.com>', NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: 'chave-de-teste' })
 
   test('configuração completa não gera aviso', () => {
     expect(productionWarnings(prod)).toEqual([])
@@ -143,7 +153,7 @@ describe('avisos de produção', () => {
     expect(avisos).toHaveLength(1)
     expect(avisos[0]).toMatch(/SMTP_URL/)
     expect(avisos[0]).toMatch(/RESEND_API_KEY/)
-    expect(avisos[0]).toMatch(/convites e cadastro pelo app não chegam/)
+    expect(avisos[0]).toMatch(/convites e cadastro de clientes não chegam/)
     expect(productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('senha-secreta')
   })
 
@@ -164,66 +174,8 @@ describe('avisos de produção', () => {
     expect(productionWarnings({ ...prod, TRUSTED_PROXY_HOPS: 0 }).join(' ')).not.toContain('chave-de-teste')
   })
 
-  test('sem APP_WEB_ORIGINS avisa que o app web não chama a API (os apps nativos seguem)', () => {
-    for (const vazia of [undefined, '', ' , ']) {
-      const avisos = productionWarnings({ ...prod, APP_WEB_ORIGINS: vazia })
-      expect(avisos, String(vazia)).toHaveLength(1)
-      expect(avisos[0]).toMatch(/APP_WEB_ORIGINS vazio/)
-    }
-  })
-
   test('fora de produção não avisa', () => {
     expect(productionWarnings({ ...prod, NODE_ENV: 'development', TRUSTED_PROXY_HOPS: 0 })).toEqual([])
-  })
-})
-
-describe('APP_WEB_ORIGINS', () => {
-  const prod = { ...ok, ...hostsDeProducao, NODE_ENV: 'production', APP_SECRET: 'a'.repeat(40) }
-  const mensagem = (source: Record<string, string | undefined>): string => {
-    try {
-      parseEnv(source)
-    } catch (e) {
-      return e instanceof Error ? e.message : String(e)
-    }
-    return ''
-  }
-
-  test('é opcional; sem ela o valor é indefinido', () => {
-    expect(parseEnv(ok).APP_WEB_ORIGINS).toBeUndefined()
-    expect(parseEnv(prod).APP_WEB_ORIGINS).toBeUndefined()
-  })
-
-  test('em produção aceita uma ou várias origens https', () => {
-    expect(parseEnv({ ...prod, APP_WEB_ORIGINS: 'https://app.exemplo.com' }).APP_WEB_ORIGINS).toBe('https://app.exemplo.com')
-    expect(parseEnv({ ...prod, APP_WEB_ORIGINS: 'https://app.exemplo.com, https://b.exemplo.com:8443/' }).NODE_ENV).toBe('production')
-  })
-
-  test.each(['app.exemplo.com', 'https://app.exemplo.com/caminho', 'ftp://app.exemplo.com', 'https://usuario@app.exemplo.com', '*', 'https://a b.com'])(
-    'origem malformada (%s) falha em qualquer ambiente, nomeia a variável e não imprime o valor',
-    (valor) => {
-      for (const base of [ok, { ...ok, NODE_ENV: 'development' }, prod]) {
-        const msg = mensagem({ ...base, APP_WEB_ORIGINS: `https://certa.exemplo.com,${valor}` })
-        expect(msg).toMatch(/APP_WEB_ORIGINS/)
-        expect(msg).toMatch(/nº 2/)
-        expect(msg).not.toContain(valor)
-      }
-    },
-  )
-
-  test.each(['http://app.exemplo.com', 'http://localhost:5173', 'https://localhost:5173', 'https://app.localhost', 'https://127.0.0.1:3000', 'https://[::1]:3000'])(
-    'em produção a origem %s (http ou local) falha sem imprimir o valor',
-    (valor) => {
-      const msg = mensagem({ ...prod, APP_WEB_ORIGINS: valor })
-      expect(msg).toMatch(/APP_WEB_ORIGINS/)
-      expect(msg).toMatch(/https/)
-      expect(msg).not.toContain(valor)
-    },
-  )
-
-  test('fora de produção e na fase de build, http e localhost passam', () => {
-    expect(parseEnv({ ...ok, NODE_ENV: 'development', APP_WEB_ORIGINS: 'http://localhost:5173' }).APP_WEB_ORIGINS).toBe('http://localhost:5173')
-    expect(parseEnv({ ...ok, NODE_ENV: 'test', APP_WEB_ORIGINS: 'http://app.localhost:3000' }).NODE_ENV).toBe('test')
-    expect(parseEnv({ ...prod, APP_WEB_ORIGINS: 'http://localhost:5173', NEXT_PHASE: 'phase-production-build' }).NODE_ENV).toBe('production')
   })
 })
 

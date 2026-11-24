@@ -116,19 +116,17 @@ describe('nome do remetente por conta', () => {
 
 describe('getChannels', () => {
   test('em teste não há canal real; o e-mail injetado vale', () => {
-    expect(getChannels({ NODE_ENV: 'test' })).toEqual({ email: null, push: null })
+    expect(getChannels({ NODE_ENV: 'test' })).toEqual({ email: null })
     const falso = { async send() {} }
     setEmailChannel(falso)
     expect(getChannels({ NODE_ENV: 'test' }).email).toBe(falso)
   })
 
-  test('em desenvolvimento são os de arquivo; em produção o push é o Expo e o e-mail depende do SMTP', () => {
+  test('em desenvolvimento o e-mail é de arquivo; em produção depende do SMTP', () => {
     const dev = getChannels({ NODE_ENV: 'development' })
     expect(dev.email).not.toBeNull()
-    expect(dev.push).not.toBeNull()
     const prod = getChannels({ NODE_ENV: 'production', SMTP_URL: undefined })
     expect(prod.email).toBeNull()
-    expect(prod.push).not.toBeNull()
     expect(getChannels({ NODE_ENV: 'production', SMTP_URL: 'smtp://localhost:2525' }).email).not.toBeNull()
   })
 })

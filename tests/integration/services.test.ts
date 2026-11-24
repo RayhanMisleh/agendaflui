@@ -43,6 +43,8 @@ describe('createService e getService', () => {
       active: true,
       displayOrder: 1,
       archived: false,
+      pricingMode: 'SINGLE',
+      prices: [],
     })
     expect(await getService(ctx, criado.id)).toEqual(criado)
   })

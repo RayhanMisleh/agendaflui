@@ -1,5 +1,5 @@
-// Fumaça por HTTP das telas dos dois painéis: sobe `next start`, entra com uma sessão temporária de admin (painel dev) e
-// outra de membro, o dono da conta de demonstração (painel do negócio), e pede cada página das listas abaixo. Falha se
+// Fumaça por HTTP das telas do painel dev e do app (entrada, área do cliente e painel da loja): sobe `next start`, entra com uma sessão temporária de admin (painel dev) e
+// outra de pessoa, o dono da conta de demonstração (app), e pede cada página das listas abaixo. Falha se
 // alguma não responder 200 ou trouxer marca de erro do Next. Sem navegador. As sessões temporárias são apagadas no fim.
 // Antes: `npm run build` e o banco de desenvolvimento com o seed (este script sobe o banco se a porta 54329 estiver livre).
 import { spawn } from 'node:child_process'
@@ -18,7 +18,7 @@ try {
 }
 
 const DEV_COOKIE = 'af_dev_session'
-const PAINEL_COOKIE = 'af_painel_session'
+const APP_COOKIE = 'af_session'
 const MARCAS_DE_ERRO = ['__next_error__', 'Application error', /Digest: \d+/]
 
 /** Páginas pedidas. `{conta}` vira o id da primeira conta do seed; `{cliente}` e `{profissional}`, o primeiro cliente e o primeiro profissional dela. Acrescente aqui as telas novas de cada tarefa. */
@@ -31,13 +31,13 @@ const PAGINAS = [
   '/contas/{conta}',
   '/contas/{conta}?suporte=__proto__&faltou=constructor',
   '/contas/{conta}/marca',
-  '/contas/{conta}/termos',
   '/contas/{conta}/modulos',
   '/contas/{conta}/regras',
   '/contas/{conta}/equipe',
   '/contas/{conta}/integracoes',
   '/contas/{conta}/auditoria',
   '/sistema',
+  '/sistema/google',
   '/auditoria',
   '/auditoria?de=2026-11-01&ate=2026-11-10&ator=PLATFORM_ADMIN&acao=business.status_changed',
   '/auditoria?de=2026-01-01&ate=2026-12-31',
@@ -52,85 +52,145 @@ const PAGINAS = [
 
 /** Páginas do painel do negócio, pedidas como o dono da conta de demonstração. Acrescente aqui as telas novas de cada tarefa. */
 const PAGINAS_PAINEL = [
-  '/',
-  '/agenda',
-  '/agenda?visao=dia&data=2026-11-17',
-  '/agenda?visao=semana',
-  '/agenda?visao=semana&data=2026-11-17&profissional=nao-existe',
-  '/agenda?data=lixo&visao=%00&acao=marcar',
-  '/agenda?acao=bloquear',
-  '/agenda?data=9999-12-31',
-  '/agenda?data=0000-01-01&visao=semana',
-  '/servicos',
-  '/servicos?situacao=arquivados',
-  '/clientes',
-  '/clientes?search=a&situacao=arquivados',
-  '/clientes?search=ab%00&cursor=nao-existe',
-  '/clientes/novo',
-  '/clientes/{cliente}',
-  '/equipe',
-  '/equipe/novo',
-  '/equipe/{profissional}',
-  '/equipe/{profissional}?aba=servicos',
-  '/equipe/{profissional}?aba=expediente',
-  '/equipe/{profissional}?aba=bloqueios',
-  '/equipe/{profissional}?aba=acesso&foto=ok',
-  '/relatorios',
-  '/relatorios?atalho=hoje',
-  '/relatorios?atalho=7dias',
-  '/relatorios?atalho=mes-passado',
-  '/relatorios?de=2026-01-01&ate=2026-11-17',
-  '/relatorios?de=2020-01-01&ate=2026-11-17',
-  '/relatorios?de=lixo&ate=%00&profissional=nao-existe&servico=nao-existe&cursor=nao-existe',
-  '/configuracoes',
-  '/configuracoes?secao=negocio',
-  '/configuracoes?secao=aparencia&logo=ok',
-  '/configuracoes?secao=agenda',
-  '/configuracoes?secao=fechamentos',
-  '/configuracoes?secao=avisos',
-  '/configuracoes?secao=termos',
-  '/configuracoes?secao=perfil',
-  '/configuracoes?secao=nao-existe',
+  '/painel',
+  '/painel/agenda',
+  '/painel/agenda?visao=dia&data=2026-11-17',
+  '/painel/agenda?visao=semana',
+  '/painel/agenda?visao=semana&data=2026-11-17&profissional=nao-existe',
+  '/painel/agenda?data=lixo&visao=%00&acao=marcar',
+  '/painel/agenda?acao=bloquear',
+  '/painel/agenda?data=9999-12-31',
+  '/painel/agenda?data=0000-01-01&visao=semana',
+  '/painel/servicos',
+  '/painel/servicos?situacao=arquivados',
+  '/painel/clientes',
+  '/painel/clientes?search=a&situacao=arquivados',
+  '/painel/clientes?search=ab%00&cursor=nao-existe',
+  '/painel/clientes/novo',
+  '/painel/clientes/{cliente}',
+  '/painel/equipe',
+  '/painel/equipe/novo',
+  '/painel/equipe/{profissional}',
+  '/painel/equipe/{profissional}?aba=servicos',
+  '/painel/equipe/{profissional}?aba=expediente',
+  '/painel/equipe/{profissional}?aba=bloqueios',
+  '/painel/equipe/{profissional}?aba=acesso&foto=ok',
+  '/painel/relatorios',
+  '/painel/relatorios?atalho=hoje',
+  '/painel/relatorios?atalho=7dias',
+  '/painel/relatorios?atalho=mes-passado',
+  '/painel/relatorios?de=2026-01-01&ate=2026-11-17',
+  '/painel/relatorios?de=2020-01-01&ate=2026-11-17',
+  '/painel/relatorios?de=lixo&ate=%00&profissional=nao-existe&servico=nao-existe&cursor=nao-existe',
+  '/painel/comecar',
+  '/painel/comecar?passo=loja',
+  '/painel/comecar?passo=marca',
+  '/painel/comecar?passo=animais',
+  '/painel/comecar?passo=servicos',
+  '/painel/comecar?passo=expediente',
+  '/painel/comecar?passo=equipe',
+  '/painel/comecar?passo=link',
+  '/painel/comecar?passo=nao-existe',
+  '/painel/configuracoes',
+  '/painel/configuracoes?secao=negocio',
+  '/painel/configuracoes?secao=aparencia&logo=ok',
+  '/painel/configuracoes?secao=agenda',
+  '/painel/configuracoes?secao=fechamentos',
+  '/painel/configuracoes?secao=avisos',
+  '/painel/configuracoes?secao=termos',
+  '/painel/configuracoes?secao=perfil',
+  '/painel/configuracoes?secao=nao-existe',
+]
+
+/** Páginas da entrada e da área do cliente no host do app, pedidas como o dono da conta de demonstração (`{slug}` é a loja dele). */
+const PAGINAS_APP = [
+  '307 /entrar',
+  '307 /entrar?senha=nova',
   '/esqueci-a-senha',
-  '/redefinir-senha/nao-existe',
-  '/entrar?senha=nova',
+  '/redefinir-senha/x',
+  '/convite/x',
+  '/{slug}',
+  '/{slug}/entrar',
+  '/{slug}/cadastro',
+  '/nao-existe',
+  '/conta',
+]
+
+/** Páginas da loja SEM sessão, no host do app: a vitrine e a entrada abrem; a área do cliente leva à entrada (307). Um número antes do caminho é o status esperado. */
+const PAGINAS_ANONIMO = ['/{slug}', '/{slug}/entrar', '/{slug}/cadastro', '307 /{slug}/agendar', '307 /{slug}/horarios', '307 /{slug}/pets', '307 /{slug}/boas-vindas', '/nao-existe']
+
+/** Páginas da área do cliente, pedidas como um cliente temporário da conta de demonstração (com um pet, se a conta é de pet shop). */
+const PAGINAS_CLIENTE = [
+  '/{slug}',
+  '/{slug}/agendar',
+  '/{slug}/agendar?servicos=lixo&pet=lixo&profissional=lixo',
+  '/{slug}/horarios',
+  '/{slug}/horarios?ver=anteriores',
+  '/{slug}/horarios?ver=anteriores&depois=lixo',
+  '/{slug}/pets',
+  '/{slug}/pets?arquivados=1',
+  '/{slug}/pets/{pet}',
+  '/{slug}/boas-vindas?novo=1',
+  '/{slug}/premios',
+  '/{slug}/premios/extrato',
+  '/{slug}/loja',
+  '/{slug}/loja/carrinho',
+  '/{slug}/loja/enderecos',
+  '/{slug}/loja/pedidos',
+  '/{slug}/mais',
+  '/{slug}/mais/excluir',
 ]
 
 /** Páginas dos módulos, pedidas como o dono da conta com TODOS os módulos ligados. Cada tarefa de módulo acrescenta as suas. */
 const PAGINAS_MODULOS: string[] = [
-  '/banners',
-  '/banners/novo',
-  '/banners/{banner}',
-  '/fidelidade',
-  '/fidelidade?aba=resgates',
-  '/fidelidade?aba=clube',
-  '/fidelidade?aba=ajustes',
-  '/fidelidade/premios/novo',
-  '/fidelidade/premios/{premio}',
-  '/loja',
-  '/loja?aba=pedidos',
-  '/loja?aba=pedidos&situacao=a-entregar&search=1',
-  '/loja/pedidos/{pedido}',
-  '/loja?aba=produtos&search=a',
-  '/loja?aba=produtos&situacao=arquivados&categoria=nao-existe&cursor=nao-existe',
-  '/loja?aba=categorias',
-  '/loja?aba=configuracoes',
-  '/loja/produtos/novo',
-  '/loja/produtos/{produto}',
+  '/painel/banners',
+  '/painel/banners/novo',
+  '/painel/banners/{banner}',
+  '/painel/fidelidade',
+  '/painel/fidelidade?aba=resgates',
+  '/painel/fidelidade?aba=clube',
+  '/painel/fidelidade?aba=ajustes',
+  '/painel/fidelidade/premios/novo',
+  '/painel/fidelidade/premios/{premio}',
+  '/painel/loja',
+  '/painel/loja?aba=pedidos',
+  '/painel/loja?aba=pedidos&situacao=a-entregar&search=1',
+  '/painel/loja/pedidos/{pedido}',
+  '/painel/loja?aba=produtos&search=a',
+  '/painel/loja?aba=produtos&situacao=arquivados&categoria=nao-existe&cursor=nao-existe',
+  '/painel/loja?aba=categorias',
+  '/painel/loja?aba=configuracoes',
+  '/painel/loja/produtos/novo',
+  '/painel/loja/produtos/{produto}',
 ]
 
 /** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
-const PAGINAS_LOJA_DESLIGADA = ['/fidelidade', '/banners', '/loja']
-const SEM_LOJA_404 = new Set(['/loja'])
+const PAGINAS_LOJA_DESLIGADA = ['/painel/fidelidade', '/painel/banners', '/painel/loja']
+const SEM_LOJA_404 = new Set(['/painel/loja'])
 
 type Resposta = { status: number; corpo: string }
+
+/**
+ * Com `loading.tsx`, a página começa a ser enviada antes de o servidor decidir: um `redirect()` ou `notFound()` depois disso sai
+ * com 200 e a decisão vai no corpo (`NEXT_REDIRECT;…;307;` ou `NEXT_HTTP_ERROR_FALLBACK;404`). Conta como o status que o Next daria.
+ */
+function statusEfetivo(status: number, corpo: string): number {
+  if (status !== 200) return status
+  const desvio = /NEXT_REDIRECT;[a-z]+;[^;]*;(\d{3});/.exec(corpo)
+  if (desvio) return Number(desvio[1])
+  const falha = /NEXT_HTTP_ERROR_FALLBACK;(\d{3})/.exec(corpo)
+  return falha ? Number(falha[1]) : status
+}
 
 function pedir(porta: number, host: string, caminho: string, cookie: string): Promise<Resposta> {
   return new Promise((ok, falhou) => {
     const req = request({ host: '127.0.0.1', port: porta, path: caminho, headers: { host, cookie } }, (res) => {
       const partes: Buffer[] = []
       res.on('data', (p: Buffer) => partes.push(p))
-      res.on('end', () => ok({ status: res.statusCode ?? 0, corpo: Buffer.concat(partes).toString('utf8') }))
+      res.on('end', () => {
+        const corpo = Buffer.concat(partes).toString('utf8')
+        ok({ status: statusEfetivo(res.statusCode ?? 0, corpo), corpo })
+      })
     })
     req.on('error', falhou)
     req.setTimeout(60_000, () => req.destroy(new Error('sem resposta em 60 s')))
@@ -220,7 +280,7 @@ async function main(): Promise<number> {
       if ((await prisma.business.count()) === 0) await seed(prisma, process.env)
     }
     const admin = await prisma.platformAdmin.findFirst({ where: { active: true }, select: { id: true } })
-    const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
+    const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true, slug: true, niche: true } })
     if (!admin || !conta) throw new Error('O banco não tem admin nem conta de demonstração. Rode `npm run dev` uma vez para criar o seed.')
 
     const dono = await prisma.membership.findFirst({
@@ -251,7 +311,7 @@ async function main(): Promise<number> {
     const porta = await portaLivre()
     const host = `dev.localhost:${porta}`
     servidor = spawn(process.execPath, [resolve('node_modules/next/dist/bin/next'), 'start', '-p', String(porta)], {
-      env: { ...env, DEV_HOST: host, PAINEL_HOST: `painel.localhost:${porta}`, API_HOST: `api.localhost:${porta}`, WORKER_ENABLED: 'false' },
+      env: { ...env, DEV_HOST: host, APP_HOST: `app.localhost:${porta}`, WORKER_ENABLED: 'false' },
       stdio: ['ignore', 'ignore', 'inherit'],
     })
     let encerrou = false
@@ -315,19 +375,66 @@ async function main(): Promise<number> {
           return criado
         })()
       : null
+    // O começo do dono só abre com a linha de progresso (contas do seed não têm): cria uma temporária, se faltar, com o passo a
+    // passo já terminado para o Início abrir (com a lista do que falta) em vez de levar ao começo.
+    if ((await prisma.onboardingProgress.count({ where: { businessId: conta.id } })) === 0) {
+      const progresso = await prisma.onboardingProgress.create({ data: { businessId: conta.id, wizardFinishedAt: new Date() }, select: { id: true } })
+      limpezas.push(async () => {
+        await prisma.onboardingProgress.deleteMany({ where: { id: progresso.id } })
+      })
+    }
+    // Um cliente temporário (pessoa, cadastro, pet e sessão) para pedir a área do cliente; tudo sai ao fim.
+    const sufixo = Date.now().toString(36)
+    const pessoa = await prisma.user.create({
+      data: { name: 'Cliente da fumaça', searchName: 'cliente da fumaca', email: `fumaca-${sufixo}@exemplo.test`, emailVerifiedAt: new Date() },
+      select: { id: true, email: true },
+    })
+    limpezas.push(async () => {
+      await prisma.user.deleteMany({ where: { id: pessoa.id } })
+    })
+    const clienteTemp = await prisma.customer.create({
+      data: { businessId: conta.id, name: 'Cliente da fumaça', searchName: 'cliente da fumaca', email: pessoa.email, userId: pessoa.id, linkedAt: new Date(), origin: 'APP' },
+      select: { id: true },
+    })
+    limpezas.push(async () => {
+      await prisma.pet.deleteMany({ where: { customerId: clienteTemp.id } })
+      await prisma.customer.deleteMany({ where: { id: clienteTemp.id } })
+    })
+    const petTemp =
+      conta.niche === null
+        ? null
+        : await prisma.pet.create({
+            data: { businessId: conta.id, customerId: clienteTemp.id, name: 'Thor da fumaça', searchName: 'thor da fumaca', species: 'DOG', size: 'MEDIUM' },
+            select: { id: true },
+          })
+    const sessaoCliente = generateToken()
+    const registroCliente = await prisma.session.create({
+      data: { userId: pessoa.id, customerBusinessId: conta.id, tokenHash: sessaoCliente.hash, expiresAt: addMinutes(new Date(), 30) },
+    })
+    limpezas.push(async () => {
+      await prisma.session.deleteMany({ where: { id: registroCliente.id, tokenHash: hashToken(sessaoCliente.token) } })
+    })
     let falhas = 0
     let pulados = 0
-    const hostPainel = `painel.localhost:${porta}`
+    const hostPainel = `app.localhost:${porta}`
     const lotes = [
       { host, cookie: `${DEV_COOKIE}=${token}`, paginas: PAGINAS, rotulo: 'dev' },
-      { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
-      { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_APP, rotulo: 'app' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
+      { host: hostPainel, cookie: '', paginas: PAGINAS_ANONIMO, rotulo: 'loja' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${sessaoCliente.token}`, paginas: PAGINAS_CLIENTE, rotulo: 'cliente' },
     ]
     for (const lote of lotes) {
-      for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id)
+      for (const item of lote.paginas) {
+        const partes = /^(\d{3}) (.+)$/.exec(item)
+        const modelo = partes ? (partes[2] ?? item) : item
+        // Loja sem nicho não tem pets nem quiz: essas telas levam de volta ao Início da loja.
+        const semPets = lote.rotulo === 'cliente' && conta.niche === null && /^\/\{slug\}\/(pets|boas-vindas)/.test(modelo)
+        const esperado = partes ? Number(partes[1]) : semPets ? 307 : 200
+        const caminho = modelo.replace('{pet}', petTemp?.id ?? '').replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id).replace('{slug}', conta.slug)
         const faltaRegistro =
-          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
+          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || (modelo.includes('{pet}') && !petTemp) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
           pulados++
           console.log(`PULOU      ${lote.rotulo} ${modelo}  (o seed não tem esse registro)`)
@@ -336,8 +443,9 @@ async function main(): Promise<number> {
         let linha: string
         try {
           const r = await pedir(porta, lote.host, caminho, lote.cookie)
-          const marca = MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
-          const bom = r.status === 200 && marca === undefined
+          // Redirecionamento e 404 trazem a marca de erro do Next no corpo por natureza; só a página que abre é conferida.
+          const marca = r.status >= 300 ? undefined : MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
+          const bom = r.status === esperado && marca === undefined
           if (!bom) falhas++
           linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} ${lote.rotulo} ${modelo}${marca ? `  (marca de erro: ${String(marca)})` : ''}`
         } catch (err) {
@@ -354,7 +462,7 @@ async function main(): Promise<number> {
       const esperado = SEM_LOJA_404.has(caminho) ? 404 : null
       let linha: string
       try {
-        const r = await pedir(porta, hostPainel, caminho, `${PAINEL_COOKIE}=${membro.token}`)
+        const r = await pedir(porta, hostPainel, caminho, `${APP_COOKIE}=${membro.token}`)
         const bom = esperado === null ? r.status < 500 : r.status === esperado
         if (!bom) falhas++
         linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} sem-loja ${caminho}${esperado === null ? '' : `  (esperava ${String(esperado)})`}`
@@ -364,9 +472,9 @@ async function main(): Promise<number> {
       }
       console.log(linha)
     }
-    const total = PAGINAS.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_LOJA_DESLIGADA.length - pulados
+    const total = PAGINAS.length + PAGINAS_APP.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_ANONIMO.length + PAGINAS_CLIENTE.length + PAGINAS_LOJA_DESLIGADA.length - pulados
     const aviso = pulados > 0 ? ` (${pulados} puladas por falta de registro no seed)` : ''
-    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
+    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam o esperado sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
     return falhas === 0 ? 0 : 1
   } finally {
     await encerrar()

@@ -1,0 +1,35 @@
+import type { Metadata } from 'next'
+import { cookies } from 'next/headers'
+import { notFound } from 'next/navigation'
+import { GOOGLE_FLOW_COOKIE, readGoogleFlow } from '@/server/auth/google/flow'
+import { env } from '@/server/env'
+import { EntryScreen } from '@/ui/shells'
+import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
+import { deriveTheme } from '@/ui/theme/derive'
+import { simularGoogle } from './actions'
+import { FalsoForm } from './FalsoForm'
+
+// Decide pelo modo em CADA pedido: nunca prerenderizada no build (em produção a página tem de ser 404).
+export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = { title: 'Simular Google | Agenda Flui', robots: { index: false, follow: false } }
+
+const MARCA = { name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }
+
+/** Simula a tela de escolha de conta do Google. Só existe com `INTEGRATIONS_MODE=fake`; em produção é 404. */
+export default async function GoogleFalsoPage() {
+  if (env.INTEGRATIONS_MODE !== 'fake') notFound()
+  const fluxo = await readGoogleFlow((await cookies()).get(GOOGLE_FLOW_COOKIE)?.value, new Date())
+  return (
+    <EntryScreen
+      theme={deriveTheme(AGENDAFLUI_BRAND)}
+      brand={MARCA}
+      headline="A agenda que flui."
+      title="Simular Google"
+      message="Tela de teste: escolha a conta Google que quer simular."
+      testId="google-falso"
+    >
+      <FalsoForm action={simularGoogle} agenda={fluxo?.intent.kind === 'calendar'} />
+    </EntryScreen>
+  )
+}

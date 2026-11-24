@@ -3,8 +3,7 @@ import { beforeEach, describe, expect, test, vi } from 'vitest'
 import type { Actor } from '@/server/auth/actor'
 import { can, CAPABILITIES } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
-import { getMemberSession, getTenantContext, loginUser } from '@/server/auth/member-auth'
-import { logoutUser } from '@/server/auth/member-auth'
+import { getPersonSession, getStaffContext, loginWithPassword, logout } from '@/server/auth/session'
 import { checkSupportLimit, endSupport, redeemSupport, startSupport } from '@/server/auth/support-session'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
@@ -36,6 +35,8 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
+const loginUser = (i: Parameters<typeof loginWithPassword>[0]) => loginWithPassword(i, new Date())
+
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
 const AGORA = new Date('2026-11-16T12:00:00.000Z')
@@ -52,7 +53,7 @@ beforeEach(async () => {
 })
 
 function tokenDaUrl(url: string): string {
-  const m = /^http:\/\/painel\.localhost:3000\/suporte\/([A-Za-z0-9_-]+)$/.exec(url)
+  const m = /^http:\/\/app\.localhost:3000\/suporte\/([A-Za-z0-9_-]+)$/.exec(url)
   if (!m?.[1]) throw new Error(`URL inesperada: ${url}`)
   return m[1]
 }
@@ -145,7 +146,7 @@ describe('redeemSupport', () => {
     await prisma.business.update({ where: { id: business.id }, data: { status: 'SUSPENDED' } })
     const r = await redeemSupport(token, {}, AGORA)
     expect(r).not.toBeNull()
-    const ctx = await getTenantContext(r?.sessionToken, AGORA)
+    const ctx = await getStaffContext(r?.sessionToken, AGORA)
     expect(ctx?.actor.kind).toBe('impersonator')
   })
 
@@ -164,14 +165,14 @@ describe('redeemSupport', () => {
 describe('a sessão de suporte', () => {
   test('dá o ator impersonator com os poderes do dono, na conta certa, e a sessão de membro mostra o suporte', async () => {
     const { sessionToken } = await abrir()
-    const ctx = await getTenantContext(sessionToken, AGORA)
+    const ctx = await getStaffContext(sessionToken, AGORA)
     if (!ctx) throw new Error('Esperava o contexto de suporte.')
     expect(ctx.actor).toEqual({ kind: 'impersonator', adminId: admin.id, name: 'Ana Admin' })
     expect(ctx.businessId).toBe(business.id)
     expect(ctx.channel).toBe('panel')
     expect(CAPABILITIES.every((c) => can(ctx.actor, c))).toBe(true)
     expect((await ctx.db.business.findMany()).map((b) => b.id)).toEqual([business.id])
-    const sessao = await getMemberSession(sessionToken, AGORA)
+    const sessao = await getPersonSession(sessionToken, AGORA)
     expect(sessao).toEqual({ kind: 'support', admin: { id: admin.id, name: 'Ana Admin' }, activeBusinessId: business.id, businessName: 'Barbearia Central' })
     expect(sessao).not.toHaveProperty('user')
   })
@@ -179,15 +180,15 @@ describe('a sessão de suporte', () => {
   test('vale por 60 minutos sem renovação deslizante', async () => {
     const { sessionToken, expiresAt } = await abrir()
     expect(expiresAt).toEqual(addMinutes(AGORA, 60))
-    expect(await getTenantContext(sessionToken, addMinutes(AGORA, 59))).not.toBeNull()
+    expect(await getStaffContext(sessionToken, addMinutes(AGORA, 59))).not.toBeNull()
     expect((await prisma.session.findFirstOrThrow()).expiresAt).toEqual(expiresAt)
-    expect(await getTenantContext(sessionToken, addMinutes(AGORA, 61))).toBeNull()
-    expect(await getMemberSession(sessionToken, addMinutes(AGORA, 61))).toBeNull()
+    expect(await getStaffContext(sessionToken, addMinutes(AGORA, 61))).toBeNull()
+    expect(await getPersonSession(sessionToken, addMinutes(AGORA, 61))).toBeNull()
   })
 
   test('alteração feita em suporte grava a auditoria com o admin como autor e marcada como suporte', async () => {
     const { sessionToken } = await abrir()
-    const ctx = await getTenantContext(sessionToken, AGORA)
+    const ctx = await getStaffContext(sessionToken, AGORA)
     if (!ctx) throw new Error('Esperava o contexto de suporte.')
     const servico = await createService(ctx, { name: 'Corte', priceCents: 5000, durationMin: 30 })
     const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId: business.id, targetId: servico.id } })
@@ -196,16 +197,16 @@ describe('a sessão de suporte', () => {
 
   test('admin desativado derruba a sessão na leitura seguinte (direto no banco e pela função)', async () => {
     const { sessionToken } = await abrir()
-    expect(await getTenantContext(sessionToken, AGORA)).not.toBeNull()
+    expect(await getStaffContext(sessionToken, AGORA)).not.toBeNull()
     await prisma.platformAdmin.update({ where: { id: admin.id }, data: { active: false } })
-    expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
-    expect(await getMemberSession(sessionToken, AGORA)).toBeNull()
+    expect(await getStaffContext(sessionToken, AGORA)).toBeNull()
+    expect(await getPersonSession(sessionToken, AGORA)).toBeNull()
 
     await prisma.platformAdmin.update({ where: { id: admin.id }, data: { active: true } })
     const outro = await makePlatformAdmin()
     const segunda = await abrir()
     await setAdminActive({ kind: 'platform_admin', adminId: outro.id, name: outro.name }, admin.id, false)
-    expect(await getTenantContext(segunda.sessionToken, AGORA)).toBeNull()
+    expect(await getStaffContext(segunda.sessionToken, AGORA)).toBeNull()
   })
 
   test('conta arquivada derruba a sessão; conta suspensa não derruba o suporte, mas barra o membro comum', async () => {
@@ -213,23 +214,23 @@ describe('a sessão de suporte', () => {
     const user = await makeUser({ password: 'senha-bem-longa' })
     await makeMembership(business.id, user.id, 'OWNER')
     const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.2' })
-    expect(await getTenantContext(membro.token, AGORA)).not.toBeNull()
+    expect(await getStaffContext(membro.token, AGORA)).not.toBeNull()
 
     await prisma.business.update({ where: { id: business.id }, data: { status: 'SUSPENDED' } })
-    expect((await getTenantContext(sessionToken, AGORA))?.actor.kind).toBe('impersonator')
-    expect(await getTenantContext(membro.token, AGORA)).toBeNull()
+    expect((await getStaffContext(sessionToken, AGORA))?.actor.kind).toBe('impersonator')
+    expect(await getStaffContext(membro.token, AGORA)).toBeNull()
 
     await prisma.business.update({ where: { id: business.id }, data: { status: 'ARCHIVED' } })
-    expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
-    expect(await getMemberSession(sessionToken, AGORA)).toBeNull()
+    expect(await getStaffContext(sessionToken, AGORA)).toBeNull()
+    expect(await getPersonSession(sessionToken, AGORA)).toBeNull()
   })
 
   test('sessão revogada, token desconhecido e sessão de membro não viram suporte', async () => {
     const { sessionToken } = await abrir()
     await prisma.session.updateMany({ data: { revokedAt: AGORA } })
-    expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
-    expect(await getTenantContext('qualquer', AGORA)).toBeNull()
-    expect(await getTenantContext(undefined, AGORA)).toBeNull()
+    expect(await getStaffContext(sessionToken, AGORA)).toBeNull()
+    expect(await getStaffContext('qualquer', AGORA)).toBeNull()
+    expect(await getStaffContext(undefined, AGORA)).toBeNull()
   })
 })
 
@@ -238,7 +239,7 @@ describe('endSupport', () => {
     const { sessionToken } = await abrir(new Date())
     await endSupport(sessionToken)
     expect(await prisma.session.count()).toBe(0)
-    expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
+    expect(await getStaffContext(sessionToken, AGORA)).toBeNull()
     const log = await prisma.auditLog.findFirstOrThrow({ where: { businessId: business.id, action: 'support.ended' } })
     expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: admin.id, actorName: 'Ana Admin' })
     await endSupport(sessionToken)
@@ -251,7 +252,7 @@ describe('endSupport', () => {
     await makeMembership(business.id, user.id, 'OWNER')
     const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.2' })
     await endSupport(membro.token)
-    expect(await getTenantContext(membro.token, AGORA)).not.toBeNull()
+    expect(await getStaffContext(membro.token, AGORA)).not.toBeNull()
   })
 })
 
@@ -260,13 +261,13 @@ describe('suporte encerrado por outro caminho', () => {
 
   test('Sair pelo caminho de membro grava support.ended uma vez; Encerrar depois não duplica', async () => {
     const { sessionToken } = await abrir(new Date())
-    await logoutUser(sessionToken)
-    expect(await getTenantContext(sessionToken, AGORA)).toBeNull()
+    await logout(sessionToken)
+    expect(await getStaffContext(sessionToken, AGORA)).toBeNull()
     const linhas = await fim()
     expect(linhas).toHaveLength(1)
     expect(linhas[0]).toMatchObject({ actorId: admin.id, actorName: 'Ana Admin' })
     await endSupport(sessionToken)
-    await logoutUser(sessionToken)
+    await logout(sessionToken)
     expect(await fim()).toHaveLength(1)
   })
 
@@ -284,21 +285,21 @@ describe('suporte encerrado por outro caminho', () => {
 
   test('sessão de suporte que apenas vence não grava nada; sessão de membro no logout também não', async () => {
     const { sessionToken } = await abrir()
-    await logoutUser(sessionToken).catch(() => undefined)
+    await logout(sessionToken).catch(() => undefined)
     await prisma.auditLog.deleteMany({ where: { action: 'support.ended' } })
     const outra = await abrir()
-    expect(await getTenantContext(outra.sessionToken, addMinutes(AGORA, 61))).toBeNull()
+    expect(await getStaffContext(outra.sessionToken, addMinutes(AGORA, 61))).toBeNull()
     expect(await fim()).toHaveLength(0)
     const user = await makeUser({ password: 'senha-bem-longa' })
     await makeMembership(business.id, user.id, 'OWNER')
     const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.4' })
-    await logoutUser(membro.token)
+    await logout(membro.token)
     expect(await fim()).toHaveLength(0)
   })
 
   test('sessão de suporte abre a conta da sessão em requireTenant, sem passar pela entrada', async () => {
     const { sessionToken, expiresAt } = await abrir(new Date())
-    jar.set('af_painel_session', { value: sessionToken, options: { expires: expiresAt } })
+    jar.set('af_session', { value: sessionToken, options: { expires: expiresAt } })
     const ctx = await requireTenant()
     expect(ctx.businessId).toBe(business.id)
     expect(ctx.actor.kind).toBe('impersonator')
@@ -320,25 +321,25 @@ describe('entrada do membro (pendência da Fase 1)', () => {
 })
 
 describe('rota /suporte/[token]', () => {
-  const PAINEL_COOKIE = 'af_painel_session'
+  const APP_COOKIE = 'af_session'
 
   async function chamar(token: string) {
-    const { GET } = await import('@/app/painel/suporte/[token]/route')
-    return GET(new Request(`http://painel.localhost:3000/suporte/${token}`) as never, { params: Promise.resolve({ token }) })
+    const { GET } = await import('@/app/app/suporte/[token]/route')
+    return GET(new Request(`http://app.localhost:3000/suporte/${token}`) as never, { params: Promise.resolve({ token }) })
   }
 
   test('token certo: define o cookie do painel, redireciona para / e manda cabeçalhos que não vazam a URL', async () => {
     const token = tokenDaUrl((await startSupport(actor, business.id)).url)
     const res = await chamar(token)
     expect([302, 303, 307]).toContain(res.status)
-    expect(res.headers.get('location')).toBe('http://painel.localhost:3000/')
+    expect(res.headers.get('location')).toBe('http://app.localhost:3000/painel')
     expect(res.headers.get('referrer-policy')).toBe('no-referrer')
     expect(res.headers.get('cache-control')).toBe('no-store')
-    const cookie = jar.get(PAINEL_COOKIE)
+    const cookie = jar.get(APP_COOKIE)
     expect(cookie?.options).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/' })
     const sessao = await prisma.session.findFirstOrThrow()
     expect(hashToken(cookie?.value ?? '')).toBe(sessao.tokenHash)
-    expect((await getTenantContext(cookie?.value))?.actor.kind).toBe('impersonator')
+    expect((await getStaffContext(cookie?.value))?.actor.kind).toBe('impersonator')
     expect(cookie?.value).not.toBe(token)
   })
 
@@ -353,18 +354,18 @@ describe('rota /suporte/[token]', () => {
       expect(res.headers.get('referrer-policy')).toBe('no-referrer')
       expect(res.headers.get('cache-control')).toBe('no-store')
     }
-    expect(jar.has(PAINEL_COOKIE)).toBe(false)
+    expect(jar.has(APP_COOKIE)).toBe(false)
   })
 
   test('a troca pelo navegador revoga a sessão de membro que já estava no cookie', async () => {
     const user = await makeUser({ password: 'senha-bem-longa' })
     await makeMembership(business.id, user.id, 'OWNER')
     const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.2' })
-    jar.set(PAINEL_COOKIE, { value: membro.token, options: {} })
+    jar.set(APP_COOKIE, { value: membro.token, options: {} })
     const token = tokenDaUrl((await startSupport(actor, business.id)).url)
     await chamar(token)
-    expect(await getTenantContext(membro.token)).toBeNull()
-    expect(jar.get(PAINEL_COOKIE)?.value).not.toBe(membro.token)
+    expect(await getStaffContext(membro.token)).toBeNull()
+    expect(jar.get(APP_COOKIE)?.value).not.toBe(membro.token)
   })
 
   test('limite por IP: depois de 30 pedidos em 15 minutos, até o token bom vira 404', async () => {

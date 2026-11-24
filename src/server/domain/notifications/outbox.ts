@@ -41,7 +41,7 @@ const REMINDERS: readonly { kind: NotificationKind; minutesBefore: number }[] = 
   { kind: 'APPOINTMENT_REMINDER_1H', minutesBefore: 60 },
 ]
 const REMINDER_KINDS: NotificationKind[] = REMINDERS.map((r) => r.kind)
-const CHANNELS: readonly NotificationChannel[] = ['EMAIL', 'PUSH']
+const CHANNELS: readonly NotificationChannel[] = ['EMAIL']
 
 type Side = 'staff' | 'customer' | null
 
@@ -86,14 +86,14 @@ type RowOptions = {
   previousStartsAt?: Date
   /** `moved`: o agendamento passou para outro profissional (o aviso vale mesmo com o agendamento ativo). */
   cause?: 'moved'
-  /** Vínculo do observador (dono ou gerente com os avisos de toda a loja): só push, chave com `:w:<vínculo>` e `audience` no payload. */
+  /** Vínculo do observador (dono ou gerente com os avisos de toda a loja): aviso por e-mail, chave com `:w:<vínculo>` e `audience` no payload. */
   watcher?: string
 }
 
-/** Uma linha por canal ligado na conta (observador: só push). */
+/** Uma linha por canal ligado na conta (o observador recebe o aviso por e-mail). */
 function rowsFor(plan: Plan, kind: NotificationKind, to: Recipient, o: RowOptions): Row[] {
   const toggle = plan.enabled[kind]
-  return CHANNELS.filter((channel) => (o.watcher !== undefined && channel === 'EMAIL' ? false : channel === 'EMAIL' ? toggle.email : toggle.push)).map((channel) => ({
+  return CHANNELS.filter(() => toggle.email).map((channel) => ({
     businessId: plan.ctx.businessId,
     kind,
     channel,

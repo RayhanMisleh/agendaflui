@@ -203,7 +203,10 @@ describe('ranking', () => {
       [2, 'Ana', 80],
       [3, 'Maria', 10],
     ])
-    for (const e of r.entries) expect(Object.keys(e).sort()).toEqual(['avatarUrl', 'firstName', 'points', 'position'])
+    // Só a linha do próprio cliente leva `isYou`; as dos outros têm sempre as quatro chaves.
+    for (const e of r.entries) expect(Object.keys(e).filter((k) => k !== 'isYou').sort()).toEqual(['avatarUrl', 'firstName', 'points', 'position'])
+    expect(r.entries.filter((e) => e.isYou).map((e) => e.firstName)).toEqual(['Maria'])
+    expect((await getRanking(s.dono)).entries.some((e) => 'isYou' in e)).toBe(false)
   })
 
   test('só os 10 primeiros', async () => {

@@ -14,6 +14,7 @@ import {
 import { bookAppointment } from '@/server/domain/scheduling/appointments'
 import { createLocalDiskStorage } from '@/server/storage/local-disk'
 import type { Storage } from '@/server/storage/storage'
+import { confirmando } from '../setup/agenda'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
@@ -101,7 +102,7 @@ describe('createCustomer e getCustomer', () => {
       notes: 'Alérgica a perfume',
       isClubMember: true,
       origin: 'PANEL',
-      hasAppAccess: false,
+      hasAccount: false,
       archived: false,
       createdAt: c.createdAt,
     })
@@ -116,14 +117,15 @@ describe('createCustomer e getCustomer', () => {
     expect(c).toMatchObject({ email: null, phone: null, phoneLabel: null, notes: null, birthDate: null })
   })
 
-  test('hasAppAccess vem da senha e a view não vaza o hash', async () => {
+  test('hasAccount vem da pessoa ligada e a view não vaza o hash da senha dela', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
-    const c = await makeCustomer(b.id, { passwordHash: 'hash-secreto', origin: 'APP' })
+    const pessoa = await makeUser({ password: 'senha-secreta-longa' })
+    const c = await makeCustomer(b.id, { userId: pessoa.id, origin: 'APP' })
     const view = await getCustomer(ctx, c.id)
-    expect(view.hasAppAccess).toBe(true)
+    expect(view.hasAccount).toBe(true)
     expect(view.origin).toBe('APP')
-    expect(JSON.stringify(view)).not.toContain('hash-secreto')
+    expect(JSON.stringify(view)).not.toContain(pessoa.passwordHash ?? 'x')
   })
 
   test('entradas inválidas dão validation com o campo certo', async () => {
@@ -429,14 +431,14 @@ describe('arquivar, restaurar e anonimizar', () => {
     const ctx = await makeCtx(b, { now: new Date('2026-11-16T15:00:00Z') })
     const upload = await makeUpload(b.id)
     await storage.put(upload.path, Buffer.from('foto'), 'image/png')
+    const pessoa = await makeUser({ email: 'ana@exemplo.com' })
     const c = await makeCustomer(b.id, {
       name: 'Ana Souza',
       email: 'ana@exemplo.com',
-      passwordHash: 'hash',
+      userId: pessoa.id,
       birthDate: new Date('1990-05-17T00:00:00Z'),
       notes: 'segredo',
       avatarUploadId: upload.id,
-      emailVerifiedAt: new Date(),
       isClubMember: true,
     })
     const ag = await agendar(b.id, c.id)
@@ -447,9 +449,9 @@ describe('arquivar, restaurar e anonimizar', () => {
       name: 'Cliente removido',
       email: null,
       phone: null,
-      passwordHash: null,
+      userId: null,
+      linkedAt: null,
       avatarUploadId: null,
-      emailVerifiedAt: null,
       searchName: 'cliente removido',
       birthDate: null,
       notes: null,
@@ -515,22 +517,40 @@ describe('arquivar, restaurar e anonimizar', () => {
   })
 })
 
-describe('e-mail verificado, avatar e busca avançada', () => {
-  test('trocar o e-mail limpa a verificação; manter ou não tocar mantém', async () => {
+describe('cliente com conta, avatar e busca avançada', () => {
+  test('equipe não troca o e-mail de cliente com conta: "O e-mail é da conta do cliente."', async () => {
     const b = await makeBusiness()
     const ctx = await makeCtx(b)
-    const verificadoEm = new Date('2026-10-01T10:00:00Z')
-    const c = await makeCustomer(b.id, { email: 'ana@exemplo.com', emailVerifiedAt: verificadoEm })
-    const lido = () => prisma.customer.findUniqueOrThrow({ where: { id: c.id } })
-    await updateCustomer(ctx, c.id, { name: 'Ana 2' })
-    expect((await lido()).emailVerifiedAt).toEqual(verificadoEm)
-    await updateCustomer(ctx, c.id, { email: ' ANA@exemplo.com ' })
-    expect((await lido()).emailVerifiedAt).toEqual(verificadoEm)
-    await updateCustomer(ctx, c.id, { email: 'outra@exemplo.com' })
-    expect((await lido()).emailVerifiedAt).toBeNull()
-    await prisma.customer.update({ where: { id: c.id }, data: { emailVerifiedAt: verificadoEm } })
-    await updateCustomer(ctx, c.id, { email: null })
-    expect(await lido()).toMatchObject({ email: null, emailVerifiedAt: null })
+    const pessoa = await makeUser({ email: 'ana@exemplo.com' })
+    const c = await makeCustomer(b.id, { userId: pessoa.id })
+    const erro = await domainError(updateCustomer(ctx, c.id, { email: 'outra@exemplo.com' }))
+    expect(erro.code).toBe('validation')
+    expect(erro.fields?.['email']).toBe('O e-mail é da conta do cliente.')
+    // Repetir o mesmo e-mail não é troca; a pessoa e a cópia seguem iguais.
+    await updateCustomer(ctx, c.id, { email: ' ANA@exemplo.com ', name: 'Ana 2' })
+    expect((await prisma.customer.findUniqueOrThrow({ where: { id: c.id } })).email).toBe('ana@exemplo.com')
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: pessoa.id } })).email).toBe('ana@exemplo.com')
+  })
+
+  test('equipe edita nome, telefone, nascimento, observações e clube do cliente com conta (só na loja)', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const pessoa = await makeUser({ name: 'Ana', phone: '5511911112222' })
+    const c = await makeCustomer(b.id, { userId: pessoa.id, name: 'Ana' })
+    const novo = await updateCustomer(ctx, c.id, { name: 'Ana da Loja', phone: '11 98888-7777', birthDate: '1990-05-17', notes: 'Prefere manhã', isClubMember: true })
+    expect(novo).toMatchObject({ name: 'Ana da Loja', phoneLabel: '(11) 98888-7777', birthDate: '1990-05-17', notes: 'Prefere manhã', isClubMember: true, hasAccount: true })
+    const depois = await prisma.user.findUniqueOrThrow({ where: { id: pessoa.id } })
+    expect(depois).toMatchObject({ name: 'Ana', phone: '5511911112222' })
+  })
+
+  test('anonimizar desliga a pessoa (user_id e linked_at nulos) e a pessoa continua existindo', async () => {
+    const b = await makeBusiness()
+    const ctx = await makeCtx(b)
+    const pessoa = await makeUser()
+    const c = await makeCustomer(b.id, { userId: pessoa.id })
+    await anonymizeCustomer(ctx, c.id)
+    expect(await prisma.customer.findUniqueOrThrow({ where: { id: c.id } })).toMatchObject({ userId: null, linkedAt: null, email: null })
+    expect(await prisma.user.findUnique({ where: { id: pessoa.id } })).not.toBeNull()
   })
 
   test('avatarUrl vem do upload do avatar', async () => {
@@ -684,8 +704,8 @@ describe('cliente com agendamentos futuros', () => {
     const mB = await makeMembership(b.id, donoB.id, 'PROFESSIONAL')
     const p1 = await makeProfessional(b.id, { serviceIds: [tosa.id], membershipId: mA.id })
     const p2 = await makeProfessional(b.id, { serviceIds: [tosa.id], membershipId: mB.id })
-    const a1 = await bookAppointment(ctx, { customerId: c.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS })
-    const a2 = await bookAppointment(ctx, { customerId: c.id, professionalId: p2.id, serviceIds: [tosa.id], startsAt: EM_3_DIAS })
+    const a1 = await confirmando((acknowledged) => bookAppointment(ctx, { customerId: c.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS, acknowledged }))
+    const a2 = await confirmando((acknowledged) => bookAppointment(ctx, { customerId: c.id, professionalId: p2.id, serviceIds: [tosa.id], startsAt: EM_3_DIAS, acknowledged }))
     const passado = await makeAppointment(b.id, {
       customerId: c.id,
       professionalId: p1.id,
@@ -716,7 +736,9 @@ describe('cliente com agendamentos futuros', () => {
     expect(new Set(avisos.map((n) => n.appointmentId))).toEqual(new Set([a1.id, a2.id]))
     // O horário ficou livre para outro cliente.
     const outro = await makeCustomer(b.id)
-    await bookAppointment(ctx, { customerId: outro.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS })
+    // Sem expediente cadastrado a equipe confirma o "fora do expediente"; o horário não tem mais dono (não vira encaixe).
+    const novo = await confirmando((acknowledged) => bookAppointment(ctx, { customerId: outro.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS, acknowledged }))
+    expect(await prisma.appointment.findUniqueOrThrow({ where: { id: novo.id } })).toMatchObject({ isSqueezeIn: false })
     const logs = await auditorias(b.id, 'customer.anonymized')
     expect(logs).toHaveLength(1)
     expect(logs[0]?.metadata).toMatchObject({ hadAvatar: false, canceledAppointments: 2 })

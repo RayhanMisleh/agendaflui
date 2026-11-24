@@ -5,13 +5,13 @@ import { auditIn } from '@/server/domain/audit'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
 import { writeSettings, type SettingsTx } from '@/server/domain/settings/versioned'
 
-export type ChannelToggle = { email: boolean; push: boolean }
+export type ChannelToggle = { email: boolean }
 export type NotificationSettings = Record<NotificationKind, ChannelToggle>
 
 const KINDS: readonly NotificationKind[] = Object.values(NotificationKind)
 
 function allOn(): NotificationSettings {
-  return Object.fromEntries(KINDS.map((kind) => [kind, { email: true, push: true }])) as NotificationSettings
+  return Object.fromEntries(KINDS.map((kind) => [kind, { email: true }])) as NotificationSettings
 }
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = allOn()
@@ -27,15 +27,13 @@ export function resolveNotificationSettings(raw: unknown): NotificationSettings 
   for (const kind of KINDS) {
     const entry = raw[kind]
     if (!isRecord(entry)) continue
-    result[kind] = {
-      email: typeof entry['email'] === 'boolean' ? entry['email'] : true,
-      push: typeof entry['push'] === 'boolean' ? entry['push'] : true,
-    }
+    // Um `push` guardado de antes é ignorado: o canal não existe mais.
+    result[kind] = { email: typeof entry['email'] === 'boolean' ? entry['email'] : true }
   }
   return result
 }
 
-const toggleSchema = z.strictObject({ email: z.boolean(), push: z.boolean() }).partial()
+const toggleSchema = z.strictObject({ email: z.boolean() }).partial()
 const patchSchema = z
   .strictObject(Object.fromEntries(KINDS.map((kind) => [kind, toggleSchema])) as Record<NotificationKind, typeof toggleSchema>)
   .partial()
@@ -84,12 +82,9 @@ export async function applyNotificationSettings(
     for (const kind of KINDS) {
       const wanted = input[kind]
       if (!wanted) continue
-      const merged: ChannelToggle = {
-        email: wanted.email ?? current[kind].email,
-        push: wanted.push ?? current[kind].push,
-      }
+      const merged: ChannelToggle = { email: wanted.email ?? current[kind].email }
       next[kind] = merged
-      if (merged.email !== current[kind].email || merged.push !== current[kind].push) {
+      if (merged.email !== current[kind].email) {
         mudados[kind] = { from: current[kind], to: merged }
       }
     }

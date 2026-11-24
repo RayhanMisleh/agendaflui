@@ -4,7 +4,10 @@ import { DomainError } from '@/server/domain/errors'
 import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { computeFreeStarts, loadDayOccupancy, type Candidate } from '@/server/domain/scheduling/availability'
 import type { Db, Row, Who } from '@/server/domain/scheduling/appointment-view'
-import { withinCustomerWindow } from '@/server/domain/scheduling/change-window'
+import { acknowledgementOf, needsConfirmation, staffIssues, type ConfirmIssue, type NearestSlot } from '@/server/domain/scheduling/staff-issues'
+import { assertCustomerWindow } from '@/server/domain/scheduling/change-window'
+
+export { assertCustomerWindow }
 import { overlaps } from '@/server/domain/scheduling/slots'
 import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
 import { addMinutes, formatTimeDistinct, localDayRange, localParts } from '@/server/time'
@@ -37,21 +40,6 @@ function isOverlapViolation(err: unknown): boolean {
     cause.code === '23P01' &&
     namesOverlapConstraint(cause)
   )
-}
-
-function windowLabel(min: number): string {
-  return min >= 60 && min % 60 === 0 ? `${min / 60} h` : `${min} min`
-}
-
-/** O cliente só cancela ou remarca até `customerChangeWindowMin` antes do início. */
-export function assertCustomerWindow(ctx: TenantContext, rules: SchedulingRules, startsAt: Date, verb: string): void {
-  if (!withinCustomerWindow(ctx.clock(), startsAt, rules.customerChangeWindowMin)) {
-    throw new DomainError(
-      'conflict',
-      `O prazo para ${verb} pelo app é de ${windowLabel(rules.customerChangeWindowMin)} antes do horário. Fale com o estabelecimento.`,
-      { reason: 'too_late' },
-    )
-  }
 }
 
 export function assertStaffStart(ctx: TenantContext, startsAt: Date): void {
@@ -101,14 +89,12 @@ async function conflictsOf(
   return result
 }
 
-/** Erro de horário ocupado, com até 3 próximos inícios livres do mesmo dia (melhor esforço). */
-async function slotTaken(
+/** Até 3 próximos inícios livres do mesmo dia, com as regras do cliente (grade e folga); melhor esforço, nunca lança. */
+export async function nearestSlots(
   ctx: TenantContext,
   db: Db,
   i: { startsAt: Date; durationMin: number; professionalIds: string[]; ignoreAppointmentId?: string },
-): Promise<DomainError> {
-  // `nearest` usa as regras do cliente (grade e folga) também quando quem pede é a equipe.
-  let nearest: { startsAt: Date; label: string; date: string }[] = []
+): Promise<NearestSlot[]> {
   try {
     const rules = await getSchedulingRules(ctx, db)
     const starts = await computeFreeStarts(
@@ -122,60 +108,61 @@ async function slotTaken(
       },
       db,
     )
-    nearest = [...starts.values()]
+    return [...starts.values()]
       .filter((s) => s.startsAt.getTime() > i.startsAt.getTime())
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
       .slice(0, 3)
       .map((s) => ({ startsAt: s.startsAt, label: formatTimeDistinct(s.startsAt, ctx.timeZone), date: localParts(s.startsAt, ctx.timeZone).date }))
   } catch {
-    nearest = []
+    return []
   }
+}
+
+/** Erro de horário ocupado, com até 3 próximos inícios livres do mesmo dia (melhor esforço). */
+async function slotTaken(
+  ctx: TenantContext,
+  db: Db,
+  i: { startsAt: Date; durationMin: number; professionalIds: string[]; ignoreAppointmentId?: string },
+): Promise<DomainError> {
+  const nearest = await nearestSlots(ctx, db, i)
   return new DomainError('conflict', 'Esse horário acabou de ser ocupado. Escolha outro.', {
     reason: 'slot_taken',
     details: { nearest },
   })
 }
 
-/** Equipe: devolve os profissionais livres no intervalo (sem folga). Nenhum livre vira `blocked` ou `slot_taken`. */
-export async function assertFreeForStaff(
+/**
+ * Equipe: confere o que há no horário. Sem nada, segue. Com algo, só segue se a impressão (`acknowledged`) bater com o que há
+ * agora; senão pede a confirmação com a lista atual. Nada é gravado aqui.
+ */
+export async function confirmStaffIssues(
   ctx: TenantContext,
-  tx: TenantTx,
+  db: Db,
   i: {
-    professionalIds: string[]
-    specific: boolean
+    professionalId: string
     startsAt: Date
     endsAt: Date
+    issues: ConfirmIssue[]
+    acknowledged: string | undefined
     durationMin: number
-    bufferMin: number
     ignoreAppointmentId?: string
-    /** Texto do erro `blocked`, quando a operação não é uma marcação (ajuste de serviços). */
-    blockedMessage?: string
   },
-): Promise<string[]> {
-  const ignore = i.ignoreAppointmentId ? { ignoreAppointmentId: i.ignoreAppointmentId } : {}
-  const states = await conflictsOf(ctx, tx, {
-    professionalIds: i.professionalIds,
-    startsAt: i.startsAt,
-    endsAt: i.endsAt,
-    bufferMin: i.bufferMin,
-    ...ignore,
-  })
-  const free = i.professionalIds.filter((id) => states.get(id) === null)
-  if (free.length > 0) return free
-  const only = i.professionalIds.length === 1 ? states.get(i.professionalIds[0] ?? '') : undefined
-  if (i.specific && only === 'blocked') {
-    throw new DomainError(
-      'conflict',
-      i.blockedMessage ??
-        'A agenda deste profissional está bloqueada nesse horário. Escolha outro horário ou outro profissional.',
-      { reason: 'blocked' },
-    )
-  }
-  throw await slotTaken(ctx, tx, {
-    startsAt: i.startsAt,
-    durationMin: i.durationMin,
-    professionalIds: i.professionalIds,
-    ...ignore,
+): Promise<void> {
+  if (i.issues.length === 0) return
+  const acknowledgement = acknowledgementOf(i)
+  if (i.acknowledged === acknowledgement) return
+  const professional = await db.professional.findUnique({ where: { id: i.professionalId }, select: { name: true } })
+  throw needsConfirmation({
+    professionalId: i.professionalId,
+    professionalName: professional?.name ?? '',
+    issues: i.issues,
+    acknowledgement,
+    nearest: await nearestSlots(ctx, db, {
+      startsAt: i.startsAt,
+      durationMin: i.durationMin,
+      professionalIds: [i.professionalId],
+      ...(i.ignoreAppointmentId ? { ignoreAppointmentId: i.ignoreAppointmentId } : {}),
+    }),
   })
 }
 
@@ -197,14 +184,17 @@ type Place = {
   durationMin: number
   rules: SchedulingRules
   ignoreAppointmentId?: string
+  /** Impressão devolvida por `needs_confirmation` (só a equipe usa). */
+  acknowledged?: string | undefined
 }
 
 /**
  * Decide, dentro da transação e com as travas já obtidas, em qual profissional o atendimento cabe.
  * Cliente do app: o início precisa estar entre os oferecidos por `getAvailability` (mesma conta).
- * Equipe: só não pode sobrepor outro agendamento ativo nem bloqueio do profissional.
+ * Equipe: qualquer minuto e duração; se há algo no horário (loja fechada, fora do expediente, bloqueio, outro agendamento),
+ * a marcação só segue com a impressão da confirmação (`needs_confirmation`).
  */
-export async function placeAppointment(ctx: TenantContext, tx: TenantTx, p: Place): Promise<string> {
+export async function placeAppointment(ctx: TenantContext, tx: TenantTx, p: Place): Promise<{ professionalId: string }> {
   const ids = p.eligible.map((c) => c.id)
   const ignore = p.ignoreAppointmentId ? { ignoreAppointmentId: p.ignoreAppointmentId } : {}
   const taken = () => slotTaken(ctx, tx, { startsAt: p.startsAt, durationMin: p.durationMin, professionalIds: ids, ...ignore })
@@ -232,19 +222,48 @@ export async function placeAppointment(ctx: TenantContext, tx: TenantTx, p: Plac
       })
     }
   } else {
-    free = await assertFreeForStaff(ctx, tx, {
-      professionalIds: ids,
-      specific: p.specific,
-      startsAt: p.startsAt,
-      endsAt: p.endsAt,
-      durationMin: p.durationMin,
-      bufferMin: p.rules.bufferMin,
-      ...ignore,
-    })
+    const found = new Map<string, ConfirmIssue[]>()
+    for (const id of ids) {
+      found.set(id, await staffIssues(ctx, tx, { professionalId: id, startsAt: p.startsAt, endsAt: p.endsAt, ...ignore }))
+    }
+    free = ids.filter((id) => (found.get(id) ?? []).length === 0)
+    if (free.length === 0) {
+      const day = localDayRange(localParts(p.startsAt, ctx.timeZone).date, ctx.timeZone)
+      const booked = await tx.appointment.findMany({
+        where: {
+          professionalId: { in: ids },
+          status: { in: [...ACTIVE_STATUSES] },
+          startsAt: { gte: day.start, lt: day.end },
+          ...(p.ignoreAppointmentId ? { id: { not: p.ignoreAppointmentId } } : {}),
+        },
+        select: { professionalId: true },
+      })
+      const load = new Map<string, number>(ids.map((id) => [id, 0]))
+      for (const b of booked) load.set(b.professionalId, (load.get(b.professionalId) ?? 0) + 1)
+      const order = new Map(p.eligible.map((c) => [c.id, c.displayOrder]))
+      const least = [...ids].sort(
+        (a, b) =>
+          (found.get(a)?.length ?? 0) - (found.get(b)?.length ?? 0) ||
+          (load.get(a) ?? 0) - (load.get(b) ?? 0) ||
+          (order.get(a) ?? 0) - (order.get(b) ?? 0) ||
+          a.localeCompare(b),
+      )[0]
+      if (!least) throw await taken()
+      await confirmStaffIssues(ctx, tx, {
+        professionalId: least,
+        startsAt: p.startsAt,
+        endsAt: p.endsAt,
+        issues: found.get(least) ?? [],
+        acknowledged: p.acknowledged,
+        durationMin: p.durationMin,
+        ...ignore,
+      })
+      return { professionalId: least }
+    }
   }
 
   const [first] = free
-  if (free.length === 1 && first) return first
+  if (free.length === 1 && first) return { professionalId: first }
   const day = localDayRange(localParts(p.startsAt, ctx.timeZone).date, ctx.timeZone)
   const booked = await tx.appointment.findMany({
     where: {
@@ -265,7 +284,7 @@ export async function placeAppointment(ctx: TenantContext, tx: TenantTx, p: Plac
       a.localeCompare(b),
   )[0]
   if (!best) throw await taken()
-  return best
+  return { professionalId: best }
 }
 
 /**

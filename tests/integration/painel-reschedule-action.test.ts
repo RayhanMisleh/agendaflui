@@ -7,7 +7,7 @@ const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { remarcarAtendimento } from '@/app/painel/(app)/agenda/actions'
+import { remarcarAtendimento } from '@/app/app/painel/agenda/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const MANAUS = 'America/Manaus'
@@ -81,7 +81,7 @@ describe('remarcar', () => {
     const r = await remarcarAtendimento(ini, form({ id: a.id, date: '2026-11-17', time: '14:30', professionalId: m.ana.id }))
     expect(r.ok).toBe(false)
     expect(r.conflict?.nearest.length).toBeGreaterThan(0)
-    expect(r.message).toMatch(/ocupado/)
+    expect(r.message).toMatch(/Confira o horário/)
     expect(await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ startsAt: mn(17, 10), professionalId: m.ana.id })
   })
 

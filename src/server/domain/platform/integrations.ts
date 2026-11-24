@@ -78,7 +78,7 @@ function visao(row: BusinessIntegration | null): IntegrationsView {
       configured: mpConfigurado,
       accessTokenLast4: row?.mpAccessTokenLast4 ?? null,
       webhookSecretLast4: row?.mpWebhookSecretLast4 ?? null,
-      webhookUrl: mpConfigurado && row.mpWebhookKey !== null ? areaLink('api', `/v1/webhooks/mercadopago/${row.mpWebhookKey}`) : null,
+      webhookUrl: mpConfigurado && row.mpWebhookKey !== null ? areaLink('app', `/webhooks/mercadopago/${row.mpWebhookKey}`) : null,
       updatedLabel: row !== null && mpConfigurado ? rotulo(row.mpUpdatedAt) : null,
     },
     frenet: {

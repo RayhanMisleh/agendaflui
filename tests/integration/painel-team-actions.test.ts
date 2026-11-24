@@ -40,8 +40,8 @@ import {
   salvarDadosProfissional,
   salvarExpediente,
   salvarServicosProfissional,
-} from '@/app/painel/(app)/equipe/actions'
-import { POST as enviarFoto } from '@/app/painel/(app)/equipe/[id]/foto/route'
+} from '@/app/app/painel/equipe/actions'
+import { POST as enviarFoto } from '@/app/app/painel/equipe/[id]/foto/route'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -149,7 +149,7 @@ describe('dados e comissão', () => {
 
   test('cadastrarNaEquipe grava ficha, acesso e convite e vai para a ficha nova', async () => {
     const r = cadastrarNaEquipe(ini, form({ name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' }))
-    await expect(r).rejects.toThrow(/NEXT_REDIRECT \/equipe\//)
+    await expect(r).rejects.toThrow(/NEXT_REDIRECT \/painel\/equipe\//)
     const p = await prisma.professional.findFirstOrThrow({ where: { businessId } })
     expect(p.name).toBe('Duda')
     const vinculo = await prisma.membership.findFirstOrThrow({ where: { id: p.membershipId ?? '' }, include: { user: true } })
@@ -160,7 +160,7 @@ describe('dados e comissão', () => {
   test('cadastrarNaEquipe redireciona para a ficha criada', async () => {
     const e = await cadastrarNaEquipe(ini, form({ name: 'Duda', email: 'duda@exemplo.test', role: 'PROFESSIONAL' })).then(() => null, (x: Error) => x)
     const p = await prisma.professional.findFirstOrThrow({ where: { businessId } })
-    expect(e?.message).toBe(`NEXT_REDIRECT /equipe/${p.id}`)
+    expect(e?.message).toBe(`NEXT_REDIRECT /painel/equipe/${p.id}`)
   })
 
   test('cadastrarNaEquipe sem e-mail volta erro no campo email e não grava nada', async () => {
@@ -491,19 +491,19 @@ describe('remover profissional', () => {
 })
 
 describe('rota da foto', () => {
-  const OK = { host: 'painel.localhost:3000', origin: 'http://painel.localhost:3000' }
+  const OK = { host: 'app.localhost:3000', origin: 'http://app.localhost:3000' }
   const png = async () => new File([new Uint8Array(await sharp({ create: { width: 64, height: 64, channels: 3, background: '#0e4f5c' } }).png().toBuffer())], 'foto.png', { type: 'image/png' })
   function pedido(id: string, campos: Record<string, string | File>, headers: Record<string, string> = OK) {
     const fd = new FormData()
     for (const [k, v] of Object.entries(campos)) fd.set(k, v)
-    return [new Request(`http://painel.localhost:3000/equipe/${id}/foto`, { method: 'POST', headers, body: fd }), { params: Promise.resolve({ id }) }] as const
+    return [new Request(`http://app.localhost:3000/equipe/${id}/foto`, { method: 'POST', headers, body: fd }), { params: Promise.resolve({ id }) }] as const
   }
 
   test('envia a foto, volta à ficha e liga o arquivo ao profissional', async () => {
     const p = await makeProfessional(businessId, { name: 'Caio' })
     const r = await enviarFoto(...pedido(p.id, { file: await png() }))
     expect(r.status).toBe(303)
-    expect(r.headers.get('location')).toBe(`/equipe/${p.id}?foto=ok`)
+    expect(r.headers.get('location')).toBe(`/painel/equipe/${p.id}?foto=ok`)
     expect((await prisma.professional.findUniqueOrThrow({ where: { id: p.id } })).avatarUploadId).not.toBeNull()
   })
 
@@ -511,9 +511,9 @@ describe('rota da foto', () => {
     const eu = await comoProfissional('Ana')
     const colega = await makeProfessional(businessId, { name: 'Caio' })
     guards.requireTenant.mockResolvedValue(eu.ctx)
-    expect((await enviarFoto(...pedido(eu.ficha.id, { file: await png() }))).headers.get('location')).toBe(`/equipe/${eu.ficha.id}?foto=ok`)
+    expect((await enviarFoto(...pedido(eu.ficha.id, { file: await png() }))).headers.get('location')).toBe(`/painel/equipe/${eu.ficha.id}?foto=ok`)
     const r = await enviarFoto(...pedido(colega.id, { file: await png() }))
-    expect(r.headers.get('location')).toBe(`/equipe/${colega.id}?foto=refused`)
+    expect(r.headers.get('location')).toBe(`/painel/equipe/${colega.id}?foto=refused`)
     expect((await prisma.professional.findUniqueOrThrow({ where: { id: colega.id } })).avatarUploadId).toBeNull()
   })
 
@@ -521,7 +521,7 @@ describe('rota da foto', () => {
     const p = await makeProfessional(businessId, { name: 'Caio' })
     await enviarFoto(...pedido(p.id, { file: await png() }))
     const r = await enviarFoto(...pedido(p.id, { intent: 'remove' }))
-    expect(r.headers.get('location')).toBe(`/equipe/${p.id}?foto=ok`)
+    expect(r.headers.get('location')).toBe(`/painel/equipe/${p.id}?foto=ok`)
     expect((await prisma.professional.findUniqueOrThrow({ where: { id: p.id } })).avatarUploadId).toBeNull()
   })
 
@@ -534,7 +534,7 @@ describe('rota da foto', () => {
 
   test('origem de outro site, ou sem origem: 403 e nada é gravado', async () => {
     const p = await makeProfessional(businessId, { name: 'Caio' })
-    const outras: Record<string, string>[] = [{ host: 'painel.localhost:3000', origin: 'http://evil.example' }, { host: 'painel.localhost:3000' }]
+    const outras: Record<string, string>[] = [{ host: 'app.localhost:3000', origin: 'http://evil.example' }, { host: 'app.localhost:3000' }]
     for (const headers of outras) {
       const r = await enviarFoto(...pedido(p.id, { file: await png() }, headers))
       expect(r.status).toBe(403)
@@ -545,18 +545,18 @@ describe('rota da foto', () => {
   test('arquivo que não é imagem volta com o código do motivo', async () => {
     const p = await makeProfessional(businessId, { name: 'Caio' })
     const r = await enviarFoto(...pedido(p.id, { file: new File(['oi'], 'x.txt', { type: 'text/plain' }) }))
-    expect(r.headers.get('location')).toBe(`/equipe/${p.id}?foto=not_an_image`)
+    expect(r.headers.get('location')).toBe(`/painel/equipe/${p.id}?foto=not_an_image`)
   })
 
   test('sem arquivo e arquivo grande demais', async () => {
     const p = await makeProfessional(businessId, { name: 'Caio' })
-    expect((await enviarFoto(...pedido(p.id, {}))).headers.get('location')).toBe(`/equipe/${p.id}?foto=no_file`)
+    expect((await enviarFoto(...pedido(p.id, {}))).headers.get('location')).toBe(`/painel/equipe/${p.id}?foto=no_file`)
     const grande = new File([new Uint8Array(8 * 1024 * 1024 + 10)], 'g.png', { type: 'image/png' })
-    expect((await enviarFoto(...pedido(p.id, { file: grande }))).headers.get('location')).toBe(`/equipe/${p.id}?foto=too_large`)
+    expect((await enviarFoto(...pedido(p.id, { file: grande }))).headers.get('location')).toBe(`/painel/equipe/${p.id}?foto=too_large`)
   })
 
   test('a rota só aceita POST', async () => {
-    const rota = await import('@/app/painel/(app)/equipe/[id]/foto/route')
+    const rota = await import('@/app/app/painel/equipe/[id]/foto/route')
     expect(Object.keys(rota)).toEqual(['POST'])
   })
 })

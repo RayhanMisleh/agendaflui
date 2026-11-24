@@ -5,7 +5,8 @@ import { IntegrationError } from './errors'
  * aqui, dentro da corrida com o relógio, e devolvida já pronta (um corpo que trava vira `timeout`, não um pedido pendurado). Resposta
  * de erro não tem o corpo lido (ninguém o usa) e é cancelada. O limite vale mesmo que o `fetch` ignore o aborto (a corrida com o
  * relógio devolve `timeout` do mesmo jeito) e o relógio é um `setTimeout` comum, que os testes podem adiantar. Falha de rede vira
- * `unavailable`. Nunca repassa o texto do erro original (pode trazer endereço e dado do cliente).
+ * `unavailable`. Nunca repassa o texto do erro original (pode trazer endereço e dado do cliente). Com `keepErrorBody`, a resposta de
+ * erro também tem o corpo lido (dentro da mesma corrida com o relógio) para quem precisa do motivo; ele nunca vai para mensagem.
  */
 export async function fetchWithTimeout(
   doFetch: typeof fetch,
@@ -13,6 +14,7 @@ export async function fetchWithTimeout(
   init: RequestInit,
   timeoutMs: number,
   servico: string,
+  keepErrorBody = false,
 ): Promise<Response> {
   const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -28,6 +30,10 @@ export async function fetchWithTimeout(
       // O aborto do nosso relógio já rejeitou `expirou`; qualquer outra falha é de rede.
       throw new IntegrationError('unavailable', `${servico} está fora do ar.`)
     })
+    if (!res.ok && keepErrorBody) {
+      const corpo = await res.text().catch(() => '')
+      return new Response(corpo === '' ? null : corpo, { status: res.status, statusText: res.statusText, headers: res.headers })
+    }
     if (!res.ok) {
       void res.body?.cancel().catch(() => undefined)
       return new Response(null, { status: res.status, statusText: res.statusText, headers: res.headers })

@@ -128,7 +128,7 @@ export async function saveImage(input: SaveImageInput, storage: Storage = getSto
 
 /** URL absoluta (host da API) de um upload, para quem usa o app e não está no host do painel. `/arquivos/*` é servido em todos os hosts. */
 export function publicUploadUrl(upload: { path: string } | null | undefined): string | null {
-  return upload ? areaLink('api', `/arquivos/${upload.path}`) : null
+  return upload ? areaLink('app', `/arquivos/${upload.path}`) : null
 }
 
 export function uploadUrl(upload: { path: string } | null | undefined): string | null {

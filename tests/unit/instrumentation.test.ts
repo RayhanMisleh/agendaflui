@@ -11,9 +11,7 @@ const base = {
   DATABASE_URL: 'postgres://u:p@localhost:5432/d',
   APP_SECRET: 'a'.repeat(40),
   DEV_HOST: 'dev.exemplo.com',
-  PAINEL_HOST: 'painel.exemplo.com',
-  API_HOST: 'api.exemplo.com',
-  APP_WEB_ORIGINS: 'https://app.exemplo.com',
+  APP_HOST: 'app.exemplo.com',
   TRUSTED_PROXY_HOPS: '1',
   SMTP_URL: 'smtp://u:senha-secreta@h:587',
   MAIL_FROM: 'A <a@exemplo.com>',
@@ -59,18 +57,16 @@ describe('shouldRunInProcess', () => {
 })
 
 describe('register', () => {
-  test('com WORKER_ENABLED=false o agendador sobe só para as métricas (sem avisos nem limpeza)', async () => {
+  test('com WORKER_ENABLED=false o agendador não sobe', async () => {
     ambiente({ WORKER_ENABLED: 'false' })
     await register()
-    expect(start).toHaveBeenCalledTimes(1)
-    expect(start).toHaveBeenCalledWith({ worker: false })
+    expect(start).not.toHaveBeenCalled()
   })
 
   test('no runtime Node com o agendador ligado, inicia uma vez', async () => {
     ambiente({ WORKER_ENABLED: 'true' })
     await register()
     expect(start).toHaveBeenCalledTimes(1)
-    expect(start).toHaveBeenCalledWith({ worker: true })
   })
 
   test('no runtime edge não inicia nem valida nada', async () => {
@@ -95,10 +91,10 @@ describe('register', () => {
   })
 
   test('em produção recusa host local, sem imprimir o valor', async () => {
-    ambiente({ API_HOST: 'api.localhost:3000' })
+    ambiente({ APP_HOST: 'app.localhost:3000' })
     const erro = await register().then(() => null, (e: unknown) => e)
-    expect(String(erro)).toMatch(/API_HOST/)
-    expect(String(erro)).not.toContain('api.localhost')
+    expect(String(erro)).toMatch(/APP_HOST/)
+    expect(String(erro)).not.toContain('app.localhost')
     expect(start).not.toHaveBeenCalled()
   })
 
@@ -116,7 +112,7 @@ describe('register', () => {
       await register()
       const texto = aviso.mock.calls.flat().join('\n')
       expect(texto).toMatch(/limites por IP desligados e auditoria sem IP/)
-      expect(texto).toMatch(/convites e cadastro pelo app não chegam/)
+      expect(texto).toMatch(/convites e cadastro de clientes não chegam/)
       expect(start).toHaveBeenCalledTimes(1)
     } finally {
       aviso.mockRestore()

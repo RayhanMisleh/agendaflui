@@ -16,9 +16,9 @@ const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { avancarEntrega, cancelarPedido, simularPagamento } from '@/app/painel/(app)/loja/pedidos/actions'
-import PedidoPage from '@/app/painel/(app)/loja/pedidos/[id]/page'
-import LojaPage from '@/app/painel/(app)/loja/page'
+import { avancarEntrega, cancelarPedido, simularPagamento } from '@/app/app/painel/loja/pedidos/actions'
+import PedidoPage from '@/app/app/painel/loja/pedidos/[id]/page'
+import LojaPage from '@/app/app/painel/loja/page'
 import { notFound } from 'next/navigation'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
@@ -295,7 +295,7 @@ describe('página do pedido', () => {
     expect(t).toContain(`#${o.number}`)
     expect(t).toContain('Shampoo')
     expect(t).toContain('Maria da Silva')
-    expect(t).toMatch(/\/clientes\/[0-9a-f-]{36}/)
+    expect(t).toMatch(/\/painel\/clientes\/[0-9a-f-]{36}/)
     expect(t).toContain('Aprovado')
     expect(t).toContain('Pedido criado')
     expect(t).toContain('Pago em')

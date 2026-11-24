@@ -12,7 +12,7 @@ function arquivos(dir: string): string[] {
 
 function usados(): Set<string> {
   const encontrados = new Set<string>()
-  for (const raiz of ['src/server/domain', 'src/server/db']) {
+  for (const raiz of ['src/server/domain', 'src/server/db', 'src/server/auth', 'src/server/calendar']) {
     for (const arquivo of arquivos(raiz)) {
       for (const m of readFileSync(arquivo, 'utf8').matchAll(/reason: '([a-z_]+)'/g)) {
         if (m[1]) encontrados.add(m[1])

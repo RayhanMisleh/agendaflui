@@ -11,10 +11,8 @@ import type { AcaoConta, Campos } from './forms'
 
 export type Imagens = { logo: string | null; symbol: string | null; favicon: string | null; loginImage: string | null }
 
-type Termos = { professionalSingular: string; professionalPlural: string; customerSingular: string; customerPlural: string }
-
 /** Marca da conta: o formulário e a prévia ao vivo lado a lado. As cores e o material trocam a prévia na hora, sem enviar. */
-export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoConta; valores: Campos; termos: Termos; logoUrl: string | null }) {
+export function MarcaForm({ action, valores, logoUrl }: { action: AcaoConta; valores: Campos; logoUrl: string | null }) {
   const [v, setV] = useState({
     displayName: valores.displayName ?? '',
     primary: valores.primary ?? '',
@@ -46,7 +44,7 @@ export function MarcaForm({ action, valores, termos, logoUrl }: { action: AcaoCo
         </ContaForm>
       </div>
       <FoldablePreview className="af-wizard__aside">
-        <BrandPreview businessName={v.displayName} brand={{ ...v, logoUrl }} terms={{ ...termos }} />
+        <BrandPreview businessName={v.displayName} brand={{ ...v, logoUrl }} />
       </FoldablePreview>
     </div>
   )

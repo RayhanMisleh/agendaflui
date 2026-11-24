@@ -101,7 +101,7 @@ describe('Mercado Pago', () => {
     expect(v.mercadoPago.webhookSecretLast4).toBe('Hy5N')
     expect(v.mercadoPago.updatedLabel).toBeTruthy()
     const linha = await prisma.businessIntegration.findUniqueOrThrow({ where: { businessId: conta.id } })
-    expect(v.mercadoPago.webhookUrl).toBe(`http://${env.API_HOST}/v1/webhooks/mercadopago/${linha.mpWebhookKey}`)
+    expect(v.mercadoPago.webhookUrl).toBe(`http://${env.APP_HOST}/webhooks/mercadopago/${linha.mpWebhookKey}`)
     expect(linha.mpWebhookKey).toMatch(/^[A-Za-z0-9_-]{43}$/)
     const crua = await linhaCrua(conta.id)
     expect(crua).not.toContain(TOKEN)

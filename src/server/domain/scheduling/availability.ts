@@ -3,9 +3,15 @@ import { DomainError, parse, z } from '@/server/domain/errors'
 import { isCustomer } from '@/server/domain/input'
 import { isClosedOn, listClosures } from '@/server/domain/settings/closures'
 import { getSchedulingRules, type SchedulingRules } from '@/server/domain/settings/scheduling-rules'
-import { ACTIVE_STATUSES } from '@/server/domain/scheduling/status'
+import { actorKind, invalidTransition, loadForActor, staffScope } from '@/server/domain/scheduling/appointment-view'
+import { assertCustomerWindow } from '@/server/domain/scheduling/change-window'
+import { ACTIVE_STATUSES, OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { computeSlots, type Interval, type WorkingRange } from '@/server/domain/scheduling/slots'
 import { toServiceView, type ServiceView } from '@/server/domain/catalog/services'
+import { isServiceOffered, priceFor } from '@/server/domain/catalog/pricing'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
+import { variantDef, variantOfPet } from '@/server/niches'
+import type { PriceVariant } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import {
   addDays,
@@ -49,23 +55,45 @@ const serviceIdsSchema = z.object({
     .refine((ids) => new Set(ids).size === ids.length, 'Há serviços repetidos na lista. Escolha cada serviço uma vez.'),
 })
 
-/** Valida a lista e devolve os serviços na ordem pedida, com duração e total somados. */
+/** O serviço já com preço e tempo da variante do pet (ou os únicos) e a variante atendida. */
+export type ResolvedItem = ServiceView & { variant: PriceVariant | null }
+
+/**
+ * Valida a lista e devolve os serviços na ordem pedida, com duração e total somados. Com `pricing.variant` (o animal e
+ * o porte do pet), cada serviço é conferido pela regra única de elegibilidade e vem com o preço e o tempo da variante.
+ */
 export async function resolveServices(
   ctx: TenantContext,
   serviceIds: string[],
   db: Db = ctx.db,
-): Promise<{ items: ServiceView[]; durationMin: number; totalCents: number }> {
+  pricing: { variant: PriceVariant | null } = { variant: null },
+): Promise<{ items: ResolvedItem[]; durationMin: number; totalCents: number }> {
   const ids = parse(serviceIdsSchema, { serviceIds }).serviceIds
+  const { variant } = pricing
 
   const rows = await db.service.findMany({
     where: { id: { in: ids }, active: true, archivedAt: null },
+    include: { prices: true },
   })
   const byId = new Map(rows.map((row) => [row.id, row]))
-  const items: ServiceView[] = []
+  const customer = isCustomer(ctx)
+  const servesCats = variant === 'CAT' ? (await getNicheSettings(ctx, db)).options.servesCats : false
+  const items: ResolvedItem[] = []
   for (const id of ids) {
     const row = byId.get(id)
     if (!row) throw invalidServices('Um dos serviços não está disponível. Escolha outro e tente de novo.')
-    items.push(toServiceView(row))
+    const view = toServiceView(row, row.prices)
+    if (variant === 'CAT' && customer && !servesCats) {
+      throw new DomainError('conflict', 'A loja não atende gatos no momento.', { reason: 'not_offered' })
+    }
+    if (!isServiceOffered(view, variant, { who: customer ? 'customer' : 'staff', servesCats })) {
+      if (variant === null) throw invalidServices(`Escolha o pet para ver o preço de ${view.name}.`)
+      const message = `${view.name} não é feito para ${variantDef(variant).label}.`
+      throw new DomainError('validation', message, { reason: 'not_offered', fields: { serviceIds: message } })
+    }
+    const price = priceFor(view, variant)
+    if (price === null) throw invalidServices(`Escolha o pet para ver o preço de ${view.name}.`)
+    items.push({ ...view, ...price, variant })
   }
 
   const durationMin = items.reduce((sum, item) => sum + item.durationMin, 0)
@@ -200,7 +228,26 @@ export async function loadDayOccupancy(
 const availabilitySchema = z.object({
   date: localDate,
   professionalId: z.string().nullish(),
+  petId: z.string().nullish(),
+  durationMin: z
+    .number()
+    .int('Use de 5 a 720 minutos.')
+    .min(5, 'Use de 5 a 720 minutos.')
+    .max(MAX_TOTAL_MIN, 'Use de 5 a 720 minutos.')
+    .optional(),
 })
+
+/** A variante do pet da consulta: o cliente só consulta com pet próprio; a equipe, com qualquer pet ativo. */
+async function variantOfQuery(ctx: TenantContext, petId: string | null | undefined): Promise<PriceVariant | null> {
+  if (petId === undefined || petId === null) return null
+  const recusa = () => new DomainError('validation', 'Escolha um pet deste cliente.', { fields: { petId: 'Escolha um pet deste cliente.' } })
+  if (!uuid.safeParse(petId).success) throw recusa()
+  const dono = ctx.actor.kind === 'customer' ? { customerId: ctx.actor.customerId } : {}
+  if (isCustomer(ctx) && ctx.actor.kind !== 'customer') throw new DomainError('forbidden', 'Entre na sua conta para ver os horários do seu pet.')
+  const pet = await ctx.db.pet.findFirst({ where: { id: petId, archivedAt: null, ...dono } })
+  if (!pet) throw recusa()
+  return variantOfPet(pet)
+}
 
 function invalidProfessional(): DomainError {
   const message = 'Este profissional não está disponível para esses serviços.'
@@ -309,19 +356,67 @@ async function chooseProfessionals(ctx: TenantContext, serviceIds: string[], pro
   return [professionalId]
 }
 
-/** Inícios livres no dia local para os serviços escolhidos; cada início traz os profissionais livres nele. */
+/**
+ * Remarcar: o agendamento que está sendo movido. O cliente só passa um agendamento próprio, aberto e dentro do prazo; a
+ * equipe, um do seu escopo. A mesma checagem da própria remarcação, para a lista de horários não prometer o que ela recusaria.
+ */
+async function reschedulingOf(
+  ctx: TenantContext,
+  id: string,
+): Promise<{ id: string; serviceIds: string[]; petId: string | null; durationMin: number; totalCents: number }> {
+  const who = actorKind(ctx)
+  const row = await loadForActor(ctx, ctx.db, id, who, await staffScope(ctx, who))
+  if (!OPEN_STATUSES.includes(row.status)) throw invalidTransition('Só dá para remarcar agendamentos pendentes ou confirmados.')
+  if (who === 'customer') assertCustomerWindow(ctx, await getSchedulingRules(ctx), row.startsAt, 'remarcar')
+  return { id: row.id, serviceIds: row.items.map((item) => item.serviceId), petId: row.petId, durationMin: row.totalDurationMin, totalCents: row.totalCents }
+}
+
+/**
+ * Inícios livres no dia local para os serviços escolhidos; cada início traz os profissionais livres nele. Com `rescheduling`
+ * (id de um agendamento), os serviços vêm dele quando não enviados e o horário dele deixa de ocupar a agenda (os demais,
+ * inclusive encaixes, continuam ocupando).
+ */
 export async function getAvailability(
   ctx: TenantContext,
-  q: { date: string; serviceIds: string[]; professionalId?: string | null },
+  q: {
+    date: string
+    serviceIds?: string[]
+    professionalId?: string | null
+    petId?: string | null
+    durationMin?: number
+    rescheduling?: string | null
+  },
 ): Promise<AvailabilityView> {
-  const { date, professionalId } = parse(availabilitySchema, { date: q.date, professionalId: q.professionalId })
-  const { durationMin, totalCents } = await resolveServices(ctx, q.serviceIds)
+  const { date, professionalId, petId: askedPet, durationMin: asked } = parse(availabilitySchema, {
+    date: q.date,
+    professionalId: q.professionalId,
+    petId: q.petId,
+    durationMin: q.durationMin,
+  })
+  if (asked !== undefined && isCustomer(ctx)) {
+    throw new DomainError('forbidden', 'A duração é definida pelos serviços.')
+  }
+  const moving = q.rescheduling ? await reschedulingOf(ctx, q.rescheduling) : null
+  const serviceIds = q.serviceIds ?? moving?.serviceIds ?? []
+  // Remarcar sem serviços novos: vale o que foi combinado (tempo e valor gravados), como na própria remarcação.
+  const snapshot = moving !== null && q.serviceIds === undefined ? moving : null
+  let durationMin: number
+  let totalCents: number
+  if (snapshot) {
+    durationMin = asked ?? snapshot.durationMin
+    totalCents = snapshot.totalCents
+  } else {
+    const variant = await variantOfQuery(ctx, askedPet ?? moving?.petId ?? null)
+    const resolved = await resolveServices(ctx, serviceIds, ctx.db, { variant })
+    durationMin = asked ?? resolved.durationMin
+    totalCents = resolved.totalCents
+  }
   const view = (slots: SlotView[]): AvailabilityView => ({ date, durationMin, totalCents, slots })
 
-  const chosen = await chooseProfessionals(ctx, q.serviceIds, professionalId)
+  const chosen = await chooseProfessionals(ctx, serviceIds, professionalId)
 
   const rules = await getSchedulingRules(ctx)
-  const starts = await computeFreeStarts(ctx, { date, durationMin, professionalIds: chosen, rules })
+  const starts = await computeFreeStarts(ctx, { date, durationMin, professionalIds: chosen, rules, ...(moving ? { ignoreAppointmentId: moving.id } : {}) })
   return view(
     [...starts.values()]
       .sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime())
@@ -331,7 +426,7 @@ export async function getAvailability(
 
 export const MAX_AVAILABLE_DAYS = 31
 
-const daysSchema = z.object({ from: localDate, to: localDate, professionalId: z.string().nullish() })
+const daysSchema = z.object({ from: localDate, to: localDate, professionalId: z.string().nullish(), petId: z.string().nullish() })
 
 export type AvailableDay = { date: string; weekday: Weekday; available: boolean }
 
@@ -342,9 +437,16 @@ export type AvailableDay = { date: string; weekday: Weekday; available: boolean 
  */
 export async function listAvailableDays(
   ctx: TenantContext,
-  q: { from: string; to: string; serviceIds: string[]; professionalId?: string | null },
+  q: {
+    from: string
+    to: string
+    serviceIds?: string[]
+    professionalId?: string | null
+    petId?: string | null
+    rescheduling?: string | null
+  },
 ): Promise<AvailableDay[]> {
-  const { from, to, professionalId } = parse(daysSchema, { from: q.from, to: q.to, professionalId: q.professionalId })
+  const { from, to, professionalId, petId } = parse(daysSchema, { from: q.from, to: q.to, professionalId: q.professionalId, petId: q.petId })
   const dates: string[] = []
   for (let date = from; compareLocalDates(date, to) <= 0 && dates.length <= MAX_AVAILABLE_DAYS; date = addDays(date, 1)) {
     dates.push(date)
@@ -357,15 +459,23 @@ export async function listAvailableDays(
     const message = `Peça no máximo ${MAX_AVAILABLE_DAYS} dias por vez.`
     throw new DomainError('validation', message, { fields: { to: message } })
   }
-  const { durationMin } = await resolveServices(ctx, q.serviceIds)
-  const chosen = await chooseProfessionals(ctx, q.serviceIds, professionalId)
+  const moving = q.rescheduling ? await reschedulingOf(ctx, q.rescheduling) : null
+  const serviceIds = q.serviceIds ?? moving?.serviceIds ?? []
+  let durationMin: number
+  if (moving !== null && q.serviceIds === undefined) {
+    durationMin = moving.durationMin
+  } else {
+    const variant = await variantOfQuery(ctx, petId ?? moving?.petId ?? null)
+    durationMin = (await resolveServices(ctx, serviceIds, ctx.db, { variant })).durationMin
+  }
+  const chosen = await chooseProfessionals(ctx, serviceIds, professionalId)
 
   const rules = await getSchedulingRules(ctx)
   const today = todayIn(ctx.timeZone, ctx.clock())
   const closures = await listClosures(ctx, { from, to })
   const closed = (date: string): boolean =>
     closures.some((c) => compareLocalDates(c.startDate, date) <= 0 && compareLocalDates(c.endDate, date) >= 0)
-  const rows = await loadRangeRows(ctx, { professionalIds: chosen, dates, bufferMin: rules.bufferMin }, ctx.db)
+  const rows = await loadRangeRows(ctx, { professionalIds: chosen, dates, bufferMin: rules.bufferMin, ...(moving ? { ignoreAppointmentId: moving.id } : {}) }, ctx.db)
 
   return dates.map((date) => {
     const weekday = weekdayOf(date)

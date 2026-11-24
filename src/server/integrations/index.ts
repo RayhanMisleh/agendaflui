@@ -1,6 +1,9 @@
+import type { JWTVerifyGetKey } from 'jose'
+import type { CalendarEventBody } from '@/server/calendar/event'
 import { env } from '@/server/env'
-import { fakeFrenet, fakeMercadoPago, fakePostalCodes } from './fakes'
+import { fakeFrenet, fakeGoogleAuthority, fakeMercadoPago, fakePostalCodes } from './fakes'
 import { createFrenetGateway } from './frenet'
+import { createGoogleGateway } from './google'
 import { createMercadoPagoGateway } from './mercadopago'
 import { createViaCepGateway } from './viacep'
 
@@ -65,7 +68,43 @@ export interface MercadoPagoGateway {
   searchPaymentsByReference(accessToken: string, orderId: string): Promise<MpPayment[]>
 }
 
-export type Integrations = { postalCodes: PostalCodeGateway; frenet: FrenetGateway; mercadoPago: MercadoPagoGateway }
+/** As declarações do `id_token` do Google que o login lê. */
+export type GoogleIdClaims = {
+  iss: string
+  aud: string
+  sub: string
+  exp: number
+  iat: number
+  email?: string
+  email_verified?: boolean
+  nonce?: string
+  name?: string
+}
+
+export interface GoogleGateway {
+  /** O endereço da tela de escolha de conta do Google (no modo falso, a tela de simulação do app). */
+  authorizationEndpoint(): string
+  /** Troca o código (com o `code_verifier` do PKCE) pelo `id_token`. A chave secreta nunca vai para log nem para erro. Falha é `IntegrationError`. */
+  exchangeCode(i: {
+    clientId: string
+    clientSecret: string
+    code: string
+    codeVerifier: string
+    redirectUri: string
+  }): Promise<{ idToken: string; refreshToken: string | null; scope: string | null }>
+  /** Um token de acesso novo a partir do de renovação. Token recusado (`invalid_grant`) é `IntegrationError('revoked')`. */
+  refreshAccessToken(i: { clientId: string; clientSecret: string; refreshToken: string }): Promise<{ accessToken: string }>
+  /** Grava o evento na agenda principal (PUT pelo id; se não existe, cria com o mesmo id). Repetir é inofensivo. */
+  upsertEvent(i: { accessToken: string; event: CalendarEventBody }): Promise<void>
+  /** Apaga o evento; já apagado ou inexistente conta como feito. */
+  deleteEvent(i: { accessToken: string; eventId: string }): Promise<void>
+  /** Revoga o token no Google; falha é engolida (melhor esforço). */
+  revokeToken(token: string): Promise<void>
+  /** As chaves públicas do Google para conferir a assinatura do `id_token`. */
+  keys(): JWTVerifyGetKey
+}
+
+export type Integrations = { postalCodes: PostalCodeGateway; frenet: FrenetGateway; mercadoPago: MercadoPagoGateway; google: GoogleGateway }
 
 let override: Partial<Integrations> | null = null
 let real: Integrations | null = null
@@ -75,8 +114,8 @@ let fake: Integrations | null = null
 export function integrations(): Integrations {
   const base =
     env.INTEGRATIONS_MODE === 'real'
-      ? (real ??= { postalCodes: createViaCepGateway(), frenet: createFrenetGateway(), mercadoPago: createMercadoPagoGateway() })
-      : (fake ??= { postalCodes: fakePostalCodes(), frenet: fakeFrenet(), mercadoPago: fakeMercadoPago() })
+      ? (real ??= { postalCodes: createViaCepGateway(), frenet: createFrenetGateway(), mercadoPago: createMercadoPagoGateway(), google: createGoogleGateway() })
+      : (fake ??= { postalCodes: fakePostalCodes(), frenet: fakeFrenet(), mercadoPago: fakeMercadoPago(), google: fakeGoogleAuthority() })
   return override === null ? base : { ...base, ...override }
 }
 

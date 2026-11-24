@@ -35,38 +35,6 @@ export function DadosForm({ action, valores }: { action: AcaoConta; valores: Cam
   )
 }
 
-export function TermosForm({ action, valores }: { action: AcaoConta; valores: Campos }) {
-  return (
-    <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar termos">
-      {({ values: v, fields }) => (
-        <div className="af-wizard__grid">
-          <Field label="Profissional (singular)" error={fields.professionalSingular}>
-            <Input name="professionalSingular" defaultValue={v.professionalSingular} autoComplete="off" />
-          </Field>
-          <Field label="Profissional (plural)" error={fields.professionalPlural}>
-            <Input name="professionalPlural" defaultValue={v.professionalPlural} autoComplete="off" />
-          </Field>
-          <Field label="Cliente (singular)" error={fields.customerSingular}>
-            <Input name="customerSingular" defaultValue={v.customerSingular} autoComplete="off" />
-          </Field>
-          <Field label="Cliente (plural)" error={fields.customerPlural}>
-            <Input name="customerPlural" defaultValue={v.customerPlural} autoComplete="off" />
-          </Field>
-          <Field label="Pontos (singular)" error={fields.pointsSingular}>
-            <Input name="pointsSingular" defaultValue={v.pointsSingular} autoComplete="off" />
-          </Field>
-          <Field label="Pontos (plural)" error={fields.pointsPlural}>
-            <Input name="pointsPlural" defaultValue={v.pointsPlural} autoComplete="off" />
-          </Field>
-          <Field label="Clube" hint="O nome do programa de fidelidade." error={fields.club}>
-            <Input name="club" defaultValue={v.club} autoComplete="off" />
-          </Field>
-        </div>
-      )}
-    </ContaForm>
-  )
-}
-
 /** O que está em andamento na conta, como a página lê (`getModuleUsage`). */
 export type UsoDosModulos = { openOrders: number; pendingRedemptions: number; mercadoPagoConfigured: boolean }
 
@@ -95,7 +63,7 @@ function ModulosCampos({ v, businessId, uso }: { v: Campos; businessId: string; 
       <p id={`${uid}-loyalty`} className="af-wizard__note">
         Em andamento: {andamento('loyalty', uso)}
       </p>
-      <Checkbox name="banners" label="Banners: avisos e promoções no app" defaultChecked={v.banners === 'on'} />
+      <Checkbox name="banners" label="Banners: avisos e promoções para clientes" defaultChecked={v.banners === 'on'} />
       <Checkbox name="store" label="Loja: produtos e pedidos" defaultChecked={v.store === 'on'} aria-describedby={`${uid}-store`} />
       <p id={`${uid}-store`} className="af-wizard__note">
         Em andamento: {andamento('store', uso)}
@@ -107,7 +75,7 @@ function ModulosCampos({ v, businessId, uso }: { v: Campos; businessId: string; 
         </p>
       ) : null}
       <p className="af-wizard__note">
-        Desligar um módulo esconde tudo isso da conta e do app, mas guarda os dados: ao ligar de novo, tudo volta.
+        Desligar um módulo esconde tudo isso da conta e dos clientes, mas guarda os dados: ao ligar de novo, tudo volta.
       </p>
     </div>
   )
@@ -155,19 +123,18 @@ export function RegrasForm({ action, valores, grades, limites }: { action: AcaoC
   )
 }
 
-/** Avisos por tipo e canal: uma caixa por combinação, com o nome completo para leitor de tela. */
+/** Avisos por tipo: uma caixa de e-mail por aviso, com o nome completo para leitor de tela. */
 export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; valores: Campos; avisos: Array<{ kind: string; label: string }> }) {
   return (
     <ContaForm action={action} initial={estadoInicial(valores)} submit="Salvar avisos">
       {({ values: v }) => (
         <div className="af-matrix__scroll">
           <table className="af-matrix">
-            <caption className="af-sr">Avisos por tipo e canal</caption>
+            <caption className="af-sr">Avisos por tipo</caption>
             <thead>
               <tr>
                 <th scope="col">Aviso</th>
                 <th scope="col">E-mail</th>
-                <th scope="col">Push</th>
               </tr>
             </thead>
             <tbody>
@@ -176,9 +143,6 @@ export function AvisosForm({ action, valores, avisos }: { action: AcaoConta; val
                   <th scope="row">{a.label}</th>
                   <td>
                     <Checkbox name={`${a.kind}__email`} label={<span className="af-sr">{a.label}: e-mail</span>} defaultChecked={v[`${a.kind}__email`] === 'on'} />
-                  </td>
-                  <td>
-                    <Checkbox name={`${a.kind}__push`} label={<span className="af-sr">{a.label}: push</span>} defaultChecked={v[`${a.kind}__push`] === 'on'} />
                   </td>
                 </tr>
               ))}

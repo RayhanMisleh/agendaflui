@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { getAgendaPage } from '@/server/domain/scheduling/agenda-page'
+import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService, makeWorkingHours } from '../setup/factories'
+import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makePet, makeProfessional, makeService, makeWorkingHours } from '../setup/factories'
 
 beforeEach(resetDb)
 
@@ -84,5 +85,49 @@ describe('semana que atravessa a troca do horário de verão', () => {
     expect(contagem['2026-10-31']).toBe(1)
     expect(contagem['2026-11-01']).toBe(2)
     expect(page.week?.reduce((soma, d) => soma + d.count, 0)).toBe(3)
+  })
+})
+
+describe('pet e encaixe na página', () => {
+  test('fatia do dia traz petName e squeezeIn; normal e encaixe sobrepostos ficam em lanes 0 e 1 com lanes 2', async () => {
+    const s = await montar(mn(17, 8))
+    const cliente = await makeCustomer(s.b.id, { name: 'Marina' })
+    const rex = await makePet(s.b.id, cliente.id, { name: 'Rex' })
+    const thor = await makePet(s.b.id, cliente.id, { name: 'Thor' })
+    const servico = await prisma.service.findFirstOrThrow({ where: { businessId: s.b.id } })
+    const normal = await makeAppointment(s.b.id, { customerId: cliente.id, professionalId: s.ana.id, serviceId: servico.id, startsAt: mn(17, 10), petId: rex.id })
+    const encaixe = await makeAppointment(s.b.id, { customerId: cliente.id, professionalId: s.ana.id, serviceId: servico.id, startsAt: mn(17, 10, 30), petId: thor.id, isSqueezeIn: true })
+    const slips = (await getAgendaPage(s.dono, { data: '2026-11-17' })).day?.columns.flatMap((c) => c.slips) ?? []
+    const a = slips.find((x) => x.id === normal.id)
+    const b = slips.find((x) => x.id === encaixe.id)
+    expect(a).toMatchObject({ petName: 'Rex', squeezeIn: false })
+    expect(b).toMatchObject({ petName: 'Thor', squeezeIn: true })
+    expect([a?.box.lane, b?.box.lane].sort()).toEqual([0, 1])
+    expect(a?.box.lanes).toBe(2)
+    expect(b?.box.lanes).toBe(2)
+  })
+
+  test('detalhe traz pet { name, typeLabel } e squeezeIn', async () => {
+    const s = await montar(mn(17, 8))
+    const cliente = await makeCustomer(s.b.id, { name: 'Marina' })
+    const rex = await makePet(s.b.id, cliente.id, { name: 'Rex', species: 'DOG', size: 'MEDIUM' })
+    const servico = await prisma.service.findFirstOrThrow({ where: { businessId: s.b.id } })
+    const ag = await makeAppointment(s.b.id, { customerId: cliente.id, professionalId: s.ana.id, serviceId: servico.id, startsAt: mn(17, 10), petId: rex.id, isSqueezeIn: true })
+    const semPet = await s.marcar(mn(17, 14))
+    const page = await getAgendaPage(s.dono, { data: '2026-11-17' })
+    expect(page.details[ag.id]).toMatchObject({ pet: { id: rex.id, name: 'Rex', typeLabel: 'Cão médio' }, squeezeIn: true })
+    expect(page.details[semPet.id]).toMatchObject({ pet: null, squeezeIn: false })
+  })
+
+  test('semana traz petName e squeezeIn nos itens; niche reflete a conta', async () => {
+    const s = await montar(mn(17, 8))
+    const cliente = await makeCustomer(s.b.id, { name: 'Marina' })
+    const rex = await makePet(s.b.id, cliente.id, { name: 'Rex' })
+    const servico = await prisma.service.findFirstOrThrow({ where: { businessId: s.b.id } })
+    await makeAppointment(s.b.id, { customerId: cliente.id, professionalId: s.ana.id, serviceId: servico.id, startsAt: mn(17, 10), petId: rex.id, isSqueezeIn: true })
+    const page = await getAgendaPage(s.dono, { visao: 'semana', data: '2026-11-17' })
+    const item = page.week?.flatMap((d) => d.items)[0]
+    expect(item).toMatchObject({ petName: 'Rex', squeezeIn: true })
+    expect(page.niche === null || typeof page.niche.servesCats === 'boolean').toBe(true)
   })
 })

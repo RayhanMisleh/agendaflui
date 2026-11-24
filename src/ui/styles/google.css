@@ -1,0 +1,46 @@
+/*
+ * Botão "Continuar com Google": segue as diretrizes de marca do Google (fundo branco, borda cinza, texto escuro), por isso
+ * as cores são fixas e não vêm dos tokens da loja. Fica fora de entry.css, que só usa tokens.
+ */
+@layer components {
+  .af-google__form {
+    margin-top: 1.25rem;
+  }
+  .af-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: 100%;
+    min-height: 2.75rem;
+    padding: 0 1rem;
+    border: 1px solid #747775;
+    border-radius: var(--radius-chip);
+    background-color: #ffffff;
+    color: #1f1f1f;
+    font-family: Roboto, var(--font-body), system-ui, sans-serif;
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .af-google:hover:not(:disabled) {
+      background-color: #f2f2f2;
+    }
+  }
+  .af-google:active:not(:disabled) {
+    background-color: #e8e8e8;
+  }
+  .af-google:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .af-google:disabled {
+    cursor: progress;
+    opacity: 0.7;
+  }
+  .af-google__mark {
+    flex: none;
+  }
+}

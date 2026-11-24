@@ -24,10 +24,10 @@ import {
   resgatarNoBalcao,
   salvarPremio,
   salvarRanking,
-} from '@/app/painel/(app)/fidelidade/actions'
-import FidelidadePage from '@/app/painel/(app)/fidelidade/page'
-import NovoPremioPage from '@/app/painel/(app)/fidelidade/premios/novo/page'
-import PremioPage from '@/app/painel/(app)/fidelidade/premios/[id]/page'
+} from '@/app/app/painel/fidelidade/actions'
+import FidelidadePage from '@/app/app/painel/fidelidade/page'
+import NovoPremioPage from '@/app/app/painel/fidelidade/premios/novo/page'
+import PremioPage from '@/app/app/painel/fidelidade/premios/[id]/page'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -52,7 +52,7 @@ const novoPremio = (nome: string, custo = 100) => createPrize(s.dono, { name: no
 
 describe('prêmios', () => {
   test('criar grava (estoque vazio = sem limite) e leva à ficha do prêmio', async () => {
-    await expect(criarPremio(ini, form({ ...PREMIO, active: 'on' }))).rejects.toThrow(/NEXT_REDIRECT \/fidelidade\/premios\//)
+    await expect(criarPremio(ini, form({ ...PREMIO, active: 'on' }))).rejects.toThrow(/NEXT_REDIRECT \/painel\/fidelidade\/premios\//)
     expect((await premios())[0]).toMatchObject({ name: 'Corte grátis', costPoints: 100, stock: null, active: true })
   })
 

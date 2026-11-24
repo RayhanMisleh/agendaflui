@@ -4,7 +4,7 @@ import { Check, Copy } from 'lucide-react'
 import { Button } from './Button'
 
 /** Copia o texto para a área de transferência (com plano B para páginas sem contexto seguro) e avisa em texto. */
-async function copiar(texto: string): Promise<boolean> {
+export async function copiarTexto(texto: string): Promise<boolean> {
   try {
     if (navigator.clipboard) {
       await navigator.clipboard.writeText(texto)
@@ -38,7 +38,7 @@ export function CopyButton({ text, label, variant = 'ghost' }: { text: string; l
   }, [])
 
   async function onClick() {
-    setEstado((await copiar(text)) ? 'copiado' : 'falhou')
+    setEstado((await copiarTexto(text)) ? 'copiado' : 'falhou')
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => setEstado('parado'), 2000)
   }

@@ -188,7 +188,7 @@ const DATA_ID = /^\d{1,20}$/
 const WEBHOOK_KEY = /^[A-Za-z0-9_-]{1,200}$/
 
 /**
- * Aviso do Mercado Pago (`POST /v1/webhooks/mercadopago/{webhookKey}`). A conta vem SÓ da chave do endereço. A assinatura, quando vem, é
+ * Aviso do Mercado Pago (`POST /webhooks/mercadopago/{webhookKey}` no APP_HOST). A conta vem SÓ da chave do endereço. A assinatura, quando vem, é
  * conferida ANTES de qualquer consulta (sem ela vale a chave da URL); a situação do pagamento vem da consulta à API do Mercado Pago com as credenciais DA
  * CONTA, nunca do corpo do aviso (que nem é lido). Respostas: 404 chave desconhecida; 401 assinatura inválida; 503 consulta
  * falhou (o Mercado Pago tenta de novo); 200 nos demais casos, inclusive o que não é pagamento ou não é desta conta.

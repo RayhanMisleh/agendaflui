@@ -38,16 +38,9 @@ export type SettingsWrite = {
       | 'customerChangeWindowMin'
       | 'bufferMin'
       | 'autoConfirm'
-      | 'termProfessionalSingular'
-      | 'termProfessionalPlural'
-      | 'termCustomerSingular'
-      | 'termCustomerPlural'
-      | 'termPointsSingular'
-      | 'termPointsPlural'
-      | 'termClub'
       | 'loyaltyRankingEnabled'
     >
-  > & { notifications?: Prisma.InputJsonObject }
+  > & { notifications?: Prisma.InputJsonObject; nicheOptions?: Prisma.InputJsonObject }
 }
 
 /**
@@ -73,11 +66,12 @@ export async function writeSettings(
       data: { ...write.data, version: { increment: 1 } },
     })
     if (count === 1) {
-      const { notifications, ...simples } = write.data
+      const { notifications, nicheOptions, ...simples } = write.data
       const gravada: BusinessSettings = {
         ...row,
         ...simples,
         ...(notifications !== undefined ? { notifications: notifications as BusinessSettings['notifications'] } : {}),
+        ...(nicheOptions !== undefined ? { nicheOptions: nicheOptions as BusinessSettings['nicheOptions'] } : {}),
         version: (version ?? row.version) + 1,
       }
       return { row: gravada, changed: true }

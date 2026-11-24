@@ -14,7 +14,7 @@ export type Membro = {
   email: string
   role: 'OWNER' | 'MANAGER' | 'PROFESSIONAL'
   active: boolean
-  hasPassword: boolean
+  hasAccount: boolean
   /** O último e-mail de convite não saiu (vem do banco). */
   inviteMailFailed: boolean
   lastLogin: string | null
@@ -93,7 +93,7 @@ function Acesso({ acoes, m }: { acoes: AcoesEquipe; m: Membro }) {
 
 function Convite({ acoes, m }: { acoes: AcoesEquipe; m: Membro }) {
   const [state, action, pending] = useActionState(acoes.reenviarConvite, estadoInicial({ membershipId: m.membershipId }))
-  if (m.hasPassword || !m.active) return null
+  if (m.hasAccount || !m.active) return null
   return (
     <form action={action} className="af-teamcell">
       <input type="hidden" name="membershipId" value={m.membershipId} />
@@ -169,7 +169,7 @@ export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Mem
       cell: (m) => (
         <span className="af-teamstate">
           <StatusBadge tone={m.active ? 'confirmed' : 'neutral'}>{m.active ? 'Ativo' : 'Desativado'}</StatusBadge>
-          {m.active && !m.hasPassword ? (
+          {m.active && !m.hasAccount ? (
             m.inviteMailFailed ? (
               <StatusDot tone="danger" label="Convite não enviado" />
             ) : (

@@ -3,7 +3,8 @@ import { audit } from '@/server/domain/audit'
 import { normalizeContactPhone, formatPhone, normalizeEmail } from '@/server/domain/customers/contact'
 import { authorize, orNotFound, parse, z } from '@/server/domain/errors'
 import { replaceBrandImage } from '@/server/domain/platform/brand-image'
-import { displayNameSchema, readTerms, termsOf, updateTermsOf, type Terms } from '@/server/domain/settings/terms'
+import { brandColorSchema } from '@/server/domain/platform/customization'
+import { displayNameSchema } from '@/server/domain/settings/text-rules'
 import { staleSettings } from '@/server/domain/settings/versioned'
 import { uploadUrl } from '@/server/storage/images'
 import type { CoverMaterial } from '@/shared/theme/derive'
@@ -129,28 +130,14 @@ export async function setBusinessLogo(ctx: TenantContext, file: { bytes: Uint8Ar
   return getBusinessProfile(ctx)
 }
 
-/** Os rótulos dos termos (profissional, cliente, pontos, clube) para as telas de todos os papéis: qualquer membro da equipe lê. */
-export async function getTermLabels(ctx: TenantContext): Promise<Terms> {
-  authorize(ctx, 'view_dashboard')
-  const row = await ctx.db.businessSettings.findUniqueOrThrow({ where: { businessId: ctx.businessId } })
-  return termsOf(row)
-}
-
-export function getTerms(ctx: TenantContext): Promise<{ terms: Terms; version: number }> {
-  return readTerms(ctx)
-}
-
-/** Termos gravados pela mesma função do painel dev (`applyTerms`), com a versão lida na tela. */
-export function updateTermsAsOwner(ctx: TenantContext, version: number, input: Terms): Promise<{ terms: Terms; version: number }> {
-  return updateTermsOf(ctx, input, parse(versionSchema, version))
-}
-
 /** O visual da conta como o painel dev gravou: o dono só vê (e troca a logo); cores e barra lateral são do painel dev. */
 export type BusinessAppearance = {
   primary: string
   accent: string
   material: CoverMaterial
   logoUrl: string | null
+  /** A versão da marca (`business_branding.version`), a mesma que o painel dev usa em `updateBrand`. */
+  version: number
 }
 
 export async function getBusinessAppearance(ctx: TenantContext): Promise<BusinessAppearance> {
@@ -158,9 +145,39 @@ export async function getBusinessAppearance(ctx: TenantContext): Promise<Busines
   const m = orNotFound(
     await ctx.db.businessBranding.findUnique({
       where: { businessId: ctx.businessId },
-      select: { primaryColor: true, accentColor: true, coverMaterial: true, logo: { select: { path: true } } },
+      select: { primaryColor: true, accentColor: true, coverMaterial: true, version: true, logo: { select: { path: true } } },
     }),
     'Marca da conta',
   )
-  return { primary: m.primaryColor, accent: m.accentColor, material: m.coverMaterial, logoUrl: uploadUrl(m.logo) }
+  return { primary: m.primaryColor, accent: m.accentColor, material: m.coverMaterial, logoUrl: uploadUrl(m.logo), version: m.version }
+}
+
+const coresSchema = z.strictObject({ primary: brandColorSchema, accent: brandColorSchema })
+
+/**
+ * O dono muda as duas cores da marca (material e barra lateral seguem do painel dev). A gravação é uma instrução só,
+ * condicionada à versão da marca lida: versão velha vira `conflict` `stale_version`. Sem mudança, não grava nem audita.
+ * A auditoria (`brand.updated`) guarda `{ from, to }` só do que mudou.
+ */
+export async function updateBrandColors(ctx: TenantContext, version: number, input: { primary: string; accent: string }): Promise<BusinessAppearance> {
+  authorize(ctx, 'manage_account')
+  const v = parse(versionSchema, version)
+  const i = parse(coresSchema, input)
+  await ctx.db.$transaction(async (tx) => {
+    const atual = orNotFound(await tx.businessBranding.findUnique({ where: { businessId: ctx.businessId } }), 'Marca da conta')
+    const changes: Record<string, { from: string; to: string }> = {}
+    if (atual.primaryColor !== i.primary) changes.primary = { from: atual.primaryColor, to: i.primary }
+    if (atual.accentColor !== i.accent) changes.accent = { from: atual.accentColor, to: i.accent }
+    if (Object.keys(changes).length === 0) {
+      if (atual.version !== v) throw staleSettings()
+      return
+    }
+    const r = await tx.businessBranding.updateMany({
+      where: { businessId: ctx.businessId, version: v },
+      data: { primaryColor: i.primary, accentColor: i.accent, version: { increment: 1 } },
+    })
+    if (r.count === 0) throw staleSettings()
+    await audit(ctx, { action: 'brand.updated', targetType: 'business', targetId: ctx.businessId, metadata: { changes } }, tx)
+  })
+  return getBusinessAppearance(ctx)
 }

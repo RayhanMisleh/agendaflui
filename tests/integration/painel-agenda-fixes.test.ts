@@ -8,8 +8,8 @@ const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { ajustarAtendimento, marcarHorario, mudarSituacao, remarcarAtendimento } from '@/app/painel/(app)/agenda/actions'
-import { bloquearHorario } from '@/app/painel/(app)/equipe/actions'
+import { ajustarAtendimento, marcarHorario, mudarSituacao, remarcarAtendimento } from '@/app/app/painel/agenda/actions'
+import { bloquearHorario } from '@/app/app/painel/equipe/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const MANAUS = 'America/Manaus'
@@ -84,8 +84,9 @@ describe('horário sugerido de outro dia', () => {
   })
 
   test('com o dia do horário sugerido a ação marca; com o dia antigo recusa e nada é marcado', async () => {
-    // Um horário sugerido que cai no dia 18 (terça é 17; o expediente de quarta não existe, mas o horário avulso vale).
+    // Um horário sugerido que cai no dia 18 (terça é 17; Ana também atende na quarta).
     const sugerido = { iso: mn(18, 10).toISOString(), label: '10:00', date: '2026-11-18' }
+    await makeWorkingHours(m.b.id, m.ana.id, 'WEDNESDAY', EXPEDIENTE)
     const velho = await marcarHorario(
       ini,
       form({ customerId: m.cliente.id, serviceIds: [m.banho.id], professionalId: m.ana.id, date: '2026-11-17', time: sugerido.label, startsAt: sugerido.iso }),

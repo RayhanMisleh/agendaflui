@@ -147,45 +147,15 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
     expect(customers.newMonth).toEqual({ current: 2, previous: 2, previousSamePeriod: 1 })
   })
 
-  test('usuários do app: cliente distinto uma vez, token criado ou usado no período, só clientes', async () => {
-    const sp = await conta()
-    const mn = await conta({ timezone: 'America/Manaus' })
-    const c2 = await makeCustomer(sp.business.id)
-    const c3 = await makeCustomer(sp.business.id)
-    const c4 = await makeCustomer(mn.business.id)
-    const mk = (businessId: string, customerId: string | null, o: { createdAt: Date; usedAt?: Date; subject?: 'CUSTOMER' | 'MEMBER'; membershipId?: string }) =>
-      prisma.refreshToken.create({
-        data: {
-          businessId,
-          subject: o.subject ?? 'CUSTOMER',
-          ...(customerId ? { customerId } : {}),
-          ...(o.membershipId ? { membershipId: o.membershipId } : {}),
-          familyId: randomUUID(),
-          tokenHash: randomUUID(),
-          expiresAt: dias(NOW, 30),
-          createdAt: o.createdAt,
-          ...(o.usedAt ? { usedAt: o.usedAt } : {}),
-        },
-      })
-    // sp.customer: dois tokens hoje e um usado hoje: conta uma vez.
-    await mk(sp.business.id, sp.customerId, { createdAt: at('2026-11-16T10:00:00.000Z') })
-    await mk(sp.business.id, sp.customerId, { createdAt: at('2026-11-16T11:00:00.000Z'), usedAt: at('2026-11-16T12:00:00.000Z') })
-    // c2: token de outubro usado hoje: ativo hoje e no mês.
-    await mk(sp.business.id, c2.id, { createdAt: at('2026-10-20T10:00:00.000Z'), usedAt: at('2026-11-16T09:00:00.000Z') })
-    // c3: token criado dia 3: ativo no mês, não hoje.
-    await mk(sp.business.id, c3.id, { createdAt: at('2026-11-03T10:00:00.000Z') })
-    // c4 (Manaus): criado às 23:30 locais de ontem (15/11 23:30 = 16/11 03:30 UTC): ativo no mês, não hoje (hoje de Manaus começa 04:00 UTC).
-    await mk(mn.business.id, c4.id, { createdAt: at('2026-11-16T03:30:00.000Z') })
-    // Fora do período: criado e usado em outubro.
-    const c5 = await makeCustomer(sp.business.id)
-    await mk(sp.business.id, c5.id, { createdAt: at('2026-10-05T10:00:00.000Z'), usedAt: at('2026-10-06T10:00:00.000Z') })
-    // Equipe não conta.
-    const user = await makeUser()
-    const membership = await makeMembership(sp.business.id, user.id, 'OWNER')
-    await mk(sp.business.id, null, { createdAt: at('2026-11-16T10:00:00.000Z'), subject: 'MEMBER', membershipId: membership.id })
-
-    const { appUsers } = await getOverview(actor, NOW)
-    expect(appUsers).toEqual({ activeToday: 2, activeMonth: 4 })
+  test('clientes com conta: só os ligados a uma pessoa e não removidos', async () => {
+    const c = await conta({ createdAt: at('2026-06-01T12:00:00.000Z') })
+    const pessoa = await makeUser()
+    const outra = await makeUser()
+    await makeCustomer(c.business.id, { userId: pessoa.id })
+    await makeCustomer(c.business.id, { userId: outra.id, archivedAt: at('2026-11-07T12:00:00.000Z') })
+    await makeCustomer(c.business.id)
+    expect((await getOverview(actor, NOW)).customersWithAccount).toBe(1)
+    expect((await getAccountMetrics(actor, c.business.id, NOW)).customersWithAccount).toBe(1)
   })
 
   test('contas por situação e novas nos últimos 30 dias', async () => {
@@ -198,16 +168,8 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
     expect(accounts).toEqual({ active: 2, suspended: 1, archived: 1, newLast30d: 2 })
   })
 
-  test('API nas últimas 24 horas e avisos pendentes e com falha', async () => {
+  test('avisos pendentes e com falha', async () => {
     const sp = await conta()
-    const linha = (hour: string, count: number, errorCount: number) =>
-      prisma.apiUsageHourly.create({
-        data: { businessId: sp.business.id, route: `GET /v1/${hour}`, hour: at(hour), count, errorCount, totalMs: 10n, maxMs: 5 },
-      })
-    await linha('2026-11-16T15:00:00.000Z', 10, 1) // hora atual
-    await linha('2026-11-15T16:00:00.000Z', 5, 2) // 23 horas antes: dentro
-    await linha('2026-11-15T14:00:00.000Z', 100, 50) // fora das 24 horas
-
     const notificacao = (status: 'PENDING' | 'FAILED' | 'SENT', n: number) =>
       prisma.notification.create({
         data: {
@@ -229,7 +191,6 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
     await prisma.$executeRaw`UPDATE notifications SET updated_at = ${at('2026-11-10T10:00:00.000Z')}::timestamptz WHERE id = ${antiga.id}::uuid`
 
     const o = await getOverview(actor, NOW)
-    expect(o.api).toEqual({ requests24h: 15, errors24h: 3 })
     expect(o.notifications).toEqual({ pending: 2, failed24h: 1 })
   })
 
@@ -287,10 +248,9 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
       skippedAccounts: 0,
       appointments: { today: 0, month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       customers: { total: 0, newMonth: { current: 0, previous: 0, previousSamePeriod: 0 } },
+      customersWithAccount: 0,
       revenueCents: { month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       store: { accounts: 0, paidOrders: { current: 0, previous: 0, previousSamePeriod: 0 }, revenueCents: { current: 0, previous: 0, previousSamePeriod: 0 } },
-      appUsers: { activeToday: 0, activeMonth: 0 },
-      api: { requests24h: 0, errors24h: 0 },
       notifications: { pending: 0, failed24h: 0 },
       quietAccounts: [],
     })
@@ -348,11 +308,8 @@ describe('índices das métricas', () => {
     ['appointments', 'appointments_starts_at_idx'],
     ['appointments', 'appointments_ends_at_completed_idx'],
     ['appointments', 'appointments_business_id_created_at_idx'],
-    ['refresh_tokens', 'refresh_tokens_created_at_idx'],
-    ['refresh_tokens', 'refresh_tokens_used_at_idx'],
     ['audit_logs', 'audit_logs_created_at_id_idx'],
     ['notifications', 'notifications_status_updated_at_idx'],
-    ['api_usage_hourly', 'api_usage_hourly_hour_idx'],
   ] as const
 
   test('existem no catálogo, e o parcial de término só vale para COMPLETED', async () => {
@@ -395,9 +352,6 @@ describe('getAccountMetrics', () => {
     await prisma.membership.update({ where: { id: inativo.id }, data: { active: false } })
     await makeProfessional(mn.business.id)
     await makeProfessional(mn.business.id, { archivedAt: NOW })
-    await prisma.refreshToken.create({
-      data: { businessId: mn.business.id, subject: 'CUSTOMER', customerId: mn.customerId, familyId: randomUUID(), tokenHash: randomUUID(), expiresAt: dias(NOW, 30), createdAt: at('2026-11-12T10:00:00.000Z') },
-    })
 
     const m = await getAccountMetrics(actor, mn.business.id, NOW)
     expect(m.appointments.today).toBe(1)
@@ -407,7 +361,6 @@ describe('getAccountMetrics', () => {
     expect(m.customers).toEqual({ total: 1 + 2, newMonth: 1 })
     expect(m.revenueCents.month).toEqual({ current: 6_000, previous: 2_000, previousSamePeriod: 2_000 })
     expect(m.team).toEqual({ active: 1, professionals: 2 })
-    expect(m.appUsers).toEqual({ activeMonth: 1 })
     expect(m.lastActivityAt).not.toBeNull()
   })
 
@@ -417,10 +370,10 @@ describe('getAccountMetrics', () => {
     expect(m).toEqual({
       appointments: { today: 0, next7d: 0, month: { current: 0, previous: 0, previousSamePeriod: 0 }, byStatusMonth: { PENDING: 0, CONFIRMED: 0, COMPLETED: 0, CANCELED: 0, NO_SHOW: 0 } },
       customers: { total: 0, newMonth: 0 },
+      customersWithAccount: 0,
       revenueCents: { month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       store: null,
       team: { active: 0, professionals: 0 },
-      appUsers: { activeMonth: 0 },
       lastActivityAt: null,
     })
     expect((await domainError(getAccountMetrics(actor, randomUUID(), NOW))).code).toBe('not_found')

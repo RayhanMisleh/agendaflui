@@ -40,13 +40,6 @@ function formulario(extra: Record<string, string> = {}): FormData {
     primary: '#2f6b4f',
     accent: '#E8833A',
     material: 'LINEN',
-    professionalSingular: 'Tosador',
-    professionalPlural: 'Tosadores',
-    customerSingular: 'Tutor',
-    customerPlural: 'Tutores',
-    pointsSingular: 'Patinha',
-    pointsPlural: 'Patinhas',
-    club: 'Clube Pata',
     loyalty: 'on',
     store: 'on',
     slotStepMin: '30',
@@ -86,13 +79,13 @@ afterEach(() => {
 })
 
 describe('criar conta pela ação do assistente', () => {
-  test('com dados válidos cria conta, marca, termos, módulos, regras e dono', async () => {
+  test('com dados válidos cria conta, marca, nicho, módulos, regras e dono', async () => {
     const estado = await criarConta(inicial, formulario())
     expect(estado.ok).toBe(true)
     const r = estado.values.result
     expect(r?.pendencias).toEqual([])
     expect(r).not.toHaveProperty('entryUrl')
-    expect(r?.customerLinkUrl).toBe(`${env.APP_WEB_URL}/pata-viva`)
+    expect(r?.customerLinkUrl).toBe(`http://${env.APP_HOST}/pata-viva`)
 
     const conta = await prisma.business.findUniqueOrThrow({
       where: { slug: 'pata-viva' },
@@ -102,13 +95,24 @@ describe('criar conta pela ação do assistente', () => {
     expect(conta.branding?.displayName).toBe('Pata Viva Pet Shop')
     expect(conta.branding?.primaryColor).toBe('#2F6B4F')
     expect(conta.branding?.coverMaterial).toBe('LINEN')
-    expect(conta.settings?.termProfessionalSingular).toBe('Tosador')
-    expect(conta.settings?.termClub).toBe('Clube Pata')
     expect(conta.settings?.slotStepMin).toBe(30)
     expect(conta.settings?.bufferMin).toBe(10)
     expect(conta.modules).toMatchObject({ loyalty: true, banners: false, store: true })
     expect(conta.memberships.map((m) => [m.role, m.user.email])).toEqual([['OWNER', 'marina@exemplo.test']])
     expect(envio.send).toHaveBeenCalledTimes(1)
+  })
+
+  test('criarConta grava niche PET e servesCats do formulário', async () => {
+    expect((await criarConta(inicial, formulario({ servesCats: 'on' }))).ok).toBe(true)
+    const conta = await prisma.business.findUniqueOrThrow({ where: { slug: 'pata-viva' }, include: { settings: true } })
+    expect(conta.niche).toBe('PET')
+    expect(conta.settings?.nicheOptions).toEqual({ servesCats: true })
+    await resetDb()
+    const admin = await makePlatformAdmin()
+    guards.requirePlatformAdmin.mockResolvedValue({ kind: 'platform_admin', adminId: admin.id, name: admin.name })
+    expect((await criarConta(inicial, formulario())).ok).toBe(true)
+    const sem = await prisma.business.findUniqueOrThrow({ where: { slug: 'pata-viva' }, include: { settings: true } })
+    expect(sem.settings?.nicheOptions).toEqual({ servesCats: false })
   })
 
   test('erro de validação devolve o estado sem senha nem segredo nos valores', async () => {
@@ -128,10 +132,9 @@ describe('criar conta pela ação do assistente', () => {
     expect(firstStepWithError(estado.fields)).toBe(0)
   })
 
-  test('erro de outra etapa (cor, termo, regra) é recusado ANTES de criar a conta, no campo certo', async () => {
+  test('erro de outra etapa (cor, regra) é recusado ANTES de criar a conta, no campo certo', async () => {
     const casos: Array<[Record<string, string>, string]> = [
       [{ primary: 'vermelho' }, 'primary'],
-      [{ club: '' }, 'club'],
       [{ slotStepMin: '7' }, 'slotStepMin'],
       [{ ownerEmail: 'sem-arroba' }, 'ownerEmail'],
     ]

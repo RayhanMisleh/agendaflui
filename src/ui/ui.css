@@ -10,6 +10,12 @@
 @import './styles/overview.css';
 @import './styles/shells.css';
 @import './styles/entry.css';
+@import './styles/google.css';
+@import './styles/conta.css';
 @import './styles/painel.css';
+@import './styles/pets.css';
 @import './styles/planner.css';
+@import './styles/cliente.css';
+@import './styles/comecar.css';
+@import './styles/cliente-pet.css';
 @import './styles/motion.css';

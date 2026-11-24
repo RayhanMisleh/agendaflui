@@ -3,7 +3,10 @@ import { DomainError } from '@/server/domain/errors'
 import { toIsoInstant } from '@/server/time'
 
 /** Estado de um formulário dos painéis (dev e do negócio): o que a ação devolveu e o que a pessoa digitou. */
-export type FormState<V> = { ok: boolean; message: string | null; fields: Record<string, string>; values: V; conflict?: Conflito }
+export type FormState<V> = { ok: boolean; message: string | null; fields: Record<string, string>; values: V; conflict?: Conflito; confirmation?: Confirmacao }
+
+/** O que a equipe precisa confirmar para gravar mesmo assim: a impressão (`ack`) volta no pedido seguinte. */
+export type Confirmacao = { ack: string; professionalName: string; issues: { kind: 'closed' | 'outside_hours' | 'blocked' | 'busy'; text: string }[] }
 
 /** Horário ocupado: os próximos horários livres que o domínio devolveu (instante exato e rótulo local pronto). */
 export type Conflito = { nearest: { iso: string; label: string; date: string }[] }
@@ -18,9 +21,9 @@ export function rotuloDoHorario(n: Conflito['nearest'][number], dia: string): st
   return n.date !== '' && n.date !== dia ? `${n.label} (${n.date.slice(8, 10)}/${n.date.slice(5, 7)})` : n.label
 }
 
-/** Lê `details.nearest` de um erro de horário ocupado; sem a lista (ou de outro erro), não há conflito a mostrar. */
+/** Lê `details.nearest` de um erro de horário ocupado (ou de confirmação da equipe); de outro erro, não há conflito a mostrar. */
 function conflitoDe(err: DomainError): Conflito | undefined {
-  if (err.reason !== 'slot_taken') return undefined
+  if (err.reason !== 'slot_taken' && err.reason !== 'needs_confirmation') return undefined
   const lista: unknown = err.details?.nearest
   if (!Array.isArray(lista)) return { nearest: [] }
   const nearest: Conflito['nearest'] = []
@@ -31,6 +34,22 @@ function conflitoDe(err: DomainError): Conflito | undefined {
     }
   }
   return { nearest }
+}
+
+const TIPOS_DE_PENDENCIA = ['closed', 'outside_hours', 'blocked', 'busy'] as const
+
+/** Lê `details` de um erro `needs_confirmation`; sem a impressão ou sem pendências legíveis, não há o que confirmar. */
+function confirmacaoDe(err: DomainError): Confirmacao | undefined {
+  if (err.reason !== 'needs_confirmation') return undefined
+  const d = err.details
+  if (!d || typeof d.acknowledgement !== 'string' || !Array.isArray(d.issues)) return undefined
+  const issues: Confirmacao['issues'] = []
+  for (const item of d.issues) {
+    if (typeof item !== 'object' || item === null || !('kind' in item) || !('text' in item) || typeof item.text !== 'string') continue
+    const kind = TIPOS_DE_PENDENCIA.find((k) => k === item.kind)
+    if (kind) issues.push({ kind, text: item.text })
+  }
+  return { ack: d.acknowledgement, professionalName: typeof d.professionalName === 'string' ? d.professionalName : '', issues }
 }
 
 export const MENSAGEM_GENERICA = 'Não foi possível concluir agora. Tente de novo em instantes; se continuar, avise quem cuida da plataforma.'
@@ -65,7 +84,15 @@ export function formError<V>(err: unknown, values: V, generica: string = MENSAGE
   const seguros = semSegredos(values) as V
   if (err instanceof DomainError) {
     const conflict = conflitoDe(err)
-    return { ok: false, message: err.message, fields: { ...(err.fields ?? {}) }, values: seguros, ...(conflict ? { conflict } : {}) }
+    const confirmation = confirmacaoDe(err)
+    return {
+      ok: false,
+      message: err.message,
+      fields: { ...(err.fields ?? {}) },
+      values: seguros,
+      ...(conflict ? { conflict } : {}),
+      ...(confirmation ? { confirmation } : {}),
+    }
   }
   console.error(JSON.stringify({ level: 'error', event: 'form_action_failed', error: err instanceof Error ? err.name : 'unknown' }))
   return { ok: false, message: generica, fields: {}, values: seguros }

@@ -444,10 +444,7 @@
   /* ---- Movimento: só em resposta a ação ---- */
   @media (prefers-reduced-motion: no-preference) {
     .af-skip {
-      transition: transform 120ms ease-out;
-    }
-    .af-navlink {
-      transition: background-color 140ms ease-out;
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
   }
   @media (hover: hover) {

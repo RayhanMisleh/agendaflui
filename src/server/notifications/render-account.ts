@@ -1,5 +1,5 @@
 /*
- * E-mails de conta do app (código de cadastro, conta já existente, código de redefinição de senha).
+ * E-mails de conta da pessoa (código de cadastro pela loja, conta já existente) e o de teste do painel dev.
  * Pura: recebe o nome e a cor da conta e devolve assunto, texto e HTML em pt-BR. Tudo que vem de dado é escapado
  * no HTML; o HTML não tem imagens nem recursos remotos; o assunto nunca leva quebra de linha.
  */
@@ -11,14 +11,14 @@ export type RenderedMail = { subject: string; text: string; html: string }
 
 const layout = (brand: AccountBrand, title: string, content: FrameContent) => emailFrame(brand, title, content)
 
-const greeting = (customerName: string): string => `Olá, ${semControle(umaLinha(customerName))}.`
+const greeting = (name: string): string => `Olá, ${semControle(umaLinha(name))}.`
 
-/** Código para confirmar o e-mail de um cadastro novo. */
-export function renderRegistrationCode(brand: AccountBrand, i: { customerName: string; code: string; ttlMin: number }): RenderedMail {
+/** Código para confirmar o e-mail de um cadastro novo pelo link de uma loja. */
+export function renderSignupCode(brand: AccountBrand, i: { name: string; code: string; ttlMin: number }): RenderedMail {
   const title = 'Confirme seu e-mail'
   const body = layout(brand, title, {
     paragraphs: [
-      greeting(i.customerName),
+      greeting(i.name),
       `Use o código abaixo para terminar seu cadastro em ${semControle(umaLinha(brand.name))}. Ele vale por ${i.ttlMin} minutos.`,
       'Se não foi você, ignore este e-mail: nada será criado.',
     ],
@@ -27,31 +27,32 @@ export function renderRegistrationCode(brand: AccountBrand, i: { customerName: s
   return { subject: `${umaLinha(semControle(brand.name))}: seu código de confirmação`, ...body }
 }
 
-/** Aviso para quem tenta se cadastrar com um e-mail que já tem conta. Sem código. */
-export function renderAccountExists(brand: AccountBrand, i: { customerName: string }): RenderedMail {
-  const title = 'Você já tem uma conta'
+/** Código para confirmar o e-mail NOVO na troca de e-mail de Minha conta. */
+export function renderEmailChangeCode(brand: AccountBrand, i: { name: string; code: string; ttlMin: number }): RenderedMail {
+  const title = 'Confirme o novo e-mail'
   const body = layout(brand, title, {
     paragraphs: [
-      greeting(i.customerName),
-      `Este e-mail já tem uma conta em ${semControle(umaLinha(brand.name))}. Para entrar, use seu e-mail e sua senha.`,
-      'Se você não lembra a senha, toque em "Esqueci minha senha" na tela de entrada do aplicativo. Se não foi você, ignore este e-mail.',
-    ],
-  })
-  return { subject: `${umaLinha(semControle(brand.name))}: você já tem uma conta`, ...body }
-}
-
-/** Código para redefinir a senha. */
-export function renderPasswordResetCode(brand: AccountBrand, i: { customerName: string; code: string; ttlMin: number }): RenderedMail {
-  const title = 'Redefina sua senha'
-  const body = layout(brand, title, {
-    paragraphs: [
-      greeting(i.customerName),
-      `Use o código abaixo para criar uma senha nova em ${semControle(umaLinha(brand.name))}. Ele vale por ${i.ttlMin} minutos.`,
-      'Se não foi você, ignore este e-mail: sua senha continua a mesma.',
+      greeting(i.name),
+      `Use o código abaixo para trocar o e-mail da sua conta no ${semControle(umaLinha(brand.name))}. Ele vale por ${i.ttlMin} minutos.`,
+      'Se não foi você, ignore este e-mail: nada será trocado.',
     ],
     code: i.code,
   })
-  return { subject: `${umaLinha(semControle(brand.name))}: código para redefinir a senha`, ...body }
+  return { subject: `${umaLinha(semControle(brand.name))}: confirme o novo e-mail`, ...body }
+}
+
+/** Aviso para quem tenta se cadastrar com um e-mail que já tem conta. Sem código; leva à entrada da loja. */
+export function renderAccountExists(brand: AccountBrand, i: { name: string; loginUrl: string }): RenderedMail {
+  const title = 'Você já tem uma conta'
+  const body = layout(brand, title, {
+    paragraphs: [
+      greeting(i.name),
+      'Este e-mail já tem conta. Entre com ela.',
+      `Se você não lembra a senha, toque em "Esqueci a senha" na tela de entrada. Se não foi você, ignore este e-mail.`,
+    ],
+    action: { label: `Entrar em ${semControle(umaLinha(brand.name))}`, href: i.loginUrl },
+  })
+  return { subject: `${umaLinha(semControle(brand.name))}: você já tem uma conta`, ...body }
 }
 
 /** E-mail de teste do painel dev: prova que o canal de envio está configurado. Sem link, sem dado de conta. */

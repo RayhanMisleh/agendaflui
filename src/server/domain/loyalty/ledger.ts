@@ -6,6 +6,7 @@ import { authorize, DomainError, orNotFound, parse, z } from '@/server/domain/er
 import { requireModule } from '@/server/domain/modules'
 import { party } from '@/server/domain/scheduling/appointment-view'
 import { TX_OPTIONS } from '@/server/domain/scheduling/placement'
+import { pointsText } from '@/shared/terms'
 import { formatDateTime, fromEpochMs } from '@/server/time'
 
 export type LoyaltyEntryView = {
@@ -61,11 +62,9 @@ export async function getBalance(db: Db, customerId: string): Promise<number> {
   return r._sum.points ?? 0
 }
 
-/** `5 pontos`, `1 ponto`: o termo da conta, no singular ou no plural. */
-export async function pointsLabel(db: Db, businessId: string, n: number): Promise<string> {
-  const s = await db.businessSettings.findUnique({ where: { businessId }, select: { termPointsSingular: true, termPointsPlural: true } })
-  const term = Math.abs(n) === 1 ? (s?.termPointsSingular ?? 'ponto') : (s?.termPointsPlural ?? 'pontos')
-  return `${n} ${term}`
+/** `5 pontos`, `1 ponto`: o termo do sistema, no singular ou no plural. */
+export function pointsLabel(n: number): string {
+  return pointsText(n)
 }
 
 export function entryView(ctx: TenantContext, row: LoyaltyTransaction): LoyaltyEntryView {
@@ -179,7 +178,7 @@ export async function adjustPoints(
     if (input.points < 0 && before + input.points < 0) {
       throw new DomainError(
         'conflict',
-        `O saldo do cliente é de ${await pointsLabel(tx, ctx.businessId, before)} e o ajuste tira ${await pointsLabel(tx, ctx.businessId, -input.points)}. O saldo não pode ficar negativo.`,
+        `O saldo do cliente é de ${pointsLabel(before)} e o ajuste tira ${pointsLabel(-input.points)}. O saldo não pode ficar negativo.`,
         { reason: 'insufficient_points', fields: { points: 'O saldo não pode ficar negativo.' } },
       )
     }

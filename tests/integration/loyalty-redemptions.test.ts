@@ -65,13 +65,11 @@ describe('resgate pelo cliente', () => {
     expect(await estoqueDe(s.prize.id)).toBeNull()
   })
 
-  test('com saldo menor: insufficient_points com a falta nos termos da conta, e nada é gravado', async () => {
+  test('com saldo menor: insufficient_points com a falta em pontos, e nada é gravado', async () => {
     const s = await cena(40, { stock: 5 })
     const erro = await domainError(redeemPrize(s.ctxCliente, { prizeId: s.prize.id }))
     expect(erro).toMatchObject({ code: 'conflict', reason: 'insufficient_points' })
-    expect(erro.message).toContain('Faltam 60 Pontos')
-    await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { termPointsPlural: 'moedas' } })
-    expect((await domainError(redeemPrize(s.ctxCliente, { prizeId: s.prize.id }))).message).toContain('Faltam 60 moedas')
+    expect(erro.message).toContain('Faltam 60 pontos')
     expect(await prisma.prizeRedemption.count({ where: { businessId: s.b.id } })).toBe(0)
     expect(await saldoNoBanco(s.b.id, s.cliente.id)).toBe(40)
     expect(await estoqueDe(s.prize.id)).toBe(5)

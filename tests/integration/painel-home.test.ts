@@ -247,20 +247,15 @@ describe('getHomeOverview: contadores e ocupação', () => {
   })
 })
 
-describe('getPainelContext: papel, termos e módulos num lugar só', () => {
-  test('devolve os termos da conta, o papel em português e os módulos', async () => {
+describe('getPainelContext: papel e módulos num lugar só', () => {
+  test('devolve o papel em português e os módulos', async () => {
     const b = await makeBusiness({ timezone: MANAUS })
-    await prisma.businessSettings.update({
-      where: { businessId: b.id },
-      data: { termProfessionalSingular: 'Tosador', termProfessionalPlural: 'Tosadores', termCustomerPlural: 'Tutores' },
-    })
     const dono = await ctxWithRole(b, 'OWNER')
     const prof = await ctxWithRole(b, 'PROFESSIONAL')
     const gerente = await ctxWithRole(b, 'MANAGER')
     const a = await getPainelContext(dono)
-    expect(a.terms.customerPlural).toBe('Tutores')
     expect(a.roleLabel).toBe('Dono')
-    expect((await getPainelContext(prof)).roleLabel).toBe('Tosador')
+    expect((await getPainelContext(prof)).roleLabel).toBe('Profissional')
     expect((await getPainelContext(gerente)).roleLabel).toBe('Gerente')
     expect(a.modules).toEqual({ loyalty: false, banners: false, store: false })
   })

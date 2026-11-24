@@ -4,7 +4,7 @@ import { DomainError } from '@/server/domain/errors'
 import { updateBusinessData, setBusinessStatus } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
 import type { BrandInput } from '@/server/domain/platform/customization'
-import { getCustomization, updateBrand, updateModules, updateNotificationsAsAdmin, updateRulesAsAdmin, updateTerms } from '@/server/domain/platform/customization'
+import { getCustomization, updateBrand, updateModules, updateNotificationsAsAdmin, updateRulesAsAdmin } from '@/server/domain/platform/customization'
 import { changeMemberRole, inviteMember, listTeam, resendInvite, setMemberActive } from '@/server/domain/platform/team'
 import { DEFAULT_NOTIFICATION_SETTINGS } from '@/server/domain/settings/notification-settings'
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
@@ -114,42 +114,15 @@ export const salvarMarca = porConta(
   (r, v) => feitoNaConta('Marca salva.', v, { version: String(r.version) }),
 )
 
-// ---------------------------------------------------------------- termos, módulos, regras e avisos
-
-const TERMOS = ['professionalSingular', 'professionalPlural', 'customerSingular', 'customerPlural', 'pointsSingular', 'pointsPlural', 'club'] as const
+// ---------------------------------------------------------------- módulos, regras e avisos
 
 /**
- * Termos, regras e avisos moram na mesma linha (`business_settings`) que o dono também edita: o formulário leva a versão lida
+ * Regras e avisos moram na mesma linha (`business_settings`) que o dono também edita: o formulário leva a versão lida
  * pela tela, e quem grava sobre uma versão antiga recebe o aviso de conflito. Depois de gravar, a versão atual volta no estado.
  */
 async function versaoDasConfiguracoes(admin: PlatformAdminActor, businessId: string): Promise<number> {
   return (await getCustomization(admin, businessId)).rules.version
 }
-
-export const salvarTermos = porConta(
-  { nomes: ['version', ...TERMOS] },
-  async (admin, v) => {
-    const businessId = v.businessId ?? ''
-    await comVersao(
-      updateTerms(
-        admin,
-        businessId,
-        {
-          professionalSingular: v.professionalSingular ?? '',
-          professionalPlural: v.professionalPlural ?? '',
-          customerSingular: v.customerSingular ?? '',
-          customerPlural: v.customerPlural ?? '',
-          pointsSingular: v.pointsSingular ?? '',
-          pointsPlural: v.pointsPlural ?? '',
-          club: v.club ?? '',
-        },
-        Number(v.version),
-      ),
-    )
-    return versaoDasConfiguracoes(admin, businessId)
-  },
-  (r, v) => feitoNaConta('Termos salvos.', v, { version: String(r) }),
-)
 
 export const salvarModulos = porConta(
   { nomes: [], caixas: ['loyalty', 'banners', 'store'] },
@@ -179,11 +152,11 @@ export const salvarRegras = porConta(
 
 const TIPOS_DE_AVISO = Object.keys(DEFAULT_NOTIFICATION_SETTINGS)
 
-/** Os avisos chegam como uma caixa por tipo e canal (`TIPO__email`, `TIPO__push`); caixa desmarcada desliga. */
+/** Os avisos chegam como uma caixa por tipo (`TIPO__email`); caixa desmarcada desliga. */
 export const salvarAvisos = porConta(
-  { nomes: ['version'], caixas: TIPOS_DE_AVISO.flatMap((k) => [`${k}__email`, `${k}__push`]) },
+  { nomes: ['version'], caixas: TIPOS_DE_AVISO.map((k) => `${k}__email`) },
   async (admin, v) => {
-    const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on', push: v[`${k}__push`] === 'on' }]))
+    const todos = Object.fromEntries(TIPOS_DE_AVISO.map((k) => [k, { email: v[`${k}__email`] === 'on' }]))
     const businessId = v.businessId ?? ''
     await comVersao(updateNotificationsAsAdmin(admin, businessId, todos as NotificationSettings, Number(v.version)))
     return versaoDasConfiguracoes(admin, businessId)

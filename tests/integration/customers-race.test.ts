@@ -2,7 +2,7 @@ import { prisma } from '@/server/db/client'
 import { anonymizeCustomer, archiveCustomer } from '@/server/domain/customers/customers'
 import { bookAppointment } from '@/server/domain/scheduling/appointments'
 import { resetDb } from '../setup/db'
-import { makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService } from '../setup/factories'
+import { makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService, makeWorkingHours } from '../setup/factories'
 
 beforeEach(resetDb)
 
@@ -13,6 +13,8 @@ async function cenario() {
   const tosa = await makeService(b.id, { durationMin: 30 })
   const p1 = await makeProfessional(b.id, { serviceIds: [tosa.id] })
   const p2 = await makeProfessional(b.id, { serviceIds: [tosa.id] })
+  // Expediente na quarta e na quinta: a equipe não precisa confirmar "fora do expediente".
+  for (const p of [p1, p2]) for (const dia of ['WEDNESDAY', 'THURSDAY'] as const) await makeWorkingHours(b.id, p.id, dia, [{ startMin: 540, endMin: 1080 }])
   const c = await makeCustomer(b.id)
   const ctx = await makeCtx(b, { now: AGORA })
   return { b, tosa, p1, p2, c, ctx }

@@ -1,7 +1,7 @@
 'use client'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, PawPrint, Plus } from 'lucide-react'
 import {
   BrandPreview,
   Button,
@@ -19,6 +19,7 @@ import {
   Select,
   StatusBadge,
   StepRail,
+  Switch,
   useHydrated,
 } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
@@ -27,7 +28,7 @@ import { ACCENT_FIELD_LABEL, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL } from '@/
 import type { FormState } from '@/app/_lib/form-state'
 import type { LimitesDeRegras } from '../[id]/FormsConta'
 import { criarConta } from './actions'
-import { STEPS, TERM_PRESETS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
+import { STEPS, firstStepWithError, pickValues, slugify, stepsWithError } from './fields'
 import type { WizardData, WizardResult, WizardValues } from './fields'
 
 const ROTULOS: Record<string, string> = {
@@ -40,13 +41,8 @@ const ROTULOS: Record<string, string> = {
   primary: PRIMARY_FIELD_LABEL,
   accent: ACCENT_FIELD_LABEL,
   material: SIDEBAR_FIELD_LABEL,
-  professionalSingular: 'Profissional (singular)',
-  professionalPlural: 'Profissional (plural)',
-  customerSingular: 'Cliente (singular)',
-  customerPlural: 'Cliente (plural)',
-  pointsSingular: 'Pontos (singular)',
-  pointsPlural: 'Pontos (plural)',
-  club: 'Clube',
+  niche: 'Nicho',
+  servesCats: 'Atende gatos',
   store: 'Loja',
   slotStepMin: 'Grade de horários',
   minLeadMin: 'Antecedência mínima',
@@ -128,7 +124,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
   if (state.ok && state.values.result) return <Concluida result={state.values.result} onAgain={onAgain} />
 
   const { warnings } = previewTheme(v)
-  const comPrevia = !hidratado || step === 1 || step === 2
+  const comPrevia = !hidratado || step === 1
   const ultima = step === STEPS.length - 1
   const rotulosErro = ROTULOS
 
@@ -206,44 +202,44 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             />
           </Etapa>
 
-          <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Termos" ajuda="Como esta conta chama as pessoas e os pontos. Aparecem nas telas, nos e-mails e na API.">
-            <div className="af-wizard__presets" role="group" aria-label="Sugestões por ramo">
-              <span className="af-wizard__presets-label">Preencher com sugestão:</span>
-              {TERM_PRESETS.map((p) => (
-                <Button key={p.label} size="sm" onClick={() => setV((x) => ({ ...x, ...p.terms }))}>
-                  {p.label}
-                </Button>
-              ))}
+          <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Nicho" ajuda="O ramo da conta define os cadastros e a agenda. Por enquanto, só o pet shop.">
+            <input type="hidden" name="niche" value="PET" />
+            <div role="radiogroup" aria-label="Nicho da conta" className="af-nichepick">
+              <div role="radio" aria-checked="true" aria-disabled="true" tabIndex={0} className="af-nichecard" data-selected="true">
+                <span className="af-nichecard__icon" aria-hidden="true">
+                  <PawPrint size={24} />
+                </span>
+                <span className="af-nichecard__body">
+                  <span className="af-nichecard__title">Pet shop</span>
+                  <span className="af-nichecard__text">Agenda com pets, porte e preço por animal.</span>
+                </span>
+                <span className="af-nichecard__badge">
+                  <Check size={14} strokeWidth={3} aria-hidden="true" />
+                  Selecionado
+                </span>
+              </div>
             </div>
-            <div className="af-wizard__grid">
-              <Field label="Profissional (singular)" error={erro('professionalSingular')}>
-                <Input name="professionalSingular" value={v.professionalSingular} onChange={texto('professionalSingular')} autoComplete="off" />
-              </Field>
-              <Field label="Profissional (plural)" error={erro('professionalPlural')}>
-                <Input name="professionalPlural" value={v.professionalPlural} onChange={texto('professionalPlural')} autoComplete="off" />
-              </Field>
-              <Field label="Cliente (singular)" error={erro('customerSingular')}>
-                <Input name="customerSingular" value={v.customerSingular} onChange={texto('customerSingular')} autoComplete="off" />
-              </Field>
-              <Field label="Cliente (plural)" error={erro('customerPlural')}>
-                <Input name="customerPlural" value={v.customerPlural} onChange={texto('customerPlural')} autoComplete="off" />
-              </Field>
-              <Field label="Pontos (singular)" error={erro('pointsSingular')}>
-                <Input name="pointsSingular" value={v.pointsSingular} onChange={texto('pointsSingular')} autoComplete="off" />
-              </Field>
-              <Field label="Pontos (plural)" error={erro('pointsPlural')}>
-                <Input name="pointsPlural" value={v.pointsPlural} onChange={texto('pointsPlural')} autoComplete="off" />
-              </Field>
-              <Field label="Clube" hint="O nome do programa de fidelidade." error={erro('club')}>
-                <Input name="club" value={v.club} onChange={texto('club')} autoComplete="off" />
-              </Field>
-            </div>
+            <p className="af-wizard__help">Por enquanto, o Agenda Flui atende pet shops.</p>
+            {erro('niche') ? (
+              <p role="alert" className="af-field__error">
+                {erro('niche')}
+              </p>
+            ) : null}
+            {hidratado ? (
+              <>
+                <Switch checked={v.servesCats} onCheckedChange={(on) => set('servesCats', on)} label="Atende gatos" />
+                {v.servesCats ? <input type="hidden" name="servesCats" value="on" /> : null}
+              </>
+            ) : (
+              <Checkbox name="servesCats" label="Atende gatos" defaultChecked={v.servesCats} />
+            )}
+            <p className="af-field__hint">Desligado: a loja atende só cães. Dá para mudar depois em Configurações.</p>
           </Etapa>
 
-          <Etapa i={3} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu, das telas e da API.">
+          <Etapa i={3} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu e das telas.">
             <div className="af-wizard__checks">
               <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" checked={v.loyalty} onChange={(e) => set('loyalty', e.target.checked)} />
-              <Checkbox name="banners" label="Banners: avisos e promoções no app" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
+              <Checkbox name="banners" label="Banners: avisos e promoções para clientes" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
               <Checkbox name="store" label="Loja: produtos e pedidos" checked={v.store} onChange={(e) => set('store', e.target.checked)} />
             </div>
           </Etapa>
@@ -291,6 +287,8 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <dd>{v.displayName || 'Sem nome de exibição'}</dd>
               <dt>Dono</dt>
               <dd>{v.ownerEmail || 'Sem e-mail ainda'}</dd>
+              <dt>Nicho</dt>
+              <dd>Pet shop · Gatos: {v.servesCats ? 'sim' : 'não'}</dd>
               <dt>Módulos</dt>
               <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
             </dl>
@@ -320,7 +318,6 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             <BrandPreview
               businessName={v.displayName || v.name}
               brand={{ primary: v.primary, accent: v.accent, material: v.material }}
-              terms={v}
             />
           </FoldablePreview>
         ) : null}

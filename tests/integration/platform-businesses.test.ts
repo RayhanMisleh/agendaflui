@@ -36,11 +36,12 @@ afterEach(() => mail.uninstall())
 const base = {
   name: 'Barbearia Central',
   slug: 'central',
+  niche: 'PET' as const,
   owner: { name: 'João Silva', email: 'Joao@Exemplo.test' },
 }
 
 function tokenDoEmail(i = mail.sent.length - 1): string {
-  const m = /\/definir-senha\/([A-Za-z0-9_-]+)/.exec(mail.sent[i]?.text ?? '')
+  const m = /\/convite\/([A-Za-z0-9_-]+)/.exec(mail.sent[i]?.text ?? '')
   if (!m?.[1]) throw new Error('O e-mail não traz o link de definir senha.')
   return m[1]
 }
@@ -48,6 +49,21 @@ function tokenDoEmail(i = mail.sent.length - 1): string {
 const UUID_INEXISTENTE = '00000000-0000-4000-8000-000000000000'
 
 describe('createBusiness', () => {
+  test('sem nicho → validation no campo niche', async () => {
+    const e = await domainError(createBusiness(actor, { ...base, niche: undefined } as never))
+    expect(e).toMatchObject({ code: 'validation' })
+    expect(Object.keys(e.fields ?? {})).toContain('niche')
+  })
+
+  test('grava o nicho PET e a opção de gatos (padrão: desligada)', async () => {
+    const a = await createBusiness(actor, base)
+    expect(a.business).toMatchObject({ niche: 'PET', servesCats: false })
+    const b = await createBusiness(actor, { ...base, slug: 'com-gatos', nicheOptions: { servesCats: true }, owner: { name: 'B', email: 'b@exemplo.test' } })
+    expect(b.business).toMatchObject({ niche: 'PET', servesCats: true })
+    const cfg = await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: b.business.id } })
+    expect(cfg.nicheOptions).toEqual({ servesCats: true })
+  })
+
   test('dono novo: usuário sem senha, vínculo OWNER, convite só com hash e e-mail com o link', async () => {
     const r = await createBusiness(actor, base)
     expect(r.business).toMatchObject({ name: 'Barbearia Central', slug: 'central', status: 'ACTIVE', timeZone: 'America/Sao_Paulo', version: 1 })
@@ -70,7 +86,7 @@ describe('createBusiness', () => {
     expect(convite.usedAt).toBeNull()
     expect(mail.sent).toHaveLength(1)
     expect(mail.sent[0]).toMatchObject({ to: 'joao@exemplo.test' })
-    expect(mail.sent[0]?.text).toContain(`http://painel.localhost:3000/definir-senha/${token}`)
+    expect(mail.sent[0]?.text).toContain(`http://app.localhost:3000/convite/${token}`)
     expect(mail.sent[0]?.text).toContain('Barbearia Central')
   })
 
@@ -110,8 +126,8 @@ describe('createBusiness', () => {
     expect(mail.sent).toHaveLength(1)
     expect(mail.sent[0]?.to).toBe('helena@exemplo.test')
     expect(mail.sent[0]?.text).toContain('Barbearia Central')
-    expect(mail.sent[0]?.text).not.toContain('definir-senha')
-    expect(mail.sent[0]?.text).toContain('http://painel.localhost:3000/entrar')
+    expect(mail.sent[0]?.text).not.toContain('convite')
+    expect(mail.sent[0]?.text).toContain('http://app.localhost:3000/entrar')
     expect(mail.sent[0]?.text).not.toContain('/entrar/central')
   })
 
@@ -126,7 +142,7 @@ describe('createBusiness', () => {
     const convites = await prisma.userToken.findMany({ where: { userId: pendente.id } })
     expect(convites).toHaveLength(1)
     expect(convites[0]?.tokenHash).toBe(hashToken(token))
-    expect(mail.sent[0]?.text).toContain('/definir-senha/')
+    expect(mail.sent[0]?.text).toContain('/convite/')
   })
 
   test('falha no envio não desfaz a conta e aparece no retorno', async () => {
@@ -309,7 +325,7 @@ describe('listBusinesses e getBusinessDetail', () => {
     const r = await createBusiness(actor, { ...base, contactEmail: 'contato@central.test', contactPhone: '5592999990000' })
     const d = await getBusinessDetail(actor, r.business.id)
     expect(d).toMatchObject({ contactEmail: 'contato@central.test', contactPhone: '5592999990000', version: 1, timeZone: 'America/Sao_Paulo' })
-    expect(d.customerLinkUrl).toBe(`${env.APP_WEB_URL}/${d.slug}`)
+    expect(d.customerLinkUrl).toBe(`http://${env.APP_HOST}/${d.slug}`)
     expect((await domainError(getBusinessDetail(actor, UUID_INEXISTENTE))).code).toBe('not_found')
     expect((await domainError(getBusinessDetail(actor, 'nao-e-uuid'))).code).toBe('not_found')
   })

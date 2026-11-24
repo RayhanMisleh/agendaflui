@@ -1,24 +1,21 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { TenantContext } from '@/server/auth/actor'
-import { verifyPassword } from '@/server/auth/password'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService } from '../setup/factories'
 
-const guards = vi.hoisted(() => ({ requireTenant: vi.fn(), readCookie: vi.fn(), PAINEL_COOKIE: 'painel' }))
+const guards = vi.hoisted(() => ({ requireTenant: vi.fn(), readCookie: vi.fn(), APP_COOKIE: 'painel' }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
 import {
   criarFechamento,
   removerFechamento,
+  salvarAnimais,
   salvarAvisos,
   salvarNegocio,
-  salvarPerfil,
   salvarRegras,
-  salvarTermos,
-  trocarSenha,
-} from '@/app/painel/(app)/configuracoes/actions'
+} from '@/app/app/painel/configuracoes/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -85,31 +82,26 @@ describe('regras da agenda', () => {
     expect((await config()).minLeadMin).toBe(90)
   })
 
-  test('três formulários, uma versão: depois de salvar as regras, os termos pedem a versão nova', async () => {
+  test('dois formulários, uma versão: depois de salvar as regras, os avisos pedem a versão nova', async () => {
     const v = (await config()).version
     await salvarRegras(ini, form({ ...REGRAS, version: String(v) }))
-    const termos = {
-      professionalSingular: 'Tosador', professionalPlural: 'Tosadores', customerSingular: 'Tutor', customerPlural: 'Tutores',
-      pointsSingular: 'ponto', pointsPlural: 'pontos', club: 'Clube',
-    }
-    const velha = await salvarTermos(ini, form({ ...termos, version: String(v) }))
+    const velha = await salvarAvisos(ini, form({ version: String(v), APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(velha.message).toBe(CONFLITO)
-    const nova = await salvarTermos(ini, form({ ...termos, version: String(v + 1) }))
+    const nova = await salvarAvisos(ini, form({ version: String(v + 1), APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(nova.ok).toBe(true)
-    expect(nova.message).toBe('Termos salvos.')
-    expect((await config()).termProfessionalPlural).toBe('Tosadores')
+    expect(nova.message).toBe('Avisos salvos.')
   })
 })
 
 describe('avisos', () => {
-  test('a matriz grava uma caixa por tipo e canal; desmarcada desliga', async () => {
+  test('a matriz grava uma caixa de e-mail por tipo; desmarcada desliga', async () => {
     const v = (await config()).version
     const r = await salvarAvisos(ini, form({ version: String(v), APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(r.ok).toBe(true)
     expect(r.message).toBe('Avisos salvos.')
-    const n = (await config()).notifications as Record<string, { email: boolean; push: boolean }>
-    expect(n.APPOINTMENT_CONFIRMED).toEqual({ email: true, push: false })
-    expect(n.APPOINTMENT_CANCELED).toEqual({ email: false, push: false })
+    const n = (await config()).notifications as Record<string, { email: boolean }>
+    expect(n.APPOINTMENT_CONFIRMED).toEqual({ email: true })
+    expect(n.APPOINTMENT_CANCELED).toEqual({ email: false })
   })
 
   test('versão antiga devolve o conflito', async () => {
@@ -212,44 +204,34 @@ describe('fechamentos', () => {
   })
 })
 
-describe('meu perfil', () => {
-  test('troca o nome; todos os papéis podem', async () => {
-    const prof = await ctxWithRole({ id: businessId }, 'PROFESSIONAL')
-    guards.requireTenant.mockResolvedValue(prof)
-    const r = await salvarPerfil(ini, form({ name: 'Nome Novo' }))
+describe('animais atendidos', () => {
+  beforeEach(async () => {
+    await prisma.business.update({ where: { id: businessId }, data: { niche: 'PET' } })
+  })
+
+  test('salvarAnimais liga gatos e responde "Animais atendidos salvos."; profissional recebe a mensagem de sem permissão', async () => {
+    const antes = await config()
+    const r = await salvarAnimais(ini, form({ version: String(antes.version), servesCats: 'on' }))
     expect(r.ok).toBe(true)
-    expect(r.message).toBe('Perfil salvo.')
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: memberOf(prof).userId } })).name).toBe('Nome Novo')
+    expect(r.message).toBe('Animais atendidos salvos.')
+    expect((await config()).nicheOptions).toEqual({ servesCats: true })
+    const v = (await config()).version
+    const desliga = await salvarAnimais(ini, form({ version: String(v) }))
+    expect(desliga.ok).toBe(true)
+    expect((await config()).nicheOptions).toEqual({ servesCats: false })
+    guards.requireTenant.mockResolvedValue(await ctxWithRole({ id: businessId }, 'PROFESSIONAL'))
+    const negado = await salvarAnimais(ini, form({ version: String((await config()).version), servesCats: 'on' }))
+    expect(negado.ok).toBe(false)
+    expect(negado.message).toBe(NEGADO)
+    expect((await config()).nicheOptions).toEqual({ servesCats: false })
   })
 
-  test('em modo suporte o perfil é indisponível e nada é gravado', async () => {
-    const suporte: TenantContext = { ...dono, actor: { kind: 'impersonator', adminId: (await makeUser()).id, name: 'Admin', adminName: 'Admin' } as never }
-    guards.requireTenant.mockResolvedValue(suporte)
-    const r = await salvarPerfil(ini, form({ name: 'Invasor' }))
+  test('salvarAnimais com versão velha → mensagem de conflito, nada muda', async () => {
+    const antes = await config()
+    await salvarAnimais(ini, form({ version: String(antes.version), servesCats: 'on' }))
+    const r = await salvarAnimais(ini, form({ version: String(antes.version) }))
     expect(r.ok).toBe(false)
-    expect(r.message).toMatch(/própria pessoa|suporte/i)
-    expect(await prisma.user.count({ where: { name: 'Invasor' } })).toBe(0)
-  })
-
-  test('senha: atual errada volta no campo, certa troca e nunca devolve senha ao navegador', async () => {
-    const user = await makeUser({ password: 'senha-antiga-1' })
-    const membership = await prisma.membership.create({ data: { businessId, userId: user.id, role: 'MANAGER', active: true } })
-    const ctx = await ctxWithRole({ id: businessId }, 'MANAGER')
-    guards.requireTenant.mockResolvedValue({ ...ctx, actor: { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role: 'MANAGER' } })
-    const errada = await salvarPerfilSenha('outra-coisa-1', 'nova-senha-123', 'nova-senha-123')
-    expect(errada.ok).toBe(false)
-    expect(errada.fields.senhaAtual).toBeTruthy()
-    expect(JSON.stringify(errada.values)).not.toContain('nova-senha-123')
-    const diferente = await salvarPerfilSenha('senha-antiga-1', 'nova-senha-123', 'nao-confere-123')
-    expect(diferente.fields.senhaConfirma).toBeTruthy()
-    const certa = await salvarPerfilSenha('senha-antiga-1', 'nova-senha-123', 'nova-senha-123')
-    expect(certa.ok).toBe(true)
-    expect(certa.message).toBe('Senha trocada.')
-    const hash = (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash
-    expect(await verifyPassword(hash ?? '', 'nova-senha-123')).toBe(true)
+    expect(r.message).toBe(CONFLITO)
+    expect((await config()).nicheOptions).toEqual({ servesCats: true })
   })
 })
-
-function salvarPerfilSenha(current: string, next: string, confirm: string) {
-  return trocarSenha(ini, form({ senhaAtual: current, senhaNova: next, senhaConfirma: confirm }))
-}

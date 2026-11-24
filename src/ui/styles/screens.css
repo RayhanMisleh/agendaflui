@@ -62,6 +62,12 @@
   .af-rowactions form {
     display: contents;
   }
+  .af-rowerror p {
+    margin: 0 0 0.5rem;
+  }
+  .af-rowerror p:last-child {
+    margin-bottom: 0;
+  }
   .af-rowerror {
     flex: 1 1 100%;
     margin: 0;

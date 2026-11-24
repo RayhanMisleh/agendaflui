@@ -1,9 +1,9 @@
 import QRCode from 'qrcode'
-import { env } from './env'
+import { areaLink } from './area-links'
 
-/** O link que a loja passa aos clientes: o app web na raiz do endereço da loja (`<APP_WEB_URL>/<slug>`). */
-export function customerLinkUrl(slug: string, base: string = env.APP_WEB_URL): string {
-  return `${base}/${slug}`
+/** O link que a loja passa aos clientes: o endereço do app com o slug da loja (`<APP_HOST>/<slug>`). */
+export function customerLinkUrl(slug: string): string {
+  return areaLink('app', `/${slug}`)
 }
 
 /** O QR code do link como SVG (preto no branco, correção de erro média, com a margem de silêncio). */

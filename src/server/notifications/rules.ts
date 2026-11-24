@@ -71,17 +71,12 @@ function stillValid(n: LoadedNotification, a: LoadedAppointment, now: Date): boo
 export function decide(n: LoadedNotification, now: Date): Decision {
   if (n.business.status !== 'ACTIVE') return skip('business_inactive')
   const toggle = n.business.enabled[n.kind]
-  if (n.channel === 'EMAIL' ? !toggle.email : !toggle.push) return skip('disabled_by_business')
+  if (!toggle.email) return skip('disabled_by_business')
 
   const r = n.recipient
   if (!r || !r.active) return skip('recipient_gone')
-  if (n.channel === 'EMAIL') {
-    if (!r.allowEmail) return skip('disabled_by_recipient')
-    if (!r.email) return skip('no_email')
-  } else {
-    if (!r.allowPush) return skip('disabled_by_recipient')
-    if (r.pushTokens.length === 0) return skip('no_device')
-  }
+  if (!r.allowEmail) return skip('disabled_by_recipient')
+  if (!r.email) return skip('no_email')
 
   const a = n.appointment
   if (!a || !stillValid(n, a, now)) return skip('stale')

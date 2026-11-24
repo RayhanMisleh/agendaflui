@@ -22,7 +22,7 @@ export type ServiceIconName = (typeof SERVICE_ICON_NAMES)[number]
 export const SERVICE_ICON_LABELS: Record<ServiceIconName, string> = {
   sparkles: 'Brilho',
   scissors: 'Tesoura',
-  'paw-print': 'Patinha',
+  'paw-print': 'Pata',
   droplets: 'Gotas',
   bath: 'Banho',
   brush: 'Escova',

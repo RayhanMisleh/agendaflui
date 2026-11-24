@@ -1,4 +1,4 @@
-/** Dados fixos das contas de demonstração. Sem importações: os testes e2e também leem este arquivo. */
+/** Dados fixos das contas de demonstração. Sem importações. */
 
 export type DemoPapel = 'dono' | 'gerente' | 'profissional'
 
@@ -159,7 +159,6 @@ export const DEMO_CONTAS = [
     chave: 'patas',
     slug: 'patas-e-cia',
     nome: 'Patas & Cia',
-    segmento: 'Pet shop',
     fuso: 'America/Sao_Paulo',
     marca: {
       primaryColor: '#2F7D5B',
@@ -167,14 +166,6 @@ export const DEMO_CONTAS = [
       coverMaterial: 'LEATHER',
     },
     modulos: { loyalty: true, banners: true, store: false },
-    termos: {
-      termProfessionalSingular: 'Tosador',
-      termProfessionalPlural: 'Tosadores',
-      termCustomerSingular: 'Cliente',
-      termCustomerPlural: 'Clientes',
-      termPointsSingular: 'Patinha',
-      termPointsPlural: 'Patinhas',
-    },
     equipe: {
       dono: 'Marina Duarte',
       gerente: 'Caio Ribeiro',
@@ -187,7 +178,6 @@ export const DEMO_CONTAS = [
     chave: 'navalha',
     slug: 'navalha-de-ouro',
     nome: 'Navalha de Ouro',
-    segmento: 'Barbearia',
     fuso: 'America/Manaus',
     marca: {
       primaryColor: '#243B6B',
@@ -195,10 +185,6 @@ export const DEMO_CONTAS = [
       coverMaterial: 'WOOD',
     },
     modulos: { loyalty: true, banners: true, store: true },
-    termos: {
-      termProfessionalSingular: 'Barbeiro',
-      termProfessionalPlural: 'Barbeiros',
-    },
     equipe: {
       dono: 'Rafael Menezes',
       gerente: 'Tiago Albuquerque',
@@ -216,31 +202,20 @@ export const DEMO_ADMIN_INATIVO = { nome: 'Admin Inativo', email: 'inativo@agend
 export const DEMO_CONTA_SUSPENSA = {
   slug: 'estudio-sol-nascente',
   nome: 'Estúdio Sol Nascente',
-  segmento: 'Estúdio de pilates',
   fuso: 'America/Sao_Paulo',
   donoNome: 'Helena Prado',
   donoEmail: `dono.sol@${DOMINIO}`,
 } as const
 
-/** Rotas do uso de API de demonstração: método e caminho como o código grava, peso do tráfego e tempo típico em ms. */
-export const DEMO_ROTAS_USO = [
-  { rota: 'GET /v1/availability', peso: 6, ms: 38 },
-  { rota: 'GET /v1/appointments', peso: 4, ms: 52 },
-  { rota: 'POST /v1/appointments', peso: 2, ms: 96 },
-  { rota: 'GET /v1/business', peso: 3, ms: 21 },
-  { rota: 'POST /v1/auth/customer/login', peso: 1, ms: 180 },
-] as const
-
 /** Execuções do agendador de demonstração: minutos antes do "agora", tipo, resultado (contagens ou nome do erro). */
 export const DEMO_EXECUCOES = [
   { minutosAtras: 3, kind: 'notifications', resultado: { sent: 4, skipped: 1 } },
-  { minutosAtras: 4, kind: 'usage_flush', resultado: 12 },
   { minutosAtras: 4, kind: 'notifications', resultado: { sent: 2 } },
   { minutosAtras: 5, kind: 'notifications', resultado: { sent: 1, retried: 1 } },
-  { minutosAtras: 20, kind: 'cleanup', resultado: { limites: 6, codigos: 2, tokens: 3, execucoes: 0, passagens: 0 } },
+  { minutosAtras: 20, kind: 'cleanup', resultado: { limites: 6, codigos: 2, execucoes: 0, passagens: 0 } },
   { minutosAtras: 21, kind: 'notifications', resultado: { sent: 3, failed: 1 } },
-  { minutosAtras: 22, kind: 'usage_flush', resultado: 9 },
   { minutosAtras: 80, kind: 'notifications', resultado: { sent: 5 } },
   { minutosAtras: 81, kind: 'cleanup', falha: 'ConnectionError' },
-  { minutosAtras: 140, kind: 'usage_flush', resultado: 14 },
+  { minutosAtras: 6, kind: 'store', resultado: { synced: 2, expired: 1 } },
+  { minutosAtras: 130, kind: 'notifications', resultado: { sent: 2 } },
 ] as const

@@ -9,17 +9,14 @@ import { updateBrand } from '@/server/domain/platform/customization'
 import type { BrandInput } from '@/server/domain/platform/customization'
 import {
   getBusinessProfile,
-  getTermLabels,
-  getTerms,
   setBusinessLogo,
   updateBusinessProfile,
-  updateTermsAsOwner,
 } from '@/server/domain/settings/business-profile'
 import { createLocalDiskStorage } from '@/server/storage/local-disk'
 import type { Storage } from '@/server/storage/storage'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makePlatformAdmin } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makePlatformAdmin } from '../setup/factories'
 
 let dir: string
 let disco: Storage
@@ -48,16 +45,6 @@ beforeEach(async () => {
   await rm(dir, { recursive: true, force: true })
   await mkdir(dir, { recursive: true })
 })
-
-const TERMOS = {
-  professionalSingular: 'Tosador',
-  professionalPlural: 'Tosadores',
-  customerSingular: 'Tutor',
-  customerPlural: 'Tutores',
-  pointsSingular: 'Patinha',
-  pointsPlural: 'Patinhas',
-  club: 'Clube Pet',
-}
 
 describe('dados do negócio', () => {
   test('o dono lê o perfil da conta com a versão', async () => {
@@ -257,51 +244,5 @@ describe('logo', () => {
     const admin = await makePlatformAdmin()
     const suporte = await makeCtx(b, { actor: { kind: 'impersonator', adminId: admin.id, name: admin.name } })
     expect((await setBusinessLogo(suporte, null)).logoUrl).toBeNull()
-  })
-})
-
-describe('rótulos dos termos', () => {
-  test('qualquer membro da equipe lê os termos da conta, sem versão; quem não é da equipe não', async () => {
-    const b = await makeBusiness()
-    await updateTermsAsOwner(await makeCtx(b), 1, TERMOS)
-    for (const papel of ['OWNER', 'MANAGER', 'PROFESSIONAL'] as const) {
-      expect(await getTermLabels(await ctxWithRole(b, papel))).toEqual(TERMOS)
-    }
-    const cliente = await makeCustomer(b.id)
-    const comoCliente = await makeCtx(b, { actor: { kind: 'customer', customerId: cliente.id, name: cliente.name } })
-    expect((await domainError(getTermLabels(comoCliente))).code).toBe('forbidden')
-  })
-})
-
-describe('termos pelo dono', () => {
-  test('dono e gerente gravam, profissional não; a versão sobe e a auditoria guarda antes e depois', async () => {
-    const b = await makeBusiness()
-    const dono = await makeCtx(b)
-    const gerente = await ctxWithRole(b, 'MANAGER')
-    const inicial = await getTerms(dono)
-    expect(inicial.version).toBe(1)
-    const r = await updateTermsAsOwner(dono, inicial.version, TERMOS)
-    expect(r).toEqual({ terms: TERMOS, version: 2 })
-    expect((await getTerms(gerente)).terms).toEqual(TERMOS)
-    expect((await updateTermsAsOwner(gerente, 2, { ...TERMOS, club: 'Clube Novo' })).version).toBe(3)
-    const prof = await ctxWithRole(b, 'PROFESSIONAL')
-    expect((await domainError(updateTermsAsOwner(prof, 3, TERMOS))).code).toBe('forbidden')
-    expect((await domainError(getTerms(prof))).code).toBe('forbidden')
-    const logs = await prisma.auditLog.findMany({ where: { businessId: b.id, action: 'terms.updated' }, orderBy: { createdAt: 'asc' } })
-    expect(logs).toHaveLength(2)
-    expect(logs[1]?.metadata).toEqual({ changes: { club: { from: 'Clube Pet', to: 'Clube Novo' } } })
-  })
-
-  test('versão antiga dá stale_version; termo igual não sobe a versão; objeto com campo extra é recusado', async () => {
-    const b = await makeBusiness()
-    const ctx = await makeCtx(b)
-    await updateTermsAsOwner(ctx, 1, TERMOS)
-    const e = await domainError(updateTermsAsOwner(ctx, 1, { ...TERMOS, club: 'Outro' }))
-    expect([e.code, e.reason]).toEqual(['conflict', 'stale_version'])
-    expect((await updateTermsAsOwner(ctx, 2, TERMOS)).version).toBe(2)
-    const extra = await domainError(updateTermsAsOwner(ctx, 2, { ...TERMOS, loyalty: true } as typeof TERMOS))
-    expect(extra.code).toBe('validation')
-    const marca = await domainError(updateTermsAsOwner(ctx, 2, { ...TERMOS, club: '<b>x</b>' }))
-    expect(Object.keys(marca.fields ?? {})).toContain('club')
   })
 })

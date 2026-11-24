@@ -5,7 +5,7 @@ import type { Membro } from '@/app/dev/(app)/contas/[id]/TeamPanel'
 
 const acao = async () => ({ ok: false, message: null, fields: {}, values: {} })
 const acoes = { trocarPapel: acao, alternarAcesso: acao, reenviarConvite: acao, convidarMembro: acao }
-const base: Membro = { membershipId: 'm1', name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL', active: true, hasPassword: false, inviteMailFailed: false, lastLogin: null }
+const base: Membro = { membershipId: 'm1', name: 'Eva Dias', email: 'eva@exemplo.test', role: 'PROFESSIONAL', active: true, hasAccount: false, inviteMailFailed: false, lastLogin: null }
 
 test('convite pendente com o e-mail enviado mostra "Convite pendente"', () => {
   render(<TeamPanel acoes={acoes} membros={[base]} />)
@@ -21,6 +21,6 @@ test('convite cujo e-mail não saiu mostra "Convite não enviado" na linha, com 
 })
 
 test('quem já tem senha não mostra situação de convite', () => {
-  render(<TeamPanel acoes={acoes} membros={[{ ...base, hasPassword: true, inviteMailFailed: true }]} />)
+  render(<TeamPanel acoes={acoes} membros={[{ ...base, hasAccount: true, inviteMailFailed: true }]} />)
   expect(screen.queryByText('Convite não enviado')).toBeNull()
 })

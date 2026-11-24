@@ -1,35 +1,57 @@
 # Pendências
 
-O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em navegador: só há testes automáticos e a fumaça por HTTP (`npm run smoke`).
+O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes automáticos e a fumaça por HTTP (`npm run smoke`).
 
 ## Para o dono conferir no navegador
 
-- Todas as telas dos dois painéis a 375 px (celular) e o foco nos diálogos.
+- Todas as telas do painel dev e do app a 375 px (celular) e o foco nos diálogos.
 - Painel dev: lista de contas, aba Módulos, aba Integrações, "tentar de novo" em /sistema, ações destrutivas (a confirmação exige JavaScript).
 - Criar conta, convite, definir senha e entrar; "entrar como", faixa de suporte (contraste) e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
 - Agenda: arrastar a ficha (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, envio da foto da equipe e do logo, exportação do CSV de relatórios.
 - Módulos: telas de Fidelidade, Banners e Loja, envio de imagens (também sem JavaScript), pedido com "Simular pagamento aprovado".
-- Entrada do painel do negócio sem JavaScript.
-- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar (`entrada.spec.ts` ainda cita as rotas `/entrar/<slug>` e `/escolher-conta`, removidas).
+- Entrada do app sem JavaScript.
+- Fase 1 (endereço único, pessoa única e Google), no `APP_HOST`:
+  - Entrar em `/entrar` como dono, equipe e cliente: cada um cai no destino certo (painel, loja, "sem loja").
+  - Cadastro pela loja (`/<slug>/cadastro`) com código de e-mail, e "Usar minha conta" numa segunda loja.
+  - Convite da equipe e redefinição de senha por link, com senha e com Google; links antigos `painel.` e `/definir-senha/<t>` redirecionando (308).
+  - Minha conta inteira (`/conta`): nome, e-mail com código, senha, vincular e desvincular Google, avisos de toda a loja; sem trancar a pessoa fora.
+  - `/google/falso` com `INTEGRATIONS_MODE=fake`: entrar, cadastrar e vincular pelo Google simulado.
+  - Painel dev em Sistema → Google: salvar e remover as chaves; sem chaves o botão do Google some.
+  - Tudo a 360 px, com foco visível e movimento reduzido.
+
+## Fase 2 (pet e agenda): entregue e o que fica
+
+- Entregue: nicho pet, pets, preço e tempo por animal e porte, agenda da equipe livre com confirmação e encaixe, telas do painel.
+- Conferir no navegador: folha de marcar a 360 px (pets em rolagem), diálogo "Confirme o horário", encaixe na grade do dia e na semana.
+
+## Fase 3 (área do cliente): entregue e o que fica
+
+- Entregue: acesso e domínio do cliente, tema da loja, moldura, página pública, quiz do pet (`/<slug>/boas-vindas`), Início, Agendar e
+  Remarcar, Meus horários (cancelar no prazo e `.ics`), Meus pets, Prêmios, Loja, Mais (avisos por e-mail e excluir a conta na loja).
+  `needsPetQuiz` agora leva a loja de pet shop sem pet ativo ao quiz depois de entrar.
+- Para o dono conferir no celular: cadastro pela loja até o quiz; quiz com e sem gatos (e a tela de boas-vindas); agendar com "Qualquer um"
+  e com um profissional; horário tomado entre escolher e confirmar (sugestões); sucesso e `.ics` no calendário do celular; remarcar perto do
+  próprio horário; cancelar fora do prazo (mensagem com o telefone); Meus pets com gato e gatos desligados; Prêmios; Loja até o Mercado Pago
+  de teste; excluir a conta na loja (com senha e só com Google); tudo a 360 px; modo de movimento reduzido; cor de loja clara demais.
+- Decisões a revisar: o sucesso do agendamento não mostra pontos a ganhar (a visão do agendamento não traz a recompensa); o quiz guarda
+  "Sem raça definida" como texto em `breed`.
+
+## Fase 4 (começo do dono, demonstração e acabamento): entregue e o que fica
+
+- Entregue: começo do dono (`/painel/comecar`) e a lista do que falta no Início; demonstração no modelo pet (`npm run demo:create`);
+  telas de erro e não encontrado; esqueleto em toda tela do painel; `SubmitButton` nos envios; movimento só com `transform` e `opacity`;
+  estados vazios com ação.
+- Conferir no navegador: `/painel/comecar` a 360 px (serviços por porte, expediente, QR e Compartilhar), prévia da marca ao vivo, envio da
+  logo e foco ao trocar de passo; telas de erro do painel e `global-error`; prévia do arrastar na agenda (agora por `transform`).
+- Decisões a revisar: botões, abas e cartões perderam a transição de cor no hover (a regra de movimento só deixa `transform` e
+  `opacity`); enviar a logo no passo Marca recarrega a página e perde cores não salvas; demonstração antiga sem `--recriar` não migra
+  (fica com serviços de preço único e os novos por porte).
 
 ## Antes de abrir a loja (Mercado Pago real)
 
 - Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).
-- Sem avisos de e-mail ou push para pedido, pagamento, resgate; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
+- Sem avisos de e-mail para pedido, pagamento, resgate; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
 - Rotação da chave de cifra dos segredos de integração (hoje derivada do `APP_SECRET`).
-
-## Quando o app chegar
-
-- Rotas `staff/*` dos módulos (pedidos, resgates).
-- `POST /v1/store/orders` deve sempre mandar `Idempotency-Key` (sem ela, dois toques criam dois pedidos); nova cotação entre os toques dá 409 `idempotency_key_reused`.
-- Logout não apaga o aparelho: o app chama `DELETE /v1/me/devices/{token}` antes de sair, ou o logout passa a aceitar `pushToken`.
-- Esquemas de WebView (`capacitor://`, `ionic://`) nas origens do CORS.
-- Tolerância à repetição da renovação por falha de rede; teto de vida da família de tokens.
-- Troca de e-mail pelo app com verificação.
-- Um app compartilhado × um app por negócio (a API atende os dois).
-- `details.nearest` do erro de horário ocupado não traz `professionalIds`.
-- `cancelReason` escrito pela equipe chega ao cliente: separar motivo público de interno.
-- Recibos do Expo não são consultados.
 
 ## Depois
 

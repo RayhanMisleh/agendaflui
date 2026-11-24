@@ -60,7 +60,7 @@ describe('link do banner', () => {
     (link) => {
       const r = bannerLinkSchema.safeParse(link)
       expect(r.success).toBe(false)
-      expect(r.error?.issues[0]?.message).toBe('Use um endereço que comece com https:// ou uma rota do app, como /servicos')
+      expect(r.error?.issues[0]?.message).toBe('Use um endereço que comece com https:// ou um caminho da loja, como /servicos')
     },
   )
 

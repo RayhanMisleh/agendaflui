@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-const RAIZ = join(process.cwd(), 'src/app/painel/(app)')
+const RAIZ = join(process.cwd(), 'src/app/app/painel')
 
 function arquivos(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? arquivos(join(dir, e.name)) : [join(dir, e.name)]))
@@ -16,8 +16,11 @@ const nomeDe = (suffix: string): string[] => todos.filter((f) => f.endsWith(`/${
 /** Páginas e rotas que não chamam `requireTenant` direto, com o motivo (nenhuma hoje). */
 const SEM_GUARDA: Record<string, string> = {}
 
-/** Ações que não passam por `tenantAction`, com o motivo (nenhuma hoje). */
-const SEM_TENANT_ACTION: Record<string, string> = {}
+/** Ações que não passam por `tenantAction`, com o motivo. */
+const SEM_TENANT_ACTION: Record<string, string> = {
+  '_lib/actions.ts#logout': 'sair vale com qualquer sessão, mesmo sem conta ativa',
+  '_lib/actions.ts#encerrarSuporte': 'encerra a sessão de suporte pelo cookie, antes de haver conta ativa a conferir',
+}
 
 describe('painel do negócio: toda entrada exige uma conta ativa', () => {
   test('a varredura encontra as páginas, ações e rotas esperadas', () => {

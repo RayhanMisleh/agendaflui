@@ -10,10 +10,11 @@ export { z }
 /** Motivos estáveis de erro (`DomainError.reason`), em ordem alfabética. Acrescente o seu aqui ao criar um. */
 export const DOMAIN_REASONS = [
   'already_started',
-  'blocked',
   'busy',
+  'calendar_wrong_google',
   'changed',
   'club_only',
+  'customer_email_taken',
   'customer_gone',
   'customer_inactive',
   'email_taken',
@@ -26,12 +27,17 @@ export const DOMAIN_REASONS = [
   'invalid_transition',
   'member_of_other_business',
   'membership_taken',
+  'needs_confirmation',
+  'needs_password',
+  'niche_unavailable',
   'not_failed',
+  'not_offered',
   'not_today',
   'out_of_stock',
   'payment_unavailable',
   'pickup_unavailable',
   'quote_expired',
+  'rate_limited',
   'shipping_unavailable',
   'slot_taken',
   'slot_unavailable',
@@ -42,24 +48,6 @@ export const DOMAIN_REASONS = [
   'wrong_password',
 ] as const
 export type DomainReason = (typeof DOMAIN_REASONS)[number]
-
-/**
- * Motivos (`reason`) que só a camada da API produz: conta, token, origem, corpo e entrada da equipe. Lista única,
- * usada pelo código (`ApiAuthError` e o mapeamento de erros) e pelo documento OpenAPI; não repete os de `DOMAIN_REASONS`.
- */
-export const API_REASONS = [
-  'account_inactive',
-  'body_too_large',
-  'business_unavailable',
-  'invalid_credentials',
-  'invalid_refresh_token',
-  'no_access',
-  'origin_not_allowed',
-  'session_invalid',
-  'unknown_business',
-  'wrong_token_kind',
-] as const
-export type ApiReason = (typeof API_REASONS)[number]
 
 export type DomainErrorCode =
   | 'validation'

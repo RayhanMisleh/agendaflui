@@ -6,7 +6,8 @@ import { acceptInvite, issueInvite, readInvite } from '@/server/auth/invites'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { makeUser } from '../setup/factories'
+import { getPersonSession } from '@/server/auth/session'
+import { makeBusiness, makeMembership, makeUser } from '../setup/factories'
 
 vi.mock('next/navigation', () => ({
   redirect: (to: string): never => {
@@ -14,11 +15,24 @@ vi.mock('next/navigation', () => ({
   },
 }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7' }) }))
+const jar = new Map<string, string>()
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    get: (name: string) => (jar.has(name) ? { name, value: jar.get(name) } : undefined),
+    set: (name: string, value: string, options: Record<string, unknown> = {}) => {
+      if (options['maxAge'] === 0) jar.delete(name)
+      else jar.set(name, value)
+    },
+  }),
+  headers: async () => new Headers(),
+}))
 
 const AGORA = new Date('2026-11-16T12:00:00.000Z')
 const SENHA = 'uma-senha-bem-longa'
+const META = { ip: '203.0.113.7', userAgent: 'teste' }
 
 beforeEach(async () => {
+  jar.clear()
   await resetDb()
 })
 afterEach(() => vi.restoreAllMocks())
@@ -45,8 +59,8 @@ describe('issueInvite', () => {
     const { token: novo } = await prisma.$transaction((tx) => issueInvite(tx, user.id, AGORA))
     expect(novo).not.toBe(velho)
     expect(await readInvite(velho, AGORA)).toBeNull()
-    expect(await readInvite(novo, AGORA)).toEqual({ userName: 'João Silva', email: 'joao@exemplo.test' })
-    expect((await domainError(acceptInvite({ token: velho, password: SENHA }, AGORA))).code).toBe('not_found')
+    expect(await readInvite(novo, AGORA)).toMatchObject({ userName: 'João Silva', email: 'joao@exemplo.test' })
+    expect((await domainError(acceptInvite({ token: velho, password: SENHA }, META, AGORA))).code).toBe('not_found')
     expect(await prisma.userToken.count({ where: { userId: user.id } })).toBe(1)
   })
 })
@@ -54,12 +68,12 @@ describe('issueInvite', () => {
 describe('readInvite', () => {
   test('devolve nome e e-mail; vencido, desconhecido e usado devolvem null', async () => {
     const { token, expiresAt } = await novoConvite()
-    expect(await readInvite(token, AGORA)).toEqual({ userName: 'João Silva', email: 'joao@exemplo.test' })
+    expect(await readInvite(token, AGORA)).toMatchObject({ userName: 'João Silva', email: 'joao@exemplo.test' })
     expect(await readInvite(token, expiresAt)).toBeNull()
     expect(await readInvite(token, addMinutes(expiresAt, 1))).toBeNull()
     expect(await readInvite('token-que-nao-existe', AGORA)).toBeNull()
     expect(await readInvite('', AGORA)).toBeNull()
-    await acceptInvite({ token, password: SENHA }, AGORA)
+    await acceptInvite({ token, password: SENHA }, META, AGORA)
     expect(await readInvite(token, AGORA)).toBeNull()
   })
 })
@@ -67,21 +81,21 @@ describe('readInvite', () => {
 describe('acceptInvite', () => {
   test('define a senha (argon2), consome o token e o segundo uso falha', async () => {
     const { user, token } = await novoConvite()
-    await acceptInvite({ token, password: SENHA }, AGORA)
+    await acceptInvite({ token, password: SENHA }, META, AGORA)
     const depois = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
     expect(depois.passwordHash).toMatch(/^\$argon2id\$/)
     expect(await verifyPassword(depois.passwordHash ?? '', SENHA)).toBe(true)
     expect((await prisma.userToken.findFirstOrThrow({ where: { userId: user.id } })).usedAt).toEqual(AGORA)
-    const e = await domainError(acceptInvite({ token, password: 'outra-senha-bem-longa' }, AGORA))
+    const e = await domainError(acceptInvite({ token, password: 'outra-senha-bem-longa' }, META, AGORA))
     expect(e.code).toBe('not_found')
     expect(await verifyPassword((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash ?? '', SENHA)).toBe(true)
   })
 
   test('convite vencido, desconhecido e vazio dão a mesma resposta', async () => {
     const { token, expiresAt } = await novoConvite()
-    const vencido = await domainError(acceptInvite({ token, password: SENHA }, addMinutes(expiresAt, 1)))
-    const desconhecido = await domainError(acceptInvite({ token: 'x'.repeat(43), password: SENHA }, AGORA))
-    const vazio = await domainError(acceptInvite({ token: '', password: SENHA }, AGORA))
+    const vencido = await domainError(acceptInvite({ token, password: SENHA }, META, addMinutes(expiresAt, 1)))
+    const desconhecido = await domainError(acceptInvite({ token: 'x'.repeat(43), password: SENHA }, META, AGORA))
+    const vazio = await domainError(acceptInvite({ token: '', password: SENHA }, META, AGORA))
     expect(vencido.code).toBe('not_found')
     expect(desconhecido.message).toBe(vencido.message)
     expect(vazio.message).toBe(vencido.message)
@@ -91,7 +105,7 @@ describe('acceptInvite', () => {
 
   test('senha curta falha no campo password e não consome o convite', async () => {
     const { token } = await novoConvite()
-    const e = await domainError(acceptInvite({ token, password: 'curta' }, AGORA))
+    const e = await domainError(acceptInvite({ token, password: 'curta' }, META, AGORA))
     expect(e.code).toBe('validation')
     expect(e.fields).toHaveProperty('password')
     expect(await readInvite(token, AGORA)).not.toBeNull()
@@ -100,8 +114,8 @@ describe('acceptInvite', () => {
   test('duas aceitações simultâneas: uma passa e a outra falha', async () => {
     const { user, token } = await novoConvite()
     const res = await Promise.allSettled([
-      acceptInvite({ token, password: 'primeira-senha-longa' }, AGORA),
-      acceptInvite({ token, password: 'segunda-senha-longa' }, AGORA),
+      acceptInvite({ token, password: 'primeira-senha-longa' }, META, AGORA),
+      acceptInvite({ token, password: 'segunda-senha-longa' }, META, AGORA),
     ])
     expect(res.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     expect(res.filter((r) => r.status === 'rejected')).toHaveLength(1)
@@ -116,15 +130,15 @@ describe('acceptInvite', () => {
     const futuro = new Date(Date.now() + 3_600_000)
     const antiga = await prisma.session.create({ data: { userId: user.id, tokenHash: 'a1', expiresAt: futuro } })
     const alheia = await prisma.session.create({ data: { userId: outro.id, tokenHash: 'a2', expiresAt: futuro } })
-    await acceptInvite({ token, password: SENHA }, AGORA)
+    await acceptInvite({ token, password: SENHA }, META, AGORA)
     expect((await prisma.session.findUniqueOrThrow({ where: { id: antiga.id } })).revokedAt).toEqual(AGORA)
     expect((await prisma.session.findUniqueOrThrow({ where: { id: alheia.id } })).revokedAt).toBeNull()
   })
 
   test('usuário que já tem senha: o convite é inválido, o token é consumido e a senha não muda', async () => {
     const { user, token } = await novoConvite()
-    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: 'hash-existente' } })
-    const e = await domainError(acceptInvite({ token, password: SENHA }, AGORA))
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash: 'hash-existente', emailVerifiedAt: AGORA } })
+    const e = await domainError(acceptInvite({ token, password: SENHA }, META, AGORA))
     expect(e.code).toBe('not_found')
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash).toBe('hash-existente')
     expect((await prisma.userToken.findFirstOrThrow({ where: { userId: user.id } })).usedAt).toEqual(AGORA)
@@ -140,13 +154,56 @@ describe('acceptInvite', () => {
     const user = await makeUser({ password: null })
     await prisma.userToken.create({ data: { userId: user.id, purpose: 'PASSWORD_RESET', tokenHash: hashToken('reset'), expiresAt: addMinutes(AGORA, 60) } })
     expect(await readInvite('reset', AGORA)).toBeNull()
-    expect((await domainError(acceptInvite({ token: 'reset', password: SENHA }, AGORA))).code).toBe('not_found')
+    expect((await domainError(acceptInvite({ token: 'reset', password: SENHA }, META, AGORA))).code).toBe('not_found')
+  })
+})
+
+describe('conta pendente e sessão', () => {
+  test('aceitar convite cria a senha, verifica o e-mail, consome todos os convites e abre sessão', async () => {
+    const { user, token } = await novoConvite()
+    // Um segundo convite aberto (de outro vínculo) também é consumido.
+    await prisma.userToken.create({ data: { userId: user.id, purpose: 'INVITE', tokenHash: hashToken('outro-convite'), expiresAt: addMinutes(AGORA, 60) } })
+    const r = await acceptInvite({ token, password: SENHA }, META, AGORA)
+    const depois = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
+    expect(depois.emailVerifiedAt).toEqual(AGORA)
+    expect(await prisma.userToken.count({ where: { userId: user.id, purpose: 'INVITE', usedAt: null } })).toBe(0)
+    expect(await getPersonSession(r.token, AGORA)).toMatchObject({ kind: 'person', user: { id: user.id } })
+    expect(r.expiresAt).toEqual(addMinutes(AGORA, 30 * 24 * 60))
+    expect(await prisma.session.findFirstOrThrow({ where: { userId: user.id } })).toMatchObject({ ip: '203.0.113.7', userAgent: 'teste' })
+  })
+
+  test('aceitar revoga a sessão antiga deste navegador e as de outros aparelhos', async () => {
+    const { user, token } = await novoConvite()
+    const antiga = await prisma.session.create({ data: { userId: user.id, tokenHash: hashToken('cookie-antigo'), expiresAt: addMinutes(AGORA, 600) } })
+    await acceptInvite({ token, password: SENHA }, { ...META, previousToken: 'cookie-antigo' }, AGORA)
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: antiga.id } })).revokedAt).toEqual(AGORA)
+  })
+
+  test('readInvite traz a conta do vínculo ativo mais recente', async () => {
+    const { user, token } = await novoConvite()
+    const b = await makeBusiness({ name: 'Pet Bom' })
+    await makeMembership(b.id, user.id, 'MANAGER')
+    expect(await readInvite(token, AGORA)).toEqual({ userId: user.id, userName: 'João Silva', email: 'joao@exemplo.test', businessName: 'Pet Bom' })
+  })
+
+  test('convite inválido, vencido ou usado: mesma frase', async () => {
+    const { token } = await novoConvite()
+    await acceptInvite({ token, password: SENHA }, META, AGORA)
+    const usado = await domainError(acceptInvite({ token, password: SENHA }, META, AGORA))
+    const lixo = await domainError(acceptInvite({ token: 'lixo', password: SENHA }, META, AGORA))
+    expect(usado.message).toBe(lixo.message)
+    expect(usado.message).toMatch(/convite não vale mais/)
+  })
+
+  test('pessoa só com Google não recebe convite (já tem como entrar)', async () => {
+    const user = await makeUser({ password: null, google: { sub: 'sub-1', email: 'g@exemplo.test' } })
+    await expect(prisma.$transaction((tx) => issueInvite(tx, user.id, AGORA))).rejects.toMatchObject({ code: 'conflict' })
   })
 })
 
 describe('ação de servidor da tela de definir senha', () => {
   async function chamar(token: string, password: string, confirm = password) {
-    const { definirSenha } = await import('@/app/painel/definir-senha/[token]/actions')
+    const { definirSenha } = await import('@/app/app/(entrada)/convite/[token]/actions')
     const form = new FormData()
     form.set('token', token)
     form.set('password', password)
@@ -159,11 +216,12 @@ describe('ação de servidor da tela de definir senha', () => {
     }
   }
 
-  test('sucesso: grava a senha e manda para /entrar', async () => {
+  test('sucesso: grava a senha, abre a sessão e manda para /painel', async () => {
     const { user, token } = await novoConvite(new Date())
     const r = await chamar(token, SENHA)
-    expect(r).toEqual({ redirectedTo: '/entrar' })
+    expect(r).toEqual({ redirectedTo: '/painel' })
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash).not.toBeNull()
+    expect(jar.get('af_session')).toBeDefined()
   })
 
   test('token inexistente e token vencido recebem a mesma mensagem, sem dizer qual', async () => {
@@ -195,7 +253,7 @@ describe('ação de servidor da tela de definir senha', () => {
   test('sem IP confiável o limite é por token: tokens lixo diferentes não travam um convite válido', async () => {
     vi.doMock('@/server/auth/request-info', () => ({ requestInfo: async () => ({}) }))
     vi.resetModules()
-    const { definirSenha } = await import('@/app/painel/definir-senha/[token]/actions')
+    const { definirSenha } = await import('@/app/app/(entrada)/convite/[token]/actions')
     const { token } = await novoConvite(new Date())
     const tentar = async (t: string) => {
       const form = new FormData()
@@ -209,7 +267,7 @@ describe('ação de servidor da tela de definir senha', () => {
       }
     }
     for (let n = 0; n < 40; n++) await tentar(`lixo-${n}`)
-    expect(await tentar(token)).toEqual({ redirectedTo: '/entrar' })
+    expect(await tentar(token)).toEqual({ redirectedTo: '/painel' })
     // O mesmo token lixo repetido esgota o contador dele.
     let r: unknown
     for (let n = 0; n < 31; n++) r = await tentar('sempre-o-mesmo')

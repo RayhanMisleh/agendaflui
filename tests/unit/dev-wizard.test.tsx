@@ -24,7 +24,7 @@ test('sem JavaScript todas as etapas aparecem num formulário só, com os campos
   const secoes = doc.querySelectorAll('section.af-wizard__step')
   expect(secoes).toHaveLength(6)
   for (const s of secoes) expect(s.hasAttribute('hidden')).toBe(false)
-  for (const nome of ['name', 'slug', 'primary', 'material', 'club', 'bufferMin', 'ownerEmail']) {
+  for (const nome of ['name', 'slug', 'primary', 'material', 'niche', 'servesCats', 'bufferMin', 'ownerEmail']) {
     expect(doc.querySelector(`form [name="${nome}"]`), nome).not.toBeNull()
   }
   expect(doc.querySelector('form [name="keyName"]')).toBeNull()
@@ -42,8 +42,8 @@ test('com JavaScript mostra uma etapa por vez; Continuar e o trilho trocam a eta
   expect(within(trilho).getByRole('link', { name: /Marca/ })).toHaveAttribute('aria-current', 'step')
   expect(screen.getByRole('heading', { name: 'Marca' })).toBeVisible()
   expect(screen.getByRole('heading', { name: 'Marca' })).toHaveFocus()
-  await userEvent.click(within(trilho).getByRole('link', { name: /Termos/ }))
-  expect(screen.getByRole('heading', { name: 'Termos' })).toBeVisible()
+  await userEvent.click(within(trilho).getByRole('link', { name: /Módulos/ }))
+  expect(screen.getByRole('heading', { name: 'Módulos' })).toBeVisible()
   // O que foi digitado numa etapa continua no formulário quando a etapa fica escondida.
   expect(document.querySelector('form [name="slug"]')).toBeInTheDocument()
 })
@@ -65,14 +65,32 @@ test('Enter num campo de etapa do meio avança em vez de enviar o formulário', 
   expect(screen.getByRole('heading', { name: 'Marca' })).toBeVisible()
 })
 
-test('o termo escolhido aparece na prévia e as sugestões por ramo só mexem nos termos', async () => {
+test('não há etapa de termos: os termos são fixos para todas as contas', () => {
   render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
-  await userEvent.click(screen.getByRole('link', { name: /Termos/ }))
-  await userEvent.click(screen.getByRole('button', { name: 'Pet shop' }))
-  expect(screen.getByLabelText('Profissional (singular)')).toHaveValue('Tosador')
-  expect(within(screen.getByTestId('brand-preview-mock')).getAllByText(/Tosador/).length).toBeGreaterThan(0)
-  await userEvent.click(screen.getByRole('link', { name: /Dados/ }))
-  expect(screen.getByLabelText('Nome da conta')).toHaveValue('')
+  const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
+  expect(within(trilho).queryByRole('link', { name: /Termos/ })).not.toBeInTheDocument()
+  expect(screen.queryByLabelText('Profissional (singular)')).not.toBeInTheDocument()
+})
+
+test('passo Nicho: o cartão Pet shop está marcado e clicar não desmarca; o switch "Atende gatos" muda o valor enviado', async () => {
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
+  const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
+  await userEvent.click(within(trilho).getByRole('link', { name: /Nicho/ }))
+  expect(screen.getByRole('heading', { name: 'Nicho' })).toBeVisible()
+  const grupo = screen.getByRole('radiogroup', { name: 'Nicho da conta' })
+  const cartao = within(grupo).getByRole('radio', { name: /Pet shop/ })
+  expect(cartao).toHaveAttribute('aria-checked', 'true')
+  expect(cartao).toHaveAttribute('aria-disabled', 'true')
+  await userEvent.click(cartao)
+  await userEvent.keyboard(' ')
+  expect(cartao).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByText('Selecionado')).toBeVisible()
+  const chave = screen.getByRole('switch', { name: 'Atende gatos' })
+  expect(chave).toHaveAttribute('aria-checked', 'false')
+  expect(document.querySelector('form [name="servesCats"]')).toBeNull()
+  await userEvent.click(chave)
+  expect(chave).toHaveAttribute('aria-checked', 'true')
+  expect((document.querySelector('form [name="servesCats"]') as HTMLInputElement).value).toBe('on')
 })
 
 test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valores e liga a mensagem ao campo', async () => {

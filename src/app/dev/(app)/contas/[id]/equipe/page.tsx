@@ -19,7 +19,7 @@ export default async function EquipePage({ params }: { params: Promise<{ id: str
     email: m.email,
     role: m.role,
     active: m.active,
-    hasPassword: m.hasPassword,
+    hasAccount: m.hasAccount,
     inviteMailFailed: m.inviteMailFailed,
     lastLogin: m.lastLoginAt ? quando(m.lastLoginAt) : null,
   }))

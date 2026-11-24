@@ -1,0 +1,167 @@
+/*
+ * Minha conta: moldura (barra do topo e coluna central) e os cartões das seções. Só tokens. Cartão com borda fina e sem
+ * sombra; o aviso flutuante é o único que flutua.
+ */
+@layer components {
+  .af-account {
+    min-height: 100dvh;
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans, system-ui, sans-serif);
+  }
+  .af-account__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background-color: var(--surface);
+  }
+  .af-account__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    min-height: 2.75rem;
+    padding: 0 0.5rem;
+    color: var(--brand-text);
+    font-size: var(--text-small);
+    font-weight: 600;
+    text-decoration: none;
+    border-radius: var(--radius-chip);
+  }
+  .af-account__back:hover {
+    text-decoration: underline;
+  }
+  .af-account__main {
+    display: grid;
+    gap: 1rem;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 40rem;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+  .af-account__title {
+    margin: 0 0 0.25rem;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+  }
+
+  /* ---- Cartões das seções ---- */
+  .af-conta__card {
+    display: grid;
+    gap: 0.875rem;
+    padding: 1.25rem;
+  }
+  .af-conta__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+  }
+  .af-conta__value {
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .af-conta__muted {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+  .af-conta__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .af-conta__form {
+    display: grid;
+    gap: 0.875rem;
+  }
+  .af-conta__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 0.75rem;
+  }
+  .af-conta__alert,
+  .af-conta__note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--radius-chip);
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+    line-height: var(--text-small-lh);
+  }
+  .af-conta__alert {
+    border: 1px solid var(--danger);
+    background-color: var(--danger-tint);
+  }
+  .af-conta__note {
+    background-color: var(--accent-tint);
+  }
+  .af-conta__alert svg,
+  .af-conta__note svg {
+    flex: none;
+    margin-top: 0.0625rem;
+  }
+  .af-conta__alert svg {
+    color: var(--danger);
+  }
+  .af-conta__list {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-conta__store {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-chip);
+  }
+  .af-conta__store[data-current='true'] {
+    border-color: var(--brand);
+    background-color: var(--brand-tint);
+  }
+  .af-conta__foot {
+    display: flex;
+    justify-content: center;
+    padding-top: 0.5rem;
+  }
+  .af-conta__foot form {
+    margin: 0;
+  }
+
+  /* ---- Celular: botões de largura total ---- */
+  @media (max-width: 30rem) {
+    .af-conta__form .af-button,
+    .af-conta__actions .af-button,
+    .af-conta__actions .af-conta__inline,
+    .af-conta__store .af-button,
+    .af-conta__foot .af-button {
+      width: 100%;
+    }
+    .af-conta__actions,
+    .af-conta__actions form {
+      width: 100%;
+    }
+    .af-conta__card {
+      padding: 1rem;
+    }
+  }
+}

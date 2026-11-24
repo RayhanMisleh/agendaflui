@@ -10,11 +10,14 @@ export const LIMITS = {
   loginEmailIp: { limit: 5, windowSec: 900 },
   loginEmailWide: { limit: 30, windowSec: 900 },
   loginIp: { limit: 20, windowSec: 900 },
-  /** Limite geral da API do app por IP (ou /64), em todas as rotas com conta. */
+  /** Limite geral por IP (ou /64) nas rotas com conta. */
   apiIp: { limit: 120, windowSec: 60 },
   authIp: { limit: 30, windowSec: 900 },
   /** Pedidos de "esqueci a senha" do painel por origem (IP ou /64): cada e-mail tem o seu teto em `codeEmail`. */
   panelResetIp: { limit: 10, windowSec: 900 },
+  /** Pedidos de código de troca de e-mail por pessoa, qualquer que seja o e-mail novo (hora e dia). */
+  emailChangePerson: { limit: 5, windowSec: 3600 },
+  emailChangePersonDaily: { limit: 10, windowSec: 86_400 },
   /** Pedidos de código (cadastro e redefinição) por e-mail: protege a caixa de entrada de quem recebe. */
   codeEmail: { limit: 3, windowSec: 900 },
   /** Teto diário de pedidos de código por conta, e-mail e propósito. */
@@ -30,6 +33,8 @@ export const LIMITS = {
   shippingQuote: { limit: 20, windowSec: 60 },
   /** Pedidos da loja por pessoa. */
   order: { limit: 10, windowSec: 60 },
+  /** Conferência do pagamento na volta do Mercado Pago: uma por pedido a cada 30 s (cada uma chama a API do Mercado Pago). */
+  orderReturn: { limit: 1, windowSec: 30 },
   /** Webhook do Mercado Pago, por IP (a rota é pública). */
   /** Por IP e chave de webhook (cada conta tem a sua): o balde de uma loja não segura as outras. */
   webhookIp: { limit: 120, windowSec: 60 },

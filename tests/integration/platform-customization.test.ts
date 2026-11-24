@@ -13,7 +13,6 @@ import {
   updateModules,
   updateNotificationsAsAdmin,
   updateRulesAsAdmin,
-  updateTerms,
   type BrandInput,
 } from '@/server/domain/platform/customization'
 import { getPublicBrandById } from '@/server/domain/platform/branding'
@@ -106,7 +105,6 @@ describe('quem pode chamar', () => {
         () => getCustomization(a, biz.id),
         () => updateBrand(a, biz.id, 1, brand),
         () => setBrandImage(a, biz.id, 'logo', null),
-        () => updateTerms(a, biz.id, termos),
         () => updateModules(a, biz.id, { loyalty: false, banners: false, store: false }),
         () => updateRulesAsAdmin(a, biz.id, { bufferMin: 5 }),
         () => updateNotificationsAsAdmin(a, biz.id, avisosVazios),
@@ -117,19 +115,10 @@ describe('quem pode chamar', () => {
   })
 })
 
-const termos = {
-  professionalSingular: 'Tosador',
-  professionalPlural: 'Tosadores',
-  customerSingular: 'Tutor',
-  customerPlural: 'Tutores',
-  pointsSingular: 'Patinha',
-  pointsPlural: 'Patinhas',
-  club: 'Clube Pet',
-}
 const avisosVazios = {} as Parameters<typeof updateNotificationsAsAdmin>[2]
 
 describe('getCustomization', () => {
-  test('devolve marca, termos, módulos, regras, fuso e avisos da conta', async () => {
+  test('devolve marca, módulos, regras, fuso e avisos da conta', async () => {
     const r = await getCustomization(actor, biz.id)
     expect(r.brand).toMatchObject({
       displayName: `Conta ${biz.slug}`,
@@ -142,19 +131,10 @@ describe('getCustomization', () => {
       loginImageUrl: null,
       version: 1,
     })
-    expect(r.terms).toEqual({
-      professionalSingular: 'Profissional',
-      professionalPlural: 'Profissionais',
-      customerSingular: 'Cliente',
-      customerPlural: 'Clientes',
-      pointsSingular: 'Ponto',
-      pointsPlural: 'Pontos',
-      club: 'Clube',
-    })
     expect(r.modules).toEqual({ loyalty: false, banners: false, store: false })
     expect(r.rules).toMatchObject({ slotStepMin: 15, minLeadMin: 60, autoConfirm: true })
     expect(r.timeZone).toBe('America/Sao_Paulo')
-    expect(r.notifications.APPOINTMENT_CONFIRMED).toEqual({ email: true, push: true })
+    expect(r.notifications.APPOINTMENT_CONFIRMED).toEqual({ email: true })
   })
 
   test('conta suspensa ou arquivada também abre; conta inexistente é not_found', async () => {
@@ -277,58 +257,6 @@ describe('updateBrand', () => {
     const r = await updateBrand(actor, biz.id, 1, { ...brand, primary: '#ffffff' })
     expect(r.primary).toBe('#FFFFFF')
     expect(previewTheme({ ...brand, primary: '#ffffff' }).warnings).toContain('text_adjusted')
-  })
-})
-
-describe('updateTerms', () => {
-  test('grava os sete termos e audita', async () => {
-    expect(await updateTerms(actor, biz.id, termos)).toEqual(termos)
-    expect((await getCustomization(actor, biz.id)).terms).toEqual(termos)
-    const [log] = await auditoria('terms.updated')
-    expect(log?.metadata).toEqual({
-      changes: {
-        professionalSingular: { from: 'Profissional', to: 'Tosador' },
-        professionalPlural: { from: 'Profissionais', to: 'Tosadores' },
-        customerSingular: { from: 'Cliente', to: 'Tutor' },
-        customerPlural: { from: 'Clientes', to: 'Tutores' },
-        pointsSingular: { from: 'Ponto', to: 'Patinha' },
-        pointsPlural: { from: 'Pontos', to: 'Patinhas' },
-        club: { from: 'Clube', to: 'Clube Pet' },
-      },
-    })
-  })
-
-  test('termo igual ao atual não cria auditoria; termo novo audita só o que mudou', async () => {
-    await updateTerms(actor, biz.id, termos)
-    await updateTerms(actor, biz.id, termos)
-    await updateTerms(actor, biz.id, { ...termos, club: 'Clube Novo' })
-    const logs = await auditoria('terms.updated')
-    expect(logs).toHaveLength(2)
-    expect(logs[1]?.metadata).toEqual({ changes: { club: { from: 'Clube Pet', to: 'Clube Novo' } } })
-  })
-
-  test('termo com caractere de controle é recusado', async () => {
-    for (const v of ['Tutor\u0000', 'Tu\ntor', 'Tutor\u0007']) {
-      expect((await domainError(updateTerms(actor, biz.id, { ...termos, customerSingular: v }))).code).toBe('validation')
-    }
-  })
-
-  test.each([
-    ['<b>Tosador</b>', 'professionalSingular'],
-    ['Tutor>', 'customerSingular'],
-    ['', 'pointsPlural'],
-    ['   ', 'club'],
-    ['x'.repeat(31), 'professionalPlural'],
-  ])('termo %j em %s é recusado', async (valor, campo) => {
-    const e = await domainError(updateTerms(actor, biz.id, { ...termos, [campo]: valor }))
-    expect(e.code).toBe('validation')
-    expect(Object.keys(e.fields ?? {})).toContain(campo)
-    expect((await getCustomization(actor, biz.id)).terms.professionalSingular).toBe('Profissional')
-  })
-
-  test('30 caracteres passam e espaços nas pontas saem', async () => {
-    const r = await updateTerms(actor, biz.id, { ...termos, club: ` ${'c'.repeat(30)} ` })
-    expect(r.club).toBe('c'.repeat(30))
   })
 })
 
@@ -590,18 +518,18 @@ describe('regras, fuso e avisos pelo admin', () => {
 
   test('avisos: o admin liga e desliga canais e a conta lê o resultado', async () => {
     const atual = (await getCustomization(actor, biz.id)).notifications
-    const novo = { ...atual, APPOINTMENT_CONFIRMED: { email: false, push: true } }
+    const novo = { ...atual, APPOINTMENT_CONFIRMED: { email: false } }
     const r = await updateNotificationsAsAdmin(actor, biz.id, novo)
-    expect(r.APPOINTMENT_CONFIRMED).toEqual({ email: false, push: true })
+    expect(r.APPOINTMENT_CONFIRMED).toEqual({ email: false })
     const ctx = await ctxWithRole(biz, 'MANAGER')
-    expect((await getNotificationSettings(ctx)).APPOINTMENT_CONFIRMED).toEqual({ email: false, push: true })
+    expect((await getNotificationSettings(ctx)).APPOINTMENT_CONFIRMED).toEqual({ email: false })
     const [log] = await auditoria('notification_settings.updated')
     expect(log).toMatchObject({ actorType: 'PLATFORM_ADMIN', actorId: actor.adminId })
   })
 
   test('avisos: tipo desconhecido é recusado', async () => {
     const atual = (await getCustomization(actor, biz.id)).notifications
-    const e = await domainError(updateNotificationsAsAdmin(actor, biz.id, { ...atual, INVENTADO: { email: true, push: true } } as never))
+    const e = await domainError(updateNotificationsAsAdmin(actor, biz.id, { ...atual, INVENTADO: { email: true } } as never))
     expect(e.code).toBe('validation')
   })
 
@@ -615,10 +543,9 @@ describe('admin desativado com o objeto de ator antigo', () => {
     await prisma.platformAdmin.update({ where: { id: actor.adminId }, data: { active: false } })
     const chamadas = [
       () => updateBrand(actor, biz.id, 1, { ...brand, displayName: 'Outro Nome' }),
-      () => updateTerms(actor, biz.id, { ...termos, club: 'Clube Novo' }),
       () => updateModules(actor, biz.id, { loyalty: true, banners: false, store: false }),
       () => updateRulesAsAdmin(actor, biz.id, { bufferMin: 5 }),
-      () => updateNotificationsAsAdmin(actor, biz.id, { APPOINTMENT_CONFIRMED: { email: false, push: false } } as never),
+      () => updateNotificationsAsAdmin(actor, biz.id, { APPOINTMENT_CONFIRMED: { email: false } } as never),
       () => setBrandImage(actor, biz.id, 'logo', null),
     ]
     for (const chamar of chamadas) expect((await domainError(chamar())).code).toBe('forbidden')
@@ -628,16 +555,14 @@ describe('admin desativado com o objeto de ator antigo', () => {
 })
 
 describe('texto com emoji composto', () => {
-  test('o caractere de junção (U+200D) vale em nome de exibição e termos; os demais caracteres de controle seguem recusados', async () => {
+  test('o caractere de junção (U+200D) vale em nome de exibição; os demais caracteres de controle seguem recusados', async () => {
     const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'
     const v = (await getCustomization(actor, biz.id)).brand.version
     const marca = await updateBrand(actor, biz.id, v, { ...brand, displayName: `${familia} Casa` })
     expect(marca.displayName).toBe(`${familia} Casa`)
-    expect((await updateTerms(actor, biz.id, { ...termos, club: `Clube ${familia}` })).club).toBe(`Clube ${familia}`)
 
     for (const ruim of ['a\u200Bb', 'a\tb', 'a\u0000b', 'a\u202Eb']) {
       expect((await domainError(updateBrand(actor, biz.id, marca.version, { ...brand, displayName: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
-      expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, JSON.stringify(ruim)).toBe('validation')
     }
   })
 })
@@ -647,12 +572,11 @@ describe('texto só de caractere invisível', () => {
   const familia = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}'
   const bandeira = '\u{1F3F3}\uFE0F\u200D\u{1F308}'
 
-  test('junção de emoji solta (só ela, no início, no fim, repetida ou junto de espaço) é recusada em nome e termos', async () => {
+  test('junção de emoji solta (só ela, no início, no fim, repetida ou junto de espaço) é recusada no nome', async () => {
     const v = (await getCustomization(actor, biz.id)).brand.version
     for (const ruim of [ZWJ, ZWJ + ZWJ, 'a' + ZWJ, ZWJ + 'a', 'Pet' + ZWJ, 'a' + ZWJ + ZWJ + 'b', 'a ' + ZWJ + ' b']) {
       const rotulo = JSON.stringify(ruim)
       expect((await domainError(updateBrand(actor, biz.id, v, { ...brand, displayName: ruim }))).code, rotulo).toBe('validation')
-      expect((await domainError(updateTerms(actor, biz.id, { ...termos, club: ruim }))).code, rotulo).toBe('validation')
     }
   })
 
@@ -660,6 +584,5 @@ describe('texto só de caractere invisível', () => {
     const v = (await getCustomization(actor, biz.id)).brand.version
     const m = await updateBrand(actor, biz.id, v, { ...brand, displayName: `${familia} Casa ${bandeira}` })
     expect(m.displayName).toBe(`${familia} Casa ${bandeira}`)
-    expect((await updateTerms(actor, biz.id, { ...termos, club: bandeira })).club).toBe(bandeira)
   })
 })

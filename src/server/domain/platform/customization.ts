@@ -19,13 +19,7 @@ import {
   type SchedulingRules,
   type SchedulingRulesView,
 } from '@/server/domain/settings/scheduling-rules'
-import {
-  applyTerms,
-  displayNameSchema,
-  termsOf,
-  termsSchema,
-  type Terms,
-} from '@/server/domain/settings/terms'
+import { displayNameSchema } from '@/server/domain/settings/text-rules'
 import { uploadUrl } from '@/server/storage/images'
 import { COVER_MATERIALS, type CoverMaterial } from '@/shared/theme/derive'
 
@@ -46,7 +40,7 @@ export type BrandView = BrandInput & {
   version: number
 }
 
-export type { BrandImageSlot, Terms }
+export type { BrandImageSlot }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -80,7 +74,8 @@ function auditar(tx: Prisma.TransactionClient, actor: PlatformAdminActor, action
 // A coluna tem CHECK `^#[0-9A-F]{6}$` (maiúsculas): a forma canônica da cor é `#RRGGBB` em maiúsculas.
 
 const MSG_COR = 'Use uma cor no formato #rrggbb, com 6 dígitos.'
-const cor = z
+/** A cor da marca: `#RRGGBB`, guardada em maiúsculas (o mesmo esquema do painel dev e do dono). */
+export const brandColorSchema = z
   .string(MSG_COR)
   .regex(/^#[0-9a-fA-F]{6}$/, MSG_COR)
   .transform((v) => v.toUpperCase())
@@ -88,8 +83,8 @@ const cor = z
 
 const marcaSchema = z.strictObject({
   displayName: displayNameSchema,
-  primary: cor,
-  accent: cor,
+  primary: brandColorSchema,
+  accent: brandColorSchema,
   material: z.enum(COVER_MATERIALS, { error: 'Escolha uma das barras laterais da lista.' }),
 })
 
@@ -188,29 +183,6 @@ export async function setBrandImage(
   return lerMarca(businessId)
 }
 
-// ---------------------------------------------------------------- termos
-
-const SELECAO_TERMOS = {
-  termProfessionalSingular: true,
-  termProfessionalPlural: true,
-  termCustomerSingular: true,
-  termCustomerPlural: true,
-  termPointsSingular: true,
-  termPointsPlural: true,
-  termClub: true,
-} satisfies Prisma.BusinessSettingsSelect
-
-/** Termos gravados pela mesma função do dono (`applyTerms`), com o admin como autor; `version` é opcional. */
-export async function updateTerms(actor: PlatformAdminActor, businessId: string, input: Terms, version?: number): Promise<Terms> {
-  exigirAdmin(actor)
-  idValido(businessId)
-  const ctx = await createPlatformAdminContext({ businessId, actor })
-  return prisma.$transaction(async (tx) => {
-    await requireActiveAdmin(tx, actor)
-    return (await applyTerms(ctx, tx, input, version)).terms
-  })
-}
-
 // ---------------------------------------------------------------- módulos
 
 const modulosSchema = z.strictObject({
@@ -242,16 +214,14 @@ export async function updateModules(actor: PlatformAdminActor, businessId: strin
 }
 
 /**
- * Pré-validação da configuração de uma conta nova (marca, termos, módulos e regras de agenda) com os MESMOS esquemas das
- * funções de escrita (`updateBrand`, `updateTerms`, `updateModules`, `updateRulesAsAdmin`). Devolve campo → mensagem de
+ * Pré-validação da configuração de uma conta nova (marca, módulos e regras de agenda) com os MESMOS esquemas das
+ * funções de escrita (`updateBrand`, `updateModules`, `updateRulesAsAdmin`). Devolve campo → mensagem de
  * todos os erros de uma vez, vazio se está tudo certo. Não grava nada: serve para recusar antes de criar a conta.
  */
-export function validateAccountSetup(input: { brand: BrandInput; terms: Terms; modules: Modules; rules: Partial<SchedulingRules> }): Record<string, string> {
+export function validateAccountSetup(input: { brand: BrandInput; modules: Modules; rules: Partial<SchedulingRules> }): Record<string, string> {
   const erros: Record<string, string> = {}
   const marca = marcaSchema.safeParse(input.brand)
   if (!marca.success) Object.assign(erros, zodFields(marca.error, { perUnknownKey: true }))
-  const termos = termsSchema.safeParse(input.terms)
-  if (!termos.success) Object.assign(erros, zodFields(termos.error, { perUnknownKey: true }))
   const modulos = modulosSchema.safeParse(input.modules)
   if (!modulos.success) Object.assign(erros, zodFields(modulos.error, { perUnknownKey: true }))
   try {
@@ -311,20 +281,18 @@ export async function updateNotificationsAsAdmin(
 export async function getCustomization(
   actor: PlatformAdminActor,
   businessId: string,
-): Promise<{ brand: BrandView; terms: Terms; modules: Modules; rules: SchedulingRulesView; timeZone: string; notifications: NotificationSettings }> {
+): Promise<{ brand: BrandView; modules: Modules; rules: SchedulingRulesView; timeZone: string; notifications: NotificationSettings }> {
   exigirAdmin(actor)
   idValido(businessId)
   const ctx = await createPlatformAdminContext({ businessId, actor })
-  const [brand, settings, modules, rules, notifications] = await Promise.all([
+  const [brand, modules, rules, notifications] = await Promise.all([
     lerMarca(businessId),
-    prisma.businessSettings.findUnique({ where: { businessId }, select: SELECAO_TERMOS }),
     prisma.businessModules.findUnique({ where: { businessId }, select: { loyalty: true, banners: true, store: true } }),
     getSchedulingRules(ctx),
     getNotificationSettings(ctx),
   ])
   return {
     brand,
-    terms: termsOf(orNotFound(settings, 'Configurações da conta')),
     modules: modules ?? MODULOS_PADRAO,
     rules,
     timeZone: ctx.timeZone,

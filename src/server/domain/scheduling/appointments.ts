@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
-import type { Prisma } from '@/server/db/generated/client'
+import type { Prisma, PriceVariant } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { DomainError, parse, z } from '@/server/domain/errors'
+import { loadPetForBooking } from '@/server/domain/pets/pets'
+import { variantOfPet } from '@/server/niches'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import {
   listCandidates,
@@ -29,12 +32,14 @@ import {
 } from '@/server/domain/scheduling/appointment-view'
 import {
   assertCustomerWindow,
-  assertFreeForStaff,
   assertProfessionalUnchanged,
   assertStaffStart,
+  confirmStaffIssues,
   lockedTransaction,
   placeAppointment,
 } from '@/server/domain/scheduling/placement'
+import { overlapsNormal, promoteSqueezeIns } from '@/server/domain/scheduling/squeeze-in'
+import { staffIssues } from '@/server/domain/scheduling/staff-issues'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { addMinutes, minutesBetween, toIsoInstant } from '@/server/time'
 
@@ -54,10 +59,19 @@ export const IDEMPOTENCY_TTL_MIN = 24 * 60
 
 const startsAtSchema = z.date('Informe um horário válido.')
 
+const DURATION_MESSAGE = 'Use de 5 a 720 minutos.'
+/** Duração livre da equipe: minutos inteiros de 5 a 720. */
+const durationSchema = z.number(DURATION_MESSAGE).int(DURATION_MESSAGE).min(5, DURATION_MESSAGE).max(720, DURATION_MESSAGE)
+
+const CUSTOMER_DURATION_MESSAGE = 'A duração é definida pelos serviços.'
+
 const bookSchema = z.object({
   customerId: z.uuid('Escolha um cliente válido.').optional(),
   professionalId: z.uuid('Escolha um profissional válido.').nullish(),
   startsAt: startsAtSchema,
+  petId: z.uuid('Escolha o pet.').nullish(),
+  durationMin: durationSchema.optional(),
+  acknowledged: z.string().max(64).optional(),
   notes: optionalText(2000).nullable().optional(),
   customerNote: optionalText(500).nullable().optional(),
   idempotencyKey: z
@@ -69,9 +83,14 @@ const bookSchema = z.object({
 const rescheduleSchema = z.object({
   startsAt: startsAtSchema,
   professionalId: z.uuid('Escolha um profissional válido.').nullish(),
+  durationMin: durationSchema.optional(),
+  acknowledged: z.string().max(64).optional(),
 })
 
 const adjustSchema = z.object({
+  petId: z.uuid('Escolha o pet.').optional(),
+  durationMin: durationSchema.optional(),
+  acknowledged: z.string().max(64).optional(),
   totalCents: z
     .number()
     .int('Informe o valor em centavos, sem fração.')
@@ -101,14 +120,48 @@ export function itemRows(ctx: TenantContext, appointmentId: string, items: Await
     durationMin: item.durationMin,
     rewardPoints: item.rewardPoints,
     position: index + 1,
+    variant: item.variant,
   }))
+}
+
+type BookingPet = { id: string; name: string; variant: PriceVariant }
+
+/**
+ * O pet da marcação e os serviços com preço e tempo dele. Conta pet: o pet é obrigatório e do cliente do agendamento;
+ * conta sem nicho: `petId` informado é recusado. Lê com o `db` dado (fora ou dentro da transação).
+ */
+async function resolveBooking(
+  ctx: TenantContext,
+  db: Db,
+  i: { petId: string | null; customerId: string; serviceIds: string[] },
+): Promise<{ pet: BookingPet | null; services: Awaited<ReturnType<typeof resolveServices>> }> {
+  const { niche } = await getNicheSettings(ctx, db)
+  if (niche === null) {
+    if (i.petId !== null) {
+      const message = 'Esta loja não usa pets.'
+      throw new DomainError('validation', message, { fields: { petId: message } })
+    }
+    return { pet: null, services: await resolveServices(ctx, i.serviceIds, db) }
+  }
+  if (i.petId === null) {
+    const message = 'Escolha o pet.'
+    throw new DomainError('validation', message, { fields: { petId: message } })
+  }
+  const pet = await loadPetForBooking(db, { petId: i.petId, customerId: i.customerId })
+  return { pet, services: await resolveServices(ctx, i.serviceIds, db, { variant: pet.variant }) }
 }
 
 type BookInput = {
   customerId?: string
   professionalId?: string | null
   serviceIds: string[]
+  /** Pet do atendimento: obrigatório em conta pet. */
+  petId?: string | null
   startsAt: Date
+  /** Duração em minutos (5 a 720): só a equipe; sem ela, a soma dos serviços. */
+  durationMin?: number
+  /** Impressão devolvida por `needs_confirmation`: só a equipe. */
+  acknowledged?: string
   /** Anotação interna: só a equipe. */
   notes?: string | null
   /** Observação do cliente ao marcar. */
@@ -139,9 +192,12 @@ export function idempotencyRequestHash(r: {
   startsAt: Date
   professionalId?: string | null
   customerNote?: string | null
+  petId?: string | null
 }): string {
   const note = r.customerNote?.trim() ?? ''
-  const canonical = JSON.stringify([[...r.serviceIds].sort(), r.startsAt.getTime(), r.professionalId ?? null, note === '' ? null : note])
+  const base = [[...r.serviceIds].sort(), r.startsAt.getTime(), r.professionalId ?? null, note === '' ? null : note]
+  // O pet entra só quando existe: as impressões antigas (sem pet) não mudam.
+  const canonical = JSON.stringify(r.petId ? [...base, r.petId] : base)
   return createHash('sha256').update(canonical).digest('hex')
 }
 
@@ -186,12 +242,16 @@ export async function bookAppointmentWithOutcome(
   const input = parse(bookSchema, {
     customerId: i.customerId,
     professionalId: i.professionalId,
+    petId: i.petId,
     startsAt: i.startsAt,
+    durationMin: i.durationMin,
+    acknowledged: i.acknowledged,
     notes: i.notes,
     customerNote: i.customerNote,
     idempotencyKey: i.idempotencyKey,
   })
   const who = actorKind(ctx)
+  if (who === 'customer' && input.durationMin !== undefined) throw forbidden(CUSTOMER_DURATION_MESSAGE)
   let customerId: string
   if (ctx.actor.kind === 'customer') {
     if (input.notes !== undefined && input.notes !== null) {
@@ -224,6 +284,7 @@ export async function bookAppointmentWithOutcome(
             startsAt: input.startsAt,
             professionalId: specificId,
             customerNote: input.customerNote ?? null,
+            petId: input.petId ?? null,
           }),
         }
   // Repetição de um pedido já atendido: responde antes de revalidar serviços e horário (que podem ter mudado desde então).
@@ -233,7 +294,8 @@ export async function bookAppointmentWithOutcome(
   }
 
   // Leitura prévia, só para validar cedo e saber quem travar; a decisão é refeita dentro da transação.
-  const pre = await resolveServices(ctx, i.serviceIds)
+  const petId = input.petId ?? null
+  const pre = (await resolveBooking(ctx, ctx.db, { petId, customerId, serviceIds: i.serviceIds })).services
   const lockIds = specificId
     ? [specificId]
     : restrictToScope(who, scope, await listCandidates(ctx, i.serviceIds)).map((c) => c.id)
@@ -251,7 +313,7 @@ export async function bookAppointmentWithOutcome(
     return await lockedTransaction(
       ctx,
       lockIds,
-      () => ({ startsAt, durationMin: pre.durationMin, professionalIds: lockIds }),
+      () => ({ startsAt, durationMin: input.durationMin ?? pre.durationMin, professionalIds: lockIds }),
       async (tx) => {
         const customer = await tx.customer.findFirst({
           where: { id: customerId, archivedAt: null, anonymizedAt: null },
@@ -268,8 +330,9 @@ export async function bookAppointmentWithOutcome(
           if (replay) return { appointment: replay, replayed: true }
         }
         const rules = await getSchedulingRules(ctx, tx)
-        const services = await resolveServices(ctx, i.serviceIds, tx)
-        const endsAt = addMinutes(startsAt, services.durationMin)
+        const { pet, services } = await resolveBooking(ctx, tx, { petId, customerId, serviceIds: i.serviceIds })
+        const durationMin = input.durationMin ?? services.durationMin
+        const endsAt = addMinutes(startsAt, durationMin)
         const candidates = await listCandidates(ctx, services.items.map((s) => s.id), tx)
         const locked = new Set(lockIds)
         let eligible: Candidate[]
@@ -280,15 +343,17 @@ export async function bookAppointmentWithOutcome(
         } else {
           eligible = restrictToScope(who, scope, candidates).filter((c) => locked.has(c.id))
         }
-        const professionalId = await placeAppointment(ctx, tx, {
+        const { professionalId } = await placeAppointment(ctx, tx, {
           who,
           eligible,
           specific: specificId !== null,
           startsAt,
           endsAt,
-          durationMin: services.durationMin,
+          durationMin,
           rules,
+          acknowledged: input.acknowledged,
         })
+        const isSqueezeIn = who === 'staff' && (await overlapsNormal(tx, { professionalId, startsAt, endsAt }))
 
         const by = party(ctx)
         const created = await tx.appointment.create({
@@ -296,12 +361,14 @@ export async function bookAppointmentWithOutcome(
             businessId: ctx.businessId,
             customerId,
             professionalId,
+            petId: pet?.id ?? null,
+            isSqueezeIn,
             startsAt,
             endsAt,
             status: who === 'customer' && !rules.autoConfirm ? 'PENDING' : 'CONFIRMED',
             source: ctx.channel === 'app' ? 'APP' : 'PANEL',
             totalCents: services.totalCents,
-            totalDurationMin: services.durationMin,
+            totalDurationMin: durationMin,
             notes: input.notes ?? null,
             customerNote: input.customerNote ?? null,
             idempotencyKey: input.idempotencyKey ?? null,
@@ -345,10 +412,16 @@ export async function bookAppointment(ctx: TenantContext, i: BookInput): Promise
 export async function rescheduleAppointment(
   ctx: TenantContext,
   id: string,
-  i: { startsAt: Date; professionalId?: string | null; serviceIds?: string[] },
+  i: { startsAt: Date; professionalId?: string | null; serviceIds?: string[]; durationMin?: number; acknowledged?: string },
 ): Promise<AppointmentView> {
-  const input = parse(rescheduleSchema, { startsAt: i.startsAt, professionalId: i.professionalId })
+  const input = parse(rescheduleSchema, {
+    startsAt: i.startsAt,
+    professionalId: i.professionalId,
+    durationMin: i.durationMin,
+    acknowledged: i.acknowledged,
+  })
   const who = actorKind(ctx)
+  if (who === 'customer' && input.durationMin !== undefined) throw forbidden(CUSTOMER_DURATION_MESSAGE)
   if (who === 'staff') assertStaffStart(ctx, input.startsAt)
   const scope = await staffScope(ctx, who)
   const before = await loadForActor(ctx, ctx.db, id, who, scope)
@@ -360,14 +433,15 @@ export async function rescheduleAppointment(
   const specificId = keepProfessional ? before.professionalId : input.professionalId
   if (specificId) assertProfessionalAllowed(who, scope, specificId)
   const changesServices = i.serviceIds !== undefined
-  const pre = changesServices ? await resolveServices(ctx, i.serviceIds ?? []) : null
+  const variant = before.pet === null ? null : variantOfPet(before.pet)
+  const pre = changesServices ? await resolveServices(ctx, i.serviceIds ?? [], ctx.db, { variant }) : null
   const serviceIds = i.serviceIds ?? before.items.map((item) => item.serviceId)
 
   const anyIds = specificId
     ? []
     : restrictToScope(who, scope, await listCandidates(ctx, serviceIds)).map((c) => c.id)
   const lockIds = [before.professionalId, ...(specificId ? [specificId] : anyIds)]
-  const durationHint = pre?.durationMin ?? before.totalDurationMin
+  const durationHint = input.durationMin ?? pre?.durationMin ?? before.totalDurationMin
 
   return lockedTransaction(
     ctx,
@@ -387,8 +461,8 @@ export async function rescheduleAppointment(
       const rules = await getSchedulingRules(ctx, tx)
       if (who === 'customer') assertCustomerWindow(ctx, rules, row.startsAt, 'remarcar')
 
-      const services = changesServices ? await resolveServices(ctx, i.serviceIds ?? [], tx) : null
-      const durationMin = services?.durationMin ?? row.totalDurationMin
+      const services = changesServices ? await resolveServices(ctx, i.serviceIds ?? [], tx, { variant }) : null
+      const durationMin = input.durationMin ?? services?.durationMin ?? row.totalDurationMin
       const endsAt = addMinutes(input.startsAt, durationMin)
       // O atalho vale só para a equipe: o cliente do app sempre confere se o profissional ainda atende.
       const needsCandidateCheck = who === 'customer' || services !== null || specificId !== row.professionalId
@@ -408,7 +482,7 @@ export async function rescheduleAppointment(
         const candidates = await listCandidates(ctx, services?.items.map((s) => s.id) ?? serviceIds, tx)
         eligible = restrictToScope(who, scope, candidates).filter((c) => locked.has(c.id))
       }
-      const professionalId = await placeAppointment(ctx, tx, {
+      const { professionalId } = await placeAppointment(ctx, tx, {
         who,
         eligible,
         specific: specificId !== null,
@@ -417,7 +491,11 @@ export async function rescheduleAppointment(
         durationMin,
         rules,
         ignoreAppointmentId: id,
+        acknowledged: input.acknowledged,
       })
+      // Quem se move recalcula a própria marca antes de qualquer reavaliação: não toma o lugar de um encaixe.
+      const isSqueezeIn =
+        who === 'staff' && (await overlapsNormal(tx, { professionalId, startsAt: input.startsAt, endsAt, ignoreAppointmentId: id }))
 
       await tx.appointment.update({
         where: { id },
@@ -425,13 +503,17 @@ export async function rescheduleAppointment(
           startsAt: input.startsAt,
           endsAt,
           professionalId,
-          ...(services ? { totalCents: services.totalCents, totalDurationMin: services.durationMin } : {}),
+          isSqueezeIn,
+          totalDurationMin: durationMin,
+          ...(services ? { totalCents: services.totalCents } : {}),
         },
       })
       if (services) {
         await tx.appointmentItem.deleteMany({ where: { appointmentId: id } })
         await tx.appointmentItem.createMany({ data: itemRows(ctx, id, services.items) })
       }
+      // Quem era normal saiu do intervalo antigo: os encaixes dele são reavaliados na mesma transação.
+      if (!row.isSqueezeIn) await promoteSqueezeIns(tx, ctx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt })
       await audit(
         ctx,
         {
@@ -461,11 +543,24 @@ export async function rescheduleAppointment(
 export async function adjustAppointment(
   ctx: TenantContext,
   id: string,
-  i: { serviceIds?: string[]; totalCents?: number; notes?: string | null },
+  i: {
+    serviceIds?: string[]
+    petId?: string
+    durationMin?: number
+    totalCents?: number
+    notes?: string | null
+    acknowledged?: string
+  },
 ): Promise<AppointmentView> {
   const who = actorKind(ctx)
   if (who === 'customer') throw forbidden()
-  const input = parse(adjustSchema, { totalCents: i.totalCents, notes: i.notes })
+  const input = parse(adjustSchema, {
+    petId: i.petId,
+    durationMin: i.durationMin,
+    acknowledged: i.acknowledged,
+    totalCents: i.totalCents,
+    notes: i.notes,
+  })
   if (input.totalCents !== undefined && !can(ctx.actor, 'view_all_agendas')) {
     throw forbidden('Só quem vê todas as agendas pode alterar o valor do atendimento.')
   }
@@ -474,14 +569,14 @@ export async function adjustAppointment(
   if (!OPEN_STATUSES.includes(before.status)) {
     throw invalidTransition('Só dá para ajustar agendamentos pendentes ou confirmados.')
   }
-  const pre = i.serviceIds !== undefined ? await resolveServices(ctx, i.serviceIds) : null
+  const hintMin = input.durationMin ?? before.totalDurationMin
 
   return lockedTransaction(
     ctx,
     [before.professionalId],
     () => ({
       startsAt: before.startsAt,
-      durationMin: pre?.durationMin ?? before.totalDurationMin,
+      durationMin: hintMin,
       professionalIds: [before.professionalId],
       ignoreAppointmentId: id,
     }),
@@ -494,29 +589,60 @@ export async function adjustAppointment(
       const rules = await getSchedulingRules(ctx, tx)
       const data: Prisma.AppointmentUncheckedUpdateInput = {}
       const fields: string[] = []
-      const services = i.serviceIds !== undefined ? await resolveServices(ctx, i.serviceIds, tx) : null
+
+      // O pet do atendimento: o novo (ativo e do mesmo cliente) ou o que já estava.
+      const { niche } = await getNicheSettings(ctx, tx)
+      if (input.petId !== undefined && niche === null) {
+        const message = 'Esta loja não usa pets.'
+        throw new DomainError('validation', message, { fields: { petId: message } })
+      }
+      const newPet = input.petId !== undefined && input.petId !== row.petId
+        ? await loadPetForBooking(tx, { petId: input.petId, customerId: row.customerId })
+        : null
+      const currentVariant = row.pet === null ? null : variantOfPet(row.pet)
+      const variant = newPet?.variant ?? currentVariant
+      const redoItems = i.serviceIds !== undefined || newPet !== null
+      if (redoItems && niche !== null && variant === null) {
+        const message = 'Escolha o pet.'
+        throw new DomainError('validation', message, { fields: { petId: message } })
+      }
+      const services = redoItems
+        ? await resolveServices(ctx, i.serviceIds ?? row.items.map((item) => item.serviceId), tx, { variant })
+        : null
       if (services) {
         const candidates = await listCandidates(ctx, services.items.map((s) => s.id), tx)
         if (!candidates.some((c) => c.id === row.professionalId)) {
           const message = 'Este profissional não faz algum dos serviços escolhidos.'
           throw new DomainError('validation', message, { fields: { serviceIds: message } })
         }
-        const endsAt = addMinutes(row.startsAt, services.durationMin)
-        await assertFreeForStaff(ctx, tx, {
-          professionalIds: [row.professionalId],
-          specific: true,
+        data.totalCents = services.totalCents
+        fields.push('serviceIds')
+      }
+      if (newPet) {
+        data.petId = newPet.id
+        fields.push('petId')
+      }
+      const durationMin = input.durationMin ?? services?.durationMin ?? row.totalDurationMin
+      const endsAt = addMinutes(row.startsAt, durationMin)
+      if (endsAt.getTime() !== row.endsAt.getTime()) {
+        // Só o que o novo intervalo traz de novo precisa de confirmação: o que já estava no antigo a pessoa já aceitou.
+        const novos = await staffIssues(ctx, tx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt, ignoreAppointmentId: id })
+        const antigos = new Set(
+          (await staffIssues(ctx, tx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt, ignoreAppointmentId: id })).map((x) => x.key),
+        )
+        await confirmStaffIssues(ctx, tx, {
+          professionalId: row.professionalId,
           startsAt: row.startsAt,
           endsAt,
-          durationMin: services.durationMin,
-          bufferMin: rules.bufferMin,
+          issues: novos.filter((x) => !antigos.has(x.key)),
+          acknowledged: input.acknowledged,
+          durationMin,
           ignoreAppointmentId: id,
-          blockedMessage:
-            'Com esses serviços o atendimento invade um bloqueio da agenda. Escolha outros serviços ou remova o bloqueio.',
         })
         data.endsAt = endsAt
-        data.totalCents = services.totalCents
-        data.totalDurationMin = services.durationMin
-        fields.push('serviceIds')
+        data.totalDurationMin = durationMin
+        data.isSqueezeIn = await overlapsNormal(tx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt, ignoreAppointmentId: id })
+        if (input.durationMin !== undefined) fields.push('durationMin')
       }
       if (input.totalCents !== undefined) {
         data.totalCents = input.totalCents
@@ -526,12 +652,15 @@ export async function adjustAppointment(
         data.notes = input.notes
         fields.push('notes')
       }
-      if (fields.length === 0) return toView(ctx, row, scope, rules.customerChangeWindowMin)
+      if (fields.length === 0 && data.endsAt === undefined) return toView(ctx, row, scope, rules.customerChangeWindowMin)
 
       await tx.appointment.update({ where: { id }, data })
       if (services) {
         await tx.appointmentItem.deleteMany({ where: { appointmentId: id } })
         await tx.appointmentItem.createMany({ data: itemRows(ctx, id, services.items) })
+      }
+      if (data.endsAt !== undefined && !row.isSqueezeIn) {
+        await promoteSqueezeIns(tx, ctx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt })
       }
       await audit(
         ctx,

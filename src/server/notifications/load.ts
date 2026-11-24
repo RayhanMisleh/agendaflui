@@ -5,6 +5,7 @@ import type {
   NotificationChannel,
   NotificationKind,
 } from '@/server/db/generated/client'
+import { petEventLabel } from '@/server/calendar/event'
 import { resolveNotificationSettings, type NotificationSettings } from '@/server/domain/settings/notification-settings'
 
 /*
@@ -25,6 +26,8 @@ export type LoadedAppointment = {
   professionalName: string
   professionalMembershipId: string | null
   services: string[]
+  /** "Rex (Cão médio)"; nulo enquanto o agendamento não tem pet. */
+  petLabel: string | null
 }
 
 /** Quem recebe. `active`: cliente nem arquivado nem anonimizado, ou vínculo ativo. Membro não tem preferência: `allow*` é sempre `true`. */
@@ -35,8 +38,6 @@ export type LoadedRecipient = {
   email: string | null
   active: boolean
   allowEmail: boolean
-  allowPush: boolean
-  pushTokens: string[]
   /** Vínculo ativo, dono ou gerente, com a preferência de avisos de toda a loja ligada (vale para as linhas de observador). */
   watchesAll: boolean
 }
@@ -51,10 +52,10 @@ export type LoadedNotification = {
   payload: LoadedPayload
   business: {
     status: BusinessStatus
+    slug: string
     name: string
     color: string
     timeZone: string
-    terms: { professional: string; customer: string }
     changeWindowMin: number
     enabled: NotificationSettings
   }
@@ -71,18 +72,13 @@ export function parsePayload(raw: unknown): LoadedPayload {
 }
 
 async function loadRecipient(
-  n: { businessId: string; channel: NotificationChannel; customerId: string | null; membershipId: string | null },
+  n: { businessId: string; customerId: string | null; membershipId: string | null },
 ): Promise<LoadedRecipient | null> {
   const { businessId } = n
-  const tokens = async (owner: { customerId: string } | { membershipId: string }): Promise<string[]> => {
-    if (n.channel !== 'PUSH') return []
-    const devices = await prisma.device.findMany({ where: { businessId, ...owner }, select: { pushToken: true }, orderBy: { id: 'asc' } })
-    return devices.map((d) => d.pushToken)
-  }
   if (n.customerId) {
     const c = await prisma.customer.findFirst({
       where: { id: n.customerId, businessId },
-      select: { id: true, name: true, email: true, archivedAt: true, anonymizedAt: true, notifyEmailAppointments: true, notifyPushAppointments: true },
+      select: { id: true, name: true, email: true, archivedAt: true, anonymizedAt: true, notifyEmailAppointments: true },
     })
     if (!c) return null
     return {
@@ -92,8 +88,6 @@ async function loadRecipient(
       email: c.email,
       active: c.archivedAt === null && c.anonymizedAt === null,
       allowEmail: c.notifyEmailAppointments,
-      allowPush: c.notifyPushAppointments,
-      pushTokens: await tokens({ customerId: c.id }),
       watchesAll: false,
     }
   }
@@ -110,8 +104,6 @@ async function loadRecipient(
       email: m.user.email,
       active: m.active,
       allowEmail: true,
-      allowPush: true,
-      pushTokens: await tokens({ membershipId: m.id }),
       watchesAll: m.active && (m.role === 'OWNER' || m.role === 'MANAGER') && m.notifyAllAppointments,
     }
   }
@@ -132,11 +124,12 @@ export async function loadNotification(id: string, businessId: string): Promise<
     where: { id: businessId },
     select: {
       name: true,
+      slug: true,
       timezone: true,
       status: true,
       branding: { select: { displayName: true, primaryColor: true } },
       settings: {
-        select: { termProfessionalSingular: true, termCustomerSingular: true, customerChangeWindowMin: true, notifications: true },
+        select: { customerChangeWindowMin: true, notifications: true },
       },
     },
   })
@@ -148,6 +141,7 @@ export async function loadNotification(id: string, businessId: string): Promise<
           id: true, status: true, startsAt: true, endsAt: true, totalCents: true, cancelReason: true,
           customer: { select: { name: true } },
           professional: { select: { name: true, membershipId: true } },
+          pet: { select: { name: true, species: true, size: true } },
           items: { select: { name: true }, orderBy: { position: 'asc' } },
         },
       })
@@ -162,13 +156,10 @@ export async function loadNotification(id: string, businessId: string): Promise<
     payload: parsePayload(n.payload),
     business: {
       status: b.status,
+      slug: b.slug,
       name: b.branding?.displayName || b.name,
       color: b.branding?.primaryColor ?? '',
       timeZone: b.timezone,
-      terms: {
-        professional: b.settings?.termProfessionalSingular ?? 'Profissional',
-        customer: b.settings?.termCustomerSingular ?? 'Cliente',
-      },
       changeWindowMin: b.settings?.customerChangeWindowMin ?? 0,
       enabled: resolveNotificationSettings(b.settings?.notifications),
     },
@@ -184,6 +175,7 @@ export async function loadNotification(id: string, businessId: string): Promise<
           professionalName: a.professional.name,
           professionalMembershipId: a.professional.membershipId,
           services: a.items.map((i) => i.name),
+          petLabel: a.pet ? petEventLabel(a.pet) : null,
         }
       : null,
     recipient: await loadRecipient(n),

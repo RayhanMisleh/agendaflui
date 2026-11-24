@@ -1,4 +1,5 @@
 import type { NotificationKind } from '@/server/db/generated/client'
+import { areaLink } from '@/server/area-links'
 import { formatBrl, renderNotification } from '@/server/notifications/render'
 import { INICIO, loaded } from '../setup/notification'
 
@@ -20,9 +21,9 @@ function one(kind: NotificationKind) {
 }
 
 describe('renderNotification', () => {
-  test.each(KINDS)('%s: assunto, texto, HTML e push sem sobras de modelo, na hora de Manaus', (kind) => {
+  test.each(KINDS)('%s: assunto, texto e HTML sem sobras de modelo, na hora de Manaus', (kind) => {
     const r = renderNotification(one(kind))
-    for (const t of [r.email.subject, r.email.text, r.email.html, r.push.title, r.push.body]) {
+    for (const t of [r.email.subject, r.email.text, r.email.html]) {
       expect(t).not.toContain('undefined')
       expect(t).not.toContain('null')
       expect(t).not.toMatch(/\{|\}/)
@@ -34,20 +35,60 @@ describe('renderNotification', () => {
     expect(r.email.text).toContain('15:00')
     expect(r.email.text).not.toContain('19:00')
     expect(r.email.html).toContain('lang="pt-BR"')
-    expect(r.email.html).not.toMatch(/<img|https?:\/\//)
-    expect(r.push.data['kind']).toBe(kind)
-    expect(r.push.data['appointmentId']).toBe('a-1')
+    expect(r.email.html).not.toMatch(/<img/)
   })
 
-  test('confirmado: serviços, profissional com o termo da conta, total em reais, prazo e nome do negócio', () => {
+  test('confirmado: serviços, profissional, total em reais, prazo e nome do negócio', () => {
     const r = renderNotification(one('APPOINTMENT_CONFIRMED'))
     expect(r.email.subject).toBe('Agendamento confirmado: Banho e Tosa em 16/11/2026 às 15:00')
-    expect(r.email.text).toContain('Tosador: Ana')
+    expect(r.email.text).toContain('Profissional: Ana')
     expect(r.email.text).toContain('Banho')
     expect(r.email.text).toContain('R$ 123,45')
     // 15:00 menos o prazo de 120 min
     expect(r.email.text).toContain('13:00')
     expect(r.email.text).toContain('Olá, Maria Souza.')
+  })
+
+  test('o cliente recebe o atalho do horário; a equipe, o da agenda; o pet aparece quando existe', () => {
+    const c = renderNotification(one('APPOINTMENT_CONFIRMED'))
+    expect(c.email.text).toMatch(/\/tosa-e-cia\/horarios\/a-1/)
+    expect(c.email.text).not.toContain('Pet:')
+    const x = renderNotification(one('APPOINTMENT_CANCELED'))
+    expect(x.email.text).toMatch(/\/tosa-e-cia\n/)
+    const s = renderNotification(loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', id: 'm-1' }, appointment: { petLabel: 'Rex (Cão médio)' } }))
+    expect(s.email.text).toContain('/painel/agenda')
+    expect(s.email.text).toContain('Pet: Rex (Cão médio)')
+  })
+
+  test('todo href do HTML começa no endereço do app, em todos os tipos de aviso', () => {
+    const origem = new URL(areaLink('app', '/')).origin
+    for (const kind of KINDS) {
+      const hrefs = [...renderNotification(one(kind)).email.html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] ?? '')
+      for (const h of hrefs) expect(h.startsWith(`${origem}/`), `${kind}: ${h}`).toBe(true)
+    }
+    const s = renderNotification(loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', id: 'm-1' } }))
+    expect(s.email.html).toMatch(/href="/)
+  })
+
+  test('endereço digitado por pessoas (nomes, pet, serviço, motivo) vira texto no HTML, nunca link', () => {
+    const origem = new URL(areaLink('app', '/')).origin
+    const u = 'https://golpe.test/entrar?x=1'
+    for (const kind of ['APPOINTMENT_CANCELED', 'STAFF_NEW_APPOINTMENT'] as const) {
+      const n = loaded({
+        kind,
+        ...(kind === 'STAFF_NEW_APPOINTMENT' ? { recipient: { kind: 'member' as const, id: 'm-1', name: u } } : { recipient: { name: u } }),
+        business: { name: `Loja ${u}` },
+        appointment: { status: kind === 'APPOINTMENT_CANCELED' ? 'CANCELED' : 'CONFIRMED', professionalName: u, customerName: u, services: [u], cancelReason: u, petLabel: u },
+      })
+      const html = renderNotification(n).email.html
+      expect(html).toContain('golpe.test')
+      const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] ?? '')
+      for (const h of hrefs) {
+        expect(h, kind).not.toContain('golpe.test')
+        expect(h.startsWith(`${origem}/`), `${kind}: ${h}`).toBe(true)
+      }
+      expect(html).not.toMatch(/<a\b[^>]*>[^<]*golpe\.test/)
+    }
   })
 
   test('pendente de aprovação: avisa que o negócio ainda vai confirmar', () => {
@@ -56,9 +97,9 @@ describe('renderNotification', () => {
     expect(r.email.text).toMatch(/confirm/i)
   })
 
-  test('a equipe fala do cliente com o termo da conta', () => {
+  test('a equipe fala do cliente', () => {
     const r = renderNotification(one('STAFF_NEW_APPOINTMENT'))
-    expect(r.email.text).toContain('Tutor: Maria Souza')
+    expect(r.email.text).toContain('Cliente: Maria Souza')
     expect(r.email.subject).toMatch(/Novo agendamento/)
   })
 
@@ -67,36 +108,28 @@ describe('renderNotification', () => {
     const para = (kind: NotificationKind, audience: string | null) =>
       loaded({
         kind,
-        channel: 'PUSH',
         recipient: { kind: 'member', id: 'm-dono' },
         appointment: { status: kind === 'STAFF_APPOINTMENT_CANCELED' ? 'CANCELED' : 'CONFIRMED', cancelReason: kind === 'STAFF_APPOINTMENT_CANCELED' ? 'Cliente desistiu' : null },
         payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: null, audience },
       })
 
-    test.each(STAFF_KINDS)('%s: o push do observador diz de qual profissional é o atendimento', (kind) => {
+    test.each(STAFF_KINDS)('%s: o e-mail do observador diz de qual profissional é o atendimento', (kind) => {
       const r = renderNotification(para(kind, 'watcher'))
-      expect(r.push.body).toContain('com Ana')
-      expect(r.push.body).toContain('Maria Souza')
-      expect(r.push.body).toContain('16/11/2026')
-      expect(r.push.body).not.toMatch(/undefined|null/)
+      expect(r.email.text).toContain('Profissional: Ana')
+      expect(r.email.text).toContain('Maria Souza')
+      expect(r.email.text).toContain('16/11/2026')
+      expect(r.email.text).not.toMatch(/undefined|null/)
     })
 
-    test.each(STAFF_KINDS)('%s: o push do próprio profissional continua sem o nome dele', (kind) => {
+    test.each(STAFF_KINDS)('%s: o e-mail do próprio profissional continua sem o nome dele', (kind) => {
       const r = renderNotification(para(kind, null))
-      expect(r.push.body).not.toContain('Ana')
-      expect(r.push.body).toContain('Maria Souza')
+      expect(r.email.text).not.toContain('Ana')
+      expect(r.email.text).toContain('Maria Souza')
     })
 
-    test('o motivo do cancelamento continua no push do observador', () => {
+    test('o motivo do cancelamento continua no e-mail do observador', () => {
       const r = renderNotification(para('STAFF_APPOINTMENT_CANCELED', 'watcher'))
-      expect(r.push.body).toContain('Motivo: Cliente desistiu')
-    })
-
-    test('o texto do e-mail não muda para o observador', () => {
-      const comNome = renderNotification(para('STAFF_NEW_APPOINTMENT', 'watcher'))
-      const semNome = renderNotification(para('STAFF_NEW_APPOINTMENT', null))
-      expect(comNome.email).toEqual(semNome.email)
-      expect(comNome.push.title).toBe(semNome.push.title)
+      expect(r.email.text).toContain('Motivo: Cliente desistiu')
     })
   })
 
@@ -105,7 +138,6 @@ describe('renderNotification', () => {
     const r = renderNotification(n)
     expect(r.email.text).toContain('Motivo: Profissional doente')
     expect(r.email.html).toContain('Profissional doente')
-    expect(r.push.body).toContain('Profissional doente')
   })
 
   test('cancelamento sem motivo não menciona motivo', () => {
@@ -122,8 +154,8 @@ describe('renderNotification', () => {
     const r = renderNotification(n)
     expect(r.email.subject).toMatch(/passou para outro|transferido/i)
     expect(r.email.text).not.toMatch(/cancelou/i)
-    expect(r.email.text).toContain('para outro Tosador')
-    expect(r.email.subject).toContain('outro Tosador')
+    expect(r.email.text).toContain('para outro Profissional')
+    expect(r.email.subject).toContain('outro Profissional')
   })
 
   test('remarcação mostra o horário anterior quando o payload o traz', () => {

@@ -11,9 +11,9 @@ test('cada erro de entrada tem a mensagem combinada, sem dizer se foi o e-mail o
 })
 
 test('o papel aparece em português, com o termo da conta para o profissional', () => {
-  expect(roleLabel('OWNER', 'Barbeiro')).toBe('Dono')
-  expect(roleLabel('MANAGER', 'Barbeiro')).toBe('Gerente')
-  expect(roleLabel('PROFESSIONAL', 'Tosador')).toBe('Tosador')
+  expect(roleLabel('OWNER')).toBe('Dono')
+  expect(roleLabel('MANAGER')).toBe('Gerente')
+  expect(roleLabel('PROFESSIONAL')).toBe('Profissional')
 })
 
 test('com a espera conhecida a mensagem traz os minutos, arredondando para cima', () => {

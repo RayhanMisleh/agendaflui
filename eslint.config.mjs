@@ -63,9 +63,21 @@ const semSegredos = {
   message: 'O leitor de segredos de integração só vale em src/server/domain/store (o teste tests/unit/integration-secrets-imports.test.ts confere o mesmo).',
 }
 
-const semTenantDbNaRota = {
-  group: ['@/server/db/tenant', '**/db/tenant', '**/server/db/tenant'],
-  message: 'Rota e camada HTTP não usam tenantDb: o contexto da conta chega pronto e a regra de negócio fica em src/server/domain.',
+const semLeitorGoogle = {
+  group: ['**/google-secrets', '**/google-secrets.*'],
+  message: 'O leitor das chaves do Google só vale em src/server/auth/google (o teste tests/unit/google-secrets-imports.test.ts confere o mesmo).',
+}
+
+/** `auth/google/config` devolve as chaves em texto: só o login com Google e o envio à agenda (`src/server/calendar`) o importam. */
+const semSegredosGoogle = {
+  group: [...semLeitorGoogle.group, '**/auth/google/config', '**/auth/google/config.*'],
+  message:
+    'As chaves do Google em texto só valem em src/server/auth/google e src/server/calendar (o teste tests/unit/google-secrets-imports.test.ts confere o mesmo).',
+}
+
+const semTokenDaAgenda = {
+  group: ['**/calendar/token', '**/calendar/token.*'],
+  message: 'O token de renovação da agenda só vale em src/server/calendar (o teste tests/unit/calendar-token-imports.test.ts confere o mesmo).',
 }
 
 const semInterface = {
@@ -100,22 +112,14 @@ export default defineConfig([
       'no-restricted-imports': [
         'error',
         {
-          patterns: [semPrismaCru, semSegredos],
+          patterns: [semPrismaCru, semSegredos, semSegredosGoogle, semTokenDaAgenda],
         },
       ],
     },
   },
   {
     files: ['src/server/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semInterface] }] },
-  },
-  {
-    files: ['src/server/api/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semInterface, semTenantDbNaRota] }] },
-  },
-  {
-    files: ['src/app/api/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semTenantDbNaRota] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
   },
   {
     files: ['src/shared/**'],
@@ -126,6 +130,8 @@ export default defineConfig([
           patterns: [
             semPrismaCru,
             semSegredos,
+            semSegredosGoogle,
+            semTokenDaAgenda,
             semServidorNemInterface,
           ],
         },
@@ -139,17 +145,27 @@ export default defineConfig([
   {
     // Pastas liberadas para o cliente Prisma cru; ainda assim, o servidor não importa da interface.
     files: ['src/server/db/**', 'src/server/auth/**', 'src/server/domain/platform/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
+  },
+  {
+    // O login com Google lê as chaves do Google em texto; vale o resto das regras de `src/server/auth`.
+    files: ['src/server/auth/google/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semTokenDaAgenda, semInterface] }] },
   },
   {
     // O envio de avisos atravessa contas por desenho: usa o Prisma cru e filtra por `businessId` a cada consulta de conta.
     files: ['src/server/notifications/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
+  },
+  {
+    // O envio ao Google Agenda atravessa contas por desenho (como os avisos) e é o único que abre o token de renovação.
+    files: ['src/server/calendar/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semLeitorGoogle, semInterface] }] },
   },
   {
     // O domínio da loja é o único que lê segredos de integração em texto; vale o resto das regras de `src/server`.
     files: ['src/server/domain/store/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
   },
   {
     files: ['prisma/**', 'scripts/**', 'tests/**'],

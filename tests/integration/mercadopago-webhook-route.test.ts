@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import * as rota from '@/app/api/v1/webhooks/mercadopago/[webhookKey]/route'
+import * as rota from '@/app/app/webhooks/mercadopago/[key]/route'
 import { prisma } from '@/server/db/client'
 import { setIntegrationsForTests } from '@/server/integrations'
 import { resetDb } from '../setup/db'
@@ -20,22 +20,22 @@ beforeEach(async () => {
 })
 
 function chamar(o: { key?: string; dataId?: string | null; type?: string | null; assinatura?: string | null; body?: string; ip?: string } = {}) {
-  const url = new URL(`http://api.localhost:3000/v1/webhooks/mercadopago/${o.key ?? c.webhookKey}`)
+  const url = new URL(`http://app.localhost:3000/webhooks/mercadopago/${o.key ?? c.webhookKey}`)
   if (o.dataId !== null) url.searchParams.set('data.id', o.dataId ?? '3001')
   if (o.type !== null) url.searchParams.set('type', o.type ?? 'payment')
   const headers = new Headers({ 'content-type': 'application/json', 'x-request-id': 'req-1', 'x-forwarded-for': o.ip ?? '203.0.113.9' })
   const dataId = o.dataId ?? '3001'
   const assinatura = o.assinatura === undefined ? assinar({ dataId, businessId: c.b.id }) : o.assinatura
   if (assinatura !== null) headers.set('x-signature', assinatura)
-  return rota.POST(new Request(url, { method: 'POST', headers, body: o.body ?? JSON.stringify({ type: 'payment', data: { id: dataId } }) }), { params: Promise.resolve({ key: undefined, webhookKey: o.key ?? c.webhookKey }) as Promise<{ webhookKey: string }> })
+  return rota.POST(new Request(url, { method: 'POST', headers, body: o.body ?? JSON.stringify({ type: 'payment', data: { id: dataId } }) }), { params: Promise.resolve({ key: o.key ?? c.webhookKey }) })
 }
 
 const linha = () => prisma.order.findUniqueOrThrow({ where: { id: c.pedido.id } })
 
-describe('POST /v1/webhooks/mercadopago/{webhookKey}', () => {
+describe('POST /webhooks/mercadopago/{key}', () => {
   test('é uma rota simples: só POST, sem defineRoute e sem OPTIONS', () => {
     expect(Object.keys(rota).sort()).toEqual(['POST'])
-    const fonte = readFileSync('src/app/api/v1/webhooks/mercadopago/[webhookKey]/route.ts', 'utf8')
+    const fonte = readFileSync('src/app/app/webhooks/mercadopago/[key]/route.ts', 'utf8')
     expect(fonte).not.toContain('defineRoute')
   })
 

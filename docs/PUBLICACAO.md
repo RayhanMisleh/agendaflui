@@ -11,16 +11,15 @@ Um contêiner Docker (`Dockerfile` na raiz), porta 3000, atrás de um proxy com 
 ## Variáveis
 
 Lista completa, uma linha cada, no bloco "Produção" do `.env.example`. Obrigatórias: `DATABASE_URL`,
-`APP_SECRET`, `DEV_HOST`, `PAINEL_HOST`, `API_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`.
+`APP_SECRET`, `DEV_HOST`, `APP_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`. `APP_HOST` é o endereço de tudo que não é do painel dev: entrada, painel da loja, clientes e o link que cada loja passa aos clientes (`https://<APP_HOST>/<identificador>`, com QR code).
+`LEGACY_PAINEL_HOST` (opcional) é o endereço antigo do painel: só redireciona (308) para o `APP_HOST`; remova quando os links antigos deixarem de circular.
 Atrás do proxy use `TRUSTED_PROXY_HOPS=1`: com 0 o IP do cliente é desconhecido (limites por IP desligados,
 auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quando faltam `SMTP_URL` e `RESEND_API_KEY` e quando falta
 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. O proxy precisa preservar o `Host` original: as rotas POST do painel dev conferem
 `Origin == Host`, e o roteamento por host também usa o `Host` (nunca `X-Forwarded-Host`); se o proxy reescrever o
-`Host`, essas rotas recusam o envio. Sem `SMTP_URL` nem `RESEND_API_KEY` o servidor sobe, mas convites e cadastro pelo app não chegam. `RESEND_API_KEY`
+`Host`, essas rotas recusam o envio. Sem `SMTP_URL` nem `RESEND_API_KEY` o servidor sobe, mas convites e cadastro de clientes não chegam. `RESEND_API_KEY`
 substitui o SMTP (vale o Resend se as duas existem) e exige `MAIL_FROM` com o domínio verificado no Resend; o botão
 "Enviar e-mail de teste para mim" na página Sistema do painel dev confere o envio.
-`APP_WEB_URL` (opcional, padrão `https://app.agendaflui.com.br`) é o endereço público do app web: só esquema e host,
-sem barra final, e em produção `https` e não local. Dele sai o "Link para clientes" de cada loja (`<APP_WEB_URL>/<identificador>`) e o QR code.
 `INTEGRATIONS_MODE` (opcional) escolhe as integrações externas (Mercado Pago, Frenet e ViaCEP): `real` ou `fake`. Em
 produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
 produção ele impede a partida.
@@ -50,7 +49,7 @@ venda antiga e `um_vinculo_ativo`) rodam em transação: ao falhar, o banco volt
 
 ## Retenção
 
-O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias, uso da API com mais de 400 dias
+O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias
 e auditoria com mais de 2 anos (prazos em `src/server/db/retention.ts`). A execução aparece em /sistema como "Retenção de dados".
 
 ## Saúde
@@ -63,13 +62,19 @@ No terminal do contêiner (Coolify): `npm run admin:create`. Pergunta nome, e-ma
 
 ## Conta de demonstração
 
-No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Focinho Feliz Pet Shop", com nome, paleta, logo, símbolo e favicon próprios (identificador `demo`,
-dono `demo@agendaflui.com.br`) com equipe, 40 clientes, agenda de 4 semanas atrás a 2 semanas à frente, fidelidade,
-banners e loja. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
-Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`. A senha do dono é gerada na hora e aparece
-**uma única vez** no terminal, junto do link de entrada e do link para clientes. Se o e-mail do dono (ou de alguém da equipe) já for ativo em outra loja, o comando para com uma mensagem clara e não grava nada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda) reaplica a marca, os termos e os pedidos se estiverem diferentes, e nunca troca a senha
-(para trocá-la, use a redefinição de senha do painel). O gerente e os profissionais têm e-mails `@demo.agendaflui.com.br`
-com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
+No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Focinho Feliz Pet Shop" (identificador `demo`, dono `demo@agendaflui.com.br`),
+com marca própria (nome, paleta, logo, símbolo e favicon), serviços com preço por porte, gatos atendidos, equipe, 14 clientes
+(8 com conta e 6 de balcão) com pets de todos os portes e três gatos, agenda de 4 semanas atrás a 2 semanas à frente (com um
+encaixe), fidelidade, banners e loja. O começo do dono já vem concluído. Não chama nenhum serviço externo (os pagamentos entram
+pelo mesmo caminho do webhook, sem consultar o Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`.
+
+As senhas do dono e do cliente de teste (`cliente.teste@agendaflui.com.br`) são geradas na hora e aparecem **uma única vez** no
+terminal, junto do link de entrada e do link para clientes; nunca vão para log, auditoria nem banco (só o hash). Pessoa que já
+existia mantém a senha (para trocá-la, use a redefinição de senha do painel). Se o e-mail do dono (ou de alguém da equipe) já for
+ativo em outra loja, o comando para com uma mensagem clara e não grava nada. Rodar de novo não duplica nada, completa o que
+faltar e atualiza a agenda até 2 semanas à frente. `npm run demo:create -- --recriar` refaz a demonstração do zero: a antiga é
+**desligada** (identificador `demo-antiga-AAAAMMDD`, conta suspensa, acessos inativos), nunca apagada. O gerente e os profissionais
+têm e-mails `@demo.agendaflui.com.br` com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
 
 ## Backup e restauração
 
@@ -88,17 +93,28 @@ Novo deploy: a partida aplica as migrações novas antes de servir.
 
 ## Coolify
 
-Build por Dockerfile; porta 3000; os três domínios no mesmo recurso (`dev.`, `painel.`, `api.`); armazenamento
+Build por Dockerfile; porta 3000; os domínios no mesmo recurso: `dev.` (painel dev) e `app.` (serve tudo: entrada, painel, clientes e webhook); `painel.` só se `LEGACY_PAINEL_HOST` estiver definido (redireciona o endereço antigo); o domínio `api.` sai; armazenamento
 persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz` (o Coolify roda `curl` dentro do
 contêiner; a imagem já o traz). O Coolify injeta as variáveis da aplicação também no build: o Dockerfile já conta
 com isso. Ao acrescentar um domínio depois de criada a aplicação, confira em General > Container > Labels se há
 uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante (sem isso o proxy responde 503).
 
+## Entrar com Google
+
+1. No Google Cloud Console, crie um cliente OAuth do tipo "Aplicativo da Web".
+2. Em URIs de redirecionamento autorizados, ponha `https://<APP_HOST>/google/retorno`.
+3. Em APIs e serviços, ative a **Google Calendar API** no mesmo projeto. Sem isso, toda gravação na agenda do dono volta 403 (`accessNotConfigured`) e os agendamentos não chegam ao Google Agenda.
+4. Na tela de consentimento, escolha o tipo de usuário "Externo", peça os escopos `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (a agenda só recebe eventos; nunca é lida) e preencha os links de política de privacidade e termos de uso com páginas publicadas por vocês (o app ainda não tem `/privacidade` nem `/termos`; use endereços externos, por exemplo os do site).
+5. Ainda na tela de consentimento, mude o status de publicação para **Em produção**. Em "Testando", o Google expira o token de renovação em 7 dias e as conexões viram "Desligada — ligue de novo".
+6. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
+
+Enquanto o Google não verificar o app (mesmo em produção), o escopo da agenda é sensível: quem ligar o Google Agenda vê o aviso "app não verificado" (precisa clicar em Avançado → continuar) e o app fica limitado a 100 usuários. Para abrir ao público, peça a verificação do app ao Google (política de privacidade publicada e justificativa do escopo `calendar.events`); o processo leva dias ou semanas, então comece antes do lançamento.
+
 ## Integrações (Mercado Pago)
 
 - As credenciais de cada conta (token e assinatura secreta do webhook) ficam cifradas no banco e só o admin da plataforma
   as grava (painel dev, aba Integrações da conta). O endereço do webhook é por conta, com uma chave secreta de 256 bits
-  na URL: `POST /v1/webhooks/mercadopago/{webhookKey}`.
+  na URL: `POST https://<APP_HOST>/webhooks/mercadopago/{webhookKey}`.
 - Autenticação do aviso: se o cabeçalho `x-signature` vier, ele é verificado com a assinatura secreta da conta e uma
   assinatura inválida dá 401. Se NÃO vier, o aviso é aceito, porque não temos certeza de que o Mercado Pago assina os
   avisos da `notification_url` da preferência: quem autentica é a chave secreta da URL, e o estado do pagamento SEMPRE
@@ -107,9 +123,16 @@ uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante 
   pagamento que chegar depois do prazo do pedido segue a regra "pago depois de vencer".
 - A varredura do agendador confere os pedidos vencidos com o Mercado Pago por até 60 s por rodada.
 
+### Virada do endereço antigo do webhook
+
+O webhook antigo (`https://api.<domínio>/v1/webhooks/mercadopago/{chave}`) deixou de existir junto com o domínio `api.`.
+Ao publicar: troque no painel do Mercado Pago qualquer webhook colado à mão para `https://<APP_HOST>/webhooks/mercadopago/{chave}`
+(o endereço novo aparece na aba Integrações da conta). Preferências criadas antes da virada ainda apontam para o endereço
+antigo: um pedido pago depois da virada fica aguardando pagamento até a varredura do agendador conferi-lo no Mercado Pago.
+
 ### Teste no sandbox antes de abrir a loja
 
-Antes de ligar a Loja para uma conta real, com as credenciais de teste do Mercado Pago e o webhook apontado para o host da API:
+Antes de ligar a Loja para uma conta real, com as credenciais de teste do Mercado Pago e o webhook apontado para o `APP_HOST`:
 
 1. Faça um pedido e pague com Pix no sandbox.
 2. Faça outro pedido e pague com cartão de teste.

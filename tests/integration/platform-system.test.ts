@@ -102,7 +102,7 @@ describe('getSystemStatus', () => {
       await recordSchedulerRun({ kind: 'notifications', startedAt: addMinutes(NOW, -i), finishedAt: addMinutes(NOW, -i + 0.01), ok: true, summary: `enviados ${i}` })
     }
     await recordSchedulerRun({ kind: 'cleanup', startedAt: addMinutes(NOW, -90), finishedAt: addMinutes(NOW, -89), ok: true, summary: 'apagados 4' })
-    await recordSchedulerRun({ kind: 'usage_flush', startedAt: addMinutes(NOW, -20), finishedAt: addMinutes(NOW, -20), ok: true, summary: 'linhas 3' })
+    await recordSchedulerRun({ kind: 'store', startedAt: addMinutes(NOW, -20), finishedAt: addMinutes(NOW, -20), ok: true, summary: 'conferidos 3' })
 
     const { scheduler } = await getSystemStatus(actor, NOW)
     expect(scheduler.lastRuns).toHaveLength(7)
@@ -203,10 +203,10 @@ describe('agendador grava scheduler_runs', () => {
   test('rodada que lança vira ok: false com só o nome do erro; a seguinte, ok: true com contagens', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const run = vi.fn()
-    run.mockRejectedValueOnce(new TypeError('maria@exemplo.test e ExponentPushToken[abc]'))
+    run.mockRejectedValueOnce(new TypeError('maria@exemplo.test e abc123'))
     run.mockResolvedValue({ sent: 3, skipped: 1, failed: 0, retried: 2 })
     vi.useFakeTimers()
-    const s = startScheduler({ run, cleanup: async () => undefined, flush: async () => 0 })
+    const s = startScheduler({ run, cleanup: async () => undefined })
     const gravadas = () => prisma.schedulerRun.count({ where: { kind: 'notifications' } })
     await vi.advanceTimersByTimeAsync(2_500)
     await vi.waitFor(async () => expect(await gravadas()).toBe(1))
@@ -218,7 +218,7 @@ describe('agendador grava scheduler_runs', () => {
     expect(runs[0]).toMatchObject({ ok: false, summary: 'erro: TypeError' })
     expect(runs[0]?.finishedAt).toBeInstanceOf(Date)
     expect(runs[1]).toMatchObject({ ok: true, summary: 'enviados 3, ignorados 1, falhas 0, novas tentativas 2' })
-    expect(JSON.stringify(runs)).not.toMatch(/maria|ExponentPushToken|@/)
+    expect(JSON.stringify(runs)).not.toMatch(/maria|abc123|@/)
   })
 
   test('falha ao gravar a execução nunca derruba a rodada: a seguinte roda', async () => {
@@ -228,7 +228,7 @@ describe('agendador grava scheduler_runs', () => {
     const record = vi.fn(async () => {
       throw new Error('banco caiu')
     })
-    const s = startScheduler({ run, cleanup: async () => undefined, flush: async () => 0, record })
+    const s = startScheduler({ run, cleanup: async () => undefined, record })
     await vi.advanceTimersByTimeAsync(130_000)
     expect(run.mock.calls.length).toBeGreaterThanOrEqual(2)
     expect(record).toHaveBeenCalled()

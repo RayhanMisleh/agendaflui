@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import type { TenantContext } from '@/server/auth/actor'
 import { prisma } from '@/server/db/client'
-import { hashPassword } from '@/server/auth/password'
 import { listCustomers } from '@/server/domain/customers/customers'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makePlatformAdmin } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
@@ -20,9 +19,9 @@ import {
   arquivarCliente,
   criarCliente,
   editarCliente,
-  enviarRedefinicaoCliente,
+  redefinirSenhaCliente,
   restaurarCliente,
-} from '@/app/painel/(app)/clientes/actions'
+} from '@/app/app/painel/clientes/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -50,7 +49,7 @@ afterEach(() => {
 
 describe('criar e editar', () => {
   test('cria o cliente com telefone formatado à brasileira e vai para a ficha', async () => {
-    await expect(criarCliente(ini, form({ name: 'João Silva', phone: '(11) 91234-5678', email: 'JOAO@exemplo.com' }))).rejects.toThrow(/NEXT_REDIRECT \/clientes\//)
+    await expect(criarCliente(ini, form({ name: 'João Silva', phone: '(11) 91234-5678', email: 'JOAO@exemplo.com' }))).rejects.toThrow(/NEXT_REDIRECT \/painel\/clientes\//)
     const c = await prisma.customer.findFirstOrThrow({ where: { businessId } })
     expect(c).toMatchObject({ name: 'João Silva', phone: '5511912345678', email: 'joao@exemplo.com', origin: 'PANEL' })
   })
@@ -83,7 +82,6 @@ describe('criar e editar', () => {
       await editarCliente(ini, form({ id: alheio.id, name: 'Invadido' })),
       await arquivarCliente(ini, form({ id: alheio.id })),
       await anonimizarCliente(ini, form({ id: alheio.id, confirmName: 'Alheio' })),
-      await enviarRedefinicaoCliente(ini, form({ id: alheio.id })),
     ]) {
       expect(r.ok).toBe(false)
       expect(r.message).toBe('Cliente não encontrado.')
@@ -104,7 +102,6 @@ describe('permissões', () => {
       await arquivarCliente(ini, form({ id: c.id })),
       await restaurarCliente(ini, form({ id: c.id })),
       await anonimizarCliente(ini, form({ id: c.id, confirmName: 'Marina' })),
-      await enviarRedefinicaoCliente(ini, form({ id: c.id })),
     ]) {
       expect(r.message).toBe(NEGADO)
     }
@@ -129,6 +126,44 @@ describe('busca e filtros', () => {
     await makeCustomer(businessId, { name: 'Guardado', archivedAt: new Date() })
     expect((await listCustomers(dono)).items.map((i) => i.name)).toEqual(['Ativo'])
     expect((await listCustomers(dono, { onlyArchived: true })).items.map((i) => i.name)).toEqual(['Guardado'])
+  })
+})
+
+describe('redefinição de senha do cliente', () => {
+  test('equipe envia a redefinição ao cliente com conta; cliente de balcão: "Este cliente ainda não tem conta."', async () => {
+    const pessoa = await makeUser({ email: 'ana@exemplo.test', name: 'Ana' })
+    const comConta = await makeCustomer(businessId, { userId: pessoa.id })
+    const balcao = await makeCustomer(businessId, { name: 'Balcão', email: 'balcao@exemplo.test' })
+    const r = await redefinirSenhaCliente(ini, form({ id: comConta.id }))
+    expect(r.ok).toBe(true)
+    expect(mail.sent).toHaveLength(1)
+    expect(mail.sent[0]?.to).toBe('ana@exemplo.test')
+    expect(mail.sent[0]?.text).toContain('/redefinir-senha/')
+    expect(await prisma.userToken.count({ where: { userId: pessoa.id, purpose: 'PASSWORD_RESET' } })).toBe(1)
+    const sem = await redefinirSenhaCliente(ini, form({ id: balcao.id }))
+    expect(sem.ok).toBe(false)
+    expect(sem.message).toBe('Este cliente ainda não tem conta.')
+    expect(mail.sent).toHaveLength(1)
+  })
+
+  test('o suporte ("entrar como") não envia redefinição de senha', async () => {
+    const pessoa = await makeUser()
+    const c = await makeCustomer(businessId, { userId: pessoa.id })
+    guards.requireTenant.mockResolvedValue(await makeCtx({ id: businessId }, { actor: { kind: 'impersonator', adminId: 'a1', name: 'Suporte' } }))
+    const r = await redefinirSenhaCliente(ini, form({ id: c.id }))
+    expect(r.ok).toBe(false)
+    expect(mail.sent).toHaveLength(0)
+  })
+
+  test('profissional não envia; cliente de outra loja não é encontrado', async () => {
+    const pessoa = await makeUser()
+    const c = await makeCustomer(businessId, { userId: pessoa.id })
+    const outra = await makeBusiness()
+    const alheio = await makeCustomer(outra.id, { userId: pessoa.id })
+    expect((await redefinirSenhaCliente(ini, form({ id: alheio.id }))).message).toBe('Cliente não encontrado.')
+    guards.requireTenant.mockResolvedValue(await ctxWithRole({ id: businessId }, 'PROFESSIONAL'))
+    expect((await redefinirSenhaCliente(ini, form({ id: c.id }))).message).toBe(NEGADO)
+    expect(mail.sent).toHaveLength(0)
   })
 })
 
@@ -165,54 +200,3 @@ describe('anonimizar', () => {
   })
 })
 
-describe('redefinição de senha do app', () => {
-  async function comConta() {
-    return makeCustomer(businessId, { name: 'Dani', email: 'dani@exemplo.com', passwordHash: await hashPassword('senha-bem-longa-123') })
-  }
-
-  test('o dono manda o código a quem tem conta no app', async () => {
-    const c = await comConta()
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(true)
-    expect(mail.sent.filter((m) => m.to === 'dani@exemplo.com')).toHaveLength(1)
-  })
-
-  test('no limite de pedidos a tela não diz "enviada" e a auditoria não registra envio', async () => {
-    const c = await comConta()
-    for (let i = 0; i < 3; i += 1) expect((await enviarRedefinicaoCliente(ini, form({ id: c.id }))).ok).toBe(true)
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('Espere alguns minutos')
-    expect(r.message).not.toContain('enviada')
-    expect(mail.sent.filter((m) => m.to === 'dani@exemplo.com')).toHaveLength(3)
-    const registros = await prisma.auditLog.count({ where: { businessId, action: 'customer.password_reset_sent' } })
-    expect(registros).toBe(3)
-  })
-
-  test('cadastro arquivado é recusado e nada é enviado', async () => {
-    const c = await comConta()
-    await prisma.customer.update({ where: { id: c.id }, data: { archivedAt: new Date() } })
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('arquivado')
-    expect(mail.sent).toHaveLength(0)
-  })
-
-  test('cliente sem conta no app: recusa dizendo o motivo, e nada é enviado', async () => {
-    const c = await makeCustomer(businessId, { name: 'Edu', email: 'edu@exemplo.com' })
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('conta no app')
-    expect(mail.sent).toHaveLength(0)
-  })
-
-  test('o suporte (entrando como) é recusado, e nada é enviado', async () => {
-    const c = await comConta()
-    const admin = await makePlatformAdmin()
-    guards.requireTenant.mockResolvedValue(await makeCtx({ id: businessId }, { actor: { kind: 'impersonator', adminId: admin.id, name: admin.name } }))
-    const r = await enviarRedefinicaoCliente(ini, form({ id: c.id }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toContain('suporte')
-    expect(mail.sent).toHaveLength(0)
-  })
-})

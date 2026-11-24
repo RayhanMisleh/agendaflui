@@ -1,13 +1,14 @@
-import { EMPTY_VALUES, STEPS, firstStepWithError, readValues, stepOfField, TERM_PRESETS } from '@/app/dev/(app)/contas/nova/fields'
+import { EMPTY_VALUES, STEPS, firstStepWithError, readValues, stepOfField } from '@/app/dev/(app)/contas/nova/fields'
 
 test('são seis etapas, na ordem do desenho', () => {
-  expect(STEPS.map((s) => s.id)).toEqual(['dados', 'marca', 'termos', 'modulos', 'regras', 'dono'])
+  expect(STEPS.map((s) => s.id)).toEqual(['dados', 'marca', 'nicho', 'modulos', 'regras', 'dono'])
 })
 
-test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 6', () => {
+test('cada campo pertence a uma etapa; slug é da etapa 1 e o e-mail do dono da 5', () => {
   expect(stepOfField('slug')).toBe(0)
   expect(stepOfField('primary')).toBe(1)
-  expect(stepOfField('professionalSingular')).toBe(2)
+  expect(stepOfField('professionalSingular')).toBeNull()
+  expect(stepOfField('servesCats')).toBe(2)
   expect(stepOfField('store')).toBe(3)
   expect(stepOfField('slotStepMin')).toBe(4)
   expect(stepOfField('ownerEmail')).toBe(5)
@@ -22,7 +23,7 @@ test('campos do domínio com nome diferente caem na etapa certa (owner.email)', 
 
 test('firstStepWithError devolve a primeira etapa com erro, pela ordem das etapas e não dos campos', () => {
   expect(firstStepWithError({ ownerEmail: 'x', slug: 'y' })).toBe(0)
-  expect(firstStepWithError({ ownerName: 'x', club: 'y' })).toBe(2)
+  expect(firstStepWithError({ ownerName: 'x', store: 'y' })).toBe(3)
   expect(firstStepWithError({})).toBeNull()
   expect(firstStepWithError({ campoDesconhecido: 'x' })).toBeNull()
 })
@@ -38,14 +39,4 @@ test('readValues lê o formulário: texto, caixas marcadas e valores que faltam'
   expect(v.banners).toBe(false)
   expect(v.slug).toBe('')
   expect(v.slotStepMin).toBe(EMPTY_VALUES.slotStepMin)
-})
-
-test('as sugestões por ramo só preenchem termos (nunca marca, dono ou regras)', () => {
-  expect(TERM_PRESETS.map((p) => p.label)).toEqual(['Barbearia', 'Pet shop', 'Clínica', 'Estúdio'])
-  const pet = TERM_PRESETS.find((p) => p.label === 'Pet shop')!
-  expect(pet.terms.professionalSingular).toBe('Tosador')
-  expect(pet.terms.customerSingular).toBe('Cliente')
-  expect(Object.keys(pet.terms).sort()).toEqual(
-    ['club', 'customerPlural', 'customerSingular', 'pointsPlural', 'pointsSingular', 'professionalPlural', 'professionalSingular'],
-  )
 })
