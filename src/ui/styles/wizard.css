@@ -191,10 +191,6 @@
     color: var(--ink);
     cursor: default;
   }
-  .af-nichecard:focus-visible {
-    outline: 3px solid var(--brand);
-    outline-offset: 2px;
-  }
   .af-nichecard__icon {
     display: grid;
     place-items: center;

@@ -172,10 +172,6 @@
   .af-pickcard:hover {
     border-color: var(--brand);
   }
-  .af-pickcard:focus-visible {
-    outline: 3px solid var(--brand);
-    outline-offset: 2px;
-  }
   .af-pickcard[aria-checked='true'] {
     border-color: var(--brand);
     background-color: var(--brand-tint);
@@ -233,8 +229,7 @@
     background-color: var(--brand-tint);
     color: var(--brand-text);
   }
-  .af-chip:has(.af-chip__input:focus-visible),
-  button.af-chip:focus-visible {
+  .af-chip:has(.af-chip__input:focus-visible) {
     outline: 3px solid var(--brand);
     outline-offset: 2px;
   }
