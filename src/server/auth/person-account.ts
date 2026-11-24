@@ -141,6 +141,21 @@ export async function updatePersonProfile(userId: string, input: { name: string;
   })
 }
 
+const phoneOnlySchema = z.object({
+  phone: z.string().trim().min(1, 'Informe o número com DDD.').pipe(phoneField),
+})
+
+/**
+ * Grava só o telefone da pessoa (e das cópias dela em cada loja), mantendo o nome: é o passo do WhatsApp do cadastro.
+ * Telefone vazio é validação (quem não quer informar pula o passo, não limpa o número).
+ */
+export async function setPersonPhone(userId: string, phone: string): Promise<void> {
+  const i = parse(phoneOnlySchema, { phone })
+  const pessoa = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } })
+  if (!pessoa) throw new DomainError('not_found', 'Conta não encontrada.')
+  await updatePersonProfile(userId, { name: pessoa.name, phone: i.phone })
+}
+
 const senhaSchema = z.object({ current: z.string().max(200, 'A senha pode ter no máximo 200 caracteres.').optional(), next: passwordSchema })
 
 const senhaErrada = (): DomainError =>
