@@ -1,4 +1,5 @@
 import type { NotificationKind } from '@/server/db/generated/client'
+import { areaLink } from '@/server/area-links'
 import { addMinutes, formatDate, formatDateTime, formatTime, fromIsoInstant } from '@/server/time'
 import { emailFrame, limpo, type FrameContent } from './frame'
 import type { LoadedAppointment, LoadedNotification } from './load'
@@ -35,6 +36,13 @@ type Parts = { title: string; subject: string; content: FrameContent }
 
 const STAFF_KINDS: readonly NotificationKind[] = ['STAFF_NEW_APPOINTMENT', 'STAFF_APPOINTMENT_CANCELED', 'STAFF_APPOINTMENT_RESCHEDULED']
 
+/** O atalho do e-mail: o cliente vai ao próprio horário (ou à loja, se foi cancelado); a equipe, à agenda do painel. */
+function actionOf(n: LoadedNotification, a: LoadedAppointment): { label: string; href: string } {
+  if (STAFF_KINDS.includes(n.kind)) return { label: 'Abrir a agenda', href: areaLink('app', '/painel/agenda') }
+  if (n.kind === 'APPOINTMENT_CANCELED') return { label: 'Marcar outro horário', href: areaLink('app', `/${n.business.slug}`) }
+  return { label: 'Ver meu horário', href: areaLink('app', `/${n.business.slug}/horarios/${a.id}`) }
+}
+
 function build(n: LoadedNotification, a: LoadedAppointment): Parts {
   const tz = n.business.timeZone
   const biz = limpo(n.business.name)
@@ -52,6 +60,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
 
   const details: [string, string][] = [
     ['Serviços', services],
+    ...(a.petLabel ? ([['Pet', limpo(a.petLabel)]] as [string, string][]) : []),
     ['Data e hora', `${date} às ${time}`],
     ...(STAFF_KINDS.includes(n.kind) ? ([['Cliente', customer]] as [string, string][]) : ([['Profissional', limpo(a.professionalName)]] as [string, string][])),
     // Quem recebe os avisos de toda a loja precisa saber de quem é o atendimento (o próprio profissional já sabe).
@@ -146,6 +155,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
 export function renderNotification(n: LoadedNotification): RenderedNotification {
   if (!n.appointment) throw new Error('Aviso sem agendamento carregado.')
   const p = build(n, n.appointment)
+  p.content.action = actionOf(n, n.appointment)
   const { text, html } = emailFrame({ name: n.business.name, color: n.business.color }, p.title, p.content)
   return { email: { subject: limpo(p.subject), text, html } }
 }

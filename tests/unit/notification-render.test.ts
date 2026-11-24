@@ -34,7 +34,7 @@ describe('renderNotification', () => {
     expect(r.email.text).toContain('15:00')
     expect(r.email.text).not.toContain('19:00')
     expect(r.email.html).toContain('lang="pt-BR"')
-    expect(r.email.html).not.toMatch(/<img|https?:\/\//)
+    expect(r.email.html).not.toMatch(/<img/)
   })
 
   test('confirmado: serviços, profissional, total em reais, prazo e nome do negócio', () => {
@@ -46,6 +46,17 @@ describe('renderNotification', () => {
     // 15:00 menos o prazo de 120 min
     expect(r.email.text).toContain('13:00')
     expect(r.email.text).toContain('Olá, Maria Souza.')
+  })
+
+  test('o cliente recebe o atalho do horário; a equipe, o da agenda; o pet aparece quando existe', () => {
+    const c = renderNotification(one('APPOINTMENT_CONFIRMED'))
+    expect(c.email.text).toMatch(/\/tosa-e-cia\/horarios\/a-1/)
+    expect(c.email.text).not.toContain('Pet:')
+    const x = renderNotification(one('APPOINTMENT_CANCELED'))
+    expect(x.email.text).toMatch(/\/tosa-e-cia\n/)
+    const s = renderNotification(loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', id: 'm-1' }, appointment: { petLabel: 'Rex (Cão médio)' } }))
+    expect(s.email.text).toContain('/painel/agenda')
+    expect(s.email.text).toContain('Pet: Rex (Cão médio)')
   })
 
   test('pendente de aprovação: avisa que o negócio ainda vai confirmar', () => {

@@ -25,6 +25,7 @@ export function loaded(o: Overrides = {}): LoadedNotification {
     payload: { startsAt: INICIO.toISOString(), previousStartsAt: null, reason: null, audience: null },
     business: {
       status: 'ACTIVE',
+      slug: 'tosa-e-cia',
       name: 'Tosa & Cia',
       color: '#2F6B4F',
       timeZone: 'America/Manaus',
@@ -48,6 +49,7 @@ export function loaded(o: Overrides = {}): LoadedNotification {
       professionalName: 'Ana',
       professionalMembershipId: 'm-1',
       services: ['Banho', 'Tosa'],
+      petLabel: null,
     },
     recipient: {
       kind: 'customer',
