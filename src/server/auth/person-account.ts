@@ -12,6 +12,7 @@ import { renderEmailChangeCode } from '@/server/notifications/render-account'
 import { emailChangeUnlinksGoogle } from '@/shared/person'
 import { formatDateTime, toIsoInstant } from '@/server/time'
 import { AuthError } from './actor'
+import { ipLimitKeyPart } from './client-ip'
 import {
   allowCodeRequest,
   assertCodeGuessesLeft,
@@ -210,7 +211,21 @@ function conferirSenhaParaTrocar(p: { passwordHash: string | null; googleEmail: 
  * necessária) e DEVOLVE a continuação (limites, código, envio ao e-mail NOVO), que a ação agenda para depois da resposta.
  * Se o e-mail novo já é de outra conta, isso só aparece na confirmação (quem não prova o e-mail não descobre nada).
  */
-export async function requestEmailChange(userId: string, input: { email: string }, now: Date): Promise<() => Promise<void>> {
+export async function requestEmailChange(
+  userId: string,
+  input: { email: string },
+  now: Date,
+  meta: { ip?: string } = {},
+): Promise<() => Promise<void>> {
+  // Tetos que não dependem do e-mail novo: sem eles a conta serviria para mandar código a uma lista de endereços.
+  if (meta.ip) {
+    const porIp = await hitRateLimit(limitKey('troca-email:ip', ipLimitKeyPart(meta.ip)), LIMITS.panelResetIp, now)
+    if (!porIp.allowed) throw new AuthError('rate_limited', porIp.retryAfterSec)
+  }
+  const hora = await hitRateLimit(limitKey('troca-email:pessoa', userId), LIMITS.emailChangePerson, now)
+  if (!hora.allowed) throw new AuthError('rate_limited', hora.retryAfterSec)
+  const dia = await hitRateLimit(limitKey('troca-email-dia:pessoa', userId), LIMITS.emailChangePersonDaily, now)
+  if (!dia.allowed) throw new AuthError('rate_limited', dia.retryAfterSec)
   const i = parse(emailInput, input)
   const pessoa = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, passwordHash: true, googleEmail: true } })
   if (!pessoa) throw new DomainError('not_found', 'Conta não encontrada.')
@@ -253,6 +268,7 @@ export async function confirmEmailChange(
   userId: string,
   input: { email: string; code: string },
   now: Date,
+  keepSessionToken?: string,
 ): Promise<{ googleUnlinked: boolean }> {
   const i = parse(confirmInput, input)
   await assertCodeGuessesLeft(userId, i.email, now)
@@ -290,6 +306,9 @@ export async function confirmEmailChange(
           WHERE id = ${userId}::uuid`
       }
       await syncCustomerCopies(tx, userId, { email: i.email })
+      // O e-mail antigo pode estar comprometido: links de redefinição já enviados e as outras sessões deixam de valer.
+      await tx.userToken.deleteMany({ where: { userId, purpose: 'PASSWORD_RESET', usedAt: null } })
+      await revokeUserAccess(tx, userId, now, keepSessionToken)
       // Sem Google vinculado não há agenda: a ligação sai na mesma transação.
       return { googleUnlinked: desvincula, calendarSealed: desvincula ? await disconnectCalendarIn(tx, userId) : null }
     })

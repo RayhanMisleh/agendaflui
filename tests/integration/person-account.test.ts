@@ -333,4 +333,22 @@ describe('getPersonAccount: Google Agenda', () => {
     await makeMembership(b.id, semGoogle.id, 'PROFESSIONAL')
     expect((await getPersonAccount(semGoogle.id, null)).calendar).toMatchObject({ hasGoogle: false, available: false })
   })
+
+  test('troca de e-mail apaga links de redefinição abertos e derruba as outras sessões, menos a atual', async () => {
+    const u = await makeUser({ email: 'velho@exemplo.test', password: SENHA })
+    await prisma.userToken.create({ data: { userId: u.id, purpose: 'PASSWORD_RESET', tokenHash: hashToken('link'), expiresAt: addMinutes(AGORA, 60) } })
+    await sessao(u.id, 'atual')
+    await sessao(u.id, 'outra')
+    await pedir(u.id, 'novo@exemplo.test')
+    await confirmEmailChange(u.id, { email: 'novo@exemplo.test', code: mail.codeOf() }, AGORA, 'atual')
+    expect(await prisma.userToken.count({ where: { userId: u.id, purpose: 'PASSWORD_RESET' } })).toBe(0)
+    expect((await prisma.session.findFirstOrThrow({ where: { tokenHash: hashToken('atual') } })).revokedAt).toBeNull()
+    expect((await prisma.session.findFirstOrThrow({ where: { tokenHash: hashToken('outra') } })).revokedAt).not.toBeNull()
+  })
+
+  test('pedidos de código de troca têm teto por pessoa, mesmo com e-mails novos diferentes', async () => {
+    const u = await makeUser({ email: 'velho@exemplo.test', password: SENHA })
+    for (let n = 0; n < 5; n++) await requestEmailChange(u.id, { email: `n${n}@exemplo.test` }, AGORA)
+    await expect(requestEmailChange(u.id, { email: 'n9@exemplo.test' }, AGORA)).rejects.toBeInstanceOf(AuthError)
+  })
 })

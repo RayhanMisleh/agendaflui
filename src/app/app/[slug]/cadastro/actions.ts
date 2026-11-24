@@ -37,6 +37,9 @@ export async function pedirCodigo(anterior: EstadoCadastro, form: FormData): Pro
     const continuacao = await requestStoreSignup(slug, { ...values, password: texto(form, 'password', 400) }, await requestInfo(), new Date())
     runAfterResponse(continuacao)
   } catch (erro) {
+    if (erro instanceof AuthError) {
+      return { step: 'dados', error: erro.retryAfterSec === undefined ? erro.message : mensagemDeEspera(erro.retryAfterSec), fields: {}, values, sent: anterior.sent }
+    }
     if (erro instanceof DomainError) return { step: 'dados', error: erro.fields ? null : erro.message, fields: { ...(erro.fields ?? {}) }, values, sent: anterior.sent }
     console.error(JSON.stringify({ level: 'error', event: 'store_signup_request_failed', error: erro instanceof Error ? erro.name : 'unknown' }))
     return { step: 'dados', error: MENSAGEM_GENERICA, fields: {}, values, sent: anterior.sent }

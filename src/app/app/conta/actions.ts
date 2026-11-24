@@ -12,6 +12,7 @@ import {
   unlinkGoogle,
   updatePersonProfile,
 } from '@/server/auth/person-account'
+import { requestInfo } from '@/server/auth/request-info'
 import { logout } from '@/server/auth/session'
 import { disconnectCalendar } from '@/server/calendar/connection'
 import { DomainError } from '@/server/domain/errors'
@@ -68,8 +69,9 @@ export async function salvarDados(anterior: EstadoConta, fd: FormData): Promise<
 export async function pedirCodigoDeEmail(anterior: EstadoConta, fd: FormData): Promise<EstadoConta> {
   const sessao = await requirePerson()
   const values = { email: texto(fd, 'email', 320) }
+  const info = await requestInfo()
   try {
-    runAfterResponse(await requestEmailChange(sessao.user.id, values, new Date()))
+    runAfterResponse(await requestEmailChange(sessao.user.id, values, new Date(), { ...(info.ip !== undefined ? { ip: info.ip } : {}) }))
   } catch (err) {
     return falha(err, { ...anterior, step: 'email' }, values)
   }
@@ -81,8 +83,9 @@ export async function confirmarEmail(anterior: EstadoConta, fd: FormData): Promi
   const sessao = await requirePerson()
   const values = { email: texto(fd, 'email', 320) }
   let desvinculou: boolean
+  const token = (await readCookie(APP_COOKIE)) ?? ''
   try {
-    desvinculou = (await confirmEmailChange(sessao.user.id, { ...values, code: texto(fd, 'code', 20) }, new Date())).googleUnlinked
+    desvinculou = (await confirmEmailChange(sessao.user.id, { ...values, code: texto(fd, 'code', 20) }, new Date(), token)).googleUnlinked
   } catch (err) {
     // O código errado mantém o passo do código; os conflitos de e-mail voltam ao campo do e-mail.
     const conflito = err instanceof DomainError && err.reason !== 'invalid_code'

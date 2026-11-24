@@ -16,9 +16,12 @@ import {
   invalidCode,
   issueEmailCode,
 } from './email-code'
+import { AuthError } from './actor'
+import { ipLimitKeyPart } from './client-ip'
 import { hashPassword, passwordSchema } from './password'
 import { activatePerson, personState } from './person'
 import { lockUserAccess } from './password-reset'
+import { hitRateLimit, LIMITS, limitKey, type LimitRule } from './rate-limit-db'
 import { loginWithPassword, openSession } from './session'
 import { findOpenStore, joinStore, joinStoreIn, type JoinResult } from './store-join'
 import type { RequestMeta } from './support-session'
@@ -29,6 +32,13 @@ import type { RequestMeta } from './support-session'
  * pendente com a senha escolhida), liga ao cliente da loja (cria ou adota o de balcão) e abre a sessão, tudo numa transação.
  * Conta ativa com o e-mail: nunca cria segunda conta ("Este e-mail já tem conta. Entre com ela.").
  */
+
+/** Limite por origem (IP ou /64), antes de qualquer hash ou envio: o teto por e-mail sozinho não segura quem varia o e-mail. */
+async function checkSignupIp(prefix: string, rule: LimitRule, ip: string | undefined, now: Date): Promise<void> {
+  if (!ip) return
+  const r = await hitRateLimit(limitKey(prefix, ipLimitKeyPart(ip)), rule, now)
+  if (!r.allowed) throw new AuthError('rate_limited', r.retryAfterSec)
+}
 
 export type StoreSession = { token: string; expiresAt: Date; userId: string; join: JoinResult }
 
@@ -77,9 +87,10 @@ async function brandOf(businessId: string): Promise<AccountBrand> {
 export async function requestStoreSignup(
   slug: string,
   input: { name: string; email: string; phone?: string | null; password: string },
-  _meta: RequestMeta,
+  meta: RequestMeta,
   now: Date,
 ): Promise<() => Promise<void>> {
+  await checkSignupIp('cadastro-loja:ip', LIMITS.panelResetIp, meta.ip, now)
   const i = parse(signupSchema, input)
   const loja = await findOpenStore(slug)
   if (!loja) throw lojaFechada()
@@ -117,6 +128,7 @@ export async function confirmStoreSignup(
   meta: RequestMeta,
   now: Date,
 ): Promise<StoreSession> {
+  await checkSignupIp('cadastro-loja-confirma:ip', LIMITS.authIp, meta.ip, now)
   const i = parse(verifySchema, input)
   const loja = await findOpenStore(slug)
   if (!loja) throw lojaFechada()

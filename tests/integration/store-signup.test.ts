@@ -239,4 +239,10 @@ describe('signInAtStore', () => {
     await expect(signInAtStore(slug, { email: u.email, password: 'errada-errada' }, META, AGORA)).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(await prisma.customer.count()).toBe(0)
   })
+
+  test('pedido de cadastro tem teto por IP, mesmo variando o e-mail', async () => {
+    for (let n = 0; n < 10; n++) await requestStoreSignup(slug, dados({ email: `p${n}@exemplo.test` }), META, AGORA)
+    await expect(requestStoreSignup(slug, dados({ email: 'p99@exemplo.test' }), META, AGORA)).rejects.toMatchObject({ code: 'rate_limited' })
+    await expect(requestStoreSignup(slug, dados({ email: 'p99@exemplo.test' }), { ip: '198.51.100.7' }, AGORA)).resolves.toBeTypeOf('function')
+  })
 })
