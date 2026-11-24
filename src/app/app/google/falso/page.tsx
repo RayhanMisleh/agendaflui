@@ -7,6 +7,9 @@ import { deriveTheme } from '@/ui/theme/derive'
 import { simularGoogle } from './actions'
 import { FalsoForm } from './FalsoForm'
 
+// Decide pelo modo em CADA pedido: nunca prerenderizada no build (em produção a página tem de ser 404).
+export const dynamic = 'force-dynamic'
+
 export const metadata: Metadata = { title: 'Simular Google | Agenda Flui', robots: { index: false, follow: false } }
 
 const MARCA = { name: 'Agenda Flui', logoUrl: null, symbolUrl: null, platform: true }
