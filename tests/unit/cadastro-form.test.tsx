@@ -78,3 +78,19 @@ test('código errado mostra o erro no campo do código', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Confirmar e entrar' }))
   expect(await screen.findByText('Código incorreto ou vencido.')).toBeInTheDocument()
 })
+
+test('reenviar código roda dentro de uma transição (sem aviso do React e com o botão em andamento)', async () => {
+  const erro = vi.spyOn(console, 'error').mockImplementation(() => {})
+  let liberar: (e: EstadoCadastro) => void = () => {}
+  acoes.pedirCodigo.mockResolvedValueOnce(enviado(1)).mockImplementationOnce(() => new Promise<EstadoCadastro>((r) => { liberar = r }))
+  render(<CadastroForm slug="pet-bom" />)
+  preencher()
+  fireEvent.click(screen.getByRole('button', { name: 'Continuar' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Reenviar código' }))
+  await waitFor(() => expect(acoes.pedirCodigo).toHaveBeenCalledTimes(2))
+  expect(screen.getByRole('button', { name: /Reenviar código/ })).toBeDisabled()
+  liberar(enviado(2))
+  expect(await screen.findByText(/Enviamos outro código/)).toBeInTheDocument()
+  expect(erro.mock.calls.some((c) => String(c[0]).includes('outside of a transition'))).toBe(false)
+  erro.mockRestore()
+})

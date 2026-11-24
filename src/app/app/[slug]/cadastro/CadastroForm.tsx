@@ -1,5 +1,5 @@
 'use client'
-import { useActionState, useRef, useState } from 'react'
+import { startTransition, useActionState, useRef, useState } from 'react'
 import { CircleAlert, MailCheck } from 'lucide-react'
 import { Button, CodeField, Field, Input } from '@/ui/components'
 import { confirmarCadastro, pedirCodigo } from './actions'
@@ -44,7 +44,7 @@ export function CadastroForm({ slug, volta = null }: { slug: string; volta?: str
     form.set('slug', slug)
     if (volta) form.set('volta', volta)
     for (const [nome, valor] of Object.entries(d)) form.set(nome, valor)
-    pedir(form)
+    startTransition(() => pedir(form))
   }
 
   if (noCodigo) {
