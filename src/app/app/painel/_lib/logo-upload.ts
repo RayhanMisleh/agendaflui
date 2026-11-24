@@ -1,5 +1,5 @@
 import 'server-only'
-import { requireTenant } from '@/server/auth/guards'
+import type { TenantContext } from '@/server/auth/actor'
 import { DomainError } from '@/server/domain/errors'
 import { setBusinessLogo } from '@/server/domain/settings/business-profile'
 import { CABECALHOS, MAX_ARQUIVO, lerCorpo, lerFormulario, mesmaOrigem, para } from '@/app/_lib/upload-multipart'
@@ -9,8 +9,7 @@ import { CABECALHOS, MAX_ARQUIVO, lerCorpo, lerFormulario, mesmaOrigem, para } f
  * volta à tela de origem (`volta(codigo)`) com `ok` ou o código do erro. Só POST, só com sessão, e a origem precisa ser este
  * host. Quem pode trocar a logo é decidido pelo domínio (dono e suporte).
  */
-export async function receberLogo(request: Request, volta: (codigo: string) => string): Promise<Response> {
-  const ctx = await requireTenant()
+export async function receberLogo(ctx: TenantContext, request: Request, volta: (codigo: string) => string): Promise<Response> {
   if (!mesmaOrigem(request)) return new Response(null, { status: 403, headers: CABECALHOS })
   const voltar = (codigo: string) => para(volta(codigo))
   const corpo = await lerCorpo(request)
