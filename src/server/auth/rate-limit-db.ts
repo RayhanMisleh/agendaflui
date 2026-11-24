@@ -10,7 +10,7 @@ export const LIMITS = {
   loginEmailIp: { limit: 5, windowSec: 900 },
   loginEmailWide: { limit: 30, windowSec: 900 },
   loginIp: { limit: 20, windowSec: 900 },
-  /** Limite geral da API do app por IP (ou /64), em todas as rotas com conta. */
+  /** Limite geral por IP (ou /64) nas rotas com conta. */
   apiIp: { limit: 120, windowSec: 60 },
   authIp: { limit: 30, windowSec: 900 },
   /** Pedidos de "esqueci a senha" do painel por origem (IP ou /64): cada e-mail tem o seu teto em `codeEmail`. */

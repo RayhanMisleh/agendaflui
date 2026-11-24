@@ -1,35 +1,29 @@
 # Pendências
 
-O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em navegador: só há testes automáticos e a fumaça por HTTP (`npm run smoke`).
+O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes automáticos e a fumaça por HTTP (`npm run smoke`).
 
 ## Para o dono conferir no navegador
 
-- Todas as telas dos dois painéis a 375 px (celular) e o foco nos diálogos.
+- Todas as telas do painel dev e do app a 375 px (celular) e o foco nos diálogos.
 - Painel dev: lista de contas, aba Módulos, aba Integrações, "tentar de novo" em /sistema, ações destrutivas (a confirmação exige JavaScript).
 - Criar conta, convite, definir senha e entrar; "entrar como", faixa de suporte (contraste) e encerrar; convite de quem já tem senha em outra conta; desativar membro de várias contas.
 - Agenda: arrastar a ficha (mouse, teclado e folha), telefone da lista de Clientes abaixo de 28 rem, envio da foto da equipe e do logo, exportação do CSV de relatórios.
 - Módulos: telas de Fidelidade, Banners e Loja, envio de imagens (também sem JavaScript), pedido com "Simular pagamento aprovado".
-- Entrada do painel do negócio sem JavaScript.
-- Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar (`entrada.spec.ts` ainda cita as rotas `/entrar/<slug>` e `/escolher-conta`, removidas).
+- Entrada do app sem JavaScript.
+- Fase 1 (endereço único, pessoa única e Google), no `APP_HOST`:
+  - Entrar em `/entrar` como dono, equipe e cliente: cada um cai no destino certo (painel, loja, "sem loja").
+  - Cadastro pela loja (`/<slug>/cadastro`) com código de e-mail, e "Usar minha conta" numa segunda loja.
+  - Convite da equipe e redefinição de senha por link, com senha e com Google; links antigos `painel.` e `/definir-senha/<t>` redirecionando (308).
+  - Minha conta inteira (`/conta`): nome, e-mail com código, senha, vincular e desvincular Google, avisos de toda a loja; sem trancar a pessoa fora.
+  - `/google/falso` com `INTEGRATIONS_MODE=fake`: entrar, cadastrar e vincular pelo Google simulado.
+  - Painel dev em Sistema → Google: salvar e remover as chaves; sem chaves o botão do Google some.
+  - Tudo a 360 px, com foco visível e movimento reduzido.
 
 ## Antes de abrir a loja (Mercado Pago real)
 
 - Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).
-- Sem avisos de e-mail ou push para pedido, pagamento, resgate; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
+- Sem avisos de e-mail para pedido, pagamento, resgate; sem estorno automático (o dono estorna no Mercado Pago); boleto fora do checkout.
 - Rotação da chave de cifra dos segredos de integração (hoje derivada do `APP_SECRET`).
-
-## Quando o app chegar
-
-- Rotas `staff/*` dos módulos (pedidos, resgates).
-- `POST /v1/store/orders` deve sempre mandar `Idempotency-Key` (sem ela, dois toques criam dois pedidos); nova cotação entre os toques dá 409 `idempotency_key_reused`.
-- Logout não apaga o aparelho: o app chama `DELETE /v1/me/devices/{token}` antes de sair, ou o logout passa a aceitar `pushToken`.
-- Esquemas de WebView (`capacitor://`, `ionic://`) nas origens do CORS.
-- Tolerância à repetição da renovação por falha de rede; teto de vida da família de tokens.
-- Troca de e-mail pelo app com verificação.
-- Um app compartilhado × um app por negócio (a API atende os dois).
-- `details.nearest` do erro de horário ocupado não traz `professionalIds`.
-- `cancelReason` escrito pela equipe chega ao cliente: separar motivo público de interno.
-- Recibos do Expo não são consultados.
 
 ## Depois
 

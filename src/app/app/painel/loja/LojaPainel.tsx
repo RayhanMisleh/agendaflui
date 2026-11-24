@@ -151,7 +151,7 @@ export function ProdutosLista({ produtos, vazio }: { produtos: ProdutoLinha[]; v
         open={arquivando !== null}
         onClose={() => setArquivando(null)}
         title={arquivando ? `Arquivar ${arquivando.name}?` : ''}
-        description="O produto sai da lista e do app. Os pedidos já feitos continuam com o nome e o preço da compra."
+        description="O produto sai da lista e da vitrine dos clientes. Os pedidos já feitos continuam com o nome e o preço da compra."
         confirmLabel="Arquivar produto"
         initialState={SEM_ESTADO}
         hidden={{ id: arquivando?.id ?? '' }}
@@ -194,7 +194,7 @@ export function CategoriasLista({ categorias }: { categorias: CategoriaLinha[] }
     <>
       <PainelForm action={criarCategoria} submit="Criar categoria" labels={{ name: 'Nome' }} anchors={{ name: 'categoria-nova' }}>
         {(state) => (
-          <Field label="Nova categoria" hint="Agrupa os produtos na vitrine do app." error={state.fields.name}>
+          <Field label="Nova categoria" hint="Agrupa os produtos na vitrine dos clientes." error={state.fields.name}>
             <Input id="categoria-nova" name="name" maxLength={60} autoComplete="off" defaultValue={state.ok ? '' : (state.values.name ?? '')} required />
           </Field>
         )}
@@ -225,7 +225,7 @@ export function CategoriasLista({ categorias }: { categorias: CategoriaLinha[] }
         open={arquivando !== null}
         onClose={() => setArquivando(null)}
         title={arquivando ? `Arquivar ${arquivando.name}?` : ''}
-        description="A categoria sai da lista e do app, e os produtos dela deixam de aparecer ao app até você mudar a categoria deles. Nada é apagado."
+        description="A categoria sai da lista e da vitrine dos clientes, e os produtos dela deixam de aparecer aos clientes até você mudar a categoria deles. Nada é apagado."
         confirmLabel="Arquivar categoria"
         initialState={SEM_ESTADO}
         hidden={{ id: arquivando?.id ?? '' }}

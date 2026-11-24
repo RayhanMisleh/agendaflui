@@ -64,8 +64,8 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
     if (n.business.changeWindowMin <= 0) return ''
     const limit = addMinutes(a.startsAt, -n.business.changeWindowMin)
     return limit.getTime() > n.scheduledFor.getTime()
-      ? `Você pode cancelar ou remarcar pelo aplicativo até ${formatDateTime(limit, tz)}.`
-      : `O prazo para cancelar ou remarcar pelo aplicativo já passou. Se precisar mudar, fale com ${biz}.`
+      ? `Você pode cancelar ou remarcar pelo link da loja até ${formatDateTime(limit, tz)}.`
+      : `O prazo para cancelar ou remarcar pelo link da loja já passou. Se precisar mudar, fale com ${biz}.`
   }
   const paragraphs = (...lines: string[]) => lines.filter((l) => l !== '')
   const reasonLine = reason ? `Motivo: ${reason}` : ''
@@ -88,7 +88,7 @@ function build(n: LoadedNotification, a: LoadedAppointment): Parts {
       return {
         title: 'Agendamento cancelado',
         subject: `Agendamento cancelado: ${services} em ${when}`,
-        content: { paragraphs: paragraphs(hello, `${biz} cancelou o seu agendamento.`, reasonLine, 'Se quiser, marque outro horário pelo aplicativo.'), rows: details },
+        content: { paragraphs: paragraphs(hello, `${biz} cancelou o seu agendamento.`, reasonLine, 'Se quiser, marque outro horário pelo link da loja.'), rows: details },
       }
     case 'APPOINTMENT_RESCHEDULED':
       return {

@@ -100,7 +100,7 @@ export function BannersPainel({ banners }: { banners: BannerLinha[] }) {
         empty={
           <EmptyState
             title="Cadastre o primeiro banner"
-            description="Banners aparecem na tela inicial do app com uma imagem e um link opcional."
+            description="Banners aparecem na tela inicial dos clientes com uma imagem e um link opcional."
             action={
               <LinkButton href="/painel/banners/novo" variant="primary" icon={<Plus size={18} />}>
                 Novo banner
@@ -113,7 +113,7 @@ export function BannersPainel({ banners }: { banners: BannerLinha[] }) {
         open={excluindo !== null}
         onClose={() => setExcluindo(null)}
         title={excluindo ? `Excluir ${excluindo.title}?` : ''}
-        description="O banner e a imagem são apagados de vez e saem do app. Não dá para desfazer. Para tirar do ar só por um tempo, desative o banner."
+        description="O banner e a imagem são apagados de vez e saem da vitrine dos clientes. Não dá para desfazer. Para tirar do ar só por um tempo, desative o banner."
         confirmLabel="Excluir banner"
         initialState={{ ok: false, message: null, fields: {} }}
         hidden={{ id: excluindo?.id ?? '' }}

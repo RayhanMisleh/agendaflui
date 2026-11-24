@@ -129,7 +129,7 @@ export function ProdutoForm({ produto, categorias }: { produto: ProdutoDados | n
                 </div>
               </div>
             </details>
-            <Checkbox name="active" label="À venda no app" defaultChecked={v.active === 'on'} />
+            <Checkbox name="active" label="À venda para clientes" defaultChecked={v.active === 'on'} />
           </>
         )
       }}

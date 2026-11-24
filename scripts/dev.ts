@@ -78,7 +78,7 @@ async function main(): Promise<void> {
   }
 
   const hosts = hostConfigFromEnv(process.env)
-  console.log(`\nPainel dev:  http://${hosts.dev}\nApp:         http://${hosts.app}\n`)
+  console.log(`\nPainel dev:         http://${hosts.dev}\nAgenda Flui (app):  http://${hosts.app}\n`)
 
   const next: ChildProcess = spawn(process.execPath, [resolve('node_modules/next/dist/bin/next'), 'dev', '-p', String(PORTA)], {
     env,

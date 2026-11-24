@@ -13,9 +13,9 @@ test('ao lado de cada módulo diz o que está em andamento, com o singular e o p
   expect(screen.getByRole('checkbox', { name: /^Fidelidade/ })).toHaveAccessibleDescription('Em andamento: 1 resgate a entregar.')
 })
 
-test('avisa que desligar esconde da conta e do app, mas guarda os dados', () => {
+test('avisa que desligar esconde da conta e dos clientes, mas guarda os dados', () => {
   render(<ModulosForm action={vi.fn()} valores={{}} businessId={ID} uso={PARADO} />)
-  expect(screen.getByText(/esconde tudo isso da conta e do app, mas guarda os dados/)).toBeInTheDocument()
+  expect(screen.getByText(/esconde tudo isso da conta e dos clientes, mas guarda os dados/)).toBeInTheDocument()
 })
 
 describe('aviso de Loja sem Mercado Pago', () => {

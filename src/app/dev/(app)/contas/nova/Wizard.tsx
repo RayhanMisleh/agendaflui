@@ -209,7 +209,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
           <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu e das telas.">
             <div className="af-wizard__checks">
               <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" checked={v.loyalty} onChange={(e) => set('loyalty', e.target.checked)} />
-              <Checkbox name="banners" label="Banners: avisos e promoções no app" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
+              <Checkbox name="banners" label="Banners: avisos e promoções para clientes" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
               <Checkbox name="store" label="Loja: produtos e pedidos" checked={v.store} onChange={(e) => set('store', e.target.checked)} />
             </div>
           </Etapa>

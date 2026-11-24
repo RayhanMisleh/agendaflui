@@ -17,7 +17,7 @@ const ACOES: Record<keyof AcoesSituacao, Acao> = {
     label: 'Suspender',
     icon: <Pause size={16} />,
     title: 'Suspender a conta',
-    description: 'Ninguém entra na conta enquanto ela estiver suspensa: as sessões abertas caem e o aplicativo para de responder. Os dados ficam guardados.',
+    description: 'Ninguém entra na conta enquanto ela estiver suspensa: as sessões abertas caem e a loja para de responder. Os dados ficam guardados.',
     danger: true,
   },
   reativar: {

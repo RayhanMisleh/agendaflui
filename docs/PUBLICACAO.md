@@ -11,16 +11,15 @@ Um contêiner Docker (`Dockerfile` na raiz), porta 3000, atrás de um proxy com 
 ## Variáveis
 
 Lista completa, uma linha cada, no bloco "Produção" do `.env.example`. Obrigatórias: `DATABASE_URL`,
-`APP_SECRET`, `DEV_HOST`, `PAINEL_HOST`, `API_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`.
+`APP_SECRET`, `DEV_HOST`, `APP_HOST` (distintos, públicos, sem `https://`), `STORAGE_DIR`. `APP_HOST` é o endereço de tudo que não é do painel dev: entrada, painel da loja, clientes e o link que cada loja passa aos clientes (`https://<APP_HOST>/<identificador>`, com QR code).
+`LEGACY_PAINEL_HOST` (opcional) é o endereço antigo do painel: só redireciona (308) para o `APP_HOST`; remova quando os links antigos deixarem de circular.
 Atrás do proxy use `TRUSTED_PROXY_HOPS=1`: com 0 o IP do cliente é desconhecido (limites por IP desligados,
 auditoria sem IP). A partida avisa no log quando `TRUSTED_PROXY_HOPS` é 0, quando faltam `SMTP_URL` e `RESEND_API_KEY` e quando falta
 `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`. O proxy precisa preservar o `Host` original: as rotas POST do painel dev conferem
 `Origin == Host`, e o roteamento por host também usa o `Host` (nunca `X-Forwarded-Host`); se o proxy reescrever o
-`Host`, essas rotas recusam o envio. Sem `SMTP_URL` nem `RESEND_API_KEY` o servidor sobe, mas convites e cadastro pelo app não chegam. `RESEND_API_KEY`
+`Host`, essas rotas recusam o envio. Sem `SMTP_URL` nem `RESEND_API_KEY` o servidor sobe, mas convites e cadastro de clientes não chegam. `RESEND_API_KEY`
 substitui o SMTP (vale o Resend se as duas existem) e exige `MAIL_FROM` com o domínio verificado no Resend; o botão
 "Enviar e-mail de teste para mim" na página Sistema do painel dev confere o envio.
-`APP_WEB_URL` (opcional, padrão `https://app.agendaflui.com.br`) é o endereço público do app web: só esquema e host,
-sem barra final, e em produção `https` e não local. Dele sai o "Link para clientes" de cada loja (`<APP_WEB_URL>/<identificador>`) e o QR code.
 `INTEGRATIONS_MODE` (opcional) escolhe as integrações externas (Mercado Pago, Frenet e ViaCEP): `real` ou `fake`. Em
 produção o padrão é `real`: deixe a variável de fora ou use `real`. `fake` só vale em desenvolvimento e teste; em
 produção ele impede a partida.
@@ -50,7 +49,7 @@ venda antiga e `um_vinculo_ativo`) rodam em transação: ao falhar, o banco volt
 
 ## Retenção
 
-O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias, uso da API com mais de 400 dias
+O agendador roda uma vez por dia, em lotes pequenos, a limpeza de avisos terminados com mais de 90 dias
 e auditoria com mais de 2 anos (prazos em `src/server/db/retention.ts`). A execução aparece em /sistema como "Retenção de dados".
 
 ## Saúde
@@ -88,17 +87,26 @@ Novo deploy: a partida aplica as migrações novas antes de servir.
 
 ## Coolify
 
-Build por Dockerfile; porta 3000; os três domínios no mesmo recurso (`dev.`, `painel.`, `api.`); armazenamento
+Build por Dockerfile; porta 3000; os domínios no mesmo recurso: `dev.` (painel dev) e `app.` (serve tudo: entrada, painel, clientes e webhook); `painel.` só se `LEGACY_PAINEL_HOST` estiver definido (redireciona o endereço antigo); o domínio `api.` sai; armazenamento
 persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz` (o Coolify roda `curl` dentro do
 contêiner; a imagem já o traz). O Coolify injeta as variáveis da aplicação também no build: o Dockerfile já conta
 com isso. Ao acrescentar um domínio depois de criada a aplicação, confira em General > Container > Labels se há
 uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante (sem isso o proxy responde 503).
 
+## Entrar com Google
+
+1. No Google Cloud Console, crie um cliente OAuth do tipo "Aplicativo da Web".
+2. Em URIs de redirecionamento autorizados, ponha `https://<APP_HOST>/google/retorno`.
+3. Na tela de consentimento, peça só os escopos `openid`, `email` e `profile`.
+4. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
+
+O aviso de "app não verificado" do Google só passa a importar quando a agenda do Google entrar (fase 4); com estes escopos básicos não há verificação a pedir.
+
 ## Integrações (Mercado Pago)
 
 - As credenciais de cada conta (token e assinatura secreta do webhook) ficam cifradas no banco e só o admin da plataforma
   as grava (painel dev, aba Integrações da conta). O endereço do webhook é por conta, com uma chave secreta de 256 bits
-  na URL: `POST /v1/webhooks/mercadopago/{webhookKey}`.
+  na URL: `POST https://<APP_HOST>/webhooks/mercadopago/{webhookKey}`.
 - Autenticação do aviso: se o cabeçalho `x-signature` vier, ele é verificado com a assinatura secreta da conta e uma
   assinatura inválida dá 401. Se NÃO vier, o aviso é aceito, porque não temos certeza de que o Mercado Pago assina os
   avisos da `notification_url` da preferência: quem autentica é a chave secreta da URL, e o estado do pagamento SEMPRE
@@ -109,7 +117,7 @@ uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante 
 
 ### Teste no sandbox antes de abrir a loja
 
-Antes de ligar a Loja para uma conta real, com as credenciais de teste do Mercado Pago e o webhook apontado para o host da API:
+Antes de ligar a Loja para uma conta real, com as credenciais de teste do Mercado Pago e o webhook apontado para o `APP_HOST`:
 
 1. Faça um pedido e pague com Pix no sandbox.
 2. Faça outro pedido e pague com cartão de teste.

@@ -75,7 +75,7 @@ export function Cuidados({
         open={dialogo === 'arquivar'}
         onClose={fechar}
         title={`Arquivar ${name}?`}
-        description="O cadastro sai da lista e o acesso ao app é encerrado. O histórico de atendimentos fica guardado, e você pode restaurar o cadastro depois."
+        description="O cadastro sai da lista e o acesso dele a esta loja é encerrado. O histórico de atendimentos fica guardado, e você pode restaurar o cadastro depois."
         confirmLabel="Arquivar cadastro"
         initialState={VAZIO}
         hidden={{ id }}
@@ -89,7 +89,7 @@ export function Cuidados({
         open={dialogo === 'anonimizar'}
         onClose={fechar}
         title={`Anonimizar ${name}?`}
-        description="Isto apaga para sempre o nome, o telefone, o e-mail, a foto, as observações e o acesso ao app, e cancela os agendamentos futuros sem avisar a pessoa. Os atendimentos já feitos continuam, sem identificar ninguém."
+        description="Isto apaga para sempre o nome, o telefone, o e-mail, a foto, as observações e o acesso à loja, e cancela os agendamentos futuros sem avisar a pessoa. Os atendimentos já feitos continuam, sem identificar ninguém."
         confirmLabel="Anonimizar cadastro"
         targetName={name}
         initialState={VAZIO}

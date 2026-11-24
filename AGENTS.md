@@ -17,9 +17,9 @@ Spec: `docs/superpowers/specs/2026-11-13-agendaflui-design.md`; arquitetura em `
 
 ## Hosts
 
-Três hosts, todos vindos de variáveis de ambiente (nunca fixos no código):
-`DEV_HOST` (painel da plataforma, usado por nós, os admins), `PAINEL_HOST` (painel do negócio, usado
-por donos e equipes) e `API_HOST` (API do aplicativo).
+Dois hosts, vindos de variáveis de ambiente (nunca fixos no código): `DEV_HOST` (painel da plataforma,
+usado por nós, os admins) e `APP_HOST` (o Agenda Flui de donos, equipes e clientes: entrada, `/painel/**`,
+`/<slug>/**` e Minha conta). `LEGACY_PAINEL_HOST`, opcional, só redireciona (308) o endereço antigo do painel.
 
 ## Regras
 

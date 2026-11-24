@@ -138,7 +138,7 @@ export function PremiosLista({ premios, termos }: { premios: PremioLinha[]; term
   return (
     <>
       <div className="af-toolbar">
-        <p className="af-section__help">Os {termos.cliente.toLowerCase()} resgatam estes prêmios no app, na ordem abaixo.</p>
+        <p className="af-section__help">Os {termos.cliente.toLowerCase()} resgatam estes prêmios pelo link da loja, na ordem abaixo.</p>
         <LinkButton href="/painel/fidelidade/premios/novo" variant="primary" icon={<Plus size={18} />}>
           Novo prêmio
         </LinkButton>
@@ -165,7 +165,7 @@ export function PremiosLista({ premios, termos }: { premios: PremioLinha[]; term
         open={arquivando !== null}
         onClose={() => setArquivando(null)}
         title={arquivando ? `Arquivar ${arquivando.name}?` : ''}
-        description="O prêmio sai da lista e do app. Os resgates já feitos continuam no histórico."
+        description="O prêmio sai da lista e da vitrine dos clientes. Os resgates já feitos continuam no histórico."
         confirmLabel="Arquivar prêmio"
         initialState={{ ok: false, message: null, fields: {} }}
         hidden={{ id: arquivando?.id ?? '' }}
@@ -289,8 +289,8 @@ export function RankingForm({ version, ligado, termos }: { version: number; liga
       {(state) => (
         <>
           <input type="hidden" name="version" value={String(version)} />
-          <Checkbox name="rankingEnabled" label="Mostrar o ranking no app" defaultChecked={state.values.rankingEnabled === 'on'} />
-          <p className="af-field__hint">Mostra no app o primeiro nome e a foto dos 10 que mais ganharam {termos.pontos.toLowerCase()} no mês.</p>
+          <Checkbox name="rankingEnabled" label="Mostrar o ranking aos clientes" defaultChecked={state.values.rankingEnabled === 'on'} />
+          <p className="af-field__hint">Mostra aos clientes o primeiro nome e a foto dos 10 que mais ganharam {termos.pontos.toLowerCase()} no mês.</p>
         </>
       )}
     </PainelForm>

@@ -1,4 +1,4 @@
-/** Dados fixos das contas de demonstração. Sem importações: os testes e2e também leem este arquivo. */
+/** Dados fixos das contas de demonstração. Sem importações. */
 
 export type DemoPapel = 'dono' | 'gerente' | 'profissional'
 
