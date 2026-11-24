@@ -72,6 +72,30 @@
     align-items: center;
     gap: 0.75rem 1rem;
   }
+  /*
+   * Celular: a barra de ação do formulário (Salvar) fica presa na base, ao alcance do polegar. Na página ela para acima da
+   * navegação em pílula e da área segura; dentro de uma folha ela cola no fundo da própria folha. Sangra até a borda do
+   * cartão que a contém (`--card-pad`), para o conteúdo nunca aparecer por baixo dela nem pelos lados.
+   */
+  @media (max-width: 47.9375rem) {
+    .af-acctform__foot {
+      position: sticky;
+      bottom: calc(var(--af-nav-clearance, 5.25rem) + env(safe-area-inset-bottom));
+      z-index: 5;
+      margin-inline: calc(var(--card-pad, 0px) * -1);
+      padding: 0.75rem var(--card-pad, 0px);
+      border-top: 1px solid var(--line);
+      background-color: var(--surface);
+    }
+    .af-acctform__foot > .af-button--primary {
+      flex: 1 1 10rem;
+    }
+    .af-dialog__body .af-acctform__foot {
+      bottom: 0;
+      margin-bottom: calc(var(--card-pad, 0px) * -1);
+      padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    }
+  }
   .af-acctform__ok {
     margin: 0;
     color: var(--ink);

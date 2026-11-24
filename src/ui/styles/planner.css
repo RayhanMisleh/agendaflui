@@ -47,6 +47,54 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /*
+   * Celular: título entre as setas (dois toques para mudar o dia), "Hoje" ao lado; as ações viram uma barra flutuante ao
+   * alcance do polegar, acima da navegação em pílula e da área segura do aparelho.
+   */
+  @media (max-width: 47.9375rem) {
+    .af-agenda__nav {
+      flex-wrap: nowrap;
+      gap: 0.375rem;
+    }
+    .af-agenda__title {
+      order: 2;
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: clamp(1rem, 0.85rem + 1.2vw, 1.25rem);
+      text-align: center;
+    }
+    .af-agenda__nav > :nth-child(1) {
+      order: 1;
+    }
+    .af-agenda__nav > :nth-child(2) {
+      order: 3;
+    }
+    .af-agenda__nav > :nth-child(3) {
+      order: 4;
+    }
+    .af-agenda__actions {
+      position: fixed;
+      inset-inline: 0.75rem;
+      bottom: calc(var(--af-nav-clearance, 5.25rem) + env(safe-area-inset-bottom));
+      z-index: 20;
+      flex-wrap: nowrap;
+      gap: 0.5rem;
+      padding: 0.375rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      background-color: var(--surface);
+      box-shadow: var(--shadow-pop);
+    }
+    .af-agenda__actions > * {
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    /* Folga no fim da página para a barra não cobrir a última vaga. */
+    .af-agenda {
+      padding-bottom: 3.5rem;
+    }
+  }
+
   /* ---- Grade do dia ---- */
   .af-planner {
     --rail: 3rem;
