@@ -49,10 +49,20 @@ describe('salvarPetDoQuiz', () => {
     expect(pet).toMatchObject({ customerId: c.cliente.id, name: 'Thor', size: 'MEDIUM', breed: 'Poodle', coat: 'LONG', careNotes: 'Medo de secador' })
   })
 
+  test('a volta sobrevive ao "outro pet" e o pet novo entra na volta do Agendar', async () => {
+    const c = await montar()
+    const volta = `/${c.slug}/agendar?servicos=x`
+    const outro = await salvarPetDoQuiz(c.slug, form({ name: 'Thor', species: 'DOG', size: 'SMALL', then: 'outro', volta }))
+    expect(outro).toMatchObject({ ok: true, next: `/${c.slug}/boas-vindas?novo=1&volta=${encodeURIComponent(volta)}` })
+    const r = await salvarPetDoQuiz(c.slug, form({ name: 'Mel', species: 'DOG', size: 'SMALL', then: 'agendar', volta: `${volta}&pet=velho` }))
+    const mel = await prisma.pet.findFirstOrThrow({ where: { businessId: c.b.id, name: 'Mel' } })
+    expect(r).toMatchObject({ ok: true, next: `/${c.slug}/agendar?servicos=x&pet=${mel.id}` })
+  })
+
   test('com volta=/a/agendar?servicos=x devolve a volta; volta de fora é ignorada', async () => {
     const c = await montar()
     const r = await salvarPetDoQuiz(c.slug, form({ name: 'Thor', species: 'DOG', size: 'SMALL', then: 'agendar', volta: `/${c.slug}/agendar?servicos=x` }))
-    expect(r).toMatchObject({ ok: true, next: `/${c.slug}/agendar?servicos=x` })
+    expect(r).toMatchObject({ ok: true, next: expect.stringMatching(new RegExp(`^/${c.slug}/agendar\\?servicos=x&pet=`)) })
     const fora = await salvarPetDoQuiz(c.slug, form({ name: 'Mel', species: 'DOG', size: 'SMALL', then: 'agendar', volta: 'https://evil.example/agendar' }))
     expect(fora).toMatchObject({ ok: true, next: expect.stringMatching(new RegExp(`^/${c.slug}/agendar\\?pet=`)) })
     const outraPagina = await salvarPetDoQuiz(c.slug, form({ name: 'Bidu', species: 'DOG', size: 'SMALL', then: 'agendar', volta: `/${c.slug}/premios` }))

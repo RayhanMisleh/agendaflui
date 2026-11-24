@@ -19,6 +19,15 @@ function texto(fd: FormData, nome: string): string {
   return typeof v === 'string' ? v : ''
 }
 
+/** Devolve o caminho com `pet=<id>` (troca o que já houver), para o Agendar abrir no pet recém-criado. */
+function comPet(caminho: string, petId: string): string {
+  const corte = caminho.indexOf('?')
+  const base = corte === -1 ? caminho : caminho.slice(0, corte)
+  const q = new URLSearchParams(corte === -1 ? '' : caminho.slice(corte + 1))
+  q.set('pet', petId)
+  return `${base}?${q.toString()}`
+}
+
 export async function salvarPetDoQuiz(slug: string, fd: FormData): Promise<SalvarPetResultado> {
   const visit = await requireCustomer(slug, `/${slug}/boas-vindas`)
   try {
@@ -40,10 +49,13 @@ export async function salvarPetDoQuiz(slug: string, fd: FormData): Promise<Salva
     } as PetInput
     const pet = await createPet(visit.ctx, visit.customerId, input)
     atualizarLoja()
-    if (texto(fd, 'then') === 'outro') return { ok: true, petId: pet.id, next: `/${slug}/boas-vindas?novo=1` }
     const volta = safeReturnPath(slug, texto(fd, 'volta'))
+    if (texto(fd, 'then') === 'outro') {
+      const base = `/${slug}/boas-vindas?novo=1`
+      return { ok: true, petId: pet.id, next: volta ? `${base}&volta=${encodeURIComponent(volta)}` : base }
+    }
     const vaiParaAgendar = volta !== null && (volta === `/${slug}/agendar` || volta.startsWith(`/${slug}/agendar?`) || volta.startsWith(`/${slug}/agendar/`))
-    return { ok: true, petId: pet.id, next: vaiParaAgendar ? volta : `/${slug}/agendar?pet=${pet.id}` }
+    return { ok: true, petId: pet.id, next: vaiParaAgendar ? comPet(volta, pet.id) : `/${slug}/agendar?pet=${pet.id}` }
   } catch (err) {
     unstable_rethrow(err)
     if (err instanceof DomainError) return { ok: false, message: err.message, fields: { ...(err.fields ?? {}) } }

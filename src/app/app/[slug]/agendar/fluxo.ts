@@ -92,7 +92,8 @@ export function iniciarFluxo(i: {
   singleProfessional?: boolean
 }): FluxoEstado {
   const agendaveis = i.pets.filter((p) => p.bookable)
-  const semPet = i.modo === 'novo' && agendaveis.length <= 1
+  // Sem o passo do pet só quando há um único pet agendável ou nenhum cadastro; com pets não agendáveis (ex.: só gatos e a loja desligou gatos) o passo fica, com o aviso.
+  const semPet = i.modo === 'novo' && (agendaveis.length === 1 || i.pets.length === 0)
   const pedido = i.petId && agendaveis.some((p) => p.id === i.petId) ? i.petId : null
   const remarcando = i.modo === 'remarcar'
   const petId = remarcando ? (i.petId ?? null) : (pedido ?? (semPet ? (agendaveis[0]?.id ?? null) : null))

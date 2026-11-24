@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return metadataDaLoja((await params).slug, 'Meus horários')
 }
 
-/** Meus horários: próximos e anteriores do próprio cliente, por páginas ("Carregar mais"), anteriores agrupados por mês. */
+/** Meus horários: próximos e anteriores do próprio cliente, por páginas ("Ver os próximos", com volta ao início), anteriores agrupados por mês. */
 export default async function HorariosPage({ params, searchParams }: Props) {
   const { slug } = await params
   const sp = await searchParams
@@ -69,9 +69,15 @@ export default async function HorariosPage({ params, searchParams }: Props) {
           ))}
         </ul>
       )}
+      {depois && items.length === 0 ? <p className="af-cl-notice">Não há mais horários nesta lista.</p> : null}
       {nextCursor ? (
         <Link href={`/${slug}/horarios?${anteriores ? 'ver=anteriores&' : ''}depois=${encodeURIComponent(nextCursor)}`} className="af-button af-button--secondary af-button--lg af-cl-appts__more">
-          <span className="af-button__label">Carregar mais</span>
+          <span className="af-button__label">Ver os próximos</span>
+        </Link>
+      ) : null}
+      {depois ? (
+        <Link href={`/${slug}/horarios${anteriores ? '?ver=anteriores' : ''}`} className="af-button af-button--ghost af-button--lg af-cl-appts__more">
+          <span className="af-button__label">Voltar ao início da lista</span>
         </Link>
       ) : null}
     </ClienteFrame>

@@ -23,6 +23,13 @@ describe('iniciarFluxo', () => {
     expect(s.passos[0]).toBe('servicos')
   })
 
+  test('só pets não agendáveis (loja desligou gatos): mantém o passo do pet em vez de ficar sem serviços', () => {
+    const s = novo({ pets: [{ id: 'mel', bookable: false }] })
+    expect(s.passo).toBe('pet')
+    expect(s.passos[0]).toBe('pet')
+    expect(s.petId).toBeNull()
+  })
+
   test('pré-seleção de pet vai direto aos serviços; completa começa em horario', () => {
     expect(novo({ pets: dois, petId: 'mel' }).passo).toBe('servicos')
     const s = novo({ pets: dois, petId: 'mel', serviceIds: ['banho'], professionalId: 'ana' })
