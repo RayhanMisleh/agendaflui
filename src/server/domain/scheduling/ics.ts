@@ -76,8 +76,8 @@ function listaDeNomes(nomes: string[]): string {
 }
 
 /**
- * O arquivo do agendamento, só pelo `getAppointment` (o cliente vê só o próprio; de outro, `not_found`). `petName` entra no
- * título quando a loja é de pet shop ("Banho para Thor em Focinho Feliz").
+ * O arquivo do agendamento, só pelo `getAppointment` (o cliente vê só o próprio; de outro, `not_found`). O nome do pet do
+ * agendamento (ou `petName`, quando enviado) entra no título ("Banho para Thor em Focinho Feliz").
  */
 export async function appointmentIcs(
   ctx: TenantContext,
@@ -86,7 +86,8 @@ export async function appointmentIcs(
 ): Promise<{ filename: string; body: string }> {
   const a = await getAppointment(ctx, id)
   const servicos = listaDeNomes(a.items.map((item) => item.name))
-  const para = i.petName ? ` para ${i.petName}` : ''
+  const petName = i.petName !== undefined ? i.petName : (a.pet?.name ?? null)
+  const para = petName ? ` para ${petName}` : ''
   return {
     filename: `horario-${a.local.date}.ics`,
     body: buildIcs({

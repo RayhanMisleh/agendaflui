@@ -4,7 +4,7 @@ import { getCustomerHome, getRebookSuggestion } from '@/server/domain/scheduling
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { makeAppointment, makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService } from '../setup/factories'
+import { makeAppointment, makeBusiness, makeCtx, makeCustomer, makePet, makeProfessional, makeService, makeServicePrice } from '../setup/factories'
 import { lancar } from '../setup/loyalty'
 
 const AGORA = new Date('2026-11-17T15:00:00Z')
@@ -93,6 +93,54 @@ describe('getRebookSuggestion', () => {
   test('agendamento de outro cliente nunca vira sugestão', async () => {
     const s = await cena()
     await makeAppointment(s.b.id, { customerId: s.outro.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: dias(-3), status: 'COMPLETED' })
+    expect(await getRebookSuggestion(s.ctx)).toBeNull()
+  })
+})
+
+describe('loja de pet shop', () => {
+  async function pet() {
+    const s = await cena()
+    await prisma.business.update({ where: { id: s.b.id }, data: { niche: 'PET' } })
+    const thor = await makePet(s.b.id, s.cliente.id, { name: 'Thor', species: 'DOG', size: 'SMALL' })
+    return { ...s, thor }
+  }
+
+  test('Início traz os pets ativos do cliente; loja sem nicho, lista vazia', async () => {
+    const s = await pet()
+    const arquivado = await makePet(s.b.id, s.cliente.id, { name: 'Velho', archivedAt: new Date() })
+    await makePet(s.b.id, s.outro.id, { name: 'Alheio' })
+    const home = await getCustomerHome(s.ctx)
+    expect(home.pets.map((p) => p.name)).toEqual(['Thor'])
+    expect(home.pets.some((p) => p.id === arquivado.id)).toBe(false)
+    const comum = await cena()
+    expect((await getCustomerHome(comum.ctx)).pets).toEqual([])
+  })
+
+  test('rebook leva o pet e tira serviço que não atende o porte atual do pet', async () => {
+    const s = await pet()
+    await makeServicePrice(s.b.id, s.tosa.id, 'DOG_SMALL')
+    const a = await makeAppointment(s.b.id, { customerId: s.cliente.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: dias(-3), status: 'COMPLETED', petId: s.thor.id })
+    await prisma.appointmentItem.create({
+      data: { businessId: s.b.id, appointmentId: a.id, serviceId: s.tosa.id, name: 'Tosa', priceCents: 1000, durationMin: 30, rewardPoints: 0, position: 2 },
+    })
+    expect(await getRebookSuggestion(s.ctx)).toMatchObject({
+      petId: s.thor.id,
+      petName: 'Thor',
+      serviceNames: ['Banho', 'Tosa'],
+      query: `?pet=${s.thor.id}&servicos=${s.banho.id},${s.tosa.id}&profissional=${s.ana.id}`,
+    })
+    await prisma.pet.update({ where: { id: s.thor.id }, data: { size: 'LARGE' } })
+    expect((await getRebookSuggestion(s.ctx))?.serviceNames).toEqual(['Banho'])
+  })
+
+  test('rebook nulo quando o pet foi arquivado ou é gato com gatos desligados', async () => {
+    const s = await pet()
+    const mia = await makePet(s.b.id, s.cliente.id, { name: 'Mia', species: 'CAT', size: null })
+    await makeAppointment(s.b.id, { customerId: s.cliente.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: dias(-3), status: 'COMPLETED', petId: mia.id })
+    expect(await getRebookSuggestion(s.ctx)).toBeNull()
+    await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { nicheOptions: { servesCats: true } } })
+    expect((await getRebookSuggestion(s.ctx))?.petName).toBe('Mia')
+    await prisma.pet.update({ where: { id: mia.id }, data: { archivedAt: new Date() } })
     expect(await getRebookSuggestion(s.ctx)).toBeNull()
   })
 })

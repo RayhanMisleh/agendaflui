@@ -4,7 +4,7 @@ import { rescheduleAppointment } from '@/server/domain/scheduling/appointments'
 import { getAvailability, listAvailableDays } from '@/server/domain/scheduling/availability'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { makeAppointment, makeBusiness, makeCtx, makeCustomer, makeProfessional, makeService, makeWorkingHours } from '../setup/factories'
+import { makeAppointment, makeBusiness, makeCtx, makeCustomer, makePet, makeProfessional, makeService, makeServicePrice, makeWorkingHours } from '../setup/factories'
 
 beforeEach(resetDb)
 
@@ -115,5 +115,21 @@ describe('arquivo de agenda do agendamento', () => {
     expect(f.body.replace(/\r\n /g, '')).toContain('DESCRIPTION:Com Ana.\\nPara mudar\\, abra https://app.exemplo.test/loja/horarios.\r\n')
     expect((await appointmentIcs(s.ctxMarina, s.thor.id, { ...i, petName: 'Thor' })).body).toContain('SUMMARY:Banho para Thor em Focinho Feliz')
     expect((await domainError(appointmentIcs(s.ctxMarina, s.dele.id, i))).code).toBe('not_found')
+  })
+})
+
+describe('remarcar em loja de pet shop', () => {
+  test('sem petId, a duração vem do porte do pet do agendamento; o .ics leva o nome do pet', async () => {
+    const s = await montar()
+    await prisma.business.update({ where: { id: s.b.id }, data: { niche: 'PET' } })
+    await makeServicePrice(s.b.id, s.banho.id, 'DOG_LARGE', { priceCents: 9000, durationMin: 90 })
+    const rex = await makePet(s.b.id, s.marina.id, { name: 'Rex', species: 'DOG', size: 'LARGE' })
+    await prisma.appointment.update({ where: { id: s.thor.id }, data: { petId: rex.id } })
+    const livre = await getAvailability(s.ctxMarina, { date: QUARTA, rescheduling: s.thor.id })
+    expect(livre).toMatchObject({ durationMin: 90, totalCents: 9000 })
+    const dias = await listAvailableDays(s.ctxMarina, { from: QUARTA, to: QUARTA, rescheduling: s.thor.id })
+    expect(dias.length).toBe(1)
+    const i = { storeName: 'Focinho Feliz', address: null, url: 'https://app.exemplo.test/loja/horarios' }
+    expect((await appointmentIcs(s.ctxMarina, s.thor.id, i)).body).toContain('SUMMARY:Banho para Rex em Focinho Feliz')
   })
 })
