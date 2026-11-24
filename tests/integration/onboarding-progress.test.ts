@@ -93,6 +93,21 @@ describe('marcas', () => {
     expect(v?.done).toBe(2)
   })
 
+  test('passos que passam a valer pelo que existe na loja concluem o começo ao ler (nada mais marcaria completedAt)', async () => {
+    const { b, dono } = await contaPet()
+    for (const k of ['STORE', 'BRAND', 'ANIMALS', 'TEAM', 'LINK'] as const) await markOnboardingStep(dono, k, 'done')
+    await markOnboardingStep(dono, 'SERVICES', 'skipped')
+    await markOnboardingStep(dono, 'HOURS', 'skipped')
+    expect((await getOnboarding(dono))?.completed).toBe(false)
+    await makeService(b.id)
+    const prof = await makeProfessional(b.id)
+    await makeWorkingHours(b.id, prof.id, 'MONDAY', [{ startMin: 540, endMin: 1080 }])
+    const v = await getOnboarding(dono)
+    expect(v?.completed).toBe(true)
+    expect(v?.completedAt).not.toBeNull()
+    expect((await prisma.onboardingProgress.findUniqueOrThrow({ where: { businessId: b.id } })).completedAt).not.toBeNull()
+  })
+
   test('serviço arquivado ou profissional arquivado não contam', async () => {
     const { b, dono } = await contaPet()
     await makeService(b.id, { archivedAt: new Date() })
