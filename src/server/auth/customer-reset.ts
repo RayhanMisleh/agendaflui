@@ -10,14 +10,14 @@ import { isUuid } from './context'
 import { allowResetEmail, issuePasswordReset, lockUserAccess, RESET_TTL_MINUTES } from './password-reset'
 
 /**
- * A equipe (ou o suporte) manda o link de redefinição de senha à pessoa ligada a um cliente com conta. Só quem pode
- * gerenciar clientes. Cliente de balcão (sem conta), arquivado ou removido: `conflict`. Divide o teto de pedidos de
+ * A equipe manda o link de redefinição de senha à pessoa ligada a um cliente com conta. Só quem pode
+ * gerenciar clientes; o suporte ("entrar como") não manda redefinição de senha de ninguém. Cliente de balcão (sem conta), arquivado ou removido: `conflict`. Divide o teto de pedidos de
  * redefinição do e-mail com o "esqueci a senha". O link vai ao e-mail da PESSOA, nunca a um endereço digitado.
  */
 export async function sendCustomerAccountReset(ctx: TenantContext, customerId: string): Promise<void> {
   authorize(ctx, 'manage_clients')
-  if (ctx.actor.kind !== 'member' && ctx.actor.kind !== 'impersonator') {
-    throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
+  if (ctx.actor.kind !== 'member') {
+    throw new DomainError('forbidden', 'O suporte não pode mandar redefinição de senha.')
   }
   if (!isUuid(customerId)) throw new DomainError('not_found', 'Cliente não encontrado.')
   const cliente = await ctx.db.customer.findFirst({ where: { id: customerId }, select: { id: true, userId: true, archivedAt: true, anonymizedAt: true } })

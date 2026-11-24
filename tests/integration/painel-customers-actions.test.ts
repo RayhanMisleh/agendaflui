@@ -3,7 +3,7 @@ import type { TenantContext } from '@/server/auth/actor'
 import { prisma } from '@/server/db/client'
 import { listCustomers } from '@/server/domain/customers/customers'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeBusiness, makeCustomer, makeUser } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
@@ -144,6 +144,15 @@ describe('redefinição de senha do cliente', () => {
     expect(sem.ok).toBe(false)
     expect(sem.message).toBe('Este cliente ainda não tem conta.')
     expect(mail.sent).toHaveLength(1)
+  })
+
+  test('o suporte ("entrar como") não envia redefinição de senha', async () => {
+    const pessoa = await makeUser()
+    const c = await makeCustomer(businessId, { userId: pessoa.id })
+    guards.requireTenant.mockResolvedValue(await makeCtx({ id: businessId }, { actor: { kind: 'impersonator', adminId: 'a1', name: 'Suporte' } }))
+    const r = await redefinirSenhaCliente(ini, form({ id: c.id }))
+    expect(r.ok).toBe(false)
+    expect(mail.sent).toHaveLength(0)
   })
 
   test('profissional não envia; cliente de outra loja não é encontrado', async () => {
