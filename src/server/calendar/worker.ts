@@ -19,6 +19,7 @@ export const CALENDAR_MAX_ATTEMPTS = 6
 const DEFAULT_LIMIT = 50
 const LIMITED_WAIT_MIN = 1
 const UNCONFIGURED_WAIT_MIN = 15
+const UNREADABLE_WAIT_MIN = 15
 /** Quanto tempo uma rodada trabalha antes de soltar o resto: bem menos que a reserva (`CALENDAR_CLAIM_MINUTES`). */
 export const CALENDAR_ROUND_BUDGET_MS = 60_000
 
@@ -68,9 +69,9 @@ async function openAccess(round: Round, userId: string): Promise<Access> {
   const token = await openCalendarToken(userId)
   if (token === null) return { kind: 'none' }
   if (token.kind === 'unreadable') {
-    // Selo que não abre (chave trocada ou linha corrompida) não volta sozinho: a pessoa precisa religar, e a tela passa a pedir isso.
-    if (await markCalendarRevoked(userId, token.sealed, round.now)) round.result.revoked += 1
-    return { kind: 'revoked' }
+    // Selo que não abre pode ser chave trocada (conserto do operador devolve tudo): nada é apagado nem revogado. A linha espera sem
+    // contar tentativa e o erro já foi ao log (`calendar_token_unreadable`). Só um invalid_grant do Google revoga.
+    return { kind: 'wait', minutes: UNREADABLE_WAIT_MIN }
   }
   round.client ??= await googleClient()
   if (round.client === null) return { kind: 'wait', minutes: UNCONFIGURED_WAIT_MIN }

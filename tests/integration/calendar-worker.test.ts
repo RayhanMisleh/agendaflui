@@ -283,16 +283,19 @@ describe('falhas do Google', () => {
     for (const v of [a, b]) expect(await linha(v.id)).toMatchObject({ generation: 1, syncedGeneration: 1, attempts: 0, failedAt: null })
   })
 
-  test('selo do token que não abre: ligação REVOKED (a tela pede para religar), sem chamar o Google', async () => {
+  test('selo do token que não abre (chave trocada): nada é apagado nem revogado, a linha espera sem contar tentativa e o erro vai ao log', async () => {
     const s = await montar()
     const v = await marcar(s)
-    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const erro = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     const outro = sealCalendarToken('outra-pessoa', 'rt-x')
     await prisma.calendarConnection.update({ where: { userId: s.pessoa.id }, data: { refreshTokenEnc: outro } })
-    expect((await rodar()).revoked).toBe(1)
-    expect(await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: s.pessoa.id } })).toMatchObject({ status: 'REVOKED', refreshTokenEnc: null })
+    expect(await rodar()).toMatchObject({ revoked: 0, retried: 0, failed: 0, skipped: 1 })
+    expect(await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: s.pessoa.id } })).toMatchObject({ status: 'CONNECTED', refreshTokenEnc: outro, revokedAt: null })
     expect(google.calls).toHaveLength(0)
-    expect(await linha(v.id)).toMatchObject({ syncedGeneration: 1 })
+    const l = await linha(v.id)
+    expect(l).toMatchObject({ attempts: 0, syncedGeneration: 0, failedAt: null, lockedBy: null })
+    expect(l.nextAttemptAt?.getTime()).toBe(addMinutes(AGORA, 15).getTime())
+    expect(erro.mock.calls.some(([m]) => String(m).includes('calendar_token_unreadable'))).toBe(true)
   })
 
   test('token de acesso recusado no evento (permissão retirada) também desliga a ligação', async () => {

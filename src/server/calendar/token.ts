@@ -5,7 +5,7 @@ import { prisma } from '@/server/db/client'
 /*
  * LEITURA e selo do token de renovação do Google Agenda de cada pessoa. É o único arquivo que abre esse segredo: só
  * `src/server/calendar/**` pode importá-lo (o ESLint e `tests/unit/calendar-token-imports.test.ts` conferem). O texto puro
- * nunca sai daqui para tela, log, auditoria ou erro; selo que não abre vira `null` e o log traz só o nome do erro.
+ * nunca sai daqui para tela, log, auditoria ou erro; selo que não abre vira `unreadable` (nada é apagado: pode ser chave trocada) e o log traz só o nome do erro.
  */
 
 /** O contexto autenticado junto do selo: um selo copiado para outra pessoa ou outro campo não abre. */
