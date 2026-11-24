@@ -1,4 +1,5 @@
 import type { NotificationKind } from '@/server/db/generated/client'
+import { areaLink } from '@/server/area-links'
 import { formatBrl, renderNotification } from '@/server/notifications/render'
 import { INICIO, loaded } from '../setup/notification'
 
@@ -57,6 +58,37 @@ describe('renderNotification', () => {
     const s = renderNotification(loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', id: 'm-1' }, appointment: { petLabel: 'Rex (Cão médio)' } }))
     expect(s.email.text).toContain('/painel/agenda')
     expect(s.email.text).toContain('Pet: Rex (Cão médio)')
+  })
+
+  test('todo href do HTML começa no endereço do app, em todos os tipos de aviso', () => {
+    const origem = new URL(areaLink('app', '/')).origin
+    for (const kind of KINDS) {
+      const hrefs = [...renderNotification(one(kind)).email.html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] ?? '')
+      for (const h of hrefs) expect(h.startsWith(`${origem}/`), `${kind}: ${h}`).toBe(true)
+    }
+    const s = renderNotification(loaded({ kind: 'STAFF_NEW_APPOINTMENT', recipient: { kind: 'member', id: 'm-1' } }))
+    expect(s.email.html).toMatch(/href="/)
+  })
+
+  test('endereço digitado por pessoas (nomes, pet, serviço, motivo) vira texto no HTML, nunca link', () => {
+    const origem = new URL(areaLink('app', '/')).origin
+    const u = 'https://golpe.test/entrar?x=1'
+    for (const kind of ['APPOINTMENT_CANCELED', 'STAFF_NEW_APPOINTMENT'] as const) {
+      const n = loaded({
+        kind,
+        ...(kind === 'STAFF_NEW_APPOINTMENT' ? { recipient: { kind: 'member' as const, id: 'm-1', name: u } } : { recipient: { name: u } }),
+        business: { name: `Loja ${u}` },
+        appointment: { status: kind === 'APPOINTMENT_CANCELED' ? 'CANCELED' : 'CONFIRMED', professionalName: u, customerName: u, services: [u], cancelReason: u, petLabel: u },
+      })
+      const html = renderNotification(n).email.html
+      expect(html).toContain('golpe.test')
+      const hrefs = [...html.matchAll(/href="([^"]*)"/g)].map((m) => m[1] ?? '')
+      for (const h of hrefs) {
+        expect(h, kind).not.toContain('golpe.test')
+        expect(h.startsWith(`${origem}/`), `${kind}: ${h}`).toBe(true)
+      }
+      expect(html).not.toMatch(/<a\b[^>]*>[^<]*golpe\.test/)
+    }
   })
 
   test('pendente de aprovação: avisa que o negócio ainda vai confirmar', () => {
