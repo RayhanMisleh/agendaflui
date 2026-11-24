@@ -973,7 +973,7 @@
     transform: scale(0.99);
   }
 
-  /* ---- Início (provisório) ---- */
+  /* ---- Início ---- */
   .af-cl-home {
     display: grid;
     gap: 1rem;
@@ -985,37 +985,6 @@
     font-weight: 700;
     line-height: var(--text-h2-lh);
     letter-spacing: var(--text-h2-ls);
-  }
-  .af-cl-next {
-    display: grid;
-    gap: 0.5rem;
-  }
-  .af-cl-next__when {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: var(--text-h2);
-    font-weight: 700;
-    line-height: var(--text-h2-lh);
-  }
-  .af-cl-next__what {
-    margin: 0;
-  }
-  .af-cl-next__actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.5rem;
-  }
-  .af-cl-empty {
-    display: grid;
-    justify-items: start;
-    gap: 0.75rem;
-  }
-  .af-cl-empty__title {
-    margin: 0;
-    font-family: var(--font-display);
-    font-size: var(--text-h3);
-    font-weight: 600;
   }
   .af-cl-rebook {
     display: flex;
