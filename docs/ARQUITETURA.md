@@ -20,7 +20,7 @@ Rotas do `APP_HOST`:
 |---|---|
 | `/` | decide o destino da pessoa (`auth/destination.ts`) |
 | `/entrar`, `/esqueci-a-senha`, `/redefinir-senha/<token>`, `/convite/<token>` | entrada da pessoa, convite e senha por link |
-| `/painel/**` | painel da loja (equipe) |
+| `/painel/**` | painel da loja (equipe); `/painel/comecar` é o começo do dono (`domain/onboarding/`) |
 | `/<slug>/**` (`entrar`, `cadastro`, `boas-vindas`, `agendar`, `horarios`, `pets`, `premios`, `loja`, `mais`) | área do cliente da loja: página pública, quiz do pet, Início, agendar, Prêmios, Loja e a conta na loja |
 | `/conta` | Minha conta (senha, Google, e-mail) |
 | `/google/entrar`, `/google/retorno` | Entrar com Google (`/google/falso` só com `INTEGRATIONS_MODE=fake`) |

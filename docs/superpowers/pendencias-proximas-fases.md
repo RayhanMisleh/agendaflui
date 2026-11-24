@@ -22,9 +22,6 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
 ## Fase 2 (pet e agenda): entregue e o que fica
 
 - Entregue: nicho pet, pets, preço e tempo por animal e porte, agenda da equipe livre com confirmação e encaixe, telas do painel.
-- Fase 3: o quiz usa `NICHES.PET.quiz`; a área do cliente usa `listMyPets`, `listServicesForPet`, `fromPrice` e `getAvailability({ petId })`.
-- Fase 4: `serviceSuggestions` no começo do dono (`/painel/comecar`) e a demo com pets de portes variados e um encaixe (entregues).
-- Conferir no navegador: `/painel/comecar` a 360 px (tabela de serviços por porte, expediente, QR e Compartilhar), prévia da marca ao vivo, envio da logo e foco ao trocar de passo.
 - Conferir no navegador: folha de marcar a 360 px (pets em rolagem), diálogo "Confirme o horário", encaixe na grade do dia e na semana.
 
 ## Fase 3 (área do cliente): entregue e o que fica
@@ -40,6 +37,17 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
   de teste; excluir a conta na loja (com senha e só com Google); tudo a 360 px; modo de movimento reduzido; cor de loja clara demais.
 - Decisões a revisar: o sucesso do agendamento não mostra pontos a ganhar (a visão do agendamento não traz a recompensa); o quiz guarda
   "Sem raça definida" como texto em `breed`.
+
+## Fase 4 (começo do dono, demonstração e acabamento): entregue e o que fica
+
+- Entregue: começo do dono (`/painel/comecar`) e a lista do que falta no Início; demonstração no modelo pet (`npm run demo:create`);
+  telas de erro e não encontrado; esqueleto em toda tela do painel; `SubmitButton` nos envios; movimento só com `transform` e `opacity`;
+  estados vazios com ação.
+- Conferir no navegador: `/painel/comecar` a 360 px (serviços por porte, expediente, QR e Compartilhar), prévia da marca ao vivo, envio da
+  logo e foco ao trocar de passo; telas de erro do painel e `global-error`; prévia do arrastar na agenda (agora por `transform`).
+- Decisões a revisar: botões, abas e cartões perderam a transição de cor no hover (a regra de movimento só deixa `transform` e
+  `opacity`); enviar a logo no passo Marca recarrega a página e perde cores não salvas; demonstração antiga sem `--recriar` não migra
+  (fica com serviços de preço único e os novos por porte).
 
 ## Antes de abrir a loja (Mercado Pago real)
 
