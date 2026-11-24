@@ -9,7 +9,8 @@ export type RankingView = {
   enabled: boolean
   /** Mês local da conta (`AAAA-MM`). */
   month: string
-  entries: { position: number; firstName: string; avatarUrl: string | null; points: number }[]
+  /** `isYou` só aparece (verdadeiro) na linha do próprio cliente que pediu; a equipe e os outros nunca o recebem. */
+  entries: { position: number; firstName: string; avatarUrl: string | null; points: number; isYou?: true }[]
 }
 
 /**
@@ -51,6 +52,7 @@ export async function getRanking(ctx: TenantContext): Promise<RankingView> {
         firstName: customer.name.trim().split(/\s+/)[0] ?? customer.name,
         avatarUrl: ctx.channel === 'app' ? publicUploadUrl(customer.avatar) : uploadUrl(customer.avatar),
         points: g._sum.points ?? 0,
+        ...(ctx.actor.kind === 'customer' && ctx.actor.customerId === g.customerId ? { isYou: true as const } : {}),
       },
     ]
   })

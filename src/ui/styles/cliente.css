@@ -1049,3 +1049,251 @@
     }
   }
 }
+
+/* ---- Formulários, Prêmios ---- */
+@layer components {
+  .af-cl-form {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .af-cl-form__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .af-cl-form__text {
+    margin: 0;
+  }
+
+  .af-cl-saldo {
+    position: relative;
+    display: grid;
+    gap: 0.25rem;
+    padding: 1.25rem;
+    border-radius: var(--radius-block);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+  }
+  .af-cl-saldo__label {
+    margin: 0;
+    color: var(--ink-muted);
+    font-family: var(--font-sans);
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+  .af-cl-saldo__value {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h1);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: var(--text-h1-lh);
+    letter-spacing: var(--text-h1-ls);
+  }
+  .af-cl-saldo__foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin-top: 0.5rem;
+  }
+  .af-cl-saldo__link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-inline-start: auto;
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .af-cl-pill--club {
+    gap: 0.25rem;
+    background-color: var(--surface);
+  }
+
+  .af-cl-prizes {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-cl-prize {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    min-width: 0;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+  }
+  .af-cl-prize > .af-button {
+    margin-top: auto;
+  }
+  .af-cl-prize__media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-cl-prize__media img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .af-cl-prize__name {
+    margin: 0.25rem 0 0;
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-prize__desc {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+  .af-cl-prize__cost {
+    margin: 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-cl-prize__stock {
+    align-self: flex-start;
+    margin: 0;
+    padding: 0.125rem 0.625rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent-tint);
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+
+  .af-cl-redemptions__list,
+  .af-cl-ledger,
+  .af-cl-ranking__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-cl-redemption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .af-cl-redemption:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .af-cl-redemption__main {
+    min-width: 0;
+  }
+  .af-cl-redemption__name,
+  .af-cl-redemption__meta,
+  .af-cl-redemption__hint {
+    margin: 0;
+  }
+  .af-cl-redemption__name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-redemption__meta {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-cl-redemption__hint {
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+
+  .af-cl-ranking__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 3.25rem;
+    padding: 0.25rem 0.75rem;
+    border-top: 1px solid var(--line);
+  }
+  .af-cl-ranking__row:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .af-cl-ranking__row.is-you {
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+  }
+  .af-cl-ranking__pos {
+    min-width: 2rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-cl-ranking__name {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-ranking__points {
+    flex: none;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .af-cl-ledger__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .af-cl-ledger__row:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .af-cl-ledger__main {
+    min-width: 0;
+  }
+  .af-cl-ledger__kind,
+  .af-cl-ledger__reason,
+  .af-cl-ledger__date,
+  .af-cl-ledger__points {
+    margin: 0;
+  }
+  .af-cl-ledger__kind {
+    font-weight: 700;
+  }
+  .af-cl-ledger__reason,
+  .af-cl-ledger__date {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    overflow-wrap: anywhere;
+  }
+  .af-cl-ledger__points {
+    flex: none;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .af-cl-ledger__points.is-minus {
+    color: var(--ink-muted);
+  }
+}
