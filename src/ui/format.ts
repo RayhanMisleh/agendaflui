@@ -41,4 +41,4 @@ export function formatLocalDate(isoDate: string): string {
   return year && month && day ? `${day}/${month}/${year}` : isoDate
 }
 
-export { formatLongDate, formatShortDayMonth, relativeDayLabel } from '@/shared/local-date-pt'
+export { formatLongDate, formatMonthYear, formatShortDayMonth, relativeDayLabel } from '@/shared/local-date-pt'

@@ -61,3 +61,9 @@ export function relativeDayLabel(date: string, today: string): string {
   if (diff === 1) return 'Amanhã'
   return formatShortDayMonth(date)
 }
+
+/** "novembro de 2026" (mês de uma data local). */
+export function formatMonthYear(date: string): string {
+  const { y, m } = partes(date)
+  return `${MESES[m - 1]} de ${y}`
+}

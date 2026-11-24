@@ -28,7 +28,7 @@ export const cancelarHorario = clienteAction(
     }
     return v.store.slug
   },
-  (slug, _c): FormState<Record<string, string>> => {
+  (slug): FormState<Record<string, string>> => {
     atualizarLoja()
     return redirect(`/${slug}/horarios?cancelado=1`)
   },

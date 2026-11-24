@@ -768,4 +768,103 @@
       transition: transform var(--af-dur-fast) var(--af-ease);
     }
   }
+
+  /* ---- Meus horários ---- */
+  .af-cl-appts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-cl-appts__month {
+    margin-top: 0.5rem;
+    text-transform: none;
+  }
+  .af-cl-appts__more {
+    justify-self: center;
+  }
+  .af-cl-appt + .af-cl-appt {
+    border-top: 1px solid var(--line);
+  }
+  .af-cl-appt__link {
+    display: grid;
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 4rem;
+    padding: 0.5rem 0;
+    color: var(--ink);
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .af-cl-appt__link:active {
+    transform: scale(0.99);
+  }
+  .af-cl-appt__when {
+    display: grid;
+    gap: 0.125rem;
+  }
+  .af-cl-appt__day {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+  .af-cl-appt__time {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  .af-cl-appt__body {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .af-cl-appt__what {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-appt__who {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  @media (max-width: 30rem) {
+    .af-cl-appt__link {
+      grid-template-columns: 4rem minmax(0, 1fr) auto;
+    }
+    .af-cl-appt__link .af-badge {
+      grid-column: 2 / 3;
+      justify-self: start;
+    }
+  }
+  .af-cl-detail__when {
+    display: grid;
+    justify-items: start;
+    gap: 0.5rem;
+  }
+  .af-cl-detail__day {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+  .af-cl-detail__day::first-letter {
+    text-transform: uppercase;
+  }
+  .af-cl-detail__time {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h1);
+    font-weight: 700;
+    line-height: var(--text-h1-lh);
+    letter-spacing: var(--text-h1-ls);
+  }
+  .af-cl-detail__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-cl-appt__link {
+      transition: transform var(--af-dur-fast) var(--af-ease);
+    }
+  }
 }
