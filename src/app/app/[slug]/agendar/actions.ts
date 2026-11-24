@@ -8,6 +8,7 @@ import { bookAppointment, rescheduleAppointment } from '@/server/domain/scheduli
 import { fromIsoInstant } from '@/server/time'
 import { clienteAction } from '../_lib/acao'
 import { atualizarLoja } from '../_lib/revalidar'
+import { OCUPADO } from './mensagens'
 
 /*
  * Marcar e remarcar pelo cliente. O cliente vem sempre da sessão (`clienteAction`); `petId`, `serviceIds` e `appointmentId` do
@@ -15,7 +16,6 @@ import { atualizarLoja } from '../_lib/revalidar'
  * duplo gravar um agendamento só. O horário que outro cliente tomou no meio do caminho volta como `conflict` com sugestões.
  */
 
-export const OCUPADO = 'Esse horário acabou de ser ocupado. Escolha outro.'
 
 type Campos = Record<string, string>
 
