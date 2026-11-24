@@ -157,11 +157,13 @@ export const ajustarAtendimento = tenantAction(
     const atual = await getAppointment(ctx, v.id ?? '')
     const mudanca: { serviceIds?: string[]; petId?: string; durationMin?: number; totalCents?: number; notes?: string | null; acknowledged?: string } = { ...confirmacaoDe(v) }
     if ((v.petId ?? '') !== '' && v.petId !== atual.pet?.id) mudanca.petId = v.petId
-    const duracao = duracaoDe(v)
-    if (duracao.durationMin !== undefined && duracao.durationMin !== atual.totalDurationMin) mudanca.durationMin = duracao.durationMin
     const servicos = ids(v.serviceIds)
     const antes = atual.items.map((i) => i.serviceId)
     if (servicos.length > 0 && (servicos.length !== antes.length || servicos.some((s) => !antes.includes(s)))) mudanca.serviceIds = servicos
+    // Trocando pet ou serviços o domínio refaz a duração pela soma; a duração que o formulário mostra tem de ir junto, senão a livre se perde.
+    const duracao = duracaoDe(v)
+    const refaz = mudanca.petId !== undefined || mudanca.serviceIds !== undefined
+    if (duracao.durationMin !== undefined && (refaz || duracao.durationMin !== atual.totalDurationMin)) mudanca.durationMin = duracao.durationMin
     const preco = (v.price ?? '').trim()
     if (preco !== '') {
       const centavos = parseMoney(preco)

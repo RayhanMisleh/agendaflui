@@ -91,6 +91,17 @@ describe('marcar com pet', () => {
     expect(depois.totalCents).toBe(3000)
   })
 
+  test('ajustarAtendimento trocando o pet mantém a duração livre que o formulário continua mostrando', async () => {
+    await marcarHorario(ini, marcacao({ serviceIds: [m.tosa.id], durationMin: '90' }))
+    const a = await prisma.appointment.findFirstOrThrow({ where: { businessId: m.b.id } })
+    expect(a.totalDurationMin).toBe(90)
+    const r = await ajustarAtendimento(ini, form({ id: a.id, petId: m.mel.id, durationMin: '90' }))
+    expect(r.ok).toBe(true)
+    const depois = await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } })
+    expect(depois.petId).toBe(m.mel.id)
+    expect(depois.totalDurationMin).toBe(90)
+  })
+
   test('mudarSituacao undo de falta sobre normal devolve confirmation; com ack, reabre como encaixe', async () => {
     const falta = await makeAppointment(m.b.id, { customerId: m.marina.id, professionalId: m.ana.id, serviceId: m.banho.id, startsAt: mn(17, 10), petId: m.thor.id, status: 'NO_SHOW' })
     await makeAppointment(m.b.id, { customerId: m.marina.id, professionalId: m.ana.id, serviceId: m.banho.id, startsAt: mn(17, 10), petId: m.mel.id })
