@@ -316,6 +316,7 @@ model Business {
   payments             Payment[]
   orderItems           OrderItem[]
   notifications        Notification[]
+  calendarSyncs        CalendarSync[]
   supportHandoffs      SupportHandoff[]
 
   @@map("businesses")
@@ -445,6 +446,9 @@ model User {
   sessions    Session[]
   tokens      UserToken[]
   customers   Customer[]
+
+  calendarConnection CalendarConnection?
+  calendarSyncsPlaced CalendarSync[] @relation("CalendarSyncPlacedUser")
 
   @@map("users")
 }
@@ -774,6 +778,7 @@ model Appointment {
 
   items         AppointmentItem[]
   notifications Notification[]
+  calendarSync  CalendarSync?
 
   loyaltyTransactions LoyaltyTransaction[]
 
@@ -1215,4 +1220,59 @@ model OrderItem {
   @@unique([orderId, position])
   @@index([productId])
   @@map("order_items")
+}
+
+enum CalendarConnectionStatus {
+  CONNECTED
+  REVOKED
+
+  @@map("calendar_connection_status")
+}
+
+/// A ligação da pessoa com a agenda principal do Google dela (plataforma). O token de renovação fica selado (leitor restrito
+/// `calendar/token.ts`). CHECKs `calendar_connections_token_by_status` e `calendar_connections_revoked_at`: só no SQL.
+model CalendarConnection {
+  userId         String                   @id @map("user_id") @db.Uuid
+  googleSub      String                   @map("google_sub")
+  status         CalendarConnectionStatus
+  refreshTokenEnc String?                 @map("refresh_token_enc")
+  connectedAt    DateTime                 @map("connected_at") @db.Timestamptz(3)
+  revokedAt      DateTime?                @map("revoked_at") @db.Timestamptz(3)
+  lastSyncedAt   DateTime?                @map("last_synced_at") @db.Timestamptz(3)
+  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_connections")
+}
+
+/// Fila de reconciliação do Google Agenda: uma linha por agendamento. `generation` sobe a cada mudança (dentro da transação do
+/// agendamento); `syncedGeneration` é a última que o agendador deixou igual no Google. CHECKs `calendar_syncs_generation_check` e
+/// `calendar_syncs_attempts_check`, índice parcial `calendar_syncs_due_idx` e a FK composta com `business_id`: só no SQL.
+model CalendarSync {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String    @map("business_id") @db.Uuid
+  appointmentId    String    @unique @map("appointment_id") @db.Uuid
+  generation       Int       @default(1)
+  syncedGeneration Int       @default(0) @map("synced_generation")
+  /// A pessoa em cuja agenda o evento está hoje (para apagar de lá se mudar de dono).
+  placedUserId     String?   @map("placed_user_id") @db.Uuid
+  attempts         Int       @default(0)
+  nextAttemptAt    DateTime? @map("next_attempt_at") @db.Timestamptz(3)
+  lockedUntil      DateTime? @map("locked_until") @db.Timestamptz(3)
+  lockedBy         String?   @map("locked_by")
+  lastError        String?   @map("last_error") @db.VarChar(40)
+  failedAt         DateTime? @map("failed_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  placedUser  User?       @relation("CalendarSyncPlacedUser", fields: [placedUserId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, id])
+  @@unique([businessId, appointmentId])
+  @@index([placedUserId])
+  @@map("calendar_syncs")
 }

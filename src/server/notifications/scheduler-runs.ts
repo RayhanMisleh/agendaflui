@@ -1,7 +1,7 @@
 import { prisma } from '@/server/db/client'
 import { fromEpochMs } from '@/server/time'
 
-export const SCHEDULER_KINDS = ['notifications', 'cleanup', 'store', 'retention'] as const
+export const SCHEDULER_KINDS = ['notifications', 'cleanup', 'store', 'retention', 'calendar'] as const
 export type SchedulerKind = (typeof SCHEDULER_KINDS)[number]
 
 export type RunRecord = { kind: SchedulerKind; startedAt: Date; finishedAt: Date; ok: boolean; summary: string }
@@ -18,6 +18,9 @@ const LABELS: Readonly<Record<string, string>> = {
   synced: 'pagamentos conferidos',
   expired: 'pedidos vencidos',
   retried: 'novas tentativas',
+  upserted: 'eventos gravados',
+  deleted: 'eventos apagados',
+  revoked: 'agendas desligadas',
   limites: 'limites',
   codigos: 'códigos',
   execucoes: 'execuções',
