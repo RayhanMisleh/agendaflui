@@ -147,7 +147,7 @@ describe('listarHorarios', () => {
     const ids = [...p1.items, ...p2.items].map((x) => x.id)
     expect(new Set(ids).size).toBe(12)
     // do mais recente ao mais antigo
-    expect(p1.items[0]?.local.date > (p2.items[1]?.local.date ?? '')).toBe(true)
+    expect((p1.items[0]?.local.date ?? '') > (p2.items[1]?.local.date ?? '')).toBe(true)
   })
 
   test('cursor adulterado volta à primeira página', async () => {
