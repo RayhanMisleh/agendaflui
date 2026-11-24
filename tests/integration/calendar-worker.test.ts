@@ -298,13 +298,17 @@ describe('falhas do Google', () => {
     expect(erro.mock.calls.some(([m]) => String(m).includes('calendar_token_unreadable'))).toBe(true)
   })
 
-  test('token de acesso recusado no evento (permissão retirada) também desliga a ligação', async () => {
+  test('token de acesso recusado no evento não revoga: a ligação fica até a renovação dar invalid_grant', async () => {
     const s = await montar()
     const v = await marcar(s)
     google.failNext('upsert', 'revoked', 1)
-    expect((await rodar()).revoked).toBe(1)
-    expect((await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: s.pessoa.id } })).status).toBe('REVOKED')
-    expect(await linha(v.id)).toMatchObject({ syncedGeneration: 1 })
+    expect(await rodar()).toMatchObject({ revoked: 0, retried: 1 })
+    const antes = await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: s.pessoa.id } })
+    expect(antes.status).toBe('CONNECTED')
+    expect(antes.refreshTokenEnc).not.toBeNull()
+    expect(await linha(v.id)).toMatchObject({ attempts: 1, lastError: 'revoked', syncedGeneration: 0 })
+    expect((await rodar(addMinutes(AGORA, 2))).upserted).toBe(1)
+    expect((await linha(v.id)).syncedGeneration).toBe(1)
   })
 
   test('revogação não desfaz uma religação feita no meio da rodada', async () => {

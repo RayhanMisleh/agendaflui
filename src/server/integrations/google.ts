@@ -42,7 +42,8 @@ async function erroDaAgenda(res: Response): Promise<IntegrationError> {
   if (s === 403) {
     const motivo = await motivoDoErro(res)
     if (motivo !== null && RAZOES_DE_LIMITE.has(motivo)) return new IntegrationError('rate_limited', `${SERVICO} limitou os pedidos.`)
-    if (motivo === null || RAZOES_DE_ACESSO.has(motivo)) return new IntegrationError('revoked', `${SERVICO} recusou o acesso à agenda.`)
+    if (motivo === null) return new IntegrationError('unavailable', `${SERVICO} respondeu de forma ilegível.`)
+    if (RAZOES_DE_ACESSO.has(motivo)) return new IntegrationError('revoked', `${SERVICO} recusou o acesso à agenda.`)
   }
   return new IntegrationError('rejected', `${SERVICO} recusou o pedido.`)
 }

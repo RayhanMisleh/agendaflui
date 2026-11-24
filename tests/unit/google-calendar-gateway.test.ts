@@ -78,6 +78,10 @@ describe('eventos', () => {
     expect(await codigo(falso([{ status: 403, json: sem }]).gateway.upsertEvent({ accessToken: 't', event: EVENTO }))).toBe('revoked')
   })
 
+  test('403 sem motivo legível (proxy, corpo ilegível) não é revogação: unavailable', async () => {
+    expect(await codigo(falso([{ status: 403 }]).gateway.upsertEvent({ accessToken: 't', event: EVENTO }))).toBe('unavailable')
+  })
+
   test('503 → unavailable e outro 4xx → rejected', async () => {
     expect(await codigo(falso([{ status: 503 }]).gateway.upsertEvent({ accessToken: 't', event: EVENTO }))).toBe('unavailable')
     expect(await codigo(falso([{ status: 400, json: { error: { message: 'dado do cliente' } } }]).gateway.upsertEvent({ accessToken: 't', event: EVENTO }))).toBe('rejected')

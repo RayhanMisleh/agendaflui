@@ -121,9 +121,10 @@ async function withAccess(round: Round, userId: string, call: (accessToken: stri
     }
     switch (err.code) {
       case 'revoked':
-        if (await markCalendarRevoked(userId, access.sealed, round.now)) round.result.revoked += 1
-        round.access.set(userId, { kind: 'revoked' })
-        return { kind: 'skipped' }
+        // Um 401/403 no evento não prova que o token de renovação morreu (acesso vencido, proxy): nada é apagado aqui. O acesso é
+        // descartado e a linha tenta de novo; só um invalid_grant na renovação revoga.
+        round.access.delete(userId)
+        return { kind: 'error', code: err.code }
       case 'rate_limited':
         round.access.set(userId, { kind: 'wait', minutes: LIMITED_WAIT_MIN })
         return { kind: 'wait', minutes: LIMITED_WAIT_MIN }
