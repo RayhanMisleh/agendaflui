@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { Button, Card, Celebration, ProgressBar, StepStage, useToast } from '@/ui/components'
+import { FOTO } from '../pets/_lib/foto-textos'
 import { Cuidados } from './_passos/Cuidados'
 import { Especie } from './_passos/Especie'
 import { Foto } from './_passos/Foto'
@@ -91,8 +92,11 @@ export function QuizPet({
         return
       }
       if (a.photo) {
-        const ok = await enviarFoto(slug, r.petId, a.photo)
-        if (!ok) avisar({ tone: 'warning', message: 'Pet salvo. Não deu para enviar a foto; tente de novo em Meus pets.' })
+        const codigo = await enviarFoto(slug, r.petId, a.photo)
+        if (codigo !== 'ok') {
+          const motivo = Object.hasOwn(FOTO, codigo) ? FOTO[codigo]?.texto : null
+          avisar({ tone: 'warning', message: `Pet salvo. ${motivo ?? 'Não deu para enviar a foto; tente de novo em Meus pets.'}` })
+        }
       }
       setFeito({ next: r.next, name: input.name, then })
     } catch {
@@ -182,15 +186,17 @@ export function QuizPet({
 }
 
 /** Sobe a foto para a rota do pet; `false` se a rota recusar ou a rede falhar (o pet já está salvo). */
-async function enviarFoto(slug: string, petId: string, foto: File): Promise<boolean> {
+/** `'ok'` ou o código da recusa (o mesmo da rota de envio); `'sem_resposta'` quando nem a resposta chegou. */
+async function enviarFoto(slug: string, petId: string, foto: File): Promise<string> {
   try {
     const fd = new FormData()
     fd.set('foto', foto)
     const r = await fetch(`/${slug}/pets/${petId}/foto`, { method: 'POST', body: fd, headers: { Accept: 'application/json' } })
-    if (!r.ok) return false
-    const corpo: unknown = await r.json()
-    return typeof corpo === 'object' && corpo !== null && 'ok' in corpo && corpo.ok === true
+    const corpo: unknown = await r.json().catch(() => null)
+    const codigo = typeof corpo === 'object' && corpo !== null && 'code' in corpo && typeof corpo.code === 'string' ? corpo.code : null
+    if (r.ok && codigo === 'ok') return 'ok'
+    return codigo ?? 'sem_resposta'
   } catch {
-    return false
+    return 'sem_resposta'
   }
 }

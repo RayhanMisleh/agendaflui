@@ -49,13 +49,13 @@ export function Foto({ a, set, error }: PassoProps) {
             <PetIllustration variant={variante} size={64} />
           )}
         </span>
-        <input ref={entrada} type="file" accept="image/*" className="af-sr" tabIndex={-1} aria-label="Foto do pet" onChange={(e) => escolheu(e.target.files?.[0])} />
+        <input ref={entrada} type="file" accept="image/jpeg,image/png,image/webp" className="af-sr" tabIndex={-1} aria-label="Foto do pet" onChange={(e) => escolheu(e.target.files?.[0])} />
         <Button variant="secondary" size="lg" icon={<Camera size={18} />} onClick={() => entrada.current?.click()}>
-          {a.photo ? 'Trocar foto' : 'Tirar foto'}
+          {a.photo ? 'Trocar foto' : 'Escolher foto'}
         </Button>
         {a.photo ? (
           <Button variant="ghost" onClick={() => set({ photo: null })}>
-            Tirar a foto
+            Remover foto
           </Button>
         ) : null}
       </div>

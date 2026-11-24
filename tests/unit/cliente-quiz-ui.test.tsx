@@ -141,6 +141,22 @@ test('foto que falha avisa e o pet segue salvo', async () => {
   vi.unstubAllGlobals()
 })
 
+test('foto recusada diz o motivo e o pet segue salvo', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ ok: false, code: 'too_small' }), { status: 422 })))
+  const { user } = ver()
+  await user.type(screen.getByLabelText('Nome do pet'), 'Thor')
+  await user.click(continuar())
+  await user.click(screen.getByRole('radio', { name: /Médio/ }))
+  await user.click(continuar())
+  for (let i = 0; i < 4; i++) await user.click(screen.getByRole('button', { name: 'Pular' }))
+  await user.upload(screen.getByLabelText('Foto do pet'), new File(['x'], 'thor.png', { type: 'image/png' }))
+  await user.click(continuar())
+  await user.click(screen.getByRole('button', { name: 'Agendar agora' }))
+  expect(await screen.findByText('Pet salvo. A imagem é pequena demais. Escolha outra.')).toBeInTheDocument()
+  expect(screen.getByText('Thor está pronto')).toBeInTheDocument()
+  vi.unstubAllGlobals()
+})
+
 test('erro de salvar aparece em role=alert e as respostas ficam', async () => {
   const { user, salvar } = ver({ salvar: vi.fn(async () => ({ ok: false as const, message: 'Você já tem 20 pets ativos. Arquive algum antes.', fields: {} })) })
   await ateOResumo(user)
