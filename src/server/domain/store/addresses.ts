@@ -5,6 +5,7 @@ import { definedOnly } from '@/server/domain/input'
 import { requireModule } from '@/server/domain/modules'
 import { TX_OPTIONS } from '@/server/domain/scheduling/placement'
 import { cleanPostalCode } from '@/server/domain/store/settings'
+import { STATES } from '@/shared/states'
 import { integrations, IntegrationError } from '@/server/integrations'
 
 export type AddressInput = {
@@ -24,8 +25,7 @@ export type AddressView = AddressInput & { id: string }
 
 export const MAX_ADDRESSES = 10
 
-/** As 27 unidades da federação. */
-export const STATES = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'] as const
+export { STATES }
 
 const idSchema = z.uuid()
 
