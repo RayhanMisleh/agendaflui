@@ -2,6 +2,7 @@ import 'server-only'
 import { createHash, hkdfSync, randomBytes } from 'node:crypto'
 import { jwtVerify, SignJWT } from 'jose'
 import { areaLink } from '@/server/area-links'
+import { CALENDAR_SCOPE } from '@/server/calendar/event'
 import { z } from '@/server/domain/errors'
 import { env } from '@/server/env'
 import { integrations } from '@/server/integrations'
@@ -17,12 +18,13 @@ import { googleClient } from './config'
 export const GOOGLE_FLOW_COOKIE = 'af_google'
 export const FLOW_TTL_SEC = 600
 
-/** A fase 4 acrescenta `{ kind: 'calendar' }` (escopo `calendar.events`, acesso offline). Intenção desconhecida não passa. */
+/** `calendar` liga o Google Agenda (escopo `calendar.events`, acesso offline) para a pessoa da sessão. Intenção desconhecida não passa. */
 export type GoogleIntent =
   | { kind: 'sign_in' }
   | { kind: 'store_signup'; slug: string }
   | { kind: 'invite'; token: string }
   | { kind: 'link' }
+  | { kind: 'calendar' }
 
 export type GoogleFlow = { v: 1; state: string; nonce: string; verifier: string; intent: GoogleIntent }
 
@@ -31,6 +33,7 @@ const intentSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('store_signup'), slug: z.string().min(1).max(40) }),
   z.object({ kind: z.literal('invite'), token: z.string().min(1).max(200) }),
   z.object({ kind: z.literal('link') }),
+  z.object({ kind: z.literal('calendar') }),
 ])
 
 const flowSchema = z.object({
@@ -57,7 +60,11 @@ export function googleRedirectUri(): string {
 /**
  * Começa o fluxo: devolve o endereço do Google e o valor do cookie de fluxo, ou `null` quando não há chaves (regra 11).
  */
-export async function startGoogleFlow(intent: GoogleIntent, now: Date): Promise<{ url: string; cookie: string } | null> {
+export async function startGoogleFlow(
+  intent: GoogleIntent,
+  now: Date,
+  o: { loginHint?: string } = {},
+): Promise<{ url: string; cookie: string } | null> {
   const client = await googleClient()
   if (client === null) return null
   const flow: GoogleFlow = { v: 1, state: aleatorio(), nonce: aleatorio(), verifier: aleatorio(), intent: intentSchema.parse(intent) }
@@ -71,12 +78,21 @@ export async function startGoogleFlow(intent: GoogleIntent, now: Date): Promise<
   p.set('response_type', 'code')
   p.set('client_id', client.clientId)
   p.set('redirect_uri', googleRedirectUri())
-  p.set('scope', 'openid email profile')
+  const agenda = flow.intent.kind === 'calendar'
+  p.set('scope', agenda ? `openid email ${CALENDAR_SCOPE}` : 'openid email profile')
   p.set('state', flow.state)
   p.set('nonce', flow.nonce)
   p.set('code_challenge', createHash('sha256').update(flow.verifier).digest('base64url'))
   p.set('code_challenge_method', 'S256')
-  p.set('prompt', 'select_account')
+  if (agenda) {
+    // Autorização incremental com acesso offline; `consent` faz o Google devolver sempre o token de renovação.
+    p.set('access_type', 'offline')
+    p.set('include_granted_scopes', 'true')
+    p.set('prompt', 'consent')
+    if (o.loginHint !== undefined && o.loginHint !== '') p.set('login_hint', o.loginHint)
+  } else {
+    p.set('prompt', 'select_account')
+  }
   return { url: url.toString(), cookie }
 }
 

@@ -135,6 +135,33 @@ describe('startScheduler: registro das execuções', () => {
     expect(JSON.stringify(gravadas)).not.toContain('maria')
   })
 
+  test('a rodada chama a agenda depois dos avisos e só grava execução quando fez algo', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const gravadas: Gravada[] = []
+    const ordem: string[] = []
+    const run = vi.fn(async () => void ordem.push('avisos'))
+    const calendar = vi.fn()
+    calendar
+      .mockImplementationOnce(async () => {
+        ordem.push('agenda')
+        return { upserted: 0, deleted: 0, revoked: 0, retried: 0, failed: 0, skipped: 3 }
+      })
+      .mockResolvedValueOnce({ upserted: 2, deleted: 1, revoked: 0, retried: 0, failed: 0, skipped: 0 })
+      .mockRejectedValueOnce(new TypeError('maria@exemplo.test'))
+      .mockResolvedValue({ upserted: 0, deleted: 0, revoked: 0, retried: 0, failed: 0, skipped: 0 })
+    const s = startScheduler({ run, cleanup: async () => undefined, calendar, record: async (r) => void gravadas.push(r) })
+    await vi.advanceTimersByTimeAsync(2_500 + 60_000 * 3)
+    s.stop()
+    expect(ordem.slice(0, 2)).toEqual(['avisos', 'agenda'])
+    expect(calendar).toHaveBeenCalledTimes(4)
+    expect(gravadas.filter((g) => g.kind === 'calendar').map((g) => [g.ok, g.summary])).toEqual([
+      [true, 'eventos gravados 2, eventos apagados 1, agendas desligadas 0, novas tentativas 0, falhas 0, ignorados 0'],
+      [false, 'erro: TypeError'],
+    ])
+    expect(JSON.stringify(gravadas)).not.toContain('maria')
+  })
+
   test('limpeza que lança grava ok: false', async () => {
     vi.useFakeTimers()
     vi.spyOn(console, 'error').mockImplementation(() => undefined)

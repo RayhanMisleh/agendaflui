@@ -6,6 +6,7 @@ import { AccountShell } from '@/ui/shells'
 import { LogOut } from 'lucide-react'
 import { GoogleAviso } from '../google/GoogleAviso'
 import { sair } from './actions'
+import { AgendaGoogleSecao } from './_partes/AgendaGoogleSecao'
 import { AvisosSecao } from './_partes/AvisosSecao'
 import { DadosForm } from './_partes/DadosForm'
 import { EmailForm } from './_partes/EmailForm'
@@ -14,6 +15,10 @@ import { LojasSecao } from './_partes/LojasSecao'
 import { SenhaForm } from './_partes/SenhaForm'
 
 export const metadata: Metadata = { title: 'Minha conta | Agenda Flui' }
+
+/** Os resultados que pertencem ao cartão da agenda (o resto aparece no cartão do Google). */
+const CODIGOS_DA_AGENDA = new Set(['agenda_ligada', 'agenda_desligada', 'calendar_needs_google', 'calendar_wrong_google', 'calendar_staff_only', 'calendar_scope_missing'])
+const agendaAviso = (codigo: string): boolean => CODIGOS_DA_AGENDA.has(codigo)
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> }
 
@@ -39,7 +44,16 @@ export default async function ContaPage({ searchParams }: Props) {
           google={conta.google ? { email: conta.google.email } : null}
           hasPassword={conta.hasPassword}
           email={conta.email}
-          aviso={codigo ? <GoogleAviso codigo={codigo} /> : null}
+          aviso={codigo && !agendaAviso(codigo) ? <GoogleAviso codigo={codigo} /> : null}
+        />
+      ) : null}
+      {conta.calendar ? (
+        <AgendaGoogleSecao
+          state={conta.calendar.state}
+          available={conta.calendar.available}
+          hasGoogle={conta.calendar.hasGoogle}
+          syncedLabel={conta.calendar.syncedLabel}
+          aviso={agendaAviso(codigo) ? <GoogleAviso codigo={codigo} /> : null}
         />
       ) : null}
       {conta.staff?.canWatchAll ? <AvisosSecao businessName={conta.staff.businessName} watchAll={conta.staff.watchAll} /> : null}

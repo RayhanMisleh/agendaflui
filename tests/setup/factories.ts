@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto'
-import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, CalendarConnection, CalendarConnectionStatus, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
+import { sealCalendarToken } from '@/server/calendar/token'
 import type { Actor, Channel, TenantContext } from '@/server/auth/actor'
 import { addMinutes, type Weekday } from '@/server/time'
 import { createTenantContext } from '@/server/auth/context'
@@ -248,4 +249,28 @@ export async function ctxWithRole(
 export function memberOf(ctx: TenantContext): Extract<Actor, { kind: 'member' }> {
   if (ctx.actor.kind !== 'member') throw new Error('O ator do contexto não é um membro.')
   return ctx.actor
+}
+
+/**
+ * Ligação da pessoa com o Google Agenda, direto no banco. `CONNECTED` (padrão) sela o token (padrão `rt-<sub>-1`); `REVOKED` fica
+ * sem token e com `revokedAt` agora.
+ */
+export async function makeCalendarConnection(
+  userId: string,
+  o: { status?: CalendarConnectionStatus; googleSub?: string; refreshToken?: string } = {},
+): Promise<CalendarConnection> {
+  const status = o.status ?? 'CONNECTED'
+  const googleSub = o.googleSub ?? `sub-${userId}`
+  const agora = new Date()
+  return prisma.calendarConnection.create({
+    data: {
+      userId,
+      googleSub,
+      status,
+      connectedAt: agora,
+      ...(status === 'CONNECTED'
+        ? { refreshTokenEnc: sealCalendarToken(userId, o.refreshToken ?? `rt-${googleSub}-1`) }
+        : { revokedAt: agora }),
+    },
+  })
 }

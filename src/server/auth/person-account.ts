@@ -1,4 +1,6 @@
 import 'server-only'
+import { disconnectCalendarIn, getCalendarStatus, revokeSealedLater } from '@/server/calendar/connection'
+import type { CalendarStatusView } from '@/server/calendar/connection'
 import { prisma } from '@/server/db/client'
 import { normalizePhone, formatPhone, searchKey } from '@/server/domain/customers/contact'
 import { DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
@@ -8,7 +10,7 @@ import { isSafeRecipient } from '@/server/notifications/channels/types'
 import { deliverAccessMail } from '@/server/notifications/deliver-mail'
 import { renderEmailChangeCode } from '@/server/notifications/render-account'
 import { emailChangeUnlinksGoogle } from '@/shared/person'
-import { toIsoInstant } from '@/server/time'
+import { formatDateTime, toIsoInstant } from '@/server/time'
 import { AuthError } from './actor'
 import {
   allowCodeRequest,
@@ -41,6 +43,8 @@ export type PersonAccountView = {
   hasPassword: boolean
   google: { email: string; linkedAt: Date } | null
   googleAvailable: boolean
+  /** Google Agenda: só para a equipe (`null` para os demais). `available` = Google configurado e vinculado. */
+  calendar: (CalendarStatusView & { available: boolean; hasGoogle: boolean; syncedLabel: string | null }) | null
   stores: { businessId: string; slug: string; name: string; current: boolean }[]
   staff: { businessName: string; roleLabel: string; canWatchAll: boolean; watchAll: boolean } | null
 }
@@ -54,16 +58,17 @@ const precisaDeSenha = (mensagem: string): DomainError => new DomainError('confl
 export async function getPersonAccount(userId: string, customerBusinessId: string | null): Promise<PersonAccountView> {
   const pessoa = await prisma.user.findUnique({ where: { id: userId } })
   if (!pessoa) throw new DomainError('not_found', 'Conta não encontrada.')
-  const [clientes, vinculo, googleAvailable] = await Promise.all([
+  const [clientes, vinculo, googleAvailable, agenda] = await Promise.all([
     prisma.customer.findMany({
       where: { userId, archivedAt: null, anonymizedAt: null, business: { status: 'ACTIVE' } },
       select: { businessId: true, business: { select: { slug: true, name: true, branding: { select: { displayName: true } } } } },
     }),
     prisma.membership.findFirst({
       where: { userId, active: true, business: { status: 'ACTIVE' } },
-      select: { role: true, notifyAllAppointments: true, business: { select: { name: true, branding: { select: { displayName: true } } } } },
+      select: { role: true, notifyAllAppointments: true, business: { select: { name: true, timezone: true, branding: { select: { displayName: true } } } } },
     }),
     isGoogleConfigured(),
+    getCalendarStatus(userId),
   ])
   const stores = clientes
     .map((c) => ({
@@ -84,6 +89,14 @@ export async function getPersonAccount(userId: string, customerBusinessId: strin
         ? { email: pessoa.googleEmail, linkedAt: pessoa.googleLinkedAt }
         : null,
     googleAvailable,
+    calendar: vinculo
+      ? {
+          ...agenda,
+          available: googleAvailable && pessoa.googleSub !== null,
+          hasGoogle: pessoa.googleSub !== null,
+          syncedLabel: agenda.lastSyncedAt ? formatDateTime(agenda.lastSyncedAt, vinculo.business.timezone) : null,
+        }
+      : null,
     stores,
     staff: vinculo
       ? {
@@ -229,7 +242,7 @@ const customerEmailTaken = (): DomainError =>
     fields: { email: 'Este e-mail já está no cadastro de outro cliente numa loja sua. Fale com a loja.' },
   })
 
-type Confirmacao = { googleUnlinked: boolean } | { guessed: boolean }
+type Confirmacao = { googleUnlinked: boolean; calendarSealed: string | null } | { guessed: boolean }
 
 /**
  * Confirma a troca com o código enviado ao e-mail novo. Sob `lockUserAccess`: confere o código, repete as checagens
@@ -277,7 +290,8 @@ export async function confirmEmailChange(
           WHERE id = ${userId}::uuid`
       }
       await syncCustomerCopies(tx, userId, { email: i.email })
-      return { googleUnlinked: desvincula }
+      // Sem Google vinculado não há agenda: a ligação sai na mesma transação.
+      return { googleUnlinked: desvincula, calendarSealed: desvincula ? await disconnectCalendarIn(tx, userId) : null }
     })
 
   let resultado: Confirmacao
@@ -298,12 +312,13 @@ export async function confirmEmailChange(
     throw invalidCode()
   }
   await clearCodeFailures(userId, i.email)
-  return resultado
+  revokeSealedLater(userId, resultado.calendarSealed)
+  return { googleUnlinked: resultado.googleUnlinked }
 }
 
 /** Regra 7: desvincula o Google só de quem tem senha; sem senha, a pessoa criaria um acesso perdido. */
 export async function unlinkGoogle(userId: string, now: Date): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const selo = await prisma.$transaction(async (tx) => {
     await lockUserAccess(tx, userId)
     const pessoa = await tx.user.findUnique({ where: { id: userId }, select: { googleSub: true, passwordHash: true } })
     if (!pessoa || pessoa.googleSub === null) throw new DomainError('not_found', 'Nenhum Google vinculado.')
@@ -314,7 +329,10 @@ export async function unlinkGoogle(userId: string, now: Date): Promise<void> {
       UPDATE users SET google_sub = NULL, google_email = NULL, google_linked_at = NULL, updated_at = ${agora}::timestamptz
       WHERE id = ${userId}::uuid AND google_sub IS NOT NULL AND password_hash IS NOT NULL`
     if (r !== 1) throw precisaDeSenha(SENHA_PRIMEIRO)
+    // Desvincular também desliga o Google Agenda, na mesma transação.
+    return disconnectCalendarIn(tx, userId)
   })
+  revokeSealedLater(userId, selo)
 }
 
 /** Troca a loja atual da sessão. Só vale para loja em que a pessoa é cliente (ativo, conta ativa). */

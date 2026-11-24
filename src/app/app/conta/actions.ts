@@ -13,6 +13,7 @@ import {
   updatePersonProfile,
 } from '@/server/auth/person-account'
 import { logout } from '@/server/auth/session'
+import { disconnectCalendar } from '@/server/calendar/connection'
 import { DomainError } from '@/server/domain/errors'
 import { setNotifyAllAppointments } from '@/server/domain/team/staff-preferences'
 import { formError } from '@/app/_lib/form-state'
@@ -117,6 +118,18 @@ export async function desvincularGoogle(anterior: EstadoConta): Promise<EstadoCo
   }
   atualizar()
   return certo(anterior, 'Google desvinculado.')
+}
+
+/** Desliga o Google Agenda da pessoa da sessão; os eventos já enviados ficam na agenda dela. */
+export async function desligarAgenda(anterior: EstadoConta): Promise<EstadoConta> {
+  const sessao = await requirePerson()
+  try {
+    await disconnectCalendar(sessao.user.id)
+  } catch (err) {
+    return falha(err, anterior, {})
+  }
+  atualizar()
+  redirect('/conta?google=agenda_desligada#agenda')
 }
 
 export async function trocarLoja(anterior: EstadoConta, fd: FormData): Promise<EstadoConta> {

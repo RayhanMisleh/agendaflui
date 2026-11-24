@@ -68,6 +68,11 @@ const semSegredosGoogle = {
   message: 'O leitor das chaves do Google só vale em src/server/auth/google (o teste tests/unit/google-secrets-imports.test.ts confere o mesmo).',
 }
 
+const semTokenDaAgenda = {
+  group: ['**/calendar/token', '**/calendar/token.*'],
+  message: 'O token de renovação da agenda só vale em src/server/calendar (o teste tests/unit/calendar-token-imports.test.ts confere o mesmo).',
+}
+
 const semInterface = {
   group: ['@/ui', '@/ui/**', '**/ui/**'],
   message: 'O servidor não importa da interface. O que for comum fica em src/shared.',
@@ -100,14 +105,14 @@ export default defineConfig([
       'no-restricted-imports': [
         'error',
         {
-          patterns: [semPrismaCru, semSegredos, semSegredosGoogle],
+          patterns: [semPrismaCru, semSegredos, semSegredosGoogle, semTokenDaAgenda],
         },
       ],
     },
   },
   {
     files: ['src/server/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semSegredosGoogle, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredos, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
   },
   {
     files: ['src/shared/**'],
@@ -119,6 +124,7 @@ export default defineConfig([
             semPrismaCru,
             semSegredos,
             semSegredosGoogle,
+            semTokenDaAgenda,
             semServidorNemInterface,
           ],
         },
@@ -132,22 +138,27 @@ export default defineConfig([
   {
     // Pastas liberadas para o cliente Prisma cru; ainda assim, o servidor não importa da interface.
     files: ['src/server/db/**', 'src/server/auth/**', 'src/server/domain/platform/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
   },
   {
     // O login com Google lê as chaves do Google em texto; vale o resto das regras de `src/server/auth`.
     files: ['src/server/auth/google/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semTokenDaAgenda, semInterface] }] },
   },
   {
     // O envio de avisos atravessa contas por desenho: usa o Prisma cru e filtra por `businessId` a cada consulta de conta.
     files: ['src/server/notifications/**'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
+  },
+  {
+    // O envio ao Google Agenda atravessa contas por desenho (como os avisos) e é o único que abre o token de renovação.
+    files: ['src/server/calendar/**'],
     rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semInterface] }] },
   },
   {
     // O domínio da loja é o único que lê segredos de integração em texto; vale o resto das regras de `src/server`.
     files: ['src/server/domain/store/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredosGoogle, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semPrismaCru, semSegredosGoogle, semTokenDaAgenda, semInterface] }] },
   },
   {
     files: ['prisma/**', 'scripts/**', 'tests/**'],

@@ -30,6 +30,7 @@ export const TENANT_MODELS: Modelos = [
   'Order',
   'OrderItem',
   'Payment',
+  'CalendarSync',
 ]
 
 /**
@@ -54,4 +55,5 @@ export const PLATFORM_MODELS: Modelos = [
   'RateLimitBucket',
   'EmailCode',
   'PlatformSetting',
+  'CalendarConnection',
 ]

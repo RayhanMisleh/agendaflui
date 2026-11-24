@@ -1,9 +1,11 @@
 import 'server-only'
 import { timingSafeEqual } from 'node:crypto'
+import { CALENDAR_SCOPE } from '@/server/calendar/event'
+import { connectCalendar } from '@/server/calendar/connection'
 import { prisma } from '@/server/db/client'
 import type { Prisma } from '@/server/db/generated/client'
 import { searchKey } from '@/server/domain/customers/contact'
-import { isUniqueViolation } from '@/server/domain/errors'
+import { DomainError, isUniqueViolation } from '@/server/domain/errors'
 import { integrations, IntegrationError } from '@/server/integrations'
 import { ipLimitKeyPart } from '@/server/auth/client-ip'
 import { destinationForUser, destinationPath } from '@/server/auth/destination'
@@ -31,14 +33,17 @@ import type { GoogleIdentity } from './id-token'
  * perdedor entra na pessoa criada ou recebe a recusa certa, nunca uma segunda pessoa. Nada daqui vai para log.
  */
 
-export type GoogleFailure = GoogleRefusal | 'not_configured' | 'flow_invalid' | 'canceled' | 'provider_error' | 'rate_limited'
+export type GoogleFailure = GoogleRefusal | 'not_configured' | 'flow_invalid' | 'canceled' | 'provider_error' | 'rate_limited' | 'calendar_scope_missing'
+
+/** O que volta em `?google=` quando deu certo. */
+export type GoogleSuccess = 'vinculado' | 'agenda_ligada' | 'agenda_desligada'
 
 export type GoogleOutcome =
   | { ok: true; session: { token: string; expiresAt: Date } | null; redirectTo: string }
   | { ok: false; failure: GoogleFailure; redirectTo: string }
 
 /** Para onde voltar quando o fluxo falha: a tela de onde a pessoa saiu, com o motivo em `?google=`. */
-export function failureTarget(intent: GoogleIntent | null, failure: GoogleFailure | 'vinculado'): string {
+export function failureTarget(intent: GoogleIntent | null, failure: GoogleFailure | GoogleSuccess): string {
   const q = `google=${failure}`
   switch (intent?.kind) {
     case 'store_signup':
@@ -47,6 +52,8 @@ export function failureTarget(intent: GoogleIntent | null, failure: GoogleFailur
       return `/convite/${encodeURIComponent(intent.token)}?${q}`
     case 'link':
       return `/conta?${q}`
+    case 'calendar':
+      return `/conta?${q}#agenda`
     case 'sign_in':
     case undefined:
       return `/entrar?${q}`
@@ -60,11 +67,24 @@ export async function beginGoogle(
   intent: GoogleIntent,
   ip: string | undefined,
   now: Date,
+  o: { loginHint?: string } = {},
 ): Promise<{ url: string; cookie: string } | { failure: 'not_configured' | 'rate_limited' }> {
   // Sem IP confiável não há como separar quem chama (um balde só deixaria um atacante travar todo mundo): não conta.
   if (ip && !(await hitRateLimit(limitKey('google-inicio:ip', ipLimitKeyPart(ip)), LIMITS.authIp, now)).allowed) return { failure: 'rate_limited' }
-  const inicio = await startGoogleFlow(intent, now)
+  const inicio = await startGoogleFlow(intent, now, o)
   return inicio ?? { failure: 'not_configured' }
+}
+
+/** Começa o fluxo de ligar a agenda: só para a pessoa da sessão, com o e-mail do Google dela como dica de conta. */
+export async function beginGoogleCalendar(
+  sessionToken: string | undefined,
+  ip: string | undefined,
+  now: Date,
+): Promise<{ url: string; cookie: string } | { failure: 'not_configured' | 'rate_limited' | 'not_signed_in' }> {
+  const sessao = await getPersonSession(sessionToken, now)
+  if (sessao?.kind !== 'person') return { failure: 'not_signed_in' }
+  const pessoa = await prisma.user.findUnique({ where: { id: sessao.user.id }, select: { googleEmail: true } })
+  return beginGoogle({ kind: 'calendar' }, ip, now, pessoa?.googleEmail ? { loginHint: pessoa.googleEmail } : {})
 }
 
 function fato(u: { id: string; email: string; passwordHash: string | null; googleSub: string | null }): PersonFact {
@@ -79,6 +99,10 @@ async function lerFatos(tx: Prisma.TransactionClient, i: { intent: GoogleIntent;
   const byEmail = await tx.user.findUnique({ where: { email: i.identity.email }, select: COLUNAS })
   const invite = i.intent.kind === 'invite' ? await readInvite(i.intent.token, i.now, tx) : null
   const current = i.currentId !== null ? await tx.user.findUnique({ where: { id: i.currentId }, select: COLUNAS }) : null
+  const equipe =
+    i.intent.kind === 'calendar' && i.currentId !== null
+      ? await tx.membership.findFirst({ where: { userId: i.currentId, active: true, business: { status: 'ACTIVE' } }, select: { id: true } })
+      : null
   return {
     identity: i.identity,
     bySub: bySub && fato(bySub),
@@ -86,13 +110,14 @@ async function lerFatos(tx: Prisma.TransactionClient, i: { intent: GoogleIntent;
     invite: invite && { userId: invite.userId, email: invite.email },
     store: i.store,
     current: current && fato(current),
+    currentIsStaff: equipe !== null,
   }
 }
 
 /** A transação precisa recomeçar: a decisão mudou de alvo ou uma condição de gravação não vale mais. */
 class Recomecar extends Error {}
 
-const alvoDaTrava = (d: GoogleDecision): string | null => (d.kind === 'sign_in' || d.kind === 'activate' || d.kind === 'link' ? d.userId : null)
+const alvoDaTrava = (d: GoogleDecision): string | null => (d.kind === 'sign_in' || d.kind === 'activate' || d.kind === 'link' || d.kind === 'calendar' ? d.userId : null)
 
 type Aplicado = { refuse: GoogleRefusal } | { userId: string; session: { token: string; expiresAt: Date } | null }
 
@@ -161,6 +186,9 @@ async function aplicar(
         if (feito.count !== 1) throw new Recomecar()
         return { userId: d.userId, session: null }
       }
+      // A ligação em si é gravada por `connectCalendar` (que refaz a conferência do Google sob a trava da pessoa).
+      case 'calendar':
+        return { userId: d.userId, session: null }
     }
   })
 }
@@ -203,15 +231,19 @@ export async function handleGoogleCallback(i: {
 
   const google = integrations().google
   let identity: GoogleIdentity
+  let escopo: string | null
+  let renovacao: string | null
   try {
-    const { idToken } = await google.exchangeCode({
+    const trocado = await google.exchangeCode({
       clientId: client.clientId,
       clientSecret: client.clientSecret,
       code: i.code,
       codeVerifier: flow.verifier,
       redirectUri: googleRedirectUri(),
     })
-    identity = await verifyGoogleIdToken(idToken, { clientId: client.clientId, nonce: flow.nonce, now: i.now, keys: google.keys() })
+    escopo = trocado.scope
+    renovacao = trocado.refreshToken
+    identity = await verifyGoogleIdToken(trocado.idToken, { clientId: client.clientId, nonce: flow.nonce, now: i.now, keys: google.keys() })
   } catch (err) {
     if (err instanceof GoogleTokenError) return recusa('flow_invalid', intent)
     // Código recusado (vencido, já usado): refazer o fluxo resolve; o resto é falha do Google.
@@ -224,7 +256,7 @@ export async function handleGoogleCallback(i: {
 
   const store = intent?.kind === 'store_signup' ? await findOpenStore(intent.slug) : null
   let currentId: string | null = null
-  if (intent?.kind === 'link') {
+  if (intent?.kind === 'link' || intent?.kind === 'calendar') {
     const sessao = await getPersonSession(i.sessionToken, i.now)
     currentId = sessao?.kind === 'person' ? sessao.user.id : null
   }
@@ -239,6 +271,18 @@ export async function handleGoogleCallback(i: {
     now: i.now,
   })
   if ('refuse' in aplicado) return recusa(aplicado.refuse, intent)
+  if (flow.intent.kind === 'calendar') {
+    // Sem a permissão marcada na tela do Google, ou sem token de renovação, nada é gravado.
+    if (escopo === null || !escopo.split(' ').includes(CALENDAR_SCOPE)) return recusa('calendar_scope_missing', intent)
+    if (renovacao === null) return recusa('provider_error', intent)
+    try {
+      await connectCalendar({ userId: aplicado.userId, googleSub: identity.sub, refreshToken: renovacao, now: i.now })
+    } catch (err) {
+      if (err instanceof DomainError && err.reason === 'calendar_wrong_google') return recusa('calendar_wrong_google', intent)
+      throw err
+    }
+    return { ok: true, session: null, redirectTo: '/conta?google=agenda_ligada#agenda' }
+  }
   if (flow.intent.kind === 'link') return { ok: true, session: null, redirectTo: '/conta?google=vinculado' }
   if (flow.intent.kind === 'store_signup' && store) return { ok: true, session: aplicado.session, redirectTo: `/${store.slug}` }
   const destino = await destinationForUser(aplicado.userId, null)

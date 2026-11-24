@@ -1,7 +1,7 @@
 'use client'
 import { useFormStatus } from 'react-dom'
 
-export type GoogleFluxo = 'entrar' | 'loja' | 'convite' | 'vincular'
+export type GoogleFluxo = 'entrar' | 'loja' | 'convite' | 'vincular' | 'agenda'
 
 /** O "G" oficial do Google, nas quatro cores da marca. */
 function GoogleMark() {

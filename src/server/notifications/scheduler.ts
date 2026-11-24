@@ -4,6 +4,7 @@ import { purgeExpiredSessions, purgeSupportHandoffs } from '@/server/auth/suppor
 import { purgeEmailCodes } from '@/server/auth/email-code'
 import { failureSummary, purgeSchedulerRuns, recordSchedulerRun, summarize, type RunRecorder, type SchedulerKind } from './scheduler-runs'
 import { sweepStore } from '@/server/domain/platform/store-sweep'
+import { processCalendarSyncs } from '@/server/calendar/worker'
 import { processDueNotifications } from './worker'
 
 const GUARD = '__agendafluiScheduler'
@@ -16,6 +17,8 @@ type Deps = {
   run?: () => Promise<unknown>
   /** Varredura da loja a cada rodada (padrão: `sweepStore`; quem troca `run` e não passa `sweep` fica sem varredura). */
   sweep?: () => Promise<unknown>
+  /** Envio ao Google Agenda a cada rodada (padrão: `processCalendarSyncs`; quem troca `run` e não passa `calendar` fica sem ele). */
+  calendar?: () => Promise<unknown>
   cleanup?: () => Promise<unknown>
   /** Limpeza diária de dados antigos (padrão: `runRetention`; quem troca `run` e não passa `retention` fica sem ela). */
   retention?: () => Promise<unknown>
@@ -52,6 +55,7 @@ export function startScheduler(deps: Deps = {}): { stop: () => void } {
   if (existing) return existing
   const run = deps.run ?? (() => processDueNotifications())
   const sweep = deps.sweep ?? (deps.run === undefined ? () => sweepStore(new Date()) : null)
+  const calendar = deps.calendar ?? (deps.run === undefined ? () => processCalendarSyncs() : null)
   const retention = deps.retention ?? (deps.run === undefined ? () => runRetention(new Date()) : null)
   const cleanup = deps.cleanup ?? (() => cleanupRound())
   const record = deps.record ?? recordSchedulerRun
@@ -94,6 +98,13 @@ export function startScheduler(deps: Deps = {}): { stop: () => void } {
     busy = true
     try {
       await timed('notifications', 'rodada de envio', run)
+      // Só grava execução quando a agenda gravou, apagou, desligou, adiou ou desistiu de algo (ou falhou).
+      if (calendar !== null) {
+        await timed('calendar', 'agenda do Google', calendar, (r) => {
+          const n = r as Record<string, unknown>
+          return ['upserted', 'deleted', 'revoked', 'retried', 'failed'].some((k) => typeof n[k] === 'number' && n[k] > 0)
+        })
+      }
       // Só grava execução quando a varredura conferiu ou venceu algo, ou falhou (1.440 linhas por dia seriam ruído).
       if (sweep !== null) {
         await timed('store', 'varredura da loja', sweep, (r) => {

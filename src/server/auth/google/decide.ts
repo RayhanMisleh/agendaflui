@@ -23,6 +23,8 @@ export type GoogleFacts = {
   store: StoreRef | null
   /** A pessoa da sessão atual (para vincular). */
   current: PersonFact | null
+  /** A pessoa da sessão é da equipe de alguma loja (vínculo ativo): só ela liga a agenda. */
+  currentIsStaff: boolean
 }
 
 export type GoogleRefusal =
@@ -35,12 +37,16 @@ export type GoogleRefusal =
   | 'store_unavailable'
   | 'already_linked'
   | 'not_signed_in'
+  | 'calendar_needs_google'
+  | 'calendar_wrong_google'
+  | 'calendar_staff_only'
 
 export type GoogleDecision =
   | { kind: 'sign_in'; userId: string }
   | { kind: 'activate'; userId: string }
   | { kind: 'create' }
   | { kind: 'link'; userId: string }
+  | { kind: 'calendar'; userId: string }
   | { kind: 'refuse'; reason: GoogleRefusal }
 
 const recusa = (reason: GoogleRefusal): GoogleDecision => ({ kind: 'refuse', reason })
@@ -78,5 +84,12 @@ export function decideGoogle(intent: GoogleIntent, f: GoogleFacts): GoogleDecisi
       if (f.bySub !== null && f.bySub.id !== f.current.id) return recusa('google_taken')
       if (email !== f.current.email.toLowerCase()) return recusa('email_mismatch')
       return { kind: 'link', userId: f.current.id }
+    case 'calendar':
+      // Ligar a agenda: o Google que respondeu tem de ser o vinculado à conta da pessoa (e ela, da equipe).
+      if (f.current === null) return recusa('not_signed_in')
+      if (f.current.googleSub === null) return recusa('calendar_needs_google')
+      if (f.identity.sub !== f.current.googleSub) return recusa('calendar_wrong_google')
+      if (!f.currentIsStaff) return recusa('calendar_staff_only')
+      return { kind: 'calendar', userId: f.current.id }
   }
 }
