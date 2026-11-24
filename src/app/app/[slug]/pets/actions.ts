@@ -1,7 +1,6 @@
 'use server'
-import { erroDeCampo, feito, ler } from '@/app/_lib/campos'
+import { feito, ler } from '@/app/_lib/campos'
 import { archivePet, getPet, restorePet, updatePet, type PetInput } from '@/server/domain/pets/pets'
-import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { clienteAction } from '../_lib/acao'
 import { atualizarLoja } from '../_lib/revalidar'
 
@@ -17,9 +16,6 @@ export const editarPet = clienteAction(
   async (v, c) => {
     const nulo = (t: string | undefined): string | null => (t === undefined || t === '' ? null : t)
     const atual = await getPet(v.ctx, c.petId ?? '')
-    if (c.species === 'CAT' && atual.species !== 'CAT' && !(await getNicheSettings(v.ctx)).options.servesCats) {
-      throw erroDeCampo('species', 'A loja não atende gatos no momento.')
-    }
     const input = {
       name: c.name ?? '',
       species: c.species ?? '',

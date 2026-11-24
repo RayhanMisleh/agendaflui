@@ -229,14 +229,22 @@ export async function getPet(ctx: TenantContext, id: string): Promise<PetView> {
   return toView(ctx, await loadRow(ctx, ctx.db, id))
 }
 
+/** O cliente só cadastra gato se a loja atende gatos; a equipe do painel decide por conta própria. */
+function assertServesSpecies(ctx: TenantContext, servesCats: boolean, species: string): void {
+  if (ctx.actor.kind === 'customer' && species === 'CAT' && !servesCats) {
+    throw new DomainError('conflict', 'A loja não atende gatos no momento.', { fields: { species: 'A loja não atende gatos no momento.' } })
+  }
+}
+
 /** Cria o pet dentro de uma transação já aberta (também usada por `createCustomerWithPet`). */
 export async function createPetIn(tx: TenantTx, ctx: TenantContext, customerId: string, input: PetInput): Promise<PetView> {
   authorizeStaff(ctx, true)
   if (!idSchema.safeParse(customerId).success || (ctx.actor.kind === 'customer' && ctx.actor.customerId !== customerId)) {
     throw new DomainError('not_found', 'Cliente não encontrado.')
   }
-  await requirePetNiche(ctx, tx)
+  const nicho = await requirePetNiche(ctx, tx)
   const data = checkPetInput(ctx, input)
+  assertServesSpecies(ctx, nicho.options.servesCats, data.species)
   await tx.$lockKey('customer', customerId)
   await assertCustomerActive(ctx, tx, customerId)
   await assertRoom(ctx, tx, customerId)
@@ -266,7 +274,7 @@ export async function createPet(ctx: TenantContext, customerId: string, input: P
 
 export async function updatePet(ctx: TenantContext, id: string, input: Partial<PetInput>): Promise<PetView> {
   authorizeStaff(ctx, true)
-  await requirePetNiche(ctx)
+  const nicho = await requirePetNiche(ctx)
   const dado = definedOnly(parse(updateSchema, input))
   const atual = await loadRow(ctx, ctx.db, id)
   return ctx.db.$transaction(async (tx) => {
@@ -279,6 +287,8 @@ export async function updatePet(ctx: TenantContext, id: string, input: Partial<P
     const size = dado.size !== undefined ? dado.size : species === 'CAT' ? null : row.size
     const birthMonth = dado.birthMonth !== undefined ? dado.birthMonth : undefined
     checkFields(ctx, { species, size, birthMonth })
+    // Quem já tem gato pode salvar o cadastro com a loja sem gatos; o que se barra é virar gato agora.
+    if (species !== row.species) assertServesSpecies(ctx, nicho.options.servesCats, species)
     const mudancas: Prisma.PetUncheckedUpdateInput = {
       ...(dado.name !== undefined ? { name: dado.name, searchName: searchKey(dado.name) } : {}),
       ...(dado.species !== undefined || dado.size !== undefined ? { species, size } : {}),

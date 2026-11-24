@@ -4,7 +4,6 @@ import { MENSAGEM_GENERICA } from '@/app/_lib/form-state'
 import { requireCustomer } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { createPet, type PetInput } from '@/server/domain/pets/pets'
-import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { safeReturnPath } from '@/shared/return-path'
 import { atualizarLoja } from '../_lib/revalidar'
 import type { SalvarPetResultado } from './quiz'
@@ -31,12 +30,7 @@ function comPet(caminho: string, petId: string): string {
 export async function salvarPetDoQuiz(slug: string, fd: FormData): Promise<SalvarPetResultado> {
   const visit = await requireCustomer(slug, `/${slug}/boas-vindas`)
   try {
-    const nicho = await getNicheSettings(visit.ctx)
     const species = texto(fd, 'species')
-    if (species === 'CAT' && nicho.niche !== null && !nicho.options.servesCats) {
-      const message = 'A loja não atende gatos no momento.'
-      return { ok: false, message, fields: { species: message } }
-    }
     const nulo = (nome: string): string | null => (texto(fd, nome).trim() === '' ? null : texto(fd, nome))
     const input = {
       name: texto(fd, 'name'),

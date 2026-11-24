@@ -32,6 +32,20 @@ const clienteCtx = (b: { id: string }, c: { id: string; name: string }) =>
   makeCtx(b, { actor: { kind: 'customer', customerId: c.id, name: c.name }, now: AGORA })
 const png = async () => ({ bytes: new Uint8Array(await sharp({ create: { width: 32, height: 32, channels: 3, background: '#0e4f5c' } }).png().toBuffer()) })
 
+describe('pets: gato só onde a loja atende', () => {
+  test('cliente não cria nem vira gato com a loja sem gatos; a equipe e a loja com gatos podem', async () => {
+    const { b, dono, cliente } = await conta()
+    const c = await clienteCtx(b, cliente)
+    const barrado = await domainError(createPet(c, cliente.id, { name: 'Mia', species: 'CAT' }))
+    expect(barrado).toMatchObject({ code: 'conflict', fields: { species: 'A loja não atende gatos no momento.' } })
+    const cao = await createPet(c, cliente.id, { name: 'Rex', species: 'DOG', size: 'SMALL' })
+    expect((await domainError(updatePet(c, cao.id, { species: 'CAT' }))).code).toBe('conflict')
+    expect((await createPet(dono, cliente.id, { name: 'Mia', species: 'CAT' })).typeLabel).toBe('Gato')
+    await prisma.businessSettings.update({ where: { businessId: b.id }, data: { nicheOptions: { servesCats: true } } })
+    expect((await createPet(c, cliente.id, { name: 'Bia', species: 'CAT' })).typeLabel).toBe('Gato')
+  })
+})
+
 describe('pets: criar e validar', () => {
   test('dono cria cão médio com rótulos e idade', async () => {
     const { dono, cliente } = await conta()
