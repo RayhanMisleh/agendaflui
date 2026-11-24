@@ -20,6 +20,7 @@ export const DOMAIN_REASONS = [
   'has_future_appointments',
   'idempotency_key_reused',
   'insufficient_points',
+  'invalid_code',
   'invalid_quote',
   'invalid_status',
   'invalid_transition',

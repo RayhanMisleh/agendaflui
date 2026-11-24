@@ -3,6 +3,7 @@ import { Prisma } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import { PLATFORM_MODELS, SELF_MODELS, TENANT_MODELS, TENANT_OPTIONAL_MODELS } from '@/server/db/models'
 import { resetDb } from '../setup/db'
+import { makeBusiness, makeCustomer, makeUser } from '../setup/factories'
 import { verificarFks } from '../setup/fks'
 
 // O nome da tabela de cada modelo vem dos metadados do Prisma (`dbName`); modelo sem mapeamento
@@ -292,5 +293,46 @@ describe('sem API do app, push nem métricas de uso', () => {
     for (const kind of ['notifications', 'cleanup', 'store', 'retention']) {
       await prisma.schedulerRun.create({ data: { kind, startedAt: agora, ok: true } })
     }
+  })
+})
+
+describe('pessoa única', () => {
+  const indice = async (nome: string) =>
+    prisma.$queryRaw<{ indexdef: string }[]>`SELECT indexdef FROM pg_indexes WHERE schemaname = 'public' AND indexname = ${nome}`
+
+  test('email_codes existe com o índice parcial email_codes_live_key', async () => {
+    const t = await prisma.$queryRaw<{ t: string | null }[]>`SELECT to_regclass('email_codes')::text AS t`
+    expect(t[0]?.t).toBe('email_codes')
+    const def = (await indice('email_codes_live_key'))[0]?.indexdef ?? ''
+    expect(def).toContain('UNIQUE')
+    expect(def).toContain('consumed_at IS NULL')
+  })
+
+  test('customers_business_id_user_id_key e users_google_sub_key são únicos', async () => {
+    expect((await indice('customers_business_id_user_id_key'))[0]?.indexdef).toContain('UNIQUE')
+    expect((await indice('users_google_sub_key'))[0]?.indexdef).toContain('UNIQUE')
+    const b = await makeBusiness()
+    const u = await makeUser()
+    await makeCustomer(b.id, { userId: u.id })
+    await expect(makeCustomer(b.id, { userId: u.id, email: 'outro@exemplo.test' })).rejects.toThrow()
+    await makeUser({ google: { sub: 'sub-1', email: 'g1@exemplo.test' } })
+    await expect(makeUser({ google: { sub: 'sub-1', email: 'g2@exemplo.test' } })).rejects.toThrow()
+  })
+
+  test('users_active_verified recusa pessoa com senha e sem verificação', async () => {
+    await expect(makeUser({ password: 'senha-bem-longa', verified: false })).rejects.toThrow(/users_active_verified/)
+    await expect(makeUser({ google: { sub: 'sub-x', email: 'x@exemplo.test' }, verified: false })).rejects.toThrow(/users_active_verified/)
+    await makeUser({ password: null, verified: false })
+  })
+
+  test('users_google_together recusa google_sub sem google_email', async () => {
+    await expect(makeUser({ googleSub: 'sub-y' })).rejects.toThrow(/users_google_together/)
+  })
+
+  test('cliente com conta exige e-mail e linked_at juntos com user_id', async () => {
+    const b = await makeBusiness()
+    const u = await makeUser()
+    await expect(prisma.customer.create({ data: { businessId: b.id, name: 'X', origin: 'APP', userId: u.id, linkedAt: new Date() } })).rejects.toThrow(/customers_account_has_email/)
+    await expect(prisma.customer.create({ data: { businessId: b.id, name: 'X', origin: 'APP', userId: u.id, email: 'x@exemplo.test' } })).rejects.toThrow(/customers_linked_together/)
   })
 })

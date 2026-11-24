@@ -124,6 +124,9 @@ export default async function VisaoGeralPage() {
             <Card>
               <StatTile label="Clientes cadastrados" value={o.customers.total} />
             </Card>
+            <Card>
+              <StatTile label="Clientes com conta" value={o.customersWithAccount} />
+            </Card>
           </div>
         </section>
 

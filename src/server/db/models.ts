@@ -18,7 +18,6 @@ export const TENANT_MODELS: Modelos = [
   'Appointment',
   'AppointmentItem',
   'Notification',
-  'VerificationCode',
   'LoyaltyTransaction',
   'Prize',
   'PrizeRedemption',
@@ -53,4 +52,5 @@ export const PLATFORM_MODELS: Modelos = [
   'Session',
   'UserToken',
   'RateLimitBucket',
+  'EmailCode',
 ]

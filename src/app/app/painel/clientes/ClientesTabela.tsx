@@ -10,7 +10,7 @@ export type ClienteLinha = {
   phoneLabel: string | null
   email: string | null
   archived: boolean
-  hasAppAccess: boolean
+  hasAccount: boolean
   isClubMember: boolean
 }
 
@@ -26,7 +26,7 @@ export function ClientesTabela({ clientes, vazio, clube }: { clientes: ClienteLi
       header: 'Situação',
       nowrap: true,
       cell: (c) => {
-        const detalhes = [c.hasAppAccess ? 'Tem conta no app' : '', c.isClubMember && clube ? `Do ${clube}` : ''].filter((d) => d !== '').join(' · ')
+        const detalhes = [c.hasAccount ? 'Tem conta' : '', c.isClubMember && clube ? `Do ${clube}` : ''].filter((d) => d !== '').join(' · ')
         return c.archived ? <StatusDot tone="neutral" label="Arquivado" /> : <StatusDot tone="success" label="Ativo" {...(detalhes ? { detail: detalhes } : {})} />
       },
     },

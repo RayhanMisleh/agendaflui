@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
+import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
 import { prisma } from '@/server/db/client'
 import type { Actor, Channel, TenantContext } from '@/server/auth/actor'
@@ -34,19 +35,28 @@ export async function makeBusiness(overrides: Partial<Prisma.BusinessUncheckedCr
 type MakeUserInput = Omit<Prisma.UserUncheckedCreateInput, 'passwordHash' | 'name' | 'email'> & {
   name?: string
   email?: string
-  /** Texto puro (vira hash). `null` = convite pendente, sem senha. */
+  /** Texto puro (vira hash). `null` = sem senha. Sem `password` nem `google`, a pessoa nasce com a senha padrão. */
   password?: string | null
+  /** Google vinculado (sem `password`, a pessoa fica só com o Google). */
+  google?: GoogleLink
+  /** Padrão: verificada se tem senha ou Google. `true` força a verificação (conta pendente já provada). */
+  verified?: boolean
 }
 
 export async function makeUser(overrides: MakeUserInput = {}): Promise<User> {
   const id = sufixo()
-  const { password = 'senha-bem-longa', ...rest } = overrides
+  const { password, google, verified, ...rest } = overrides
+  const texto = password === undefined ? (google ? null : 'senha-bem-longa') : password
+  const ativa = texto !== null || google !== undefined
+  const verificada = verified ?? ativa
   return prisma.user.create({
     data: {
       name: `Usuário ${id}`,
       searchName: `usuario ${id}`,
       email: `usuario-${id}@exemplo.test`,
-      passwordHash: password === null ? null : await hashPassword(password),
+      passwordHash: texto === null ? null : await hashPassword(texto),
+      ...(verificada ? { emailVerifiedAt: new Date() } : {}),
+      ...(google ? { googleSub: google.sub, googleEmail: google.email, googleLinkedAt: new Date() } : {}),
       ...rest,
     },
   })
@@ -121,7 +131,10 @@ export async function makeProfessional(
   return professional
 }
 
-/** Cliente direto no banco (origem balcão, telefone válido único, sem e-mail). */
+/**
+ * Cliente direto no banco (origem balcão, telefone válido único, sem e-mail). Com `userId`, liga à pessoa: `linkedAt` agora
+ * e o e-mail da pessoa, se não vierem.
+ */
 export async function makeCustomer(
   businessId: string,
   overrides: Partial<Omit<Prisma.CustomerUncheckedCreateInput, 'businessId'>> = {},
@@ -129,8 +142,17 @@ export async function makeCustomer(
   contador += 1
   const phone = `5511${(900000000 + contador).toString()}`
   const name = overrides.name ?? `Cliente ${sufixo()}`
+  const pessoa = overrides.userId ? await prisma.user.findUniqueOrThrow({ where: { id: overrides.userId } }) : null
   return prisma.customer.create({
-    data: { phone, origin: 'PANEL', searchName: searchKey(name), ...overrides, name, businessId },
+    data: {
+      phone,
+      origin: pessoa ? 'APP' : 'PANEL',
+      searchName: searchKey(name),
+      ...(pessoa ? { email: pessoa.email, linkedAt: new Date() } : {}),
+      ...overrides,
+      name,
+      businessId,
+    },
   })
 }
 

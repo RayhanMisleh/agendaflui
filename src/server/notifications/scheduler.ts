@@ -1,7 +1,7 @@
 import { runRetention } from '@/server/db/retention'
 import { purgeRateLimits } from '@/server/auth/rate-limit-db'
 import { purgeExpiredSessions, purgeSupportHandoffs } from '@/server/auth/support-session'
-import { purgeVerificationCodes } from '@/server/auth/verification-code'
+import { purgeEmailCodes } from '@/server/auth/email-code'
 import { failureSummary, purgeSchedulerRuns, recordSchedulerRun, summarize, type RunRecorder, type SchedulerKind } from './scheduler-runs'
 import { sweepStore } from '@/server/domain/platform/store-sweep'
 import { processDueNotifications } from './worker'
@@ -30,7 +30,7 @@ type Deps = {
 export async function cleanupRound(now: Date = new Date()): Promise<Record<string, number>> {
   return {
     limites: await purgeRateLimits(now),
-    codigos: await purgeVerificationCodes(now),
+    codigos: await purgeEmailCodes(now),
     execucoes: await purgeSchedulerRuns(now),
     passagens: await purgeSupportHandoffs(now),
     sessoes: await purgeExpiredSessions(now),

@@ -111,8 +111,9 @@ export default async function ClientePage({
           <div className="af-profile__head">
             <Avatar name={cliente.name} src={cliente.avatarUrl} size="lg" />
             <div className="af-profile__meta">
-              {cliente.archived ? <StatusDot tone="neutral" label={removido ? 'Dados removidos' : 'Arquivado'} /> : <StatusDot tone="success" label="Ativo" {...(cliente.hasAppAccess ? { detail: 'Tem conta no app' } : {})} />}
+              {cliente.archived ? <StatusDot tone="neutral" label={removido ? 'Dados removidos' : 'Arquivado'} /> : <StatusDot tone="success" label="Ativo" {...(cliente.hasAccount ? { detail: 'Tem conta' } : {})} />}
               {clube && cliente.isClubMember ? <span>Do {clube}</span> : null}
+              {cliente.origin === 'APP' ? <span>Pelo link da loja</span> : null}
             </div>
           </div>
           {cliente.phone || cliente.email ? (
@@ -140,7 +141,7 @@ export default async function ClientePage({
               </h2>
               {podeEscrever && !cliente.archived ? (
                 <ClienteForm
-                  cliente={{ id: cliente.id, name: cliente.name, phoneLabel: cliente.phoneLabel, email: cliente.email, birthDate: cliente.birthDate, notes: cliente.notes ?? null, isClubMember: cliente.isClubMember }}
+                  cliente={{ id: cliente.id, name: cliente.name, phoneLabel: cliente.phoneLabel, email: cliente.email, birthDate: cliente.birthDate, notes: cliente.notes ?? null, isClubMember: cliente.isClubMember, hasAccount: cliente.hasAccount }}
                   clube={clube}
                   singular={terms.customerSingular}
                 />

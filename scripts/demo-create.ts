@@ -159,14 +159,14 @@ export async function criarDemo(prisma: PrismaClient, opts: {
       })
       const donoId =
         donoExistente?.id ??
-        (await tx.user.create({ data: { name: DEMO_DONO_NOME, searchName: searchKey(DEMO_DONO_NOME), email: DEMO_EMAIL_DONO, passwordHash: hashDono }, select: { id: true } })).id
+        (await tx.user.create({ data: { name: DEMO_DONO_NOME, searchName: searchKey(DEMO_DONO_NOME), email: DEMO_EMAIL_DONO, passwordHash: hashDono, emailVerifiedAt: new Date() }, select: { id: true } })).id
       await tx.membership.create({ data: { businessId: conta.id, userId: donoId, role: 'OWNER' } })
       for (const [n, pessoa] of equipe.entries()) {
         const email = pessoa.email
         const existente = await tx.user.findUnique({ where: { email }, select: { id: true } })
         const userId =
           existente?.id ??
-          (await tx.user.create({ data: { name: pessoa.nome, searchName: searchKey(pessoa.nome), email, passwordHash: hashesEquipe[n] ?? null }, select: { id: true } })).id
+          (await tx.user.create({ data: { name: pessoa.nome, searchName: searchKey(pessoa.nome), email, passwordHash: hashesEquipe[n] ?? null, ...(hashesEquipe[n] ? { emailVerifiedAt: new Date() } : {}) }, select: { id: true } })).id
         await tx.membership.create({ data: { businessId: conta.id, userId, role: pessoa.papel } })
       }
       await tx.auditLog.create({

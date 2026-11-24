@@ -417,7 +417,7 @@ export async function seed(
       return existente.id
     }
     const criado = await prisma.user.create({
-      data: { name, searchName: searchKey(name), email: normalizado, passwordHash: await hashPassword(env.SEED_USER_PASSWORD) },
+      data: { name, searchName: searchKey(name), email: normalizado, passwordHash: await hashPassword(env.SEED_USER_PASSWORD), emailVerifiedAt: new Date() },
     })
     return criado.id
   }

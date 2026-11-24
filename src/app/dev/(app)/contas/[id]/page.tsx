@@ -51,6 +51,7 @@ export default async function ContaPage({ params, searchParams }: { params: Prom
               <StatNumber label="Próximos 7 dias" value={metricas.appointments.next7d} />
               <StatNumber label="Agendamentos no mês" value={metricas.appointments.month.current} />
               <StatNumber label="Clientes" value={metricas.customers.total} />
+              <StatNumber label="Clientes com conta" value={metricas.customersWithAccount} />
               <StatNumber label="Clientes novos no mês" value={metricas.customers.newMonth} />
               <StatNumber label="Receita do mês" value={metricas.revenueCents.month.current} format="brl" />
               {metricas.store ? <StatNumber label="Pedidos pagos da loja no mês" value={metricas.store.paidOrders.current} /> : null}

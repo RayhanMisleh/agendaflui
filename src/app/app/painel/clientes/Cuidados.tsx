@@ -30,7 +30,7 @@ export function Cuidados({
           <span className="af-careful__help">
             {archived
               ? 'O cadastro está fora da lista e não faz novos agendamentos. Restaure para voltar a usá-lo.'
-              : `Tira ${name} da lista e encerra o acesso ao app. O histórico fica guardado. Antes, cancele os agendamentos futuros.`}
+              : `Tira ${name} da lista e impede novos agendamentos. O histórico fica guardado. Antes, cancele os agendamentos futuros.`}
           </span>
         </div>
         {archived ? (
@@ -48,7 +48,7 @@ export function Cuidados({
         <div className="af-careful__text">
           <span className="af-careful__title">Apagar dados pessoais</span>
           <span className="af-careful__help">
-            Apaga nome, telefone, e-mail, foto, observações e acesso ao app. Cancela os agendamentos futuros. Os atendimentos passados continuam, sem identificar a pessoa. Não tem volta.
+            Apaga nome, telefone, e-mail, foto e observações deste cadastro. Cancela os agendamentos futuros. Os atendimentos passados continuam, sem identificar a pessoa. Não tem volta.
           </span>
         </div>
         <Button variant="danger" icon={<ShieldX size={16} />} onClick={() => setDialogo('anonimizar')}>

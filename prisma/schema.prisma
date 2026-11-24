@@ -185,11 +185,11 @@ enum CustomerOrigin {
   @@map("customer_origin")
 }
 
-enum VerificationPurpose {
-  REGISTER
-  PASSWORD_RESET
+enum EmailCodePurpose {
+  SIGNUP
+  EMAIL_CHANGE
 
-  @@map("verification_purpose")
+  @@map("email_code_purpose")
 }
 
 model PlatformAdmin {
@@ -289,7 +289,8 @@ model Business {
   settings    BusinessSettings?
   integrations BusinessIntegration?
   memberships Membership[]
-  sessions    Session[]
+  sessions    Session[] @relation("SessionActiveBusiness")
+  customerSessions Session[] @relation("SessionCustomerBusiness")
   uploads     Upload[]
   auditLogs   AuditLog[]
 
@@ -315,7 +316,6 @@ model Business {
   payments             Payment[]
   orderItems           OrderItem[]
   notifications        Notification[]
-  verificationCodes    VerificationCode[]
   supportHandoffs      SupportHandoff[]
 
   @@map("businesses")
@@ -408,6 +408,13 @@ model User {
   name           String
   email          String    @unique
   passwordHash   String?   @map("password_hash")
+  phone          String?
+  /// Quando o e-mail foi provado (convite, código, link de senha ou Google). Toda conta ativa tem.
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
+  /// Identidade fixa da conta Google (`sub`); único. Os três campos do Google vêm juntos (CHECK `users_google_together`, só no SQL).
+  googleSub      String?   @unique @map("google_sub")
+  googleEmail    String?   @map("google_email")
+  googleLinkedAt DateTime? @map("google_linked_at") @db.Timestamptz(3)
   /// Nome sem acentos e em minúsculas, para a busca de donos na lista de contas.
   searchName     String    @default("") @map("search_name")
   avatarUploadId String?   @map("avatar_upload_id") @db.Uuid
@@ -415,10 +422,12 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  // CHECK `users_active_verified` (senha ou Google exige e-mail verificado): só no SQL.
   avatar      Upload?      @relation("UserAvatar", fields: [avatarUploadId], references: [id], onDelete: SetNull)
   memberships Membership[]
   sessions    Session[]
   tokens      UserToken[]
+  customers   Customer[]
 
   @@map("users")
 }
@@ -454,6 +463,8 @@ model Session {
   userId              String?   @map("user_id") @db.Uuid
   impersonatorAdminId String?   @map("impersonator_admin_id") @db.Uuid
   activeBusinessId    String?   @map("active_business_id") @db.Uuid
+  /// Última loja usada pelo cliente (só orienta o destino; nada confia nela sozinha).
+  customerBusinessId  String?   @map("customer_business_id") @db.Uuid
   tokenHash           String    @unique @map("token_hash")
   expiresAt           DateTime  @map("expires_at") @db.Timestamptz(3)
   revokedAt           DateTime? @map("revoked_at") @db.Timestamptz(3)
@@ -464,8 +475,10 @@ model Session {
 
   user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   impersonator   PlatformAdmin? @relation(fields: [impersonatorAdminId], references: [id], onDelete: Cascade)
-  activeBusiness Business?      @relation(fields: [activeBusinessId], references: [id], onDelete: SetNull)
+  activeBusiness Business?      @relation("SessionActiveBusiness", fields: [activeBusinessId], references: [id], onDelete: SetNull)
+  customerBusiness Business?    @relation("SessionCustomerBusiness", fields: [customerBusinessId], references: [id], onDelete: SetNull)
 
+  @@index([customerBusinessId])
   @@index([userId])
   @@index([impersonatorAdminId])
   @@index([activeBusinessId])
@@ -547,8 +560,10 @@ model Customer {
   searchName              String         @default("") @map("search_name")
   email                   String?
   phone                   String?
-  passwordHash            String?        @map("password_hash")
-  emailVerifiedAt         DateTime?      @map("email_verified_at") @db.Timestamptz(3)
+  /// A pessoa dona da conta do cliente; nulo = cliente de balcão. O e-mail da cópia segue o da pessoa (CHECKs `customers_account_has_email` e `customers_linked_together`: só no SQL).
+  userId                  String?        @map("user_id") @db.Uuid
+  /// Quando a pessoa foi ligada a este cliente (criação ou adoção).
+  linkedAt                DateTime?      @map("linked_at") @db.Timestamptz(3)
   avatarUploadId          String?        @map("avatar_upload_id") @db.Uuid
   birthDate               DateTime?      @map("birth_date") @db.Date
   notes                   String?
@@ -563,6 +578,7 @@ model Customer {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   avatar   Upload?  @relation("CustomerAvatar", fields: [avatarUploadId], references: [id], onDelete: SetNull)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   appointments  Appointment[]
   notifications Notification[]
@@ -573,6 +589,8 @@ model Customer {
   orders              Order[]
 
   @@unique([businessId, id])
+  @@unique([businessId, userId])
+  @@index([userId])
   @@index([businessId, phone])
   @@index([businessId, name])
   @@index([businessId, searchName])
@@ -814,24 +832,24 @@ model Notification {
   @@map("notifications")
 }
 
-model VerificationCode {
-  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String              @map("business_id") @db.Uuid
-  purpose    VerificationPurpose
+/// Código de 6 dígitos enviado por e-mail (plataforma): SIGNUP (subject = id da loja) e EMAIL_CHANGE (subject = id da pessoa).
+/// Índice parcial `email_codes_live_key` (um código vivo por propósito, assunto e e-mail) e CHECKs: só no SQL.
+model EmailCode {
+  id         String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose    EmailCodePurpose
+  subject    String
   email      String
-  codeHash   String              @map("code_hash")
-  payload    Json                @default("{}")
-  expiresAt  DateTime            @map("expires_at") @db.Timestamptz(3)
-  attempts   Int                 @default(0)
-  consumedAt DateTime?           @map("consumed_at") @db.Timestamptz(3)
-  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt  DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
+  codeHash   String           @map("code_hash")
+  payload    Json             @default("{}")
+  expiresAt  DateTime         @map("expires_at") @db.Timestamptz(3)
+  attempts   Int              @default(0)
+  consumedAt DateTime?        @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([businessId, id])
-  @@index([businessId, purpose, email])
-  @@map("verification_codes")
+  @@index([purpose, subject, email])
+  @@index([expiresAt])
+  @@map("email_codes")
 }
 
 /// Contador de janela fixa; não é registro de negócio, por isso não tem id nem updated_at.

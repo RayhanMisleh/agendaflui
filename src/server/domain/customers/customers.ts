@@ -25,7 +25,8 @@ export type CustomerView = {
   notes?: string | null
   isClubMember: boolean
   origin: 'APP' | 'PANEL'
-  hasAppAccess: boolean
+  /** Cliente com conta (ligado a uma pessoa); cliente de balcão não tem. */
+  hasAccount: boolean
   archived: boolean
   createdAt: Date
 }
@@ -139,7 +140,7 @@ function toView(ctx: TenantContext, row: CustomerRow): CustomerView {
     birthDate: row.birthDate === null ? null : dbDateToLocal(row.birthDate),
     isClubMember: row.isClubMember,
     origin: row.origin,
-    hasAppAccess: row.passwordHash !== null,
+    hasAccount: row.userId !== null,
     archived: row.archivedAt !== null,
     createdAt: row.createdAt,
   }
@@ -327,6 +328,15 @@ export async function updateCustomer(
   if (current.archivedAt !== null) {
     throw new DomainError('conflict', 'Este cliente está arquivado. Restaure o cadastro antes de alterá-lo.')
   }
+  // O e-mail de quem tem conta é o da pessoa: a equipe não o troca (repetir o mesmo valor não conta como troca).
+  if (rest.email !== undefined && current.userId !== null) {
+    if (rest.email !== current.email) {
+      throw new DomainError('validation', 'O e-mail é da conta do cliente. Só ele pode trocá-lo, em Minha conta.', {
+        fields: { email: 'O e-mail é da conta do cliente.' },
+      })
+    }
+    delete rest.email
+  }
   const changes = {
     ...rest,
     ...(birthDate !== undefined ? { birthDate: birthDate === null ? null : localToDbDate(birthDate) } : {}),
@@ -336,8 +346,6 @@ export async function updateCustomer(
   const data: Prisma.CustomerUncheckedUpdateInput = {
     ...changes,
     ...(changes.name !== undefined ? { searchName: searchKey(changes.name) } : {}),
-    // E-mail novo (ou removido) deixa de estar verificado.
-    ...(changes.email !== undefined && changes.email !== current.email ? { emailVerifiedAt: null } : {}),
   }
   if (changes.email) await assertEmailFree(ctx, changes.email, id)
   try {
@@ -437,8 +445,9 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
           searchName: searchKey(ANONYMIZED_NAME),
           email: null,
           phone: null,
-          passwordHash: null,
-          emailVerifiedAt: null,
+          // A pessoa continua existindo; só deixa de estar ligada a este cadastro.
+          userId: null,
+          linkedAt: null,
           avatarUploadId: null,
           birthDate: null,
           notes: null,
@@ -458,8 +467,6 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
       // Cancela depois de anonimizar: o cliente já não recebe aviso nenhum.
       const canceled = await cancelOpenAppointmentsOfCustomer(tx, ctx, open, CANCEL_REASON)
       await cancelPendingForCustomer(tx, id)
-      // Códigos de verificação (guardados pelo e-mail) do cliente saem junto.
-      if (current.email !== null) await tx.verificationCode.deleteMany({ where: { email: current.email } })
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
       await audit(
         ctx,

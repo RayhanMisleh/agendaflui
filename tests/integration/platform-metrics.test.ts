@@ -147,6 +147,17 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
     expect(customers.newMonth).toEqual({ current: 2, previous: 2, previousSamePeriod: 1 })
   })
 
+  test('clientes com conta: só os ligados a uma pessoa e não removidos', async () => {
+    const c = await conta({ createdAt: at('2026-06-01T12:00:00.000Z') })
+    const pessoa = await makeUser()
+    const outra = await makeUser()
+    await makeCustomer(c.business.id, { userId: pessoa.id })
+    await makeCustomer(c.business.id, { userId: outra.id, archivedAt: at('2026-11-07T12:00:00.000Z') })
+    await makeCustomer(c.business.id)
+    expect((await getOverview(actor, NOW)).customersWithAccount).toBe(1)
+    expect((await getAccountMetrics(actor, c.business.id, NOW)).customersWithAccount).toBe(1)
+  })
+
   test('contas por situação e novas nos últimos 30 dias', async () => {
     await conta({ createdAt: at('2026-11-10T12:00:00.000Z') })
     await conta({ createdAt: at('2026-10-01T12:00:00.000Z') })
@@ -237,6 +248,7 @@ describe('getOverview: dia e mês no fuso de cada conta', () => {
       skippedAccounts: 0,
       appointments: { today: 0, month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       customers: { total: 0, newMonth: { current: 0, previous: 0, previousSamePeriod: 0 } },
+      customersWithAccount: 0,
       revenueCents: { month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       store: { accounts: 0, paidOrders: { current: 0, previous: 0, previousSamePeriod: 0 }, revenueCents: { current: 0, previous: 0, previousSamePeriod: 0 } },
       notifications: { pending: 0, failed24h: 0 },
@@ -358,6 +370,7 @@ describe('getAccountMetrics', () => {
     expect(m).toEqual({
       appointments: { today: 0, next7d: 0, month: { current: 0, previous: 0, previousSamePeriod: 0 }, byStatusMonth: { PENDING: 0, CONFIRMED: 0, COMPLETED: 0, CANCELED: 0, NO_SHOW: 0 } },
       customers: { total: 0, newMonth: 0 },
+      customersWithAccount: 0,
       revenueCents: { month: { current: 0, previous: 0, previousSamePeriod: 0 } },
       store: null,
       team: { active: 0, professionals: 0 },

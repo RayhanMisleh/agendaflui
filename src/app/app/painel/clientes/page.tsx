@@ -63,7 +63,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
     phoneLabel: c.phoneLabel,
     email: c.email,
     archived: c.archived,
-    hasAppAccess: c.hasAppAccess,
+    hasAccount: c.hasAccount,
     isClubMember: c.isClubMember,
   }))
 

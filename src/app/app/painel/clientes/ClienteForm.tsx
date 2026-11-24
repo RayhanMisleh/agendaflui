@@ -4,7 +4,7 @@ import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import { criarCliente, editarCliente } from './actions'
 
-export type ClienteDados = { id: string; name: string; phoneLabel: string | null; email: string | null; birthDate: string | null; notes: string | null; isClubMember: boolean }
+export type ClienteDados = { id: string; name: string; phoneLabel: string | null; email: string | null; birthDate: string | null; notes: string | null; isClubMember: boolean; hasAccount?: boolean }
 
 const ROTULOS = { name: 'Nome', phone: 'Telefone', email: 'E-mail', birthDate: 'Nascimento', notes: 'Observações', isClubMember: 'Clube' }
 const ANCORAS = { name: 'cliente-nome', phone: 'cliente-telefone', email: 'cliente-email', birthDate: 'cliente-nascimento', notes: 'cliente-observacoes' }
@@ -42,8 +42,8 @@ export function ClienteForm({ cliente, clube, singular }: { cliente: ClienteDado
               <Field label="Telefone" hint="Com DDD. Para número de outro país, comece com + e o código do país, por exemplo +49 151 1234 5678." error={state.fields.phone}>
                 <Input id="cliente-telefone" name="phone" type="tel" inputMode="tel" defaultValue={v.phone ?? ''} autoComplete="off" />
               </Field>
-              <Field label="E-mail" error={state.fields.email}>
-                <Input id="cliente-email" name="email" type="email" defaultValue={v.email ?? ''} autoComplete="off" />
+              <Field label="E-mail" hint={cliente?.hasAccount ? 'O e-mail é da conta do cliente.' : undefined} error={state.fields.email}>
+                <Input id="cliente-email" name="email" type="email" defaultValue={v.email ?? ''} autoComplete="off" readOnly={cliente?.hasAccount === true} />
               </Field>
             </div>
             <Field label="Nascimento" hint="Opcional." error={state.fields.birthDate}>
