@@ -30,6 +30,8 @@ export const LIMITS = {
   shippingQuote: { limit: 20, windowSec: 60 },
   /** Pedidos da loja por pessoa. */
   order: { limit: 10, windowSec: 60 },
+  /** Conferência do pagamento na volta do Mercado Pago: uma por pedido a cada 30 s (cada uma chama a API do Mercado Pago). */
+  orderReturn: { limit: 1, windowSec: 30 },
   /** Webhook do Mercado Pago, por IP (a rota é pública). */
   /** Por IP e chave de webhook (cada conta tem a sua): o balde de uma loja não segura as outras. */
   webhookIp: { limit: 120, windowSec: 60 },

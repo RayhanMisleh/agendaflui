@@ -1,8 +1,12 @@
 import type { TenantContext } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
+import { createSystemContext } from '@/server/auth/context'
+import { hitRateLimit, LIMITS, limitKey } from '@/server/auth/rate-limit-db'
 import { DomainError, orNotFound, parse, z } from '@/server/domain/errors'
 import { readMercadoPagoSecrets, readMercadoPagoWebhookKey } from '@/server/domain/platform/integration-secrets'
 import { ownCustomerId } from '@/server/domain/store/addresses'
+import { getOrder, type OrderView } from '@/server/domain/store/orders'
+import { syncOrderPayments } from '@/server/domain/store/payments'
 import { TX_OPTIONS } from '@/server/domain/scheduling/placement'
 import { MIN_PAYMENT_WINDOW_MIN } from '@/server/domain/store/settings'
 import { integrations, IntegrationError } from '@/server/integrations'
@@ -85,4 +89,21 @@ export async function startCheckout(
     return created.checkoutUrl
   }, TX_OPTIONS)
   return done(kept)
+}
+
+/**
+ * Volta do Mercado Pago: confere o pagamento do pedido do próprio cliente e devolve o pedido já atualizado, para a tela não
+ * mostrar "aguardando" a quem acabou de pagar enquanto o aviso não chega. Só consulta o Mercado Pago com o pedido aguardando
+ * pagamento e, no máximo, uma vez a cada 30 s por pedido (a tela abre de novo a cada recarga). Quem aplica o pagamento é o
+ * sistema, como no aviso do Mercado Pago.
+ */
+export async function refreshMyOrderPayment(ctx: TenantContext, orderId: string): Promise<OrderView> {
+  const customerId = await ownCustomerId(ctx)
+  if (!idSchema.safeParse(orderId).success) throw new DomainError('not_found', 'Pedido não encontrado.')
+  const order = orNotFound(await ctx.db.order.findFirst({ where: { id: orderId, customerId }, select: { status: true } }), 'Pedido')
+  if (order.status === 'AWAITING_PAYMENT') {
+    const vez = await hitRateLimit(limitKey('mp-retorno', orderId), LIMITS.orderReturn, ctx.clock())
+    if (vez.allowed) await syncOrderPayments(await createSystemContext(ctx.businessId, ctx.clock), orderId)
+  }
+  return getOrder(ctx, orderId)
 }
