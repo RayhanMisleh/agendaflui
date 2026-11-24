@@ -262,7 +262,11 @@ async function reload(tx: TenantTx, id: string): Promise<ServiceView> {
   return toServiceView(row, row.prices)
 }
 
-export async function createService(ctx: TenantContext, input: ServiceInput, opts: ServiceWriteOptions = {}): Promise<ServiceView> {
+/**
+ * O corpo de `createService`, para quem já está numa transação com a trava `catalog` (o começo do dono cria vários serviços
+ * de uma vez). Confere a permissão e valida a entrada; quem chama é dono da transação e da trava.
+ */
+export async function createServiceIn(tx: TenantTx, ctx: TenantContext, input: ServiceInput, opts: ServiceWriteOptions = {}): Promise<ServiceView> {
   authorize(ctx, 'manage_catalog')
   const { variantPrices, pricingMode = 'SINGLE', ...data } = parse(createSchema, input)
   const byVariant = pricingMode === 'BY_VARIANT'
@@ -271,24 +275,29 @@ export async function createService(ctx: TenantContext, input: ServiceInput, opt
     if (data.durationMin === undefined) throw validation({ durationMin: 'Informe a duração.' })
     if (opts.onGrid) await assertOnGrid(ctx, data.durationMin)
   }
+  let rows: VariantPriceRow[] = []
+  let options: PetOptions = { servesCats: false }
+  if (byVariant) {
+    options = await assertPriceByVariantAllowed(ctx, tx)
+    rows = await checkVariantRows(ctx, variantPrices ?? [], options, opts.onGrid)
+  }
+  const last = await tx.service.aggregate({ where: { archivedAt: null }, _max: { displayOrder: true } })
+  const resumo = byVariant
+    ? { priceCents: Math.min(...rows.map((r) => r.priceCents)), durationMin: Math.min(...rows.map((r) => r.durationMin)) }
+    : { priceCents: data.priceCents ?? 0, durationMin: data.durationMin ?? 5 }
+  const service = await tx.service.create({
+    data: { ...data, ...resumo, pricingMode, businessId: ctx.businessId, displayOrder: (last._max.displayOrder ?? 0) + 1 },
+  })
+  if (byVariant) await writeVariantRows(ctx, tx, service.id, rows, options)
+  await audit(ctx, { action: 'service.created', targetType: 'Service', targetId: service.id }, tx)
+  return reload(tx, service.id)
+}
+
+export async function createService(ctx: TenantContext, input: ServiceInput, opts: ServiceWriteOptions = {}): Promise<ServiceView> {
+  authorize(ctx, 'manage_catalog')
   return ctx.db.$transaction(async (tx) => {
     await tx.$lockKey('catalog', ctx.businessId)
-    let rows: VariantPriceRow[] = []
-    let options: PetOptions = { servesCats: false }
-    if (byVariant) {
-      options = await assertPriceByVariantAllowed(ctx, tx)
-      rows = await checkVariantRows(ctx, variantPrices ?? [], options, opts.onGrid)
-    }
-    const last = await tx.service.aggregate({ where: { archivedAt: null }, _max: { displayOrder: true } })
-    const resumo = byVariant
-      ? { priceCents: Math.min(...rows.map((r) => r.priceCents)), durationMin: Math.min(...rows.map((r) => r.durationMin)) }
-      : { priceCents: data.priceCents ?? 0, durationMin: data.durationMin ?? 5 }
-    const service = await tx.service.create({
-      data: { ...data, ...resumo, pricingMode, businessId: ctx.businessId, displayOrder: (last._max.displayOrder ?? 0) + 1 },
-    })
-    if (byVariant) await writeVariantRows(ctx, tx, service.id, rows, options)
-    await audit(ctx, { action: 'service.created', targetType: 'Service', targetId: service.id }, tx)
-    return reload(tx, service.id)
+    return createServiceIn(tx, ctx, input, opts)
   })
 }
 
