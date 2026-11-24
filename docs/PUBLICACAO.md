@@ -104,10 +104,11 @@ uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante 
 1. No Google Cloud Console, crie um cliente OAuth do tipo "Aplicativo da Web".
 2. Em URIs de redirecionamento autorizados, ponha `https://<APP_HOST>/google/retorno`.
 3. Em APIs e serviços, ative a **Google Calendar API** no mesmo projeto. Sem isso, toda gravação na agenda do dono volta 403 (`accessNotConfigured`) e os agendamentos não chegam ao Google Agenda.
-4. Na tela de consentimento, peça os escopos `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (a agenda só recebe eventos; nunca é lida).
-5. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
+4. Na tela de consentimento, escolha o tipo de usuário "Externo", peça os escopos `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (a agenda só recebe eventos; nunca é lida) e preencha os links de política de privacidade e termos de uso com páginas publicadas por vocês (o app ainda não tem `/privacidade` nem `/termos`; use endereços externos, por exemplo os do site).
+5. Ainda na tela de consentimento, mude o status de publicação para **Em produção**. Em "Testando", o Google expira o token de renovação em 7 dias e as conexões viram "Desligada — ligue de novo".
+6. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
 
-Enquanto o Google não verificar o app, o escopo da agenda é sensível: quem ligar o Google Agenda vê o aviso "app não verificado" (precisa clicar em Avançado → continuar) e o app fica limitado a 100 usuários de teste, que devem ser cadastrados como usuários de teste na tela de consentimento. Para abrir ao público, peça a verificação do app ao Google (política de privacidade publicada e justificativa do escopo `calendar.events`); o processo leva dias ou semanas, então comece antes do lançamento.
+Enquanto o Google não verificar o app (mesmo em produção), o escopo da agenda é sensível: quem ligar o Google Agenda vê o aviso "app não verificado" (precisa clicar em Avançado → continuar) e o app fica limitado a 100 usuários. Para abrir ao público, peça a verificação do app ao Google (política de privacidade publicada e justificativa do escopo `calendar.events`); o processo leva dias ou semanas, então comece antes do lançamento.
 
 ## Integrações (Mercado Pago)
 
