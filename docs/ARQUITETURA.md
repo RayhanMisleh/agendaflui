@@ -21,7 +21,7 @@ Rotas do `APP_HOST`:
 | `/` | decide o destino da pessoa (`auth/destination.ts`) |
 | `/entrar`, `/esqueci-a-senha`, `/redefinir-senha/<token>`, `/convite/<token>` | entrada da pessoa, convite e senha por link |
 | `/painel/**` | painel da loja (equipe) |
-| `/<slug>`, `/<slug>/entrar`, `/<slug>/cadastro` | área do cliente da loja |
+| `/<slug>/**` (`entrar`, `cadastro`, `boas-vindas`, `agendar`, `horarios`, `pets`, `premios`, `loja`, `mais`) | área do cliente da loja: página pública, quiz do pet, Início, agendar, Prêmios, Loja e a conta na loja |
 | `/conta` | Minha conta (senha, Google, e-mail) |
 | `/google/entrar`, `/google/retorno` | Entrar com Google (`/google/falso` só com `INTEGRATIONS_MODE=fake`) |
 | `/suporte/<token>` | passagem do "entrar como" do admin |
@@ -87,7 +87,9 @@ de conta opcional, de plataforma ou o próprio registro da conta).
   ela é cliente (`customers.user_id`). Depois de toda entrada, `auth/destination.ts` decide para onde ela vai: equipe ativa vai ao
   painel; senão, a loja em que é cliente (a última usada na sessão ou a ligação mais recente); sem nenhuma, a tela "sem loja". O
   banco recusa um segundo vínculo ativo de equipe do mesmo usuário, e o contexto da loja da equipe vem desse único vínculo, relido a
-  cada chamada. Painel e área do cliente sempre reconferem o vínculo (nada confia na URL sozinha).
+  cada chamada. Painel e área do cliente sempre reconferem o vínculo (nada confia na URL sozinha): toda página, ação e consulta de
+  `/<slug>/**` resolve a visita (`resolveStoreVisit`, via `requireCustomer`/`clienteAction`) e usa um contexto de ator `customer`; o
+  carrinho da Loja fica num cookie `httpOnly` por loja (`af_carrinho`) e a área do cliente não cria nenhuma trava nova.
 - **Papéis da equipe**: `OWNER`, `MANAGER` e `PROFESSIONAL` mapeiam para capacidades (`can()` em `capabilities.ts`); o domínio chama
   `authorize`. A conta sempre mantém ao menos um dono ativo. Convite e redefinição de senha são por link, para todos.
 - **Código de e-mail** (`email_codes`, `auth/email-code.ts`): 6 dígitos, para o cadastro pela loja (`SIGNUP`) e a troca de e-mail

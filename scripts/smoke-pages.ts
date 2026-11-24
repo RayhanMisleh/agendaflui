@@ -108,6 +108,31 @@ const PAGINAS_APP = [
   '/conta',
 ]
 
+/** Páginas da loja SEM sessão, no host do app: a vitrine e a entrada abrem; a área do cliente leva à entrada (307). Um número antes do caminho é o status esperado. */
+const PAGINAS_ANONIMO = ['/{slug}', '/{slug}/entrar', '/{slug}/cadastro', '307 /{slug}/agendar', '307 /{slug}/horarios', '307 /{slug}/pets', '307 /{slug}/boas-vindas', '/nao-existe']
+
+/** Páginas da área do cliente, pedidas como um cliente temporário da conta de demonstração (com um pet, se a conta é de pet shop). */
+const PAGINAS_CLIENTE = [
+  '/{slug}',
+  '/{slug}/agendar',
+  '/{slug}/agendar?servicos=lixo&pet=lixo&profissional=lixo',
+  '/{slug}/horarios',
+  '/{slug}/horarios?ver=anteriores',
+  '/{slug}/horarios?ver=anteriores&depois=lixo',
+  '/{slug}/pets',
+  '/{slug}/pets?arquivados=1',
+  '/{slug}/pets/{pet}',
+  '/{slug}/boas-vindas?novo=1',
+  '/{slug}/premios',
+  '/{slug}/premios/extrato',
+  '/{slug}/loja',
+  '/{slug}/loja/carrinho',
+  '/{slug}/loja/enderecos',
+  '/{slug}/loja/pedidos',
+  '/{slug}/mais',
+  '/{slug}/mais/excluir',
+]
+
 /** Páginas dos módulos, pedidas como o dono da conta com TODOS os módulos ligados. Cada tarefa de módulo acrescenta as suas. */
 const PAGINAS_MODULOS: string[] = [
   '/painel/banners',
@@ -232,7 +257,7 @@ async function main(): Promise<number> {
       if ((await prisma.business.count()) === 0) await seed(prisma, process.env)
     }
     const admin = await prisma.platformAdmin.findFirst({ where: { active: true }, select: { id: true } })
-    const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true, slug: true } })
+    const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true, slug: true, niche: true } })
     if (!admin || !conta) throw new Error('O banco não tem admin nem conta de demonstração. Rode `npm run dev` uma vez para criar o seed.')
 
     const dono = await prisma.membership.findFirst({
@@ -327,6 +352,37 @@ async function main(): Promise<number> {
           return criado
         })()
       : null
+    // Um cliente temporário (pessoa, cadastro, pet e sessão) para pedir a área do cliente; tudo sai ao fim.
+    const sufixo = Date.now().toString(36)
+    const pessoa = await prisma.user.create({
+      data: { name: 'Cliente da fumaça', searchName: 'cliente da fumaca', email: `fumaca-${sufixo}@exemplo.test`, emailVerifiedAt: new Date() },
+      select: { id: true, email: true },
+    })
+    limpezas.push(async () => {
+      await prisma.user.deleteMany({ where: { id: pessoa.id } })
+    })
+    const clienteTemp = await prisma.customer.create({
+      data: { businessId: conta.id, name: 'Cliente da fumaça', searchName: 'cliente da fumaca', email: pessoa.email, userId: pessoa.id, linkedAt: new Date(), origin: 'APP' },
+      select: { id: true },
+    })
+    limpezas.push(async () => {
+      await prisma.pet.deleteMany({ where: { customerId: clienteTemp.id } })
+      await prisma.customer.deleteMany({ where: { id: clienteTemp.id } })
+    })
+    const petTemp =
+      conta.niche === null
+        ? null
+        : await prisma.pet.create({
+            data: { businessId: conta.id, customerId: clienteTemp.id, name: 'Thor da fumaça', searchName: 'thor da fumaca', species: 'DOG', size: 'MEDIUM' },
+            select: { id: true },
+          })
+    const sessaoCliente = generateToken()
+    const registroCliente = await prisma.session.create({
+      data: { userId: pessoa.id, customerBusinessId: conta.id, tokenHash: sessaoCliente.hash, expiresAt: addMinutes(new Date(), 30) },
+    })
+    limpezas.push(async () => {
+      await prisma.session.deleteMany({ where: { id: registroCliente.id, tokenHash: hashToken(sessaoCliente.token) } })
+    })
     let falhas = 0
     let pulados = 0
     const hostPainel = `app.localhost:${porta}`
@@ -335,12 +391,17 @@ async function main(): Promise<number> {
       { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_APP, rotulo: 'app' },
       { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
       { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
+      { host: hostPainel, cookie: '', paginas: PAGINAS_ANONIMO, rotulo: 'loja' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${sessaoCliente.token}`, paginas: PAGINAS_CLIENTE, rotulo: 'cliente' },
     ]
     for (const lote of lotes) {
-      for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id).replace('{slug}', conta.slug)
+      for (const item of lote.paginas) {
+        const partes = /^(\d{3}) (.+)$/.exec(item)
+        const esperado = partes ? Number(partes[1]) : 200
+        const modelo = partes ? (partes[2] ?? item) : item
+        const caminho = modelo.replace('{pet}', petTemp?.id ?? '').replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id).replace('{slug}', conta.slug)
         const faltaRegistro =
-          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
+          (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || (modelo.includes('{pet}') && !petTemp) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
           pulados++
           console.log(`PULOU      ${lote.rotulo} ${modelo}  (o seed não tem esse registro)`)
@@ -350,7 +411,7 @@ async function main(): Promise<number> {
         try {
           const r = await pedir(porta, lote.host, caminho, lote.cookie)
           const marca = MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
-          const bom = r.status === 200 && marca === undefined
+          const bom = r.status === esperado && marca === undefined
           if (!bom) falhas++
           linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} ${lote.rotulo} ${modelo}${marca ? `  (marca de erro: ${String(marca)})` : ''}`
         } catch (err) {
@@ -377,9 +438,9 @@ async function main(): Promise<number> {
       }
       console.log(linha)
     }
-    const total = PAGINAS.length + PAGINAS_APP.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_LOJA_DESLIGADA.length - pulados
+    const total = PAGINAS.length + PAGINAS_APP.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_ANONIMO.length + PAGINAS_CLIENTE.length + PAGINAS_LOJA_DESLIGADA.length - pulados
     const aviso = pulados > 0 ? ` (${pulados} puladas por falta de registro no seed)` : ''
-    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
+    console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam o esperado sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
     return falhas === 0 ? 0 : 1
   } finally {
     await encerrar()
