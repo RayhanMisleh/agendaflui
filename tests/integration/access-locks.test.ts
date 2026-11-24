@@ -2,15 +2,15 @@ import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { AuthError } from '@/server/auth/actor'
 import { verifyPassword } from '@/server/auth/password'
+import { setPersonPassword } from '@/server/auth/person-account'
 import { requestPasswordReset, resetPassword } from '@/server/auth/password-reset'
 import { hashToken } from '@/server/auth/tokens'
 import { prisma } from '@/server/db/client'
-import { changeOwnAccountPassword } from '@/server/domain/account/profile'
 import { DomainError } from '@/server/domain/errors'
 import { sendAccessPasswordReset, setAccessActive } from '@/server/domain/team/access'
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makeUser, memberOf } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeMembership, makeUser, memberOf } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 import type { TenantContext } from '@/server/auth/actor'
 
@@ -63,14 +63,10 @@ describe('pares que travavam em ordem oposta', { timeout: 120_000 }, () => {
   test('(a) dono envia a redefinição enquanto a pessoa redefine ou troca a senha', async () => {
     for (let i = 0; i < RODADAS; i++) {
       const { user, membership, token } = await membroComToken()
-      const euCtx = await makeCtx(
-        { id: businessId },
-        { now: AGORA, actor: { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role: 'PROFESSIONAL' } },
-      )
       const r = await Promise.allSettled([
         ...escalonar(10, 8, () => sendAccessPasswordReset(dono, membership.id)),
         ...Array.from({ length: 4 }, () => resetPassword({ token, password: 'senha-nova-bem-longa' }, META, AGORA)),
-        changeOwnAccountPassword(euCtx, { current: 'senha-antiga-1', next: 'outra-nova-senha-1' }, 'x'),
+        setPersonPassword(user.id, { current: 'senha-antiga-1', next: 'outra-nova-senha-1' }, 'x', AGORA),
       ])
       expect(inesperados(r)).toEqual([])
       const hash = (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash
@@ -82,16 +78,12 @@ describe('pares que travavam em ordem oposta', { timeout: 120_000 }, () => {
 
   test('(b) redefinir com o token enquanto pede nova redefinição ou troca a senha', async () => {
     for (let i = 0; i < RODADAS; i++) {
-      const { user, membership, token } = await membroComToken()
-      const euCtx = await makeCtx(
-        { id: businessId },
-        { now: AGORA, actor: { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role: 'PROFESSIONAL' } },
-      )
+      const { user, token } = await membroComToken()
       const continuacao = await requestPasswordReset(user.email, { ip: `198.51.100.${i + 1}` }, AGORA)
       const r = await Promise.allSettled([
         resetPassword({ token, password: 'senha-nova-bem-longa' }, META, AGORA),
         continuacao(),
-        changeOwnAccountPassword(euCtx, { current: 'senha-antiga-1', next: 'outra-nova-senha-1' }, 'x'),
+        setPersonPassword(user.id, { current: 'senha-antiga-1', next: 'outra-nova-senha-1' }, 'x', AGORA),
         resetPassword({ token, password: 'senha-nova-bem-longa' }, META, AGORA),
         ...escalonar(10, 8, async () => (await requestPasswordReset(user.email, { ip: `192.0.2.${i + 1}` }, AGORA))()),
       ])

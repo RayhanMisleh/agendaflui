@@ -1,14 +1,10 @@
 'use server'
-import { AuthError } from '@/server/auth/actor'
-import { APP_COOKIE, readCookie } from '@/server/auth/guards'
-import { DomainError } from '@/server/domain/errors'
-import { changeOwnAccountPassword, updateOwnAccountProfile } from '@/server/domain/account/profile'
 import { updateBusinessProfile } from '@/server/domain/settings/business-profile'
 import { createClosure, deleteClosure, previewClosure } from '@/server/domain/settings/closures'
 import { DEFAULT_NOTIFICATION_SETTINGS, updateNotificationSettings } from '@/server/domain/settings/notification-settings'
 import type { NotificationSettings } from '@/server/domain/settings/notification-settings'
 import { updateSchedulingRules } from '@/server/domain/settings/scheduling-rules'
-import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
+import { erroDeCampo, feito, ler } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
 import { tenantAction } from '../_lib/action'
 import { atualizarPainel } from '../_lib/revalidar'
@@ -138,39 +134,4 @@ export const removerFechamento = tenantAction(
     return 'Fechamento removido.'
   },
   (mensagem, v) => feito(mensagem, v),
-)
-
-// ---------------------------------------------------------------- meu perfil
-
-/** Todo membro da equipe muda o próprio nome; em modo suporte o domínio recusa (não há "eu"). */
-export const salvarPerfil = tenantAction(
-  null,
-  (fd) => ler(fd, ['name']),
-  async (ctx, v) => {
-    await updateOwnAccountProfile(ctx, { name: v.name ?? '' })
-    atualizarPainel()
-    return 'Perfil salvo.'
-  },
-  (mensagem, v) => feito(mensagem, v),
-)
-
-/**
- * Troca a própria senha. Os nomes dos campos têm "senha" de propósito: o estado do formulário nunca devolve esses valores
- * ao navegador. A sessão atual continua; as outras e os tokens do app caem.
- */
-export const trocarSenha = tenantAction(
-  null,
-  (fd) => ler(fd, ['senhaAtual', 'senhaNova', 'senhaConfirma']),
-  async (ctx, v) => {
-    if (v.senhaNova !== v.senhaConfirma) throw erroDeCampo('senhaConfirma', 'As duas senhas novas precisam ser iguais.')
-    const sessao = (await readCookie(APP_COOKIE)) ?? ''
-    try {
-      await changeOwnAccountPassword(ctx, { current: v.senhaAtual ?? '', next: v.senhaNova ?? '' }, sessao)
-    } catch (err) {
-      if (err instanceof AuthError) throw new DomainError('conflict', err.message)
-      throw renomear(err, { current: 'senhaAtual', next: 'senhaNova' })
-    }
-    return 'Senha trocada.'
-  },
-  (mensagem, v) => feito(mensagem, { ...v, senhaAtual: '', senhaNova: '', senhaConfirma: '' }),
 )

@@ -9,9 +9,7 @@ import {
   removerFechamento,
   salvarAvisos,
   salvarNegocio,
-  salvarPerfil,
   salvarRegras,
-  trocarSenha,
 } from './actions'
 
 const estado = (values: Record<string, string>): EstadoPainel => ({ ok: false, message: null, fields: {}, values })
@@ -189,52 +187,6 @@ export function FechamentoForm({ hoje }: { hoje: string }) {
           </>
         )
       }}
-    </PainelForm>
-  )
-}
-
-// ---------------------------------------------------------------- meu perfil
-
-export function PerfilForm({ name, email }: { name: string; email: string }) {
-  return (
-    <PainelForm action={salvarPerfil} initial={estado({ name })} submit="Salvar perfil" labels={{ name: 'Nome' }}>
-      {(state) => (
-        <>
-          <Field label="Nome" error={state.fields.name}>
-            <Input name="name" defaultValue={state.values.name ?? ''} maxLength={80} autoComplete="name" required />
-          </Field>
-          <Field label="E-mail" hint="É com ele que você entra. Para trocar, fale com o dono da conta.">
-            <Input value={email} readOnly />
-          </Field>
-        </>
-      )}
-    </PainelForm>
-  )
-}
-
-export function SenhaForm() {
-  return (
-    <PainelForm
-      action={trocarSenha}
-      submit="Trocar senha"
-      labels={{ senhaAtual: 'Senha atual', senhaNova: 'Senha nova', senhaConfirma: 'Repita a senha nova' }}
-    >
-      {(state) => (
-        <>
-          <Field label="Senha atual" error={state.fields.senhaAtual}>
-            <Input name="senhaAtual" type="password" autoComplete="current-password" required />
-          </Field>
-          <div className="af-formgrid">
-            <Field label="Senha nova" hint="Use pelo menos 10 caracteres." error={state.fields.senhaNova}>
-              <Input name="senhaNova" type="password" autoComplete="new-password" minLength={10} maxLength={200} required />
-            </Field>
-            <Field label="Repita a senha nova" error={state.fields.senhaConfirma}>
-              <Input name="senhaConfirma" type="password" autoComplete="new-password" minLength={10} maxLength={200} required />
-            </Field>
-          </div>
-          <p className="af-section__help">Ao trocar, você continua aqui e as outras sessões e o aplicativo pedem a senha de novo.</p>
-        </>
-      )}
     </PainelForm>
   )
 }

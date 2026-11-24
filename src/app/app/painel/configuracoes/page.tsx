@@ -1,19 +1,17 @@
 import type { Metadata } from 'next'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
-import { DomainError } from '@/server/domain/errors'
-import { getOwnAccountProfile } from '@/server/domain/account/profile'
 import { getBusinessAppearance, getBusinessProfile } from '@/server/domain/settings/business-profile'
 import { listClosuresFor } from '@/server/domain/settings/closures'
 import { getNotificationSettingsView } from '@/server/domain/settings/notification-settings'
 import { getSchedulingRules, RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
 import { addDays, todayIn } from '@/server/time'
-import { BrandPreview, Button, Card, EmptyHint, NavTabs } from '@/ui/components'
+import { BrandPreview, Button, Card, EmptyHint, LinkButton, NavTabs } from '@/ui/components'
 import { ACCENT_FIELD_LABEL, labelOf, PRIMARY_FIELD_LABEL, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/labels'
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
 import { PainelFrame } from '../PainelFrame'
-import { AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, PerfilForm, RegrasForm, SenhaForm } from './Formularios'
+import { AvisosForm, FechamentoForm, FechamentosLista, NegocioForm, RegrasForm } from './Formularios'
 
 export const metadata: Metadata = { title: 'Configurações | Agenda Flui' }
 
@@ -187,35 +185,27 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
       </Card>
     )
   } else {
-    let eu: Awaited<ReturnType<typeof getOwnAccountProfile>> | null = null
-    try {
-      eu = await getOwnAccountProfile(ctx)
-    } catch (err) {
-      if (!(err instanceof DomainError) || err.code !== 'forbidden') throw err
-    }
-    corpo = eu ? (
-      <>
+    corpo =
+      ctx.actor.kind === 'member' ? (
         <Card as="section" aria-labelledby="cfg-titulo" className="af-settings__section">
           <h2 id="cfg-titulo" className="af-section__title">
             Meu perfil
           </h2>
-          <PerfilForm name={eu.name} email={eu.email} />
+          <p className="af-section__help">Seu nome, telefone, e-mail, senha e o Google ficam em Minha conta.</p>
+          <div>
+            <LinkButton href="/conta" variant="secondary">
+              Abrir Minha conta
+            </LinkButton>
+          </div>
         </Card>
-        <Card as="section" aria-labelledby="cfg-senha" className="af-settings__section">
-          <h2 id="cfg-senha" className="af-section__title">
-            Senha
+      ) : (
+        <Card as="section" aria-labelledby="cfg-titulo" className="af-settings__section">
+          <h2 id="cfg-titulo" className="af-section__title">
+            Meu perfil
           </h2>
-          <SenhaForm />
+          <EmptyHint>Em modo suporte não há perfil nem senha para mudar. Eles ficam disponíveis para quem entra com o próprio acesso.</EmptyHint>
         </Card>
-      </>
-    ) : (
-      <Card as="section" aria-labelledby="cfg-titulo" className="af-settings__section">
-        <h2 id="cfg-titulo" className="af-section__title">
-          Meu perfil
-        </h2>
-        <EmptyHint>Em modo suporte não há perfil nem senha para mudar. Eles ficam disponíveis para quem entra com o próprio acesso.</EmptyHint>
-      </Card>
-    )
+      )
   }
 
   return (

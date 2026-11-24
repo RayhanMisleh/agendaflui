@@ -6,7 +6,7 @@ import type { NavItem } from './nav'
 
 /**
  * Os destinos do painel do negócio para quem tem cada capacidade, na ordem do desenho. Quem só vê os próprios números lê "Meus números", e quem não
- * gerencia as configurações da conta chega ao seu perfil por "Meu perfil" (mesma rota). Os módulos opcionais (Fidelidade,
+ * gerencia as configurações da conta chega ao seu perfil por "Meu perfil" (Minha conta, em `/conta`). Os módulos opcionais (Fidelidade,
  * Banners, Loja) entram depois de Serviços, cada um só com o módulo ligado E a capacidade de gerenciá-lo.
  */
 export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules }): NavItem[] {
@@ -28,7 +28,7 @@ export function painelNav(ctx: { can(c: Capability): boolean; modules: Modules }
     can('manage_settings')
       ? { href: '/painel/configuracoes', label: 'Configurações', shortLabel: 'Ajustes', icon: Settings }
       : can('view_dashboard')
-        ? { href: '/painel/configuracoes', label: 'Meu perfil', shortLabel: 'Perfil', icon: UserRoundCog }
+        ? { href: '/conta', label: 'Meu perfil', shortLabel: 'Perfil', icon: UserRoundCog }
         : null,
   ]
   return items.filter((i): i is NavItem => i !== null)

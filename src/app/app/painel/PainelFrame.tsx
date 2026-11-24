@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
+import { UserRound } from 'lucide-react'
 import { redirect } from 'next/navigation'
 import { readPersonSession } from '@/server/auth/guards'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { getPublicBrandById } from '@/server/domain/platform/branding'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
+import { LinkButton } from '@/ui/components'
 import { PainelShell, painelNav } from '@/ui/shells'
 import { EncerrarSuporte } from './_lib/EncerrarSuporte'
 import { SairDaConta } from './_lib/SairDaConta'
@@ -13,7 +15,7 @@ import { SairDaConta } from './_lib/SairDaConta'
  * Rotas do painel que já têm tela. As outras aparecem na barra esmaecidas (com cadeado) até a tela existir: cada tarefa de
  * tela acrescenta a sua rota aqui.
  */
-const ROTAS_PRONTAS: ReadonlySet<string> = new Set(['/painel', '/painel/agenda', '/painel/servicos', '/painel/clientes', '/painel/equipe', '/painel/relatorios', '/painel/configuracoes', '/painel/fidelidade', '/painel/banners', '/painel/loja'])
+const ROTAS_PRONTAS: ReadonlySet<string> = new Set(['/painel', '/painel/agenda', '/painel/servicos', '/painel/clientes', '/painel/equipe', '/painel/relatorios', '/painel/configuracoes', '/painel/fidelidade', '/painel/banners', '/painel/loja', '/conta'])
 
 /** Moldura do painel do negócio com a marca, a navegação por capacidade e o usuário da conta ativa. */
 export async function PainelFrame({
@@ -46,7 +48,16 @@ export async function PainelFrame({
       title={title}
       actions={actions}
       {...(suporte ? { supportBanner: `Você está em modo suporte na conta ${marca.name}`, supportAction: <EncerrarSuporte /> } : {})}
-      accountActions={suporte ? null : <SairDaConta />}
+      accountActions={
+        suporte ? null : (
+          <>
+            <LinkButton href="/conta" variant="ghost" icon={<UserRound size={18} />}>
+              Minha conta
+            </LinkButton>
+            <SairDaConta />
+          </>
+        )
+      }
     >
       {children}
     </PainelShell>

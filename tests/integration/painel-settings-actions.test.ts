@@ -14,9 +14,7 @@ import {
   removerFechamento,
   salvarAvisos,
   salvarNegocio,
-  salvarPerfil,
   salvarRegras,
-  trocarSenha,
 } from '@/app/app/painel/configuracoes/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
@@ -205,45 +203,3 @@ describe('fechamentos', () => {
     expect(await fechamentos()).toHaveLength(0)
   })
 })
-
-describe('meu perfil', () => {
-  test('troca o nome; todos os papéis podem', async () => {
-    const prof = await ctxWithRole({ id: businessId }, 'PROFESSIONAL')
-    guards.requireTenant.mockResolvedValue(prof)
-    const r = await salvarPerfil(ini, form({ name: 'Nome Novo' }))
-    expect(r.ok).toBe(true)
-    expect(r.message).toBe('Perfil salvo.')
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: memberOf(prof).userId } })).name).toBe('Nome Novo')
-  })
-
-  test('em modo suporte o perfil é indisponível e nada é gravado', async () => {
-    const suporte: TenantContext = { ...dono, actor: { kind: 'impersonator', adminId: (await makeUser()).id, name: 'Admin', adminName: 'Admin' } as never }
-    guards.requireTenant.mockResolvedValue(suporte)
-    const r = await salvarPerfil(ini, form({ name: 'Invasor' }))
-    expect(r.ok).toBe(false)
-    expect(r.message).toMatch(/própria pessoa|suporte/i)
-    expect(await prisma.user.count({ where: { name: 'Invasor' } })).toBe(0)
-  })
-
-  test('senha: atual errada volta no campo, certa troca e nunca devolve senha ao navegador', async () => {
-    const user = await makeUser({ password: 'senha-antiga-1' })
-    const membership = await prisma.membership.create({ data: { businessId, userId: user.id, role: 'MANAGER', active: true } })
-    const ctx = await ctxWithRole({ id: businessId }, 'MANAGER')
-    guards.requireTenant.mockResolvedValue({ ...ctx, actor: { kind: 'member', userId: user.id, membershipId: membership.id, name: user.name, role: 'MANAGER' } })
-    const errada = await salvarPerfilSenha('outra-coisa-1', 'nova-senha-123', 'nova-senha-123')
-    expect(errada.ok).toBe(false)
-    expect(errada.fields.senhaAtual).toBeTruthy()
-    expect(JSON.stringify(errada.values)).not.toContain('nova-senha-123')
-    const diferente = await salvarPerfilSenha('senha-antiga-1', 'nova-senha-123', 'nao-confere-123')
-    expect(diferente.fields.senhaConfirma).toBeTruthy()
-    const certa = await salvarPerfilSenha('senha-antiga-1', 'nova-senha-123', 'nova-senha-123')
-    expect(certa.ok).toBe(true)
-    expect(certa.message).toBe('Senha trocada.')
-    const hash = (await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash
-    expect(await verifyPassword(hash ?? '', 'nova-senha-123')).toBe(true)
-  })
-})
-
-function salvarPerfilSenha(current: string, next: string, confirm: string) {
-  return trocarSenha(ini, form({ senhaAtual: current, senhaNova: next, senhaConfirma: confirm }))
-}

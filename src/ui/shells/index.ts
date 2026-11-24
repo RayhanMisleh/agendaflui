@@ -1,3 +1,4 @@
+export { AccountShell } from './AccountShell'
 export { BrandMark } from './BrandMark'
 export { DevShell } from './DevShell'
 export { EntryScreen } from './EntryScreen'
