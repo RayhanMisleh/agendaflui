@@ -36,8 +36,8 @@ test('nenhum arquivo da área do cliente importa o cliente cru do Prisma', () =>
 /** Ações e consultas que não passam pelo guarda do cliente, com o motivo (entrar ainda não é ser cliente). */
 const SEM_GUARDA_DE_CLIENTE: Record<string, string> = {
   'actions.ts': 'usar a minha conta: a pessoa entrou, mas ainda não é cliente; resolve a visita e a confere',
-  'cadastro/actions.ts': 'cadastro pela loja: ainda não há cliente; resolve a visita depois de criar a conta',
-  'entrar/actions.ts': 'entrada pela loja: ainda não há cliente; resolve a visita depois de entrar',
+  '(acesso)/cadastro/actions.ts': 'cadastro pela loja: ainda não há cliente; resolve a visita depois de criar a conta',
+  '(acesso)/entrar/actions.ts': 'entrada pela loja: ainda não há cliente; resolve a visita depois de entrar',
 }
 
 test('toda ação e consulta da área do cliente confere o vínculo de cliente com ESTA loja', () => {
