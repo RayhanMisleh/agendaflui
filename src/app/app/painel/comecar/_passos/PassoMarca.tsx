@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useId, useState } from 'react'
 import { Camera, Trash2 } from 'lucide-react'
-import { BrandPreview, Button, ColorField, FOTO_MAX_BYTES } from '@/ui/components'
+import { BrandPreview, ColorField, FOTO_MAX_BYTES, SubmitButton } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
 import { THEME_WARNING_TEXT } from '@/shared/theme/derive'
 import type { CoverMaterial } from '@/shared/theme/derive'
@@ -68,13 +68,13 @@ function LogoForm({ logoUrl, aviso }: { logoUrl: string | null; aviso: { texto: 
           <p className="af-field__hint">JPEG, PNG ou WebP, até 8 MB. A logo é salva ao enviar.</p>
         )}
         <div className="af-onb__logo-actions">
-          <Button type="submit" variant="secondary" size="sm" icon={<Camera size={16} />}>
+          <SubmitButton variant="secondary" size="sm" icon={<Camera size={16} />}>
             Enviar logo
-          </Button>
+          </SubmitButton>
           {logoUrl ? (
-            <Button type="submit" name="intent" value="remove" variant="ghost" size="sm" icon={<Trash2 size={16} />} formNoValidate>
+            <SubmitButton name="intent" value="remove" variant="ghost" size="sm" icon={<Trash2 size={16} />} formNoValidate>
               Remover logo
-            </Button>
+            </SubmitButton>
           ) : null}
         </div>
       </div>

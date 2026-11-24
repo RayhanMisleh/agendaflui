@@ -4,7 +4,7 @@ import { ChevronRight, LayoutDashboard, LogOut, Store } from 'lucide-react'
 import { requireCustomer } from '@/server/auth/guards'
 import { getPersonAccount } from '@/server/auth/person-account'
 import { getNotificationPreferences } from '@/server/domain/customers/preferences'
-import { Avatar, Button, Card } from '@/ui/components'
+import { Avatar, Card, SubmitButton } from '@/ui/components'
 import { maisItems } from '@/ui/shells'
 import { sair } from '../../conta/actions'
 import { ClienteFrame, modulosDaLoja } from '../_lib/ClienteFrame'
@@ -81,9 +81,9 @@ export default async function MaisPage({ params }: Props) {
       </Card>
       <div className="af-cl-mais__foot">
         <form action={sair}>
-          <Button type="submit" variant="ghost" icon={<LogOut size={18} />}>
+          <SubmitButton variant="ghost" icon={<LogOut size={18} />}>
             Sair
-          </Button>
+          </SubmitButton>
         </form>
         <Link href={`/${slug}/mais/excluir`} className="af-cl-danger-link">
           Excluir minha conta nesta loja
