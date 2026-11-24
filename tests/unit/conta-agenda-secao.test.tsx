@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/react'
 import { ToastProvider } from '@/ui/components'
+import { GoogleSecao } from '@/app/app/conta/_partes/GoogleSecao'
 import { AgendaGoogleSecao } from '@/app/app/conta/_partes/AgendaGoogleSecao'
 
 const acoes = vi.hoisted(() => ({ desligarAgenda: vi.fn() }))
@@ -55,4 +56,22 @@ test('Desligar pede confirmação antes de chamar a ação', () => {
 test('a seção leva o id "agenda" para o destino do retorno do Google', () => {
   abrir()
   expect(document.getElementById('agenda')).not.toBeNull()
+})
+
+test('desvincular o Google avisa que a Google Agenda também desliga, só quando ela está ligada', () => {
+  const { unmount } = render(
+    <ToastProvider>
+      <GoogleSecao google={{ email: 'a@x.test' }} hasPassword email="a@x.test" agendaLigada />
+    </ToastProvider>,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Desvincular' }))
+  expect(screen.getByText(/A Google Agenda também será desligada; os eventos já enviados ficam lá\./)).toBeInTheDocument()
+  unmount()
+  render(
+    <ToastProvider>
+      <GoogleSecao google={{ email: 'a@x.test' }} hasPassword email="a@x.test" />
+    </ToastProvider>,
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'Desvincular' }))
+  expect(screen.queryByText(/Google Agenda também/)).toBeNull()
 })

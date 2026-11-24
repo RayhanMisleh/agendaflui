@@ -44,6 +44,7 @@ export default async function ContaPage({ searchParams }: Props) {
           google={conta.google ? { email: conta.google.email } : null}
           hasPassword={conta.hasPassword}
           email={conta.email}
+          agendaLigada={conta.calendar?.state === 'on'}
           aviso={codigo && !agendaAviso(codigo) ? <GoogleAviso codigo={codigo} /> : null}
         />
       ) : null}

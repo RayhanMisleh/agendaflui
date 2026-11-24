@@ -12,11 +12,14 @@ export function GoogleSecao({
   google,
   hasPassword,
   email,
+  agendaLigada = false,
   aviso,
 }: {
   google: { email: string } | null
   hasPassword: boolean
   email: string
+  /** A Google Agenda está ligada (ou recusada): desvincular a desliga junto. */
+  agendaLigada?: boolean
   /** O resultado do último retorno do Google (`?google=`), já como componente. */
   aviso?: React.ReactNode
 }) {
@@ -50,7 +53,7 @@ export function GoogleSecao({
                 open={aberto}
                 onClose={() => setAberto(false)}
                 title="Desvincular o Google?"
-                description="Você deixa de entrar com o Google e continua entrando com e-mail e senha."
+                description={`Você deixa de entrar com o Google e continua entrando com e-mail e senha.${agendaLigada ? ' A Google Agenda também será desligada; os eventos já enviados ficam lá.' : ''}`}
                 action={desvincular}
                 initialState={ESTADO_CONTA}
                 confirmLabel="Desvincular"
