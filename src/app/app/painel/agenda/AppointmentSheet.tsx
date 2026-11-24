@@ -13,6 +13,7 @@ import { petsDoCliente } from './consultas'
 import type { PetResumo } from './consultas'
 import { ConflitosDialog } from './ConflitosDialog'
 import { EscolherPet, ServicosDoPetLista, useServicosDoPet } from './PetsEServicos'
+import { duracaoBase } from './duracao-ajuste'
 
 type Decisao = 'complete' | 'noshow' | 'cancel'
 
@@ -63,8 +64,6 @@ function DesfazerFalta({ id, onDone }: { id: string; onDone: () => void }) {
     </PainelForm>
   )
 }
-
-import { duracaoBase } from './duracao-ajuste'
 
 function Ajustes({ detalhe, page, onDone }: { detalhe: PageDetail; page: AgendaPage; onDone: () => void }) {
   const niche = page.niche
