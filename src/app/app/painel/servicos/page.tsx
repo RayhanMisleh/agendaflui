@@ -7,7 +7,7 @@ import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { Card } from '@/ui/components'
 import { formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ServicosPainel } from './ServicosPainel'
 import type { ServicoLinha } from './ServicosPainel'
 import { TERMS } from '@/shared/terms'
@@ -58,7 +58,7 @@ export default async function ServicosPage({ searchParams }: { searchParams: Pro
   })
 
   return (
-    <PainelFrame ctx={ctx} title="Serviços">
+    <ShellPage title="Serviços">
       <Card className="af-listpanel" as="section" aria-label="Serviços">
         <ServicosPainel
           servicos={servicos}
@@ -66,6 +66,6 @@ export default async function ServicosPage({ searchParams }: { searchParams: Pro
           ctx={{ step: regras.slotStepMin, loyalty: painel.modules.loyalty, pontos: TERMS.pointsPlural, clube: TERMS.club, niche: painel.niche ? { servesCats: painel.niche.servesCats } : null }}
         />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { listBanners } from '@/server/domain/banners/banners'
 import { Card } from '@/ui/components'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../_lib/modulo'
 import { BannersPainel } from './BannersPainel'
 import type { BannerLinha } from './BannersPainel'
@@ -26,10 +26,10 @@ export default async function BannersPage({ searchParams }: { searchParams: Prom
     last: i === todos.length - 1,
   }))
   return (
-    <PainelFrame ctx={ctx} title="Banners">
+    <ShellPage title="Banners">
       <Card className="af-listpanel" as="section" aria-label="Banners">
         <BannersPainel banners={banners} />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

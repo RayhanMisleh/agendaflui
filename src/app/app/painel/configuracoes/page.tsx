@@ -12,7 +12,7 @@ import { labelOf, SIDEBAR_FIELD_LABEL, SIDEBAR_OPTIONS } from '@/shared/theme/la
 import { tiposDeAviso } from '@/app/_lib/avisos'
 import { porCodigo, um } from '@/app/_lib/params'
 import { LOGO } from '../_lib/logo-mensagens'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { AnimaisForm, AvisosForm, CoresForm, FechamentoForm, FechamentosLista, NegocioForm, RegrasForm } from './Formularios'
 
 export const metadata: Metadata = { title: 'Configurações | Agenda Flui' }
@@ -197,11 +197,11 @@ export default async function ConfiguracoesPage({ searchParams }: { searchParams
   }
 
   return (
-    <PainelFrame ctx={ctx} title={titulo}>
+    <ShellPage title={titulo}>
       <div className="af-settings">
         {secoes.length > 1 ? <NavTabs label="Seções das configurações" items={secoes.map((s) => ({ id: s.id, label: s.label, href: `/painel/configuracoes?secao=${s.id}`, active: secao === s.id }))} /> : null}
         {corpo}
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

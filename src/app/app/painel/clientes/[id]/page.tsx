@@ -18,7 +18,7 @@ import { AppointmentStatusBadge, Avatar, Card, EmptyHint, EmptyState, PetCard, L
 import { formatDuration, formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
 import Link from 'next/link'
-import { PainelFrame } from '../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ClienteForm } from '../ClienteForm'
 import { Cuidados } from '../Cuidados'
 import { PontosAcoes } from './PontosAcoes'
@@ -108,8 +108,7 @@ export default async function ClientePage({
   const pontos = painel.modules.loyalty ? await carregarPontos(ctx, id, cursorExtrato, can(ctx.actor, 'manage_loyalty')) : null
 
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={cliente.name}
       actions={
         <LinkButton href="/painel/clientes" variant="ghost">
@@ -343,6 +342,6 @@ export default async function ClientePage({
           </div>
         </div>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

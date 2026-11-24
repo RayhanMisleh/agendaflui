@@ -7,7 +7,7 @@ import type { PrizeView } from '@/server/domain/loyalty/prizes'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, LinkButton } from '@/ui/components'
 import { um, porCodigo } from '@/app/_lib/params'
-import { PainelFrame } from '../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ImagemUpload } from '../../../_lib/ImagemUpload'
 import { MENSAGENS_DE_IMAGEM } from '../../../_lib/imagem'
 import { requirePainelModule } from '../../../_lib/modulo'
@@ -38,8 +38,7 @@ export default async function PremioPage({
   const terms = TERMS
   const aviso = porCodigo(MENSAGENS_DE_IMAGEM, um(q.imagem))
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={premio.name}
       actions={
         <LinkButton href="/painel/fidelidade" variant="ghost">
@@ -69,6 +68,6 @@ export default async function PremioPage({
           />
         </Card>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

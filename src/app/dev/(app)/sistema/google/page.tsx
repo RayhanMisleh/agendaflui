@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { getGoogleSettings } from '@/server/domain/platform/google-settings'
 import { formatDateTime } from '@/server/time'
-import { DevFrame } from '../../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { HorariosNota } from '../../_lib/HorariosNota'
 import { SistemaTabs } from '../SistemaTabs'
 import { GoogleForm } from './GoogleForm'
@@ -14,7 +14,7 @@ export default async function GooglePage() {
   const admin = await requirePlatformAdmin()
   const v = await getGoogleSettings(admin)
   return (
-    <DevFrame admin={admin} title="Google">
+    <ShellPage title="Google">
       <SistemaTabs />
       <HorariosNota />
       <GoogleForm
@@ -28,6 +28,6 @@ export default async function GooglePage() {
         }}
         acoes={{ salvar: salvarGoogle, remover: removerGoogle }}
       />
-    </DevFrame>
+    </ShellPage>
   )
 }

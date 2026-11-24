@@ -1,12 +1,12 @@
 import { requireTenant } from '@/server/auth/guards'
 import { Card, EmptyState, LinkButton } from '@/ui/components'
-import { PainelFrame } from './PainelFrame'
+import { ShellPage } from '@/ui/shells'
 
 /** Rota que não existe, registro removido ou módulo desligado nesta loja: a moldura do painel continua no lugar. */
 export default async function PainelNaoEncontrado() {
   const ctx = await requireTenant()
   return (
-    <PainelFrame ctx={ctx} title="Não encontrado">
+    <ShellPage title="Não encontrado">
       <Card>
         <EmptyState
           title="Não achamos o que você procurou"
@@ -18,6 +18,6 @@ export default async function PainelNaoEncontrado() {
           }
         />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

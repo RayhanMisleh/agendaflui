@@ -8,7 +8,7 @@ import type { ProductView } from '@/server/domain/store/products'
 import { Card, LinkButton, StatusDot } from '@/ui/components'
 import { formatInt } from '@/ui/format'
 import { um, porCodigo } from '@/app/_lib/params'
-import { PainelFrame } from '../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { MENSAGENS_DE_IMAGEM } from '../../../_lib/imagem'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { AjustarEstoque } from '../../LojaPainel'
@@ -40,8 +40,7 @@ export default async function ProdutoPage({
   if (produto.categoryId !== null && !categorias.some((c) => c.id === produto.categoryId)) categorias.push({ id: produto.categoryId, name: 'Categoria arquivada' })
   const aviso = porCodigo(MENSAGENS_DE_IMAGEM, um(q.imagem))
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={produto.name}
       actions={
         <LinkButton href="/painel/loja?aba=produtos" variant="ghost">
@@ -95,6 +94,6 @@ export default async function ProdutoPage({
           />
         </Card>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

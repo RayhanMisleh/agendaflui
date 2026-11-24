@@ -15,7 +15,7 @@ import { formatDuration, shortDate, weekdayName } from '@/ui/format'
 import { ChecklistComeco, mostraChecklist } from './_lib/ChecklistComeco'
 import { LinkParaClientes } from './_lib/LinkParaClientes'
 import { dispensar } from './comecar/actions'
-import { PainelFrame } from './PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { TERMS } from '@/shared/terms'
 
 export const metadata: Metadata = { title: 'Início | Agenda Flui' }
@@ -59,7 +59,7 @@ export default async function InicioPage() {
   const podeBloquear = can(ctx.actor, 'manage_own_availability') && !semFicha
 
   return (
-    <PainelFrame ctx={ctx} title="Início">
+    <ShellPage title="Início">
       <div className="af-home">
         {mostraChecklist(comeco, ctx.clock()) ? <ChecklistComeco view={comeco} dismissAction={dispensar} /> : null}
         {link ? <LinkParaClientes link={link} /> : null}
@@ -179,6 +179,6 @@ export default async function InicioPage() {
           </div>
         </div>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

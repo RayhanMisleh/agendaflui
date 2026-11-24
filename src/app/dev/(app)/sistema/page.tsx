@@ -4,7 +4,7 @@ import { getSystemStatus } from '@/server/domain/platform/system'
 import { Card, EmptyState, STATE_TEXT, StatNumber, StatusDot } from '@/ui/components'
 import type { StateTone } from '@/ui/components'
 import { formatInt } from '@/ui/format'
-import { DevFrame } from '../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { HorariosNota } from '../_lib/HorariosNota'
 import { quando, tamanho } from '../_lib/format'
 import { ExecucoesTable, FalhasTable, TabelasTable } from './SistemaTables'
@@ -42,7 +42,7 @@ export default async function SistemaPage() {
   }))
 
   return (
-    <DevFrame admin={admin} title="Sistema">
+    <ShellPage title="Sistema">
       <SistemaTabs />
       <HorariosNota />
       <div className="af-global">
@@ -92,6 +92,6 @@ export default async function SistemaPage() {
           </Card>
         </div>
       </div>
-    </DevFrame>
+    </ShellPage>
   )
 }

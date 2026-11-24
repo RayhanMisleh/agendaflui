@@ -7,7 +7,7 @@ import { getLoyaltySettings } from '@/server/domain/loyalty/settings'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, NavTabs, Pagination } from '@/ui/components'
 import { um } from '@/app/_lib/params'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../_lib/modulo'
 import { ClubeLista, PremiosLista, RankingForm, ResgatesLista } from './FidelidadePainel'
 import type { TermosFidelidade } from './FidelidadePainel'
@@ -96,11 +96,11 @@ export default async function FidelidadePage({ searchParams }: { searchParams: P
   }
 
   return (
-    <PainelFrame ctx={ctx} title="Fidelidade">
+    <ShellPage title="Fidelidade">
       <Card className="af-listpanel" as="section" aria-label="Fidelidade">
         <NavTabs label="Seções da fidelidade" items={abas} />
         {corpo}
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

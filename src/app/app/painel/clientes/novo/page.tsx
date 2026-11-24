@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ClienteForm } from '../ClienteForm'
 import { TERMS } from '@/shared/terms'
 
@@ -13,8 +13,7 @@ export default async function NovoClientePage() {
   const painel = await getPainelContext(ctx)
   const terms = TERMS
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={`Adicionar ${terms.customerSingular.toLowerCase()}`}
       actions={
         <LinkButton href="/painel/clientes" variant="ghost">
@@ -25,6 +24,6 @@ export default async function NovoClientePage() {
       <Card as="section" aria-label="Dados do cadastro" className="af-profile af-profile--narrow">
         <ClienteForm cliente={null} clube={painel.modules.loyalty ? TERMS.club : null} singular={terms.customerSingular} />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

@@ -6,7 +6,7 @@ import type { BannerView } from '@/server/domain/banners/banners'
 import { DomainError } from '@/server/domain/errors'
 import { Card, LinkButton } from '@/ui/components'
 import { um, porCodigo } from '@/app/_lib/params'
-import { PainelFrame } from '../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ImagemUpload } from '../../_lib/ImagemUpload'
 import { MENSAGENS_DE_IMAGEM } from '../../_lib/imagem'
 import { requirePainelModule } from '../../_lib/modulo'
@@ -34,8 +34,7 @@ export default async function BannerPage({
   }
   const aviso = porCodigo(MENSAGENS_DE_IMAGEM, um(q.imagem))
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={banner.title}
       actions={
         <LinkButton href="/painel/banners" variant="ghost">
@@ -64,6 +63,6 @@ export default async function BannerPage({
           />
         </Card>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

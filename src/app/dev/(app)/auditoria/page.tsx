@@ -5,7 +5,7 @@ import { DomainError } from '@/server/domain/errors'
 import { listAudit } from '@/server/domain/platform/audit-log'
 import { findBusinessByRef } from '@/server/domain/platform/businesses'
 import { Button, EmptyState, Field, Input, LinkButton, Pagination, Card, Select } from '@/ui/components'
-import { DevFrame } from '../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
 import { GlobalAuditTable } from './GlobalAuditTable'
@@ -56,7 +56,7 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
   const params = { conta: values.conta, acao: values.acao, ator: values.ator, de: values.de, ate: values.ate }
 
   return (
-    <DevFrame admin={admin} title="Auditoria">
+    <ShellPage title="Auditoria">
       <Card className="af-listpanel">
         <form method="get" action="/auditoria" className="af-filters" role="search" aria-label="Filtros da auditoria">
           <Field label="Conta" hint={contaNome ? `Conta: ${contaNome}.` : 'Identificador da conta, como estudio-sol. Em branco, todas.'}>
@@ -114,6 +114,6 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
         />
         <Pagination basePath="/auditoria" params={params} cursor={query.cursor ?? null} nextCursor={pagina?.nextCursor ?? null} />
       </Card>
-    </DevFrame>
+    </ShellPage>
   )
 }

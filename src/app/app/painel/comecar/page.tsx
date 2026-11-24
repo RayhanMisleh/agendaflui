@@ -9,7 +9,7 @@ import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { Card, Meter } from '@/ui/components'
 import { porCodigo, um } from '@/app/_lib/params'
 import { LOGO } from '../_lib/logo-mensagens'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { FocoDoPasso } from './_passos/FocoDoPasso'
 import { Navegacao } from './_passos/Navegacao'
 import { PassoAnimais } from './_passos/PassoAnimais'
@@ -98,7 +98,7 @@ export default async function ComecarPage({ searchParams }: { searchParams: Prom
   }
 
   return (
-    <PainelFrame ctx={ctx} title="Começar">
+    <ShellPage title="Começar">
       <div className="af-onb">
         <Card as="section" aria-labelledby="onb-progresso" className="af-onb__top">
           <div className="af-onb__top-head">
@@ -126,6 +126,6 @@ export default async function ComecarPage({ searchParams }: { searchParams: Prom
           <Navegacao passo={atual.key} pular={atual.key !== 'LINK'} voltar={anterior ? `/painel/comecar?passo=${anterior.slug}` : null} />
         </FocoDoPasso>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

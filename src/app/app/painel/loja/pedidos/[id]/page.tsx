@@ -11,7 +11,7 @@ import type { OrderPaymentView } from '@/server/domain/store/payments'
 import { canSimulatePayment } from '@/server/domain/store/simulate'
 import { ATTENTION_LABELS, Card, LinkButton, OrderStatusBadge } from '@/ui/components'
 import { formatMoney } from '@/ui/format'
-import { PainelFrame } from '../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PedidoAcoes } from '../PedidoAcoes'
 import { ItensDoPedido, PagamentosDoPedido } from './PedidoTabelas'
@@ -80,8 +80,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
   if (pedido.status === 'CANCELED') linhaDoTempo.push(`Cancelado${pedido.canceledLabel ? ` em ${pedido.canceledLabel}` : ''}${pedido.cancelReason ? `: ${pedido.cancelReason}` : ''}`)
 
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={`Pedido ${numero}`}
       actions={
         <LinkButton href="/painel/loja" variant="ghost">
@@ -201,6 +200,6 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
           </ul>
         </Card>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

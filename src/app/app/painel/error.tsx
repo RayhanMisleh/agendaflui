@@ -3,13 +3,13 @@
 import { useEffect } from 'react'
 import { Button, Card, EmptyState, LinkButton } from '@/ui/components'
 
-/** Falha numa tela do painel: texto fixo (nunca a mensagem do erro) e duas saídas. O tema da conta vem do layout. */
+/** Falha numa tela do painel: texto fixo (nunca a mensagem do erro) e duas saídas. A moldura e o tema da conta vêm do layout, então o menu continua no lugar. */
 export default function ErroDoPainel({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error('erro de tela do painel', error.digest ?? 'sem código')
   }, [error.digest])
   return (
-    <main className="af-fallback">
+    <div className="af-fallback">
       <Card as="section" className="af-fallback__card">
         <div role="alert">
           <EmptyState
@@ -28,6 +28,6 @@ export default function ErroDoPainel({ error, reset }: { error: Error & { digest
           />
         </div>
       </Card>
-    </main>
+    </div>
   )
 }

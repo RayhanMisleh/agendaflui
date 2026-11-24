@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { PremioForm } from '../../FidelidadePainel'
 import { TERMS } from '@/shared/terms'
@@ -15,8 +15,7 @@ export default async function NovoPremioPage() {
   await getPainelContext(ctx)
   const terms = TERMS
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title="Novo prêmio"
       actions={
         <LinkButton href="/painel/fidelidade" variant="ghost">
@@ -31,6 +30,6 @@ export default async function NovoPremioPage() {
         <p className="af-section__help">Depois de criar, você envia a imagem do prêmio.</p>
         <PremioForm premio={null} termos={{ ponto: terms.pointsSingular, pontos: terms.pointsPlural, clube: terms.club, cliente: terms.customerPlural }} />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }
