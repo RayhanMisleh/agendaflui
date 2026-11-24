@@ -1,9 +1,12 @@
 import type pg from 'pg'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { applyMigration, applyMigrationsThrough, withScratchDb } from '../setup/migrations'
 
 const ANTES = '20261123080000_termos_fixos_e_slugs'
 const MIGRACAO = '20261123090000_pessoa_unica'
+// Cada teste cria um banco novo e aplica todas as migrações: com a suíte inteira rodando, passa dos 5 s padrão.
+vi.setConfig({ testTimeout: 30_000 })
+
 const VERIFICADO = '2026-10-01T10:00:00Z'
 
 async function loja(c: pg.Client, slug: string): Promise<string> {

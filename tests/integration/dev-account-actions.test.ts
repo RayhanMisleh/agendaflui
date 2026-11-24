@@ -261,7 +261,7 @@ describe('equipe', () => {
     const m = await makeMembership(conta.id, (await makeUser()).id, 'OWNER')
     const r = await reenviarConvite(conta.id, ini, form({ membershipId: m.id }))
     expect(r.ok).toBe(false)
-    expect(r.message).toMatch(/já definiu a senha/)
+    expect(r.message).toMatch(/Esta pessoa já tem conta/)
     const pendente = await makeMembership(conta.id, (await makeUser({ password: null })).id, 'MANAGER')
     const enviado = await reenviarConvite(conta.id, ini, form({ membershipId: pendente.id }))
     expect(enviado).toMatchObject({ ok: true, message: 'Convite reenviado.' })

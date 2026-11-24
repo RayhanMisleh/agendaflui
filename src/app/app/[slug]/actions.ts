@@ -4,10 +4,9 @@ import { APP_COOKIE, readCookie, requirePerson } from '@/server/auth/guards'
 import { setSessionStore } from '@/server/auth/session'
 import { findOpenStore, joinStore } from '@/server/auth/store-join'
 import { MENSAGEM_GENERICA } from '@/app/_lib/form-state'
+import { LOJA_DESATIVADA } from './_lib/mensagens'
 
 export type EstadoLoja = { error: string | null }
-
-export const LOJA_DESATIVADA = 'Sua conta nesta loja está desativada. Fale com a loja.'
 
 /** "Usar minha conta nesta loja": a pessoa vira cliente da loja (cria o cadastro ou adota o de balcão) e a loja vira a última usada. */
 export async function usarMinhaConta(_anterior: EstadoLoja, form: FormData): Promise<EstadoLoja> {
