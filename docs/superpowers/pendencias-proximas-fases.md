@@ -26,6 +26,15 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
 - Fase 4: `serviceSuggestions` e a demo com pets de portes variados e um encaixe.
 - Conferir no navegador: folha de marcar a 360 px (pets em rolagem), diálogo "Confirme o horário", encaixe na grade do dia e na semana.
 
+## Fase 3 (área do cliente): entregue e o que fica
+
+- Entregue: acesso e domínio do cliente, tema da loja, moldura, página pública, Prêmios e Loja; vitrine, Início, "Agendar de novo",
+  remarcar e `.ics` já usam pet, preço por porte e o nicho reais.
+- Falta: quiz e boas-vindas (`/<slug>/boas-vindas`), pets, agendar, Horários, Início definitivo (troca `InicioProvisorio`) e a
+  tela Mais completa. `needsPetQuiz` (`src/server/auth/pet-onboarding.ts`) continua devolvendo `false` até a rota de boas-vindas
+  existir; depois, troca o corpo por `getNicheSettings` (nicho pet) e `listMyPets` (nenhum pet ativo).
+- A fumaça (`scripts/smoke-pages.ts`) ainda não pede as telas do cliente (Prêmios, Loja, pedidos): precisa de uma sessão de cliente.
+
 ## Antes de abrir a loja (Mercado Pago real)
 
 - Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).
