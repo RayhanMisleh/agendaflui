@@ -311,10 +311,6 @@
     color: var(--brand-text);
     font-weight: 700;
   }
-  .af-entry__seg-tab:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 1px;
-  }
   /* No quiz, depois do primeiro passo as abas saem do caminho. */
   .af-entry__inner:has([data-entry-deep]) > .af-entry__seg {
     display: none;
@@ -379,10 +375,6 @@
     color: var(--ink);
     cursor: pointer;
   }
-  .af-quiz__back:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 0;
-  }
   @media (hover: hover) {
     .af-quiz__back:hover {
       background-color: var(--brand-tint);
@@ -438,10 +430,6 @@
     background: none;
     color: var(--ink-muted);
     cursor: pointer;
-  }
-  .af-pass__toggle:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: -3px;
   }
 
   .af-link-break {
