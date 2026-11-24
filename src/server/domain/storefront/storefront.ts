@@ -7,7 +7,8 @@ import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { formatDuration } from '@/shared/duration'
 import { SERVICE_ICON_NAMES, type ServiceIconName } from '@/shared/service-icons'
 import type { Modules } from '@/shared/modules'
-import { nichoDaLoja, precoAPartirDe } from './seam-fase2'
+import { fromPrice } from '@/server/domain/catalog/pricing'
+import { getStoreNiche } from '@/server/domain/settings/niche-settings'
 
 /** Vitrine pública da loja: só o que o visitante e o cliente podem ver. Nunca documento, e-mail de contato nem dado interno. */
 export type StorefrontService = {
@@ -58,14 +59,14 @@ export async function getStorefront(ctx: TenantContext): Promise<Storefront> {
     listServices(ctx),
     getModules(ctx.db, ctx.businessId),
     getSchedulingRules(ctx),
-    nichoDaLoja(ctx),
+    getStoreNiche(ctx),
   ])
   const b = orNotFound(business, 'Loja')
   const lugar = [b.city, b.state].filter((p): p is string => p !== null && p !== '').join(' - ')
   const address = [b.addressLine, lugar].filter((p): p is string => p !== null && p !== '').join(', ')
   const visiveis: StorefrontService[] = []
   for (const s of services) {
-    const from = precoAPartirDe(s)
+    const from = fromPrice(s, { servesCats: niche.servesCats })
     if (from === null) continue
     visiveis.push({
       id: s.id,

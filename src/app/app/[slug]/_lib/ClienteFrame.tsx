@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import type { CustomerVisit } from '@/server/auth/customer-access'
 import { getModules } from '@/server/domain/modules'
-import { nichoDaLoja } from '@/server/domain/storefront/seam-fase2'
+import { getStoreNiche } from '@/server/domain/settings/niche-settings'
 import { ClienteShell } from '@/ui/shells'
 import { carregarLoja } from './loja'
 
@@ -19,7 +19,7 @@ export async function ClienteFrame(p: {
   children: ReactNode
 }) {
   const { visit } = p
-  const [loja, nicho] = await Promise.all([carregarLoja(visit.store.slug), nichoDaLoja(visit.ctx)])
+  const [loja, nicho] = await Promise.all([carregarLoja(visit.store.slug), getStoreNiche(visit.ctx)])
   if (!loja) return redirect(`/${visit.store.slug}`)
   return (
     <ClienteShell

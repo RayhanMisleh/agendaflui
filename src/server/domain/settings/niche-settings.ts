@@ -17,6 +17,12 @@ export async function getNicheSettings(ctx: TenantContext, db: TenantClient | Te
   return { niche: nicheDef(nicho), options: parseNicheOptions(nicho, c.nicheOptions), version: c.version }
 }
 
+/** O nicho visto pela vitrine e pela moldura do cliente: loja de pet shop e se atende gatos. */
+export async function getStoreNiche(ctx: TenantContext): Promise<{ petNiche: boolean; servesCats: boolean }> {
+  const s = await getNicheSettings(ctx)
+  return { petNiche: s.niche !== null, servesCats: s.niche !== null && s.options.servesCats }
+}
+
 /** Para as funções do nicho pet: conta sem nicho recusa com `niche_unavailable`. */
 export async function requirePetNiche(
   ctx: TenantContext,
