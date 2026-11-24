@@ -18,9 +18,9 @@ export function rotuloDoHorario(n: Conflito['nearest'][number], dia: string): st
   return n.date !== '' && n.date !== dia ? `${n.label} (${n.date.slice(8, 10)}/${n.date.slice(5, 7)})` : n.label
 }
 
-/** Lê `details.nearest` de um erro de horário ocupado; sem a lista (ou de outro erro), não há conflito a mostrar. */
+/** Lê `details.nearest` de um erro de horário ocupado (ou de confirmação da equipe); de outro erro, não há conflito a mostrar. */
 function conflitoDe(err: DomainError): Conflito | undefined {
-  if (err.reason !== 'slot_taken') return undefined
+  if (err.reason !== 'slot_taken' && err.reason !== 'needs_confirmation') return undefined
   const lista: unknown = err.details?.nearest
   if (!Array.isArray(lista)) return { nearest: [] }
   const nearest: Conflito['nearest'] = []

@@ -9,10 +9,9 @@ export type NicheSettings = { niche: NicheDef | null; options: PetOptions; versi
 
 /** O nicho da conta e as opções dele (inválido ou ausente vira o padrão). Conta sem nicho: `niche` nulo. */
 export async function getNicheSettings(ctx: TenantContext, db: TenantClient | TenantTx = ctx.db): Promise<NicheSettings> {
-  const [conta, config] = await Promise.all([
-    db.business.findUnique({ where: { id: ctx.businessId }, select: { niche: true } }),
-    db.businessSettings.findUnique({ where: { businessId: ctx.businessId } }),
-  ])
+  // Em sequência: dentro de uma transação, o cliente do banco atende uma consulta por vez.
+  const conta = await db.business.findUnique({ where: { id: ctx.businessId }, select: { niche: true } })
+  const config = await db.businessSettings.findUnique({ where: { businessId: ctx.businessId } })
   const nicho = orNotFound(conta, 'Conta').niche
   const c = orNotFound(config, 'Configurações da conta')
   return { niche: nicheDef(nicho), options: parseNicheOptions(nicho, c.nicheOptions), version: c.version }

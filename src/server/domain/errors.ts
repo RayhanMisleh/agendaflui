@@ -10,7 +10,6 @@ export { z }
 /** Motivos estáveis de erro (`DomainError.reason`), em ordem alfabética. Acrescente o seu aqui ao criar um. */
 export const DOMAIN_REASONS = [
   'already_started',
-  'blocked',
   'busy',
   'changed',
   'club_only',
@@ -27,6 +26,7 @@ export const DOMAIN_REASONS = [
   'invalid_transition',
   'member_of_other_business',
   'membership_taken',
+  'needs_confirmation',
   'needs_password',
   'niche_unavailable',
   'not_failed',

@@ -14,6 +14,7 @@ import {
 import { bookAppointment } from '@/server/domain/scheduling/appointments'
 import { createLocalDiskStorage } from '@/server/storage/local-disk'
 import type { Storage } from '@/server/storage/storage'
+import { confirmando } from '../setup/agenda'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
 import {
@@ -703,8 +704,8 @@ describe('cliente com agendamentos futuros', () => {
     const mB = await makeMembership(b.id, donoB.id, 'PROFESSIONAL')
     const p1 = await makeProfessional(b.id, { serviceIds: [tosa.id], membershipId: mA.id })
     const p2 = await makeProfessional(b.id, { serviceIds: [tosa.id], membershipId: mB.id })
-    const a1 = await bookAppointment(ctx, { customerId: c.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS })
-    const a2 = await bookAppointment(ctx, { customerId: c.id, professionalId: p2.id, serviceIds: [tosa.id], startsAt: EM_3_DIAS })
+    const a1 = await confirmando((acknowledged) => bookAppointment(ctx, { customerId: c.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS, acknowledged }))
+    const a2 = await confirmando((acknowledged) => bookAppointment(ctx, { customerId: c.id, professionalId: p2.id, serviceIds: [tosa.id], startsAt: EM_3_DIAS, acknowledged }))
     const passado = await makeAppointment(b.id, {
       customerId: c.id,
       professionalId: p1.id,
@@ -735,7 +736,9 @@ describe('cliente com agendamentos futuros', () => {
     expect(new Set(avisos.map((n) => n.appointmentId))).toEqual(new Set([a1.id, a2.id]))
     // O horário ficou livre para outro cliente.
     const outro = await makeCustomer(b.id)
-    await bookAppointment(ctx, { customerId: outro.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS })
+    // Sem expediente cadastrado a equipe confirma o "fora do expediente"; o horário não tem mais dono (não vira encaixe).
+    const novo = await confirmando((acknowledged) => bookAppointment(ctx, { customerId: outro.id, professionalId: p1.id, serviceIds: [tosa.id], startsAt: EM_2_DIAS, acknowledged }))
+    expect(await prisma.appointment.findUniqueOrThrow({ where: { id: novo.id } })).toMatchObject({ isSqueezeIn: false })
     const logs = await auditorias(b.id, 'customer.anonymized')
     expect(logs).toHaveLength(1)
     expect(logs[0]?.metadata).toMatchObject({ hadAvatar: false, canceledAppointments: 2 })
