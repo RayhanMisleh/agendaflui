@@ -105,3 +105,27 @@ test('arquivos enviados no formulário não voltam em values', () => {
   const estado = formError<{ name: string; logo?: File }>(erro, { name: '', logo: new File(['x'], 'logo.png', { type: 'image/png' }) })
   expect(estado.values).toEqual({ name: '' })
 })
+
+test('formError de needs_confirmation devolve confirmation { ack, professionalName, issues } e conflict.nearest', () => {
+  const inicio = new Date('2026-11-17T18:00:00.000Z')
+  const erro = new DomainError('conflict', 'Confira o horário antes de salvar.', {
+    reason: 'needs_confirmation',
+    details: {
+      acknowledgement: 'abc123',
+      professionalName: 'Ana',
+      issues: [
+        { kind: 'busy', key: 'busy:1', text: '14:00–15:00 já tem Rex (Banho)' },
+        { kind: 'desconhecido', key: 'x', text: 'ignorado' },
+      ],
+      nearest: [{ startsAt: inicio, label: '16:00', date: '2026-11-17' }],
+    },
+  })
+  const estado = formError<{ a: string }>(erro, { a: 'x' })
+  expect(estado.confirmation).toEqual({ ack: 'abc123', professionalName: 'Ana', issues: [{ kind: 'busy', text: '14:00–15:00 já tem Rex (Banho)' }] })
+  expect(estado.conflict?.nearest).toEqual([{ iso: '2026-11-17T18:00:00.000Z', label: '16:00', date: '2026-11-17' }])
+})
+
+test('needs_confirmation sem impressão não vira confirmação', () => {
+  const erro = new DomainError('conflict', 'Confira.', { reason: 'needs_confirmation', details: { issues: [] } })
+  expect(formError(erro, {}).confirmation).toBeUndefined()
+})

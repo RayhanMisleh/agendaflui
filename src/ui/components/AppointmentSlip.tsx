@@ -20,6 +20,7 @@ export type SlipDrag = {
 export function AppointmentSlip({ slip, onOpen, drag }: { slip: PageSlip; onOpen: (id: string) => void; drag?: SlipDrag }) {
   const situacao = SITUACOES[slip.status].texto
   const { box } = slip
+  const principal = slip.petName ?? slip.customerName
   const style: CSSProperties & Record<`--${string}`, string> = {
     top: `${box.topMin * PX_PER_MIN}px`,
     height: `${box.heightMin * PX_PER_MIN}px`,
@@ -31,8 +32,8 @@ export function AppointmentSlip({ slip, onOpen, drag }: { slip: PageSlip; onOpen
       type="button"
       data-slip={slip.id}
       data-status={slip.status}
-      aria-label={`${slip.startLabel}, ${slip.customerName}, ${slip.services}, ${situacao}`}
-      className={cx('af-slip', `af-slip--${slip.status.toLowerCase().replace('_', '-')}`, slip.attention && 'af-slip--attention', drag?.draggable && 'af-slip--movable', drag?.lifted && 'af-slip--lifted')}
+      aria-label={`${slip.startLabel}, ${principal}, ${slip.services}, ${situacao}${slip.squeezeIn ? ', encaixe' : ''}`}
+      className={cx('af-slip', `af-slip--${slip.status.toLowerCase().replace('_', '-')}`, slip.attention && 'af-slip--attention', slip.squeezeIn && 'af-slip--squeeze', drag?.draggable && 'af-slip--movable', drag?.lifted && 'af-slip--lifted')}
       style={style}
       onClick={() => {
         if (drag?.consumeClick()) return
@@ -40,12 +41,13 @@ export function AppointmentSlip({ slip, onOpen, drag }: { slip: PageSlip; onOpen
       }}
       {...(drag?.draggable ? { onPointerDown: drag.onPointerDown, onKeyDown: drag.onKeyDown, onBlur: drag.onBlur } : {})}
     >
-      <span className="af-slip__name">{slip.customerName}</span>
-      <span className="af-slip__service">{slip.services}</span>
+      <span className="af-slip__name">{principal}</span>
+      <span className="af-slip__service">{slip.petName ? `${slip.customerName} · ${slip.services}` : slip.services}</span>
       <span className="af-slip__time">
         {slip.startLabel} às {slip.endLabel}
       </span>
       {slip.status === 'CONFIRMED' ? null : <span className="af-slip__status">{situacao}</span>}
+      {slip.squeezeIn ? <span className="af-slip__tag">Encaixe</span> : null}
     </button>
   )
 }

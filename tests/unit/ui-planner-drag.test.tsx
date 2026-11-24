@@ -9,6 +9,8 @@ const slip = (id: string, professionalId: string, topMin: number, extra: Partial
   professionalId,
   status: 'CONFIRMED',
   customerName: `Cliente ${id}`,
+  petName: null,
+  squeezeIn: false,
   services: 'Banho',
   startLabel: '14:00',
   endLabel: '15:00',
