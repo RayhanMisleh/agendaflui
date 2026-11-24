@@ -14,6 +14,8 @@ import type { HorarioLivre } from './consultas'
 export function HorarioFields({
   serviceIds,
   professionalId,
+  petId,
+  durationMin,
   date,
   onDate,
   time,
@@ -27,6 +29,8 @@ export function HorarioFields({
 }: {
   serviceIds: string[]
   professionalId: string
+  petId?: string
+  durationMin?: number
   date: string
   onDate: (d: string) => void
   time: string
@@ -47,7 +51,7 @@ export function HorarioFields({
     if (chosen !== '') onChosen('')
     if (chave === '' || date === '') return
     let vivo = true
-    void buscarHorarios({ serviceIds: chave.split(','), date, professionalId }).then((r) => {
+    void buscarHorarios({ serviceIds: chave.split(','), date, professionalId, ...(petId ? { petId } : {}), ...(durationMin !== undefined ? { durationMin } : {}) }).then((r) => {
       if (!vivo) return
       if (r.ok) {
         setHorarios(r.horarios)
@@ -64,7 +68,7 @@ export function HorarioFields({
     }
     // `chosen` fica de fora de propósito: a consulta só refaz quando muda o que a define (ele é lido na resposta).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chave, date, professionalId, prefillTime])
+  }, [chave, date, professionalId, prefillTime, petId, durationMin])
 
   const lista = chave === '' ? null : horarios
   const foraDaLista = chosen === '' && time !== '' && lista !== null && !lista.some((h) => horaDoRotulo(h.label) === time)
@@ -111,7 +115,7 @@ export function HorarioFields({
         ) : null}
         <input type="hidden" name="startsAt" value={chosen} />
       </fieldset>
-      <Field label="Outro horário" hint="Você pode usar um horário fora dos livres, desde que não bata com outro atendimento nem com um bloqueio." error={errors.time}>
+      <Field label="Outro horário" hint="Você pode usar qualquer horário. Se cair em cima de outro atendimento, fora do expediente ou num bloqueio, você confirma antes." error={errors.time}>
         <Input
           id={`${idPrefix}-hora`}
           type="time"
@@ -124,7 +128,7 @@ export function HorarioFields({
           }}
         />
       </Field>
-      {foraDaLista ? <p className="af-planner__warn">Este horário está fora dos horários livres da agenda. Se não houver conflito, ele é aceito mesmo assim.</p> : null}
+      {foraDaLista ? <p className="af-planner__warn">Este horário está fora dos livres da agenda. Se houver conflito, você confirma antes de salvar.</p> : null}
       {conflict && conflict.nearest.length > 0 ? (
         <div className="af-pick" role="group" aria-label="Horários livres mais próximos">
           <p className="af-section__help">Horários livres mais próximos:</p>

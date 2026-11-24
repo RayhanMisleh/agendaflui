@@ -452,6 +452,56 @@
     font-size: var(--text-small);
     color: var(--ink-muted);
   }
+  /* Folha de marcar: pets em rolagem horizontal com encaixe, duração livre e total no rodapé. */
+  .af-petpick {
+    display: flex;
+    gap: 0.5rem;
+    padding-bottom: 0.25rem;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    overscroll-behavior-x: contain;
+  }
+  .af-petpick__card {
+    flex: 0 0 8.5rem;
+    scroll-snap-align: start;
+  }
+  .af-petpick__card:focus-visible {
+    outline-offset: -2px;
+  }
+  .af-petservice {
+    display: grid;
+    gap: 0.125rem;
+  }
+  .af-petservice .af-field__hint {
+    margin: 0 0 0 1.75rem;
+  }
+  .af-minutes__row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .af-minutes .af-input {
+    width: 7rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-minutes__unit {
+    color: var(--ink-muted);
+  }
+  .af-pick__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .af-booktotal {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .af-slipdetail__undo {
+    display: block;
+  }
   .af-pick {
     display: grid;
     gap: 0.5rem;

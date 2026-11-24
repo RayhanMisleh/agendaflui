@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { rotuloDoHorario } from '@/app/_lib/form-state'
 import type { PageDetail } from '@/server/domain/scheduling/agenda-page'
 import { Button, Dialog } from '@/ui/components'
+import { ConflitosAviso } from './ConflitosDialog'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import { remarcarAtendimento } from './actions'
@@ -27,7 +28,7 @@ function Formulario({ alvo, detalhe, onClose }: { alvo: AlvoRemarcar; detalhe: P
   const label = usar ? rotuloDoHorario(usar, alvo.date) : (efetivo ?? alvo.startLabel)
   const avancou = !usar && efetivo !== null && efetivo !== alvo.startLabel
   return (
-    <PainelForm action={remarcarAtendimento} initial={inicial} submit="Remarcar atendimento" onDone={onClose} secondary={<Button variant="ghost" onClick={onClose}>Voltar</Button>}>
+    <PainelForm action={remarcarAtendimento} initial={inicial} submit={(state) => (state.confirmation ? 'Remarcar mesmo assim' : 'Remarcar atendimento')} onDone={onClose} secondary={<Button variant="ghost" onClick={onClose}>Voltar</Button>}>
       {(state) => (
         <>
           <input type="hidden" name="id" value={alvo.id} />
@@ -40,6 +41,7 @@ function Formulario({ alvo, detalhe, onClose }: { alvo: AlvoRemarcar; detalhe: P
           <p className="af-confirm__text">
             {detalhe.customer.name} passa de {detalhe.startLabel} com {detalhe.professional.name} para {label} com {alvo.professionalName}. O cliente é avisado da mudança.
           </p>
+          <ConflitosAviso confirmation={state.confirmation} />
           {avancou ? <p className="af-planner__warn">O horário {alvo.startLabel} não existe neste dia (troca do horário de verão). O atendimento fica às {efetivo}.</p> : null}
           {state.conflict && state.conflict.nearest.length > 0 ? (
             <div className="af-pick" role="group" aria-label="Horários livres mais próximos">

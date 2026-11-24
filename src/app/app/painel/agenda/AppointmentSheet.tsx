@@ -1,14 +1,18 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Ban, BellRing, CalendarClock, Check, CircleCheck, Undo2, UserX } from 'lucide-react'
 import type { AgendaPage, PageDetail } from '@/server/domain/scheduling/agenda-page'
-import { AppointmentStatusBadge, Button, Checkbox, Dialog, Field, MoneyField, PhoneLink, Sheet, Textarea } from '@/ui/components'
+import { AppointmentStatusBadge, Button, Checkbox, Dialog, Field, MinutesField, MoneyField, PetIllustration, PhoneLink, Sheet, Textarea } from '@/ui/components'
 import { formatDuration, formatLocalDate, formatMoney } from '@/ui/format'
 import { formatMoneyInput } from '@/ui/money'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import { ajustarAtendimento, avisarLivre, mudarSituacao } from './actions'
+import { petsDoCliente } from './consultas'
+import type { PetResumo } from './consultas'
+import { ConflitosDialog } from './ConflitosDialog'
+import { EscolherPet, ServicosDoPetLista, useServicosDoPet } from './PetsEServicos'
 
 type Decisao = 'complete' | 'noshow' | 'cancel'
 
@@ -44,30 +48,134 @@ function DecisaoDialog({ detalhe, decisao, onClose, onDone }: { detalhe: PageDet
   )
 }
 
+/** Desfazer falta: o horário pode ter virado de outro; o servidor pede confirmação e, confirmado, reabre como encaixe. */
+function DesfazerFalta({ id, onDone }: { id: string; onDone: () => void }) {
+  const inicial: EstadoPainel = { ok: false, message: null, fields: {}, values: {} }
+  return (
+    <PainelForm id="desfazer-form" action={mudarSituacao} initial={inicial} submit="Desfazer falta" onDone={onDone} className="af-slipdetail__undo">
+      {(state) => (
+        <>
+          <input type="hidden" name="id" value={id} />
+          <input type="hidden" name="to" value="undo" />
+          <ConflitosDialog formId="desfazer-form" confirmation={state.confirmation} confirmLabel="Reabrir mesmo assim" />
+        </>
+      )}
+    </PainelForm>
+  )
+}
+
 function Ajustes({ detalhe, page, onDone }: { detalhe: PageDetail; page: AgendaPage; onDone: () => void }) {
-  const marcados = detalhe.items.map((i) => i.serviceId)
+  const niche = page.niche
+  const [marcados, setMarcados] = useState(detalhe.items.map((i) => i.serviceId))
+  const [pets, setPets] = useState<PetResumo[]>(detalhe.pet ? [{ id: detalhe.pet.id, name: detalhe.pet.name, typeLabel: detalhe.pet.typeLabel, variant: detalhe.items[0]?.variant ?? 'DOG_MEDIUM' }] : [])
+  const [petId, setPetId] = useState<string | null>(detalhe.pet?.id ?? null)
+  const somaAtual = detalhe.items.reduce((t, i) => t + i.durationMin, 0)
+  const [duracao, setDuracao] = useState(String(detalhe.totalDurationMin))
+  const [editada, setEditada] = useState(detalhe.totalDurationMin !== somaAtual)
+
+  useEffect(() => {
+    if (!niche) return
+    let vivo = true
+    void petsDoCliente(detalhe.customer.id).then((r) => {
+      if (vivo && r.ok) setPets(r.pets)
+    })
+    return () => {
+      vivo = false
+    }
+  }, [niche, detalhe.customer.id])
+
+  const doPet = useServicosDoPet(niche ? petId : null)
+  const opcoes = useMemo(
+    () => (niche && petId ? doPet.servicos.filter((s) => s.offered && s.durationMin !== null).map((s) => ({ id: s.id, durationMin: s.durationMin ?? 0 })) : page.services),
+    [niche, petId, doPet.servicos, page.services],
+  )
+  const soma = opcoes.filter((s) => marcados.includes(s.id)).reduce((t, s) => t + s.durationMin, 0) || somaAtual
+  const valor = editada ? duracao : String(soma)
   const inicial: EstadoPainel = { ok: false, message: null, fields: {}, values: { price: formatMoneyInput(detalhe.totalCents), notes: detalhe.notes ?? '' } }
+  const lista = niche && petId !== null
+
   return (
     <details className="af-slipdetail__adjust">
-      <summary>Ajustar serviços, valor e observação</summary>
-      <PainelForm action={ajustarAtendimento} initial={inicial} submit="Salvar ajustes" onDone={onDone} labels={{ price: 'Valor', notes: 'Observação', serviceIds: 'Serviços' }}>
+      <summary>Ajustar pet, serviços, duração, valor e observação</summary>
+      <PainelForm
+        id="ajustar-form"
+        action={ajustarAtendimento}
+        initial={inicial}
+        submit="Salvar ajustes"
+        onDone={onDone}
+        labels={{ price: 'Valor', notes: 'Observação', serviceIds: 'Serviços', petId: 'Pet', durationMin: 'Duração' }}
+      >
         {(state) => (
           <>
             <input type="hidden" name="id" value={detalhe.id} />
-            <fieldset className="af-pick">
-              <legend className="af-field__label">Serviços</legend>
-              {page.services.map((s) => (
-                <Checkbox key={s.id} name="serviceIds" value={s.id} defaultChecked={marcados.includes(s.id)} label={`${s.name} · ${formatDuration(s.durationMin)} · ${formatMoney(s.priceCents)}`} />
-              ))}
-            </fieldset>
+            {niche ? (
+              <>
+                <input type="hidden" name="petId" value={petId ?? ''} />
+                <EscolherPet
+                  customerId={detalhe.customer.id}
+                  pets={pets}
+                  valor={pets.find((p) => p.id === petId) ?? null}
+                  onChange={(p) => setPetId(p.id)}
+                  onAdded={(p) => {
+                    setPets((l) => [...l, p])
+                    setPetId(p.id)
+                  }}
+                  servesCats={niche.servesCats}
+                  podeAdicionar={false}
+                  erro={state.fields.petId}
+                />
+              </>
+            ) : null}
+            {lista ? (
+              <ServicosDoPetLista
+                petId={petId}
+                marcados={marcados}
+                onToggle={(id, on) => setMarcados((l) => (on ? [...l, id] : l.filter((x) => x !== id)))}
+                erroDeCampo={state.fields.serviceIds}
+                semPet="Escolha o pet para ver os serviços."
+                servicos={doPet}
+                id="ajustar-servicos"
+              />
+            ) : (
+              <fieldset className="af-pick">
+                <legend className="af-field__label">Serviços</legend>
+                {page.services.map((s) => (
+                  <Checkbox
+                    key={s.id}
+                    name="serviceIds"
+                    value={s.id}
+                    checked={marcados.includes(s.id)}
+                    onChange={(e) => setMarcados((l) => (e.target.checked ? [...l, s.id] : l.filter((x) => x !== s.id)))}
+                    label={`${s.name} · ${formatDuration(s.durationMin)} · ${formatMoney(s.priceCents)}`}
+                  />
+                ))}
+              </fieldset>
+            )}
+            <MinutesField
+              id="ajustar-duracao"
+              name="durationMin"
+              value={valor}
+              sumMin={soma}
+              error={state.fields.durationMin}
+              onChange={(v) => {
+                if (v.trim() === String(soma)) {
+                  setEditada(false)
+                  setDuracao('')
+                } else {
+                  setEditada(true)
+                  setDuracao(v)
+                }
+              }}
+            />
             {page.scope === 'all' ? (
-              <Field label="Valor (R$)" hint="Trocar os serviços recalcula o valor; digite aqui para combinar outro." error={state.fields.price}>
+              <Field label="Valor (R$)" hint="Trocar o pet ou os serviços recalcula o valor; digite aqui para combinar outro." error={state.fields.price}>
                 <MoneyField name="price" defaultValue={state.values.price ?? ''} />
               </Field>
             ) : null}
             <Field label="Observação" hint="Anotação da equipe." error={state.fields.notes}>
               <Textarea name="notes" rows={2} maxLength={2000} defaultValue={state.values.notes ?? ''} />
             </Field>
+            <ConflitosDialog formId="ajustar-form" confirmation={state.confirmation} confirmLabel="Salvar mesmo assim" />
           </>
         )}
       </PainelForm>
@@ -86,11 +194,23 @@ export function AppointmentSheet({ detalhe, page, onClose, onReschedule }: { det
   }
   return (
     <>
-      <Sheet open={d !== null} onClose={fechar} title={d ? d.customer.name : 'Atendimento'}>
+      <Sheet open={d !== null} onClose={fechar} title={d ? (d.pet ? `${d.pet.name} · ${d.customer.name}` : d.customer.name) : 'Atendimento'}>
         {d ? (
           <div className="af-slipdetail">
+            {d.pet ? (
+              <div className="af-slipdetail__pet">
+                <span className="af-slipdetail__petart" aria-hidden="true">
+                  <PetIllustration variant={d.items[0]?.variant ?? 'DOG_MEDIUM'} size={32} />
+                </span>
+                <div>
+                  <p className="af-slipdetail__petname">{d.pet.name}</p>
+                  <p className="af-slipdetail__pettype">{d.pet.typeLabel}</p>
+                </div>
+              </div>
+            ) : null}
             <div className="af-slipdetail__head">
               <AppointmentStatusBadge status={d.status} />
+              {d.squeezeIn ? <span className="af-slipdetail__tag">Encaixe</span> : null}
               <p className="af-slipdetail__when">
                 <time dateTime={d.date}>{formatLocalDate(d.date)}</time>, {d.startLabel} às {d.endLabel}
               </p>
@@ -159,11 +279,12 @@ export function AppointmentSheet({ detalhe, page, onClose, onReschedule }: { det
                   Já estou livre
                 </AcaoDeLinha>
               ) : null}
-              {d.status === 'COMPLETED' || d.status === 'NO_SHOW' ? (
+              {d.status === 'COMPLETED' ? (
                 <AcaoDeLinha action={mudarSituacao} campos={{ id: d.id, to: 'undo' }} variant="secondary" size="md" icon={<Undo2 size={18} />} showOk>
-                  Desfazer {d.status === 'COMPLETED' ? 'conclusão' : 'falta'}
+                  Desfazer conclusão
                 </AcaoDeLinha>
               ) : null}
+              {d.status === 'NO_SHOW' ? <DesfazerFalta id={d.id} onDone={fechar} /> : null}
               {emAberto && onReschedule ? (
                 <Button variant="secondary" icon={<CalendarClock size={18} />} onClick={() => onReschedule(d.id)}>
                   Remarcar

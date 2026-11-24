@@ -55,9 +55,23 @@ function instanteDe(v: Campos, fuso: string): Date {
   return toInstant(dia, hora, fuso)
 }
 
+/**
+ * A duração livre da equipe: vazio = não enviar (vale a soma dos serviços); texto que não é número inteiro vira erro do
+ * campo. A faixa (5 a 720) é do domínio.
+ */
+function duracaoDe(v: Campos): { durationMin?: number } {
+  const texto = (v.durationMin ?? '').trim()
+  if (texto === '') return {}
+  if (!/^\d{1,4}$/.test(texto)) throw erroDeCampo('durationMin', 'Use de 5 a 720 minutos.')
+  return { durationMin: Number(texto) }
+}
+
+/** A impressão da confirmação (`ack`): vazia = nenhuma. */
+const confirmacaoDe = (v: Campos): { acknowledged?: string } => ((v.ack ?? '').trim() === '' ? {} : { acknowledged: (v.ack ?? '').trim() })
+
 // ---------------------------------------------------------------- marcar
 
-const MARCAR = ['customerId', 'professionalId', 'startsAt', 'date', 'time', 'notes'] as const
+const MARCAR = ['customerId', 'petId', 'professionalId', 'startsAt', 'date', 'time', 'durationMin', 'ack', 'notes'] as const
 
 export const marcarHorario = tenantAction(
   'view_own_agenda',
@@ -68,16 +82,21 @@ export const marcarHorario = tenantAction(
     const serviceIds = ids(v.serviceIds)
     if (serviceIds.length === 0) throw erroDeCampo('serviceIds', 'Escolha pelo menos um serviço.')
     const startsAt = instanteDe(v, ctx.timeZone)
+    const duracao = duracaoDe(v)
     try {
       const marcado = await bookAppointment(ctx, {
         customerId,
         serviceIds,
         startsAt,
+        ...((v.petId ?? '') === '' ? {} : { petId: v.petId ?? null }),
+        ...duracao,
+        ...confirmacaoDe(v),
         professionalId: (v.professionalId ?? '') === '' ? null : (v.professionalId ?? null),
         notes: (v.notes ?? '').trim() === '' ? null : (v.notes ?? '').trim(),
       })
       atualizarPainel()
-      return `Horário marcado: ${marcado.customer.name}, ${marcado.local.start}.`
+      const quem = marcado.pet ? `${marcado.pet.name} (${marcado.customer.name})` : marcado.customer.name
+      return `Horário marcado: ${quem}, ${marcado.local.start}.`
     } catch (err) {
       throw renomear(err, { startsAt: 'time' })
     }
@@ -91,12 +110,12 @@ const MUDANCAS = {
   confirm: (ctx, id) => confirmAppointment(ctx, id).then(() => 'Atendimento confirmado.'),
   complete: (ctx, id) => completeAppointment(ctx, id).then(() => 'Atendimento concluído.'),
   noshow: (ctx, id) => markNoShow(ctx, id).then(() => 'Falta registrada.'),
-  undo: (ctx, id) => undoOutcome(ctx, id).then(() => 'Atendimento reaberto.'),
-} satisfies Record<string, (ctx: Parameters<typeof confirmAppointment>[0], id: string) => Promise<string>>
+  undo: (ctx, id, v) => undoOutcome(ctx, id, confirmacaoDe(v)).then(() => 'Atendimento reaberto.'),
+} satisfies Record<string, (ctx: Parameters<typeof confirmAppointment>[0], id: string, v: Campos) => Promise<string>>
 
 export const mudarSituacao = tenantAction(
   'view_own_agenda',
-  (fd) => ler(fd, ['id', 'to', 'reason']),
+  (fd) => ler(fd, ['id', 'to', 'reason', 'ack']),
   async (ctx, v) => {
     const id = v.id ?? ''
     let mensagem: string
@@ -106,7 +125,7 @@ export const mudarSituacao = tenantAction(
     } else {
       const mudanca = Object.hasOwn(MUDANCAS, v.to ?? '') ? MUDANCAS[v.to as keyof typeof MUDANCAS] : undefined
       if (!mudanca) throw erroDeCampo('to', 'Escolha o que fazer com o atendimento.')
-      mensagem = await mudanca(ctx, id)
+      mensagem = await mudanca(ctx, id, v)
     }
     atualizarPainel()
     return mensagem
@@ -133,10 +152,13 @@ export const avisarLivre = tenantAction(
  */
 export const ajustarAtendimento = tenantAction(
   'view_own_agenda',
-  (fd): Campos => ({ ...ler(fd, ['id', 'price', 'notes']), serviceIds: lista(fd, 'serviceIds') }),
+  (fd): Campos => ({ ...ler(fd, ['id', 'petId', 'price', 'notes', 'durationMin', 'ack']), serviceIds: lista(fd, 'serviceIds') }),
   async (ctx, v) => {
     const atual = await getAppointment(ctx, v.id ?? '')
-    const mudanca: { serviceIds?: string[]; totalCents?: number; notes?: string | null } = {}
+    const mudanca: { serviceIds?: string[]; petId?: string; durationMin?: number; totalCents?: number; notes?: string | null; acknowledged?: string } = { ...confirmacaoDe(v) }
+    if ((v.petId ?? '') !== '' && v.petId !== atual.pet?.id) mudanca.petId = v.petId
+    const duracao = duracaoDe(v)
+    if (duracao.durationMin !== undefined && duracao.durationMin !== atual.totalDurationMin) mudanca.durationMin = duracao.durationMin
     const servicos = ids(v.serviceIds)
     const antes = atual.items.map((i) => i.serviceId)
     if (servicos.length > 0 && (servicos.length !== antes.length || servicos.some((s) => !antes.includes(s)))) mudanca.serviceIds = servicos
@@ -167,7 +189,7 @@ export const ajustarAtendimento = tenantAction(
  */
 export const remarcarAtendimento = tenantAction(
   'view_own_agenda',
-  (fd) => ler(fd, ['id', 'professionalId', 'startsAt', 'date', 'time', 'fromStartsAt', 'fromProfessionalId']),
+  (fd) => ler(fd, ['id', 'professionalId', 'startsAt', 'date', 'time', 'fromStartsAt', 'fromProfessionalId', 'durationMin', 'ack']),
   async (ctx, v) => {
     const startsAt = instanteDe(v, ctx.timeZone)
     // A tela manda de onde o atendimento saía (início e profissional que ela mostrava): se já não está lá, alguém mexeu.
@@ -184,8 +206,9 @@ export const remarcarAtendimento = tenantAction(
       }
       if (mudou) throw new DomainError('conflict', 'Este atendimento mudou agora. Recarregue para ver.')
     }
+    const duracao = duracaoDe(v)
     try {
-      const r = await rescheduleAppointment(ctx, v.id ?? '', { startsAt, ...((v.professionalId ?? '') === '' ? {} : { professionalId: v.professionalId ?? null }) })
+      const r = await rescheduleAppointment(ctx, v.id ?? '', { startsAt, ...duracao, ...confirmacaoDe(v), ...((v.professionalId ?? '') === '' ? {} : { professionalId: v.professionalId ?? null }) })
       atualizarPainel()
       return `${r.customer.name} remarcado para ${r.local.start} com ${r.professional.name}.`
     } catch (err) {
