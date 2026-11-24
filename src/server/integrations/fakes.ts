@@ -1,5 +1,8 @@
+import { createLocalJWKSet, exportJWK, generateKeyPair, SignJWT } from 'jose'
+import type { JWK, JWTPayload, JWTVerifyGetKey } from 'jose'
+import { areaLink } from '@/server/area-links'
 import { IntegrationError, type IntegrationErrorCode } from './errors'
-import type { FrenetGateway, MercadoPagoGateway, MpPayment, PostalCodeGateway } from './index'
+import type { FrenetGateway, GoogleGateway, GoogleIdClaims, MercadoPagoGateway, MpPayment, PostalCodeGateway } from './index'
 
 /** ViaCEP falsa (desenvolvimento e teste): um endereço fixo para qualquer CEP de 8 dígitos e `null` para `00000000`. */
 export function fakePostalCodes(): PostalCodeGateway {
@@ -76,4 +79,65 @@ export function fakeMercadoPago(): FakeMercadoPago {
 /** O `gw` é o Mercado Pago falso (e não o real)? É a trava do "Simular pagamento aprovado". */
 export function isFakeMercadoPago(gw: MercadoPagoGateway): gw is FakeMercadoPago {
   return 'registerPayment' in gw && typeof gw.registerPayment === 'function'
+}
+
+/** O Google falso: além do gateway, emite códigos e tokens assinados com uma chave RS256 própria. */
+export type FakeGoogle = GoogleGateway & {
+  /** Guarda o token das declarações dadas e devolve o código (uso único) que `exchangeCode` troca por ele. */
+  issueCode(claims: Partial<GoogleIdClaims> & { sub: string; email: string }): Promise<string>
+  /** Assina um `id_token` com as declarações dadas (padrões: `iss` do Google, `iat` agora, `exp` em 1 h). Para testes de token inválido. */
+  sign(claims: Partial<GoogleIdClaims>): Promise<string>
+  /** Esquece os códigos emitidos. */
+  reset(): void
+}
+
+let googleFalso: FakeGoogle | null = null
+
+/** O Google falso do processo (o mesmo que `integrations().google` usa no modo `fake`): uma chave gerada uma vez. */
+export function fakeGoogleAuthority(): FakeGoogle {
+  if (googleFalso !== null) return googleFalso
+  const KID = 'fake-google-key'
+  const par = generateKeyPair('RS256', { extractable: true })
+  // `par` é uma promessa: sem ouvinte, uma falha de geração viraria rejeição não tratada antes do primeiro uso.
+  par.catch(() => undefined)
+  let conjunto: Promise<JWTVerifyGetKey> | null = null
+  const chaves: JWTVerifyGetKey = async (header, token) => {
+    conjunto ??= par.then(async ({ publicKey }) => {
+      const jwk: JWK = { ...(await exportJWK(publicKey)), kid: KID, alg: 'RS256', use: 'sig' }
+      return createLocalJWKSet({ keys: [jwk] })
+    })
+    return (await conjunto)(header, token)
+  }
+  const codes = new Map<string, Partial<GoogleIdClaims>>()
+  let seq = 0
+  const sign = async (claims: Partial<GoogleIdClaims>): Promise<string> => {
+    const { privateKey } = await par
+    const { exp, iat, iss, ...resto } = claims
+    const jwt = new SignJWT(resto as JWTPayload).setProtectedHeader({ alg: 'RS256', kid: KID }).setIssuer(iss ?? 'https://accounts.google.com')
+    if (iat === undefined) jwt.setIssuedAt()
+    else jwt.setIssuedAt(iat)
+    if (exp === undefined) jwt.setExpirationTime('1h')
+    else jwt.setExpirationTime(exp)
+    return jwt.sign(privateKey)
+  }
+  googleFalso = {
+    authorizationEndpoint: () => areaLink('app', '/google/falso'),
+    keys: () => chaves,
+    sign,
+    issueCode: async (claims) => {
+      seq += 1
+      const code = `fake-code-${seq}-${Math.random().toString(36).slice(2, 10)}`
+      codes.set(code, { email_verified: true, ...claims })
+      return code
+    },
+    exchangeCode: async (i) => {
+      const claims = codes.get(i.code)
+      // Uso único: o código some ao ser trocado (ou ao falhar por outro motivo, como no Google).
+      codes.delete(i.code)
+      if (claims === undefined || i.codeVerifier === '') throw new IntegrationError('rejected', 'O Google recusou o código (falso).')
+      return { idToken: await sign({ aud: i.clientId, ...claims }) }
+    },
+    reset: () => codes.clear(),
+  }
+  return googleFalso
 }
