@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Appointment, AppointmentStatus, AuditLog, Business, CalendarConnection, CalendarConnectionStatus, Customer, Membership, MembershipRole, Pet, Prisma, PriceVariant, Professional, Service, ServicePrice, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, CalendarConnection, CalendarConnectionStatus, Customer, Membership, MembershipRole, OnboardingProgress, OnboardingStep, Pet, Prisma, PriceVariant, Professional, Service, ServicePrice, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
@@ -302,4 +302,12 @@ export async function makeCalendarConnection(
         : { revokedAt: agora }),
     },
   })
+}
+
+/** Progresso do começo do dono, direto no banco (vazio por padrão). */
+export async function makeOnboarding(
+  businessId: string,
+  o: Partial<{ doneSteps: OnboardingStep[]; skippedSteps: OnboardingStep[]; wizardFinishedAt: Date; dismissedAt: Date }> = {},
+): Promise<OnboardingProgress> {
+  return prisma.onboardingProgress.create({ data: { businessId, ...o } })
 }

@@ -33,6 +33,7 @@ export const TENANT_MODELS: Modelos = [
   'OrderItem',
   'Payment',
   'CalendarSync',
+  'OnboardingProgress',
 ]
 
 /**
