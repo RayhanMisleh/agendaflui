@@ -134,8 +134,8 @@ test('Celebration e as ilustrações são aria-hidden', () => {
     </>,
   )
   expect(container.querySelector('.af-cl-celebration')).toHaveAttribute('aria-hidden', 'true')
-  const svgs = container.querySelectorAll('svg[viewBox="0 0 64 64"]')
-  expect(svgs).toHaveLength(8)
+  const svgs = container.querySelectorAll('svg')
+  expect(svgs).toHaveLength(9)
   svgs.forEach((s) => expect(s).toHaveAttribute('aria-hidden', 'true'))
   expect(container.querySelectorAll('.af-cl-celebration__bubble')).toHaveLength(8)
 })
