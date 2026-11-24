@@ -1,19 +1,20 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { Mail, MessageCircle } from 'lucide-react'
+import { Mail, MessageCircle, Plus } from 'lucide-react'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { getCustomer, isCustomerAnonymized } from '@/server/domain/customers/customers'
 import type { CustomerView } from '@/server/domain/customers/customers'
+import { listPets } from '@/server/domain/pets/pets'
 import { getCustomerLoyalty, listLoyaltyEntries } from '@/server/domain/loyalty/ledger'
 import { listPrizes } from '@/server/domain/loyalty/prizes'
 import { listOrders } from '@/server/domain/store/orders'
 import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
-import { AppointmentStatusBadge, Avatar, Card, EmptyHint, LinkButton, OrderStatusBadge, Pagination, PhoneLink, StatNumber, StatusDot } from '@/ui/components'
+import { AppointmentStatusBadge, Avatar, Card, EmptyHint, EmptyState, PetCard, LinkButton, OrderStatusBadge, Pagination, PhoneLink, StatNumber, StatusDot } from '@/ui/components'
 import { formatDuration, formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
 import Link from 'next/link'
@@ -94,6 +95,16 @@ export default async function ClientePage({
   const clube = painel.modules.loyalty ? terms.club : null
   // Os 5 últimos pedidos, só com a Loja ligada e para quem gerencia a loja.
   const pedidos = painel.modules.store && can(ctx.actor, 'manage_store') ? (await listOrders(ctx, { customerId: id, limit: 5 })).items : null
+  // Pets (só em conta com nicho): ativos primeiro; os arquivados aparecem sob pedido.
+  const todosPets = painel.niche ? await listPets(ctx, id, { includeArchived: true }) : []
+  const pets = todosPets.filter((p) => !p.archived)
+  const arquivados = todosPets.filter((p) => p.archived)
+  const verArquivados = um(q.arquivados) === '1'
+  const novoPet = podeEscrever && !cliente.archived ? (
+    <LinkButton href={`/painel/clientes/${cliente.id}/pets/novo`} variant="secondary" size="sm" icon={<Plus size={16} />}>
+      Adicionar pet
+    </LinkButton>
+  ) : null
   const pontos = painel.modules.loyalty ? await carregarPontos(ctx, id, cursorExtrato, can(ctx.actor, 'manage_loyalty')) : null
 
   return (
@@ -132,6 +143,56 @@ export default async function ClientePage({
             </div>
           ) : null}
         </Card>
+
+        {painel.niche ? (
+          <Card as="section" aria-labelledby="cliente-pets" className="af-profile">
+            <div className="af-petsec__head">
+              <h2 id="cliente-pets" className="af-section__title">
+                Pets
+              </h2>
+              {pets.length > 0 ? novoPet : null}
+            </div>
+            {pets.length > 0 ? (
+              <ul className="af-petgrid">
+                {pets.map((p) => (
+                  <li key={p.id}>
+                    <PetCard pet={p} href={`/painel/clientes/${cliente.id}/pets/${p.id}`} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                title="Nenhum pet ainda"
+                description={cliente.archived ? 'Cadastro arquivado: restaure para adicionar pets.' : 'Adicione o primeiro para marcar horários.'}
+                action={novoPet}
+              />
+            )}
+            {arquivados.length > 0 ? (
+              verArquivados ? (
+                <>
+                  <ul className="af-petgrid">
+                    {arquivados.map((p) => (
+                      <li key={p.id}>
+                        <PetCard pet={p} href={`/painel/clientes/${cliente.id}/pets/${p.id}`} />
+                      </li>
+                    ))}
+                  </ul>
+                  <div>
+                    <LinkButton href={`/painel/clientes/${cliente.id}`} variant="ghost" size="sm">
+                      Esconder arquivados
+                    </LinkButton>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <LinkButton href={`/painel/clientes/${cliente.id}?arquivados=1`} variant="ghost" size="sm">
+                    Ver arquivados ({arquivados.length})
+                  </LinkButton>
+                </div>
+              )
+            ) : null}
+          </Card>
+        ) : null}
 
         <div className="af-profile__cols">
           <div className="af-profile">

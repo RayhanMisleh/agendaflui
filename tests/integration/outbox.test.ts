@@ -149,7 +149,7 @@ describe('fila ao marcar', () => {
     expect(await fila(s.b.id, { kind: 'APPOINTMENT_CONFIRMED' })).toHaveLength(1)
   })
 
-  test('marcação que falha por horário ocupado não deixa linha na fila', async () => {
+  test('marcação que pede confirmação por horário ocupado não deixa linha na fila', async () => {
     const s = await montar()
     await bookAppointment(s.gerente, { customerId: s.cliente.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H })
     const antes = await prisma.notification.count({ where: { businessId: s.b.id } })
@@ -157,7 +157,7 @@ describe('fila ao marcar', () => {
     const erro = await domainError(
       bookAppointment(s.gerente, { customerId: outro.id, professionalId: s.ana.id, serviceIds: [s.tosa.id], startsAt: QUINTA_10H }),
     )
-    expect(erro.reason).toBe('slot_taken')
+    expect(erro.reason).toBe('needs_confirmation')
     expect(await prisma.notification.count({ where: { businessId: s.b.id } })).toBe(antes)
   })
 

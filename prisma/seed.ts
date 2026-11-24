@@ -345,9 +345,20 @@ async function semearAgenda(
     endsAt: plano.bloco.endsAt,
     reason: 'Consulta médica',
   })
+  // Só conta pet: um cão médio por cliente (nomes em ordem, repetindo), pelo banco cru, e o petId em cada marcação.
+  const NOMES_PETS = ['Thor', 'Mel', 'Bob', 'Luna', 'Pipoca', 'Fred', 'Nina', 'Max']
+  const petPorCliente = new Map<string, string>()
+  if ((await prisma.business.findUniqueOrThrow({ where: { id: negocio.id }, select: { niche: true } })).niche === 'PET') {
+    for (const [n, c] of clientes.entries()) {
+      const nome = NOMES_PETS[n % NOMES_PETS.length] ?? 'Thor'
+      const pet = await prisma.pet.create({ data: { businessId: negocio.id, customerId: c.id, name: nome, searchName: searchKey(nome), species: 'DOG', size: 'MEDIUM' }, select: { id: true } })
+      petPorCliente.set(c.id, pet.id)
+    }
+  }
   for (const m of plano.marcacoes) {
     const marcado = await d.bookAppointment(ctx, {
       customerId: m.customerId,
+      ...(petPorCliente.has(m.customerId) ? { petId: petPorCliente.get(m.customerId) ?? null } : {}),
       professionalId: m.professionalId,
       serviceIds: m.serviceIds,
       startsAt: m.startsAt,

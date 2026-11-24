@@ -20,8 +20,10 @@ import {
   type ChangeExtra,
   type Row,
 } from '@/server/domain/scheduling/appointment-view'
-import { assertCustomerWindow, assertProfessionalUnchanged, lockedTransaction } from '@/server/domain/scheduling/placement'
-import { canTransition } from '@/server/domain/scheduling/status'
+import { assertCustomerWindow, assertProfessionalUnchanged, confirmStaffIssues, lockedTransaction } from '@/server/domain/scheduling/placement'
+import { overlapsNormal, promoteSqueezeIns } from '@/server/domain/scheduling/squeeze-in'
+import { staffIssues } from '@/server/domain/scheduling/staff-issues'
+import { ACTIVE_STATUSES, canTransition } from '@/server/domain/scheduling/status'
 
 const cancelSchema = z.object({ reason: optionalText(300).nullable().optional() })
 
@@ -36,8 +38,6 @@ type StatusChange = {
   /** Campos extras a gravar; pode recusar a mudança. */
   prepare?: (tx: TenantTx, row: Row) => Promise<Prisma.AppointmentUncheckedUpdateInput>
   metadata?: (row: Row, extra: Prisma.AppointmentUncheckedUpdateInput) => Record<string, string | number | null>
-  /** Texto do erro `slot_taken` quando a mudança volta a ocupar um horário que outro agendamento tomou. */
-  slotTakenMessage?: string
   /** Trava também o cliente (antes dos profissionais), para serializar com arquivar e anonimizar. */
   lockCustomer?: boolean
   /** Dados a mais para os avisos do evento (ver `afterChange`). */
@@ -68,6 +68,10 @@ async function applyChange(tx: TenantTx, ctx: TenantContext, row: Row, spec: Sta
     },
     tx,
   )
+  // Um normal que deixa a agenda (cancelado ou faltou) libera o intervalo: os encaixes dele são reavaliados.
+  if (!row.isSqueezeIn && ACTIVE_STATUSES.includes(row.status) && !ACTIVE_STATUSES.includes(spec.to)) {
+    await promoteSqueezeIns(tx, ctx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt })
+  }
   const updated = await reload(tx, row.id)
   await afterChange(tx, ctx, spec.event, updated, { from: row.status, ...(spec.eventExtra ?? {}) })
   return updated
@@ -79,27 +83,20 @@ async function changeStatus(ctx: TenantContext, id: string, spec: StatusChange):
   const scope = await staffScope(ctx, who)
   const before = await loadForActor(ctx, ctx.db, id, who, scope)
 
-  try {
-    return await lockedTransaction(
-      ctx,
-      [before.professionalId],
-      () => ({ startsAt: before.startsAt, durationMin: before.totalDurationMin, professionalIds: [before.professionalId], ignoreAppointmentId: id }),
-      async (tx) => {
-        const row = await loadForActor(ctx, tx, id, who, scope)
-        assertProfessionalUnchanged(row, [before.professionalId])
-        assertTransition(row, spec)
-        const rules = await getSchedulingRules(ctx, tx)
-        if (who === 'customer') assertCustomerWindow(ctx, rules, row.startsAt, spec.customerVerb ?? '')
-        return toView(ctx, await applyChange(tx, ctx, row, spec), scope, rules.customerChangeWindowMin)
-      },
-      spec.lockCustomer ? { customerId: before.customerId } : {},
-    )
-  } catch (err) {
-    if (spec.slotTakenMessage && err instanceof DomainError && err.reason === 'slot_taken') {
-      throw new DomainError('conflict', spec.slotTakenMessage, { reason: 'slot_taken' })
-    }
-    throw err
-  }
+  return lockedTransaction(
+    ctx,
+    [before.professionalId],
+    () => ({ startsAt: before.startsAt, durationMin: before.totalDurationMin, professionalIds: [before.professionalId], ignoreAppointmentId: id }),
+    async (tx) => {
+      const row = await loadForActor(ctx, tx, id, who, scope)
+      assertProfessionalUnchanged(row, [before.professionalId])
+      assertTransition(row, spec)
+      const rules = await getSchedulingRules(ctx, tx)
+      if (who === 'customer') assertCustomerWindow(ctx, rules, row.startsAt, spec.customerVerb ?? '')
+      return toView(ctx, await applyChange(tx, ctx, row, spec), scope, rules.customerChangeWindowMin)
+    },
+    spec.lockCustomer ? { customerId: before.customerId } : {},
+  )
 }
 
 function cancelSpec(ctx: TenantContext, reason: string | null, eventExtra?: StatusChange['eventExtra']): StatusChange {
@@ -183,16 +180,19 @@ export function markNoShow(ctx: TenantContext, id: string): Promise<AppointmentV
   })
 }
 
-export function undoOutcome(ctx: TenantContext, id: string): Promise<AppointmentView> {
+/**
+ * Desfaz "concluído" (nunca pede confirmação: ele nunca saiu da agenda) ou "faltou" (reentra na agenda: se o horário virou de
+ * outro, pede confirmação e, confirmado, volta como encaixe).
+ */
+export function undoOutcome(ctx: TenantContext, id: string, opts: { acknowledged?: string } = {}): Promise<AppointmentView> {
   return changeStatus(ctx, id, {
     to: 'CONFIRMED',
     from: ['COMPLETED', 'NO_SHOW'],
     action: 'appointment.outcome_undone',
     event: 'outcome_undone',
     invalid: 'Só dá para desfazer agendamentos concluídos ou com falta.',
-    slotTakenMessage: 'Não dá para desfazer: o horário já está ocupado por outro agendamento.',
     lockCustomer: true,
-    prepare: async (_tx, row) => {
+    prepare: async (tx, row) => {
       if (row.customer.archivedAt !== null || row.customer.anonymizedAt !== null) {
         throw new DomainError(
           'conflict',
@@ -200,7 +200,22 @@ export function undoOutcome(ctx: TenantContext, id: string): Promise<Appointment
           { reason: 'customer_gone' },
         )
       }
-      return { completedAt: null, commissionCents: null }
+      if (row.status !== 'NO_SHOW') return { completedAt: null, commissionCents: null }
+      const ignore = { ignoreAppointmentId: row.id }
+      const issues = (
+        await staffIssues(ctx, tx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt, ...ignore })
+      ).filter((x) => x.kind === 'busy')
+      await confirmStaffIssues(ctx, tx, {
+        professionalId: row.professionalId,
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+        issues,
+        acknowledged: opts.acknowledged,
+        durationMin: row.totalDurationMin,
+        ...ignore,
+      })
+      const isSqueezeIn = await overlapsNormal(tx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt, ...ignore })
+      return { completedAt: null, commissionCents: null, isSqueezeIn }
     },
   })
 }

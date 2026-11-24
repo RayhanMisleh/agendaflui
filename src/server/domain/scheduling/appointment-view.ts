@@ -6,9 +6,12 @@ import type {
   AppointmentStatus,
   Customer,
   PartyType,
+  Pet,
+  PriceVariant,
   Professional,
 } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
+import { variantDef, variantOfPet } from '@/server/niches'
 import { formatPhone } from '@/server/domain/customers/contact'
 import { isCustomer } from '@/server/domain/input'
 import { DomainError, z } from '@/server/domain/errors'
@@ -30,13 +33,17 @@ export type AppointmentView = {
   local: { date: string; start: string; end: string }
   customer: { id: string; name: string; phoneLabel: string | null }
   professional: { id: string; name: string }
-  items: { serviceId: string; name: string; priceCents: number; durationMin: number }[]
+  /** O pet atual do agendamento (o porte pode ter mudado depois); nulo em conta sem pets e em agendamentos antigos. */
+  pet: { id: string; name: string; typeLabel: string } | null
+  items: { serviceId: string; name: string; priceCents: number; durationMin: number; variant: PriceVariant | null }[]
   totalCents: number
   totalDurationMin: number
   /** Só na visão da equipe: o cliente do app e o visitante nunca recebem estes dois campos (a chave nem existe). */
   commissionCents?: number | null
   /** Anotação interna da equipe (mesma regra de `commissionCents`). */
   notes?: string | null
+  /** Só na visão da equipe: marcado por cima de outro agendamento (encaixe). O cliente nunca recebe a chave. */
+  isSqueezeIn?: boolean
   /** Observação escrita pelo cliente ao marcar; visível ao cliente e à equipe. */
   customerNote: string | null
   /** Prazo do cliente para cancelar ou remarcar; para a equipe, `allowed` só segue a situação. */
@@ -59,7 +66,7 @@ export type Who = 'customer' | 'staff'
 
 export type Scope = { all: boolean; ownId: string | null }
 
-export type Row = Appointment & { items: AppointmentItem[]; customer: Customer; professional: Professional }
+export type Row = Appointment & { items: AppointmentItem[]; customer: Customer; professional: Professional; pet: Pet | null }
 
 const idSchema = z.uuid()
 
@@ -218,6 +225,7 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
       phoneLabel: row.customer.phone ? formatPhone(row.customer.phone) : null,
     },
     professional: { id: row.professional.id, name: row.professional.name },
+    pet: row.pet === null ? null : { id: row.pet.id, name: row.pet.name, typeLabel: variantDef(variantOfPet(row.pet)).label },
     items: [...row.items]
       .sort((a, b) => a.position - b.position || a.id.localeCompare(b.id))
       .map((item) => ({
@@ -225,6 +233,7 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
         name: item.name,
         priceCents: item.priceCents,
         durationMin: item.durationMin,
+        variant: item.variant,
       })),
     totalCents: row.totalCents,
     totalDurationMin: row.totalDurationMin,
@@ -240,7 +249,7 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
   }
   // A visão do cliente é outra: sem as chaves internas, em vez de chaves nulas.
   if (isCustomer(ctx)) return view
-  return { ...view, commissionCents: internals ? row.commissionCents : null, notes: internals ? row.notes : null }
+  return { ...view, commissionCents: internals ? row.commissionCents : null, notes: internals ? row.notes : null, isSqueezeIn: row.isSqueezeIn }
 }
 
 /**
@@ -258,7 +267,8 @@ async function loadRow(db: Db, id: string): Promise<Row | null> {
   const customer = await db.customer.findUnique({ where: { id: appointment.customerId } })
   const professional = await db.professional.findUnique({ where: { id: appointment.professionalId } })
   if (!customer || !professional) return null
-  return { ...appointment, items, customer, professional }
+  const pet = appointment.petId === null ? null : await db.pet.findUnique({ where: { id: appointment.petId } })
+  return { ...appointment, items, customer, professional, pet }
 }
 
 /** Lê o agendamento e confere o acesso do ator: cliente só o próprio (`not_found`), equipe conforme a agenda. */

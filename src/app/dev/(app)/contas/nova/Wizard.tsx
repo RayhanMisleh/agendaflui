@@ -1,7 +1,7 @@
 'use client'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import type { ChangeEvent, KeyboardEvent } from 'react'
-import { ArrowLeft, ArrowRight, Plus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, PawPrint, Plus } from 'lucide-react'
 import {
   BrandPreview,
   Button,
@@ -19,6 +19,7 @@ import {
   Select,
   StatusBadge,
   StepRail,
+  Switch,
   useHydrated,
 } from '@/ui/components'
 import { previewTheme } from '@/shared/theme/preview'
@@ -40,13 +41,8 @@ const ROTULOS: Record<string, string> = {
   primary: PRIMARY_FIELD_LABEL,
   accent: ACCENT_FIELD_LABEL,
   material: SIDEBAR_FIELD_LABEL,
-  professionalSingular: 'Profissional (singular)',
-  professionalPlural: 'Profissional (plural)',
-  customerSingular: 'Cliente (singular)',
-  customerPlural: 'Cliente (plural)',
-  pointsSingular: 'Pontos (singular)',
-  pointsPlural: 'Pontos (plural)',
-  club: 'Clube',
+  niche: 'Nicho',
+  servesCats: 'Atende gatos',
   store: 'Loja',
   slotStepMin: 'Grade de horários',
   minLeadMin: 'Antecedência mínima',
@@ -128,7 +124,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
   if (state.ok && state.values.result) return <Concluida result={state.values.result} onAgain={onAgain} />
 
   const { warnings } = previewTheme(v)
-  const comPrevia = !hidratado || step === 1 || step === 2
+  const comPrevia = !hidratado || step === 1 || step === 3
   const ultima = step === STEPS.length - 1
   const rotulosErro = ROTULOS
 
@@ -206,7 +202,41 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             />
           </Etapa>
 
-          <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu e das telas.">
+          <Etapa i={2} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Nicho" ajuda="O ramo da conta define os cadastros e a agenda. Por enquanto, só o pet shop.">
+            <input type="hidden" name="niche" value="PET" />
+            <div role="radiogroup" aria-label="Nicho da conta" className="af-nichepick">
+              <div role="radio" aria-checked="true" aria-disabled="true" tabIndex={0} className="af-nichecard" data-selected="true">
+                <span className="af-nichecard__icon" aria-hidden="true">
+                  <PawPrint size={24} />
+                </span>
+                <span className="af-nichecard__body">
+                  <span className="af-nichecard__title">Pet shop</span>
+                  <span className="af-nichecard__text">Agenda com pets, porte e preço por animal.</span>
+                </span>
+                <span className="af-nichecard__badge">
+                  <Check size={14} strokeWidth={3} aria-hidden="true" />
+                  Selecionado
+                </span>
+              </div>
+            </div>
+            <p className="af-wizard__help">Por enquanto, o Agenda Flui atende pet shops.</p>
+            {erro('niche') ? (
+              <p role="alert" className="af-field__error">
+                {erro('niche')}
+              </p>
+            ) : null}
+            {hidratado ? (
+              <>
+                <Switch checked={v.servesCats} onCheckedChange={(on) => set('servesCats', on)} label="Atende gatos" />
+                {v.servesCats ? <input type="hidden" name="servesCats" value="on" /> : null}
+              </>
+            ) : (
+              <Checkbox name="servesCats" label="Atende gatos" defaultChecked={v.servesCats} />
+            )}
+            <p className="af-field__hint">Desligado: a loja atende só cães. Dá para mudar depois em Configurações.</p>
+          </Etapa>
+
+          <Etapa i={3} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Módulos" ajuda="O que esta conta usa além da agenda. Módulo desligado some do menu e das telas.">
             <div className="af-wizard__checks">
               <Checkbox name="loyalty" label="Fidelidade: pontos e prêmios" checked={v.loyalty} onChange={(e) => set('loyalty', e.target.checked)} />
               <Checkbox name="banners" label="Banners: avisos e promoções para clientes" checked={v.banners} onChange={(e) => set('banners', e.target.checked)} />
@@ -214,7 +244,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             </div>
           </Etapa>
 
-          <Etapa i={3} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Regras de agenda" ajuda="Os valores começam no padrão do sistema. O dono pode ajustá-los depois.">
+          <Etapa i={4} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Regras de agenda" ajuda="Os valores começam no padrão do sistema. O dono pode ajustá-los depois.">
             <div className="af-wizard__grid">
               <Field label="Grade de horários" hint="De quanto em quanto tempo um horário pode começar." error={erro('slotStepMin')}>
                 <Select name="slotStepMin" value={v.slotStepMin} onChange={texto('slotStepMin')}>
@@ -241,7 +271,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
             <Checkbox name="autoConfirm" label="Confirmar os agendamentos sozinho" checked={v.autoConfirm} onChange={(e) => set('autoConfirm', e.target.checked)} />
           </Etapa>
 
-          <Etapa i={4} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Dono da conta" ajuda="Quem manda na conta. Se o e-mail já tem cadastro, a pessoa é vinculada sem trocar a senha e recebe um aviso de acesso novo. Senão, recebe o convite para definir a senha.">
+          <Etapa i={5} step={step} hidratado={hidratado} tituloRef={tituloRef} titulo="Dono da conta" ajuda="Quem manda na conta. Se o e-mail já tem cadastro, a pessoa é vinculada sem trocar a senha e recebe um aviso de acesso novo. Senão, recebe o convite para definir a senha.">
             <div className="af-wizard__grid">
               <Field label="Nome do dono" error={erro('ownerName')}>
                 <Input name="ownerName" value={v.ownerName} onChange={texto('ownerName')} autoComplete="off" />
@@ -257,6 +287,8 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
               <dd>{v.displayName || 'Sem nome de exibição'}</dd>
               <dt>Dono</dt>
               <dd>{v.ownerEmail || 'Sem e-mail ainda'}</dd>
+              <dt>Nicho</dt>
+              <dd>Pet shop · Gatos: {v.servesCats ? 'sim' : 'não'}</dd>
               <dt>Módulos</dt>
               <dd>{[v.loyalty && 'Fidelidade', v.banners && 'Banners', v.store && 'Loja'].filter(Boolean).join(', ') || 'Só a agenda'}</dd>
             </dl>

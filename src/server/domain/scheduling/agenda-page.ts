@@ -1,5 +1,5 @@
 import type { TenantContext } from '@/server/auth/actor'
-import type { AppointmentStatus } from '@/server/db/generated/client'
+import type { AppointmentStatus, PriceVariant } from '@/server/db/generated/client'
 import { listServices } from '@/server/domain/catalog/services'
 import { authorize } from '@/server/domain/errors'
 import { getAgenda, getDaySummary, type AgendaDay } from '@/server/domain/scheduling/agenda'
@@ -13,6 +13,7 @@ import {
   type SlipBox,
 } from '@/server/domain/scheduling/agenda-layout'
 import { ACTIVE_STATUSES, OPEN_STATUSES } from '@/server/domain/scheduling/status'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { listProfessionals } from '@/server/domain/team/professionals'
 import {
@@ -43,6 +44,10 @@ export type PageSlip = {
   professionalId: string
   status: AppointmentStatus
   customerName: string
+  /** Nome do pet (conta pet); a ficha mostra este como nome principal. */
+  petName: string | null
+  /** Marcado por cima de outro atendimento: a ficha leva o selo "Encaixe". */
+  squeezeIn: boolean
   services: string
   startLabel: string
   endLabel: string
@@ -82,7 +87,7 @@ export type PageWeekDay = {
   closed: boolean
   count: number
   occupancy: number | null
-  items: { id: string; startLabel: string; customerName: string; status: AppointmentStatus }[]
+  items: { id: string; startLabel: string; customerName: string; petName: string | null; squeezeIn: boolean; status: AppointmentStatus }[]
   more: number
 }
 
@@ -96,7 +101,9 @@ export type PageDetail = {
   startsAtIso: string
   customer: { id: string; name: string; phoneLabel: string | null }
   professional: { id: string; name: string }
-  items: { serviceId: string; name: string; priceCents: number; durationMin: number }[]
+  pet: { id: string; name: string; typeLabel: string } | null
+  squeezeIn: boolean
+  items: { serviceId: string; name: string; priceCents: number; durationMin: number; variant: PriceVariant | null }[]
   totalCents: number
   totalDurationMin: number
   notes: string | null
@@ -126,6 +133,8 @@ export type AgendaPage = {
   week: PageWeekDay[] | null
   details: Record<string, PageDetail>
   services: { id: string; name: string; priceCents: number; durationMin: number }[]
+  /** Opções do nicho da conta; nulo em conta sem nicho (sem pets). */
+  niche: { servesCats: boolean } | null
 }
 
 /** Janela das datas aceitas em `?data=`: de 2000-01-01 até dois anos (730 dias) à frente de hoje. */
@@ -149,6 +158,8 @@ function detailOf(a: AppointmentView, canFreeEarly: boolean): PageDetail {
     startsAtIso: toIsoInstant(a.startsAt),
     customer: a.customer,
     professional: a.professional,
+    pet: a.pet,
+    squeezeIn: a.isSqueezeIn === true,
     items: a.items,
     totalCents: a.totalCents,
     totalDurationMin: a.totalDurationMin,
@@ -176,6 +187,7 @@ export async function getAgendaPage(ctx: TenantContext, q: AgendaQuery): Promise
   const professionalId = filter === 'todos' ? null : filter
 
   const rules = await getSchedulingRules(ctx)
+  const nicheSettings = await getNicheSettings(ctx)
   const services = (await listServices(ctx)).map((s) => ({ id: s.id, name: s.name, priceCents: s.priceCents, durationMin: s.durationMin }))
   const base = {
     view,
@@ -191,6 +203,7 @@ export async function getAgendaPage(ctx: TenantContext, q: AgendaQuery): Promise
     professionals,
     filter,
     services,
+    niche: nicheSettings.niche === null ? null : { servesCats: nicheSettings.options.servesCats },
   }
   if (unlinked) {
     return { ...base, closed: { closed: false, reason: null }, day: null, week: null, details: {} }
@@ -210,7 +223,7 @@ export async function getAgendaPage(ctx: TenantContext, q: AgendaQuery): Promise
         closed: day.closed,
         count: all.length,
         occupancy: summary.occupancy,
-        items: all.slice(0, WEEK_ITEMS).map((a) => ({ id: a.id, startLabel: a.local.start, customerName: a.customer.name, status: a.status })),
+        items: all.slice(0, WEEK_ITEMS).map((a) => ({ id: a.id, startLabel: a.local.start, customerName: a.customer.name, petName: a.pet?.name ?? null, squeezeIn: a.isSqueezeIn === true, status: a.status })),
         more: Math.max(0, all.length - WEEK_ITEMS),
       })
     }
@@ -286,6 +299,8 @@ function buildDay(
         professionalId: p.id,
         status: a.status,
         customerName: a.customer.name,
+        petName: a.pet?.name ?? null,
+        squeezeIn: a.isSqueezeIn === true,
         services: a.items.map((i) => i.name).join(' + '),
         startLabel: a.local.start,
         endLabel: a.local.end,

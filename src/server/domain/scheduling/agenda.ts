@@ -94,7 +94,7 @@ const listSchema = z.object({
 
 const summarySchema = z.object({ date: localDate, professionalId: z.string().nullable().optional() })
 
-const include = { items: true, customer: true, professional: true } satisfies Prisma.AppointmentInclude
+const include = { items: true, customer: true, professional: true, pet: true } satisfies Prisma.AppointmentInclude
 
 function professionalNotFound(): DomainError {
   return new DomainError('not_found', 'Profissional não encontrado.')

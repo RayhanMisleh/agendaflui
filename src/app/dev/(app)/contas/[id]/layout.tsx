@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { DoorOpen } from 'lucide-react'
-import { Button, CopyButton, LinkButton, NavTabs, Card, StatusDot, businessStatusDot } from '@/ui/components'
+import { DoorOpen, PawPrint } from 'lucide-react'
+import { Button, CopyButton, LinkButton, NavTabs, Card, StatusBadge, StatusDot, businessStatusDot } from '@/ui/components'
 import { DevFrame } from '../../DevFrame'
 import { carregarConta } from './_data'
 import { arquivarConta, reativarConta, suspenderConta } from './actions'
@@ -27,6 +27,19 @@ export default async function ContaLayout({ children, params }: { children: Reac
           <span className="af-account__slug">
             Identificador {conta.slug}. Dono: {conta.ownerName ?? 'sem dono ativo'}.
           </span>
+        </div>
+        <div className="af-acct__row" aria-label="Nicho da conta" role="group">
+          {conta.niche === null ? (
+            <StatusBadge tone="neutral">Sem nicho</StatusBadge>
+          ) : (
+            <>
+              <span className="af-badge af-badge--neutral">
+                <PawPrint size={14} aria-hidden="true" />
+                Pet shop
+              </span>
+              <StatusBadge tone="neutral">{conta.servesCats ? 'Atende gatos' : 'Só cães'}</StatusBadge>
+            </>
+          )}
         </div>
         <div className="af-entrylink">
           <span className="af-account__slug">Link para clientes:</span>

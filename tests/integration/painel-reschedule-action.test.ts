@@ -81,7 +81,7 @@ describe('remarcar', () => {
     const r = await remarcarAtendimento(ini, form({ id: a.id, date: '2026-11-17', time: '14:30', professionalId: m.ana.id }))
     expect(r.ok).toBe(false)
     expect(r.conflict?.nearest.length).toBeGreaterThan(0)
-    expect(r.message).toMatch(/ocupado/)
+    expect(r.message).toMatch(/Confira o horário/)
     expect(await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } })).toMatchObject({ startsAt: mn(17, 10), professionalId: m.ana.id })
   })
 

@@ -36,6 +36,7 @@ afterEach(() => mail.uninstall())
 const base = {
   name: 'Barbearia Central',
   slug: 'central',
+  niche: 'PET' as const,
   owner: { name: 'João Silva', email: 'Joao@Exemplo.test' },
 }
 
@@ -48,6 +49,21 @@ function tokenDoEmail(i = mail.sent.length - 1): string {
 const UUID_INEXISTENTE = '00000000-0000-4000-8000-000000000000'
 
 describe('createBusiness', () => {
+  test('sem nicho → validation no campo niche', async () => {
+    const e = await domainError(createBusiness(actor, { ...base, niche: undefined } as never))
+    expect(e).toMatchObject({ code: 'validation' })
+    expect(Object.keys(e.fields ?? {})).toContain('niche')
+  })
+
+  test('grava o nicho PET e a opção de gatos (padrão: desligada)', async () => {
+    const a = await createBusiness(actor, base)
+    expect(a.business).toMatchObject({ niche: 'PET', servesCats: false })
+    const b = await createBusiness(actor, { ...base, slug: 'com-gatos', nicheOptions: { servesCats: true }, owner: { name: 'B', email: 'b@exemplo.test' } })
+    expect(b.business).toMatchObject({ niche: 'PET', servesCats: true })
+    const cfg = await prisma.businessSettings.findUniqueOrThrow({ where: { businessId: b.business.id } })
+    expect(cfg.nicheOptions).toEqual({ servesCats: true })
+  })
+
   test('dono novo: usuário sem senha, vínculo OWNER, convite só com hash e e-mail com o link', async () => {
     const r = await createBusiness(actor, base)
     expect(r.business).toMatchObject({ name: 'Barbearia Central', slug: 'central', status: 'ACTIVE', timeZone: 'America/Sao_Paulo', version: 1 })

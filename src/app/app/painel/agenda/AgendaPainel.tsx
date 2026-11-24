@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CalendarPlus, CalendarX2, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AgendaPage } from '@/server/domain/scheduling/agenda-page'
-import { Button, Card, EmptyHint, EmptyState, NavTabs, PlannerDay, PlannerWeek } from '@/ui/components'
+import { Button, Card, EmptyHint, EmptyState, NavTabs, PlannerDay, PlannerWeek, ToastProvider } from '@/ui/components'
 import { labelOfMinute } from '@/ui/components'
 import { formatLocalDate, shortDate, weekdayName } from '@/ui/format'
 import { AppointmentSheet } from './AppointmentSheet'
@@ -69,6 +69,7 @@ export function AgendaPainel({
   const resumo = page.day?.summary
 
   return (
+    <ToastProvider>
     <div className="af-agenda">
       <Card as="section" aria-label="Escolher o que ver" className="af-agenda__bar">
         <div className="af-agenda__nav">
@@ -134,7 +135,7 @@ export function AgendaPainel({
               hours={page.day.hours}
               nowMin={page.day.nowMin}
               label={`Agenda de ${tituloDia}`}
-              step={page.step}
+              step={5}
               canCross={page.scope === 'all'}
               onMove={(id, alvo) => {
                 const nome = page.day?.columns.find((c) => c.id === alvo.professionalId)?.name ?? ''
@@ -163,5 +164,6 @@ export function AgendaPainel({
       <RescheduleSheet detalhe={aberta?.tipo === 'remarcar' ? (page.details[aberta.id] ?? null) : null} page={page} professionalSingular={termos.professionalSingular} onClose={fechar} />
       <ConfirmarRemarcacao alvo={aberta?.tipo === 'confirmar' ? aberta.alvo : null} detalhe={aberta?.tipo === 'confirmar' ? (page.details[aberta.alvo.id] ?? null) : null} onClose={fechar} />
     </div>
+    </ToastProvider>
   )
 }

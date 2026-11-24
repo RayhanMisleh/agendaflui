@@ -19,6 +19,13 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
   - Painel dev em Sistema → Google: salvar e remover as chaves; sem chaves o botão do Google some.
   - Tudo a 360 px, com foco visível e movimento reduzido.
 
+## Fase 2 (pet e agenda): entregue e o que fica
+
+- Entregue: nicho pet, pets, preço e tempo por animal e porte, agenda da equipe livre com confirmação e encaixe, telas do painel.
+- Fase 3: o quiz usa `NICHES.PET.quiz`; a área do cliente usa `listMyPets`, `listServicesForPet`, `fromPrice` e `getAvailability({ petId })`.
+- Fase 4: `serviceSuggestions` e a demo com pets de portes variados e um encaixe.
+- Conferir no navegador: folha de marcar a 360 px (pets em rolagem), diálogo "Confirme o horário", encaixe na grade do dia e na semana.
+
 ## Antes de abrir a loja (Mercado Pago real)
 
 - Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).

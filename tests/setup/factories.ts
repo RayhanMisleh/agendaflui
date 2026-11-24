@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Appointment, AppointmentStatus, AuditLog, Business, CalendarConnection, CalendarConnectionStatus, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, CalendarConnection, CalendarConnectionStatus, Customer, Membership, MembershipRole, Pet, Prisma, PriceVariant, Professional, Service, ServicePrice, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
@@ -115,6 +115,31 @@ export async function makeService(
   })
 }
 
+/** Linha de preço por variante (padrão 5000 / 30) e marca o serviço como `BY_VARIANT`. */
+export async function makeServicePrice(
+  businessId: string,
+  serviceId: string,
+  variant: PriceVariant,
+  o: { priceCents?: number; durationMin?: number } = {},
+): Promise<ServicePrice> {
+  await prisma.service.update({ where: { id: serviceId }, data: { pricingMode: 'BY_VARIANT' } })
+  return prisma.servicePrice.create({
+    data: { businessId, serviceId, variant, priceCents: o.priceCents ?? 5000, durationMin: o.durationMin ?? 30 },
+  })
+}
+
+/** Pet direto no banco (cão médio, nome único). */
+export async function makePet(
+  businessId: string,
+  customerId: string,
+  overrides: Partial<Omit<Prisma.PetUncheckedCreateInput, 'businessId' | 'customerId'>> = {},
+): Promise<Pet> {
+  const name = overrides.name ?? `Pet ${sufixo()}`
+  return prisma.pet.create({
+    data: { species: 'DOG', size: 'MEDIUM', searchName: searchKey(name), ...overrides, name, businessId, customerId },
+  })
+}
+
 /** Profissional direto no banco. Sem `serviceIds`, não liga nenhum serviço. */
 export async function makeProfessional(
   businessId: string,
@@ -180,6 +205,8 @@ export async function makeAppointment(
     startsAt: Date
     durationMin?: number
     status?: AppointmentStatus
+    petId?: string | null
+    isSqueezeIn?: boolean
   },
 ): Promise<Appointment> {
   const service = await prisma.service.findFirstOrThrow({ where: { id: o.serviceId, businessId } })
@@ -192,6 +219,8 @@ export async function makeAppointment(
       startsAt: o.startsAt,
       endsAt: addMinutes(o.startsAt, durationMin),
       status: o.status ?? 'CONFIRMED',
+      petId: o.petId ?? null,
+      isSqueezeIn: o.isSqueezeIn ?? false,
       source: 'PANEL',
       totalCents: service.priceCents,
       totalDurationMin: durationMin,

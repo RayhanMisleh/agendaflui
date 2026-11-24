@@ -7,6 +7,53 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Niche {
+  PET
+
+  @@map("niche")
+}
+
+enum PetSpecies {
+  DOG
+  CAT
+
+  @@map("pet_species")
+}
+
+enum PetSize {
+  SMALL
+  MEDIUM
+  LARGE
+  GIANT
+
+  @@map("pet_size")
+}
+
+enum PetCoat {
+  SHORT
+  MEDIUM
+  LONG
+
+  @@map("pet_coat")
+}
+
+enum PriceVariant {
+  DOG_SMALL
+  DOG_MEDIUM
+  DOG_LARGE
+  DOG_GIANT
+  CAT
+
+  @@map("price_variant")
+}
+
+enum PricingMode {
+  SINGLE
+  BY_VARIANT
+
+  @@map("pricing_mode")
+}
+
 enum BusinessStatus {
   ACTIVE
   SUSPENDED
@@ -264,39 +311,43 @@ model SchedulerRun {
 }
 
 model Business {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// O CHECK `businesses_slug_not_reserved` (só no SQL) recusa os nomes de `RESERVED_SLUGS` (rotas do sistema).
-  slug          String         @unique
-  name          String
-  document      String?
-  email         String?
-  phone         String?
-  addressLine   String?        @map("address_line")
-  city          String?
-  state         String?
-  postalCode    String?        @map("postal_code")
-  timezone      String         @default("America/Sao_Paulo")
-  status        BusinessStatus @default(ACTIVE)
+  slug        String         @unique
+  name        String
+  document    String?
+  email       String?
+  phone       String?
+  addressLine String?        @map("address_line")
+  city        String?
+  state       String?
+  postalCode  String?        @map("postal_code")
+  timezone    String         @default("America/Sao_Paulo")
+  status      BusinessStatus @default(ACTIVE)
+  /// Nicho da conta; nulo = conta sem nicho (agenda genérica, sem pets).
+  niche       Niche?
   /// Controle de edição: cada gravação pelo painel dev exige a versão lida e a incrementa.
-  version       Int            @default(1)
+  version     Int            @default(1)
   /// Nome sem acentos e em minúsculas, para a busca da lista de contas.
-  searchName    String         @default("") @map("search_name")
-  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  searchName  String         @default("") @map("search_name")
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  branding    BusinessBranding?
-  modules     BusinessModules?
-  settings    BusinessSettings?
-  integrations BusinessIntegration?
-  memberships Membership[]
-  sessions    Session[] @relation("SessionActiveBusiness")
-  customerSessions Session[] @relation("SessionCustomerBusiness")
-  uploads     Upload[]
-  auditLogs   AuditLog[]
+  branding         BusinessBranding?
+  modules          BusinessModules?
+  settings         BusinessSettings?
+  integrations     BusinessIntegration?
+  memberships      Membership[]
+  sessions         Session[]            @relation("SessionActiveBusiness")
+  customerSessions Session[]            @relation("SessionCustomerBusiness")
+  uploads          Upload[]
+  auditLogs        AuditLog[]
 
   customers            Customer[]
+  pets                 Pet[]
   professionals        Professional[]
   services             Service[]
+  servicePrices        ServicePrice[]
   professionalServices ProfessionalService[]
   workingHours         WorkingHours[]
   timeBlocks           TimeBlock[]
@@ -364,20 +415,20 @@ model BusinessModules {
 /// Credenciais de integração da conta (Mercado Pago e Frenet), cifradas em repouso. Modelo de PLATAFORMA: `tenantDb` o recusa;
 /// só o painel dev grava e só o domínio da loja lê (`integration-secrets.ts`). O texto puro nunca vai ao banco.
 model BusinessIntegration {
-  businessId             String    @id @map("business_id") @db.Uuid
-  mpAccessTokenEnc       String?   @map("mp_access_token_enc")
-  mpAccessTokenLast4     String?   @map("mp_access_token_last4") @db.VarChar(4)
-  mpWebhookSecretEnc     String?   @map("mp_webhook_secret_enc")
-  mpWebhookSecretLast4   String?   @map("mp_webhook_secret_last4") @db.VarChar(4)
-  mpWebhookKey           String?   @unique @map("mp_webhook_key")
-  mpUpdatedAt            DateTime? @map("mp_updated_at") @db.Timestamptz(3)
-  frenetTokenEnc         String?   @map("frenet_token_enc")
-  frenetTokenLast4       String?   @map("frenet_token_last4") @db.VarChar(4)
-  frenetUpdatedAt        DateTime? @map("frenet_updated_at") @db.Timestamptz(3)
+  businessId           String    @id @map("business_id") @db.Uuid
+  mpAccessTokenEnc     String?   @map("mp_access_token_enc")
+  mpAccessTokenLast4   String?   @map("mp_access_token_last4") @db.VarChar(4)
+  mpWebhookSecretEnc   String?   @map("mp_webhook_secret_enc")
+  mpWebhookSecretLast4 String?   @map("mp_webhook_secret_last4") @db.VarChar(4)
+  mpWebhookKey         String?   @unique @map("mp_webhook_key")
+  mpUpdatedAt          DateTime? @map("mp_updated_at") @db.Timestamptz(3)
+  frenetTokenEnc       String?   @map("frenet_token_enc")
+  frenetTokenLast4     String?   @map("frenet_token_last4") @db.VarChar(4)
+  frenetUpdatedAt      DateTime? @map("frenet_updated_at") @db.Timestamptz(3)
   /// Controle de edição: cada gravação pelo painel dev exige a versão lida e a incrementa.
-  version                Int       @default(1)
-  createdAt              DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt              DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -402,19 +453,21 @@ model PlatformSetting {
 }
 
 model BusinessSettings {
-  businessId               String   @id @map("business_id") @db.Uuid
-  slotStepMin              Int      @default(15) @map("slot_step_min")
-  minLeadMin               Int      @default(60) @map("min_lead_min")
-  maxAdvanceDays           Int      @default(60) @map("max_advance_days")
-  customerChangeWindowMin  Int      @default(120) @map("customer_change_window_min")
-  bufferMin                Int      @default(0) @map("buffer_min")
-  autoConfirm              Boolean  @default(true) @map("auto_confirm")
-  loyaltyRankingEnabled    Boolean  @default(false) @map("loyalty_ranking_enabled")
-  notifications            Json     @default("{}")
+  businessId              String   @id @map("business_id") @db.Uuid
+  slotStepMin             Int      @default(15) @map("slot_step_min")
+  minLeadMin              Int      @default(60) @map("min_lead_min")
+  maxAdvanceDays          Int      @default(60) @map("max_advance_days")
+  customerChangeWindowMin Int      @default(120) @map("customer_change_window_min")
+  bufferMin               Int      @default(0) @map("buffer_min")
+  autoConfirm             Boolean  @default(true) @map("auto_confirm")
+  loyaltyRankingEnabled   Boolean  @default(false) @map("loyalty_ranking_enabled")
+  notifications           Json     @default("{}")
+  /// Opções do nicho (esquema no registro `src/server/niches`). CHECK `business_settings_niche_options_check` (objeto): só no SQL.
+  nicheOptions            Json     @default("{}") @map("niche_options")
   /// Controle de edição de regras de agenda e avisos (uma versão só para o conjunto): cada gravação que muda algo a incrementa.
-  version                  Int      @default(1)
-  createdAt                DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt                DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  version                 Int      @default(1)
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
@@ -422,23 +475,23 @@ model BusinessSettings {
 }
 
 model User {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name           String
-  email          String    @unique
-  passwordHash   String?   @map("password_hash")
-  phone          String?
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  email           String    @unique
+  passwordHash    String?   @map("password_hash")
+  phone           String?
   /// Quando o e-mail foi provado (convite, código, link de senha ou Google). Toda conta ativa tem.
   emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz(3)
   /// Identidade fixa da conta Google (`sub`); único. Os três campos do Google vêm juntos (CHECK `users_google_together`, só no SQL).
-  googleSub      String?   @unique @map("google_sub")
-  googleEmail    String?   @map("google_email")
-  googleLinkedAt DateTime? @map("google_linked_at") @db.Timestamptz(3)
+  googleSub       String?   @unique @map("google_sub")
+  googleEmail     String?   @map("google_email")
+  googleLinkedAt  DateTime? @map("google_linked_at") @db.Timestamptz(3)
   /// Nome sem acentos e em minúsculas, para a busca de donos na lista de contas.
-  searchName     String    @default("") @map("search_name")
-  avatarUploadId String?   @map("avatar_upload_id") @db.Uuid
-  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(3)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  searchName      String    @default("") @map("search_name")
+  avatarUploadId  String?   @map("avatar_upload_id") @db.Uuid
+  lastLoginAt     DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   // CHECK `users_active_verified` (senha ou Google exige e-mail verificado): só no SQL.
   avatar      Upload?      @relation("UserAvatar", fields: [avatarUploadId], references: [id], onDelete: SetNull)
@@ -447,24 +500,24 @@ model User {
   tokens      UserToken[]
   customers   Customer[]
 
-  calendarConnection CalendarConnection?
-  calendarSyncsPlaced CalendarSync[] @relation("CalendarSyncPlacedUser")
+  calendarConnection  CalendarConnection?
+  calendarSyncsPlaced CalendarSync[]      @relation("CalendarSyncPlacedUser")
 
   @@map("users")
 }
 
 model Membership {
-  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId String         @map("business_id") @db.Uuid
-  userId     String         @map("user_id") @db.Uuid
-  role       MembershipRole
-  active     Boolean        @default(true)
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId            String         @map("business_id") @db.Uuid
+  userId                String         @map("user_id") @db.Uuid
+  role                  MembershipRole
+  active                Boolean        @default(true)
   // Instante em que o e-mail de convite não foi aceito pelo canal; NULL quando saiu (ou ainda não houve envio).
-  inviteMailFailedAt DateTime? @map("invite_mail_failed_at") @db.Timestamptz(3)
+  inviteMailFailedAt    DateTime?      @map("invite_mail_failed_at") @db.Timestamptz(3)
   // Dono ou gerente que quer receber por push os avisos de todos os agendamentos da loja, não só dos próprios.
-  notifyAllAppointments Boolean @default(false) @map("notify_all_appointments")
-  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt  DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  notifyAllAppointments Boolean        @default(false) @map("notify_all_appointments")
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -494,10 +547,10 @@ model Session {
   createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user           User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  impersonator   PlatformAdmin? @relation(fields: [impersonatorAdminId], references: [id], onDelete: Cascade)
-  activeBusiness Business?      @relation("SessionActiveBusiness", fields: [activeBusinessId], references: [id], onDelete: SetNull)
-  customerBusiness Business?    @relation("SessionCustomerBusiness", fields: [customerBusinessId], references: [id], onDelete: SetNull)
+  user             User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonator     PlatformAdmin? @relation(fields: [impersonatorAdminId], references: [id], onDelete: Cascade)
+  activeBusiness   Business?      @relation("SessionActiveBusiness", fields: [activeBusinessId], references: [id], onDelete: SetNull)
+  customerBusiness Business?      @relation("SessionCustomerBusiness", fields: [customerBusinessId], references: [id], onDelete: SetNull)
 
   @@index([customerBusinessId])
   @@index([userId])
@@ -547,6 +600,7 @@ model Upload {
   prizeImages         Prize[]            @relation("PrizeImage")
   bannerImages        Banner[]           @relation("BannerImage")
   productImages       ProductImage[]
+  petPhotos           Pet[]              @relation("PetPhoto")
 
   @@unique([businessId, id])
   @@index([businessId])
@@ -603,6 +657,7 @@ model Customer {
 
   appointments  Appointment[]
   notifications Notification[]
+  pets          Pet[]
 
   loyaltyTransactions LoyaltyTransaction[]
   prizeRedemptions    PrizeRedemption[]
@@ -646,25 +701,27 @@ model Professional {
 }
 
 model Service {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId   String    @map("business_id") @db.Uuid
+  id           String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId   String      @map("business_id") @db.Uuid
   name         String
   description  String?
-  icon         String    @default("sparkles")
-  priceCents   Int       @map("price_cents")
-  durationMin  Int       @map("duration_min")
-  rewardPoints Int       @default(0) @map("reward_points")
-  clubOnly     Boolean   @default(false) @map("club_only")
-  active       Boolean   @default(true)
-  displayOrder Int       @default(0) @map("display_order")
-  archivedAt   DateTime? @map("archived_at") @db.Timestamptz(3)
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  icon         String      @default("sparkles")
+  priceCents   Int         @map("price_cents")
+  durationMin  Int         @map("duration_min")
+  rewardPoints Int         @default(0) @map("reward_points")
+  clubOnly     Boolean     @default(false) @map("club_only")
+  active       Boolean     @default(true)
+  displayOrder Int         @default(0) @map("display_order")
+  pricingMode  PricingMode @default(SINGLE) @map("pricing_mode")
+  archivedAt   DateTime?   @map("archived_at") @db.Timestamptz(3)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   professionals ProfessionalService[]
   items         AppointmentItem[]
+  prices        ServicePrice[]
 
   @@unique([businessId, id])
   @@map("services")
@@ -743,38 +800,44 @@ model BusinessClosure {
 }
 
 model Appointment {
-  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId       String            @map("business_id") @db.Uuid
-  customerId       String            @map("customer_id") @db.Uuid
-  professionalId   String            @map("professional_id") @db.Uuid
-  startsAt         DateTime          @map("starts_at") @db.Timestamptz(3)
-  endsAt           DateTime          @map("ends_at") @db.Timestamptz(3)
-  status           AppointmentStatus
-  source           AppointmentSource
-  totalCents       Int               @map("total_cents")
-  totalDurationMin Int               @map("total_duration_min")
-  commissionCents  Int?              @map("commission_cents")
-  notes            String?
-  customerNote     String?           @map("customer_note")
+  id                     String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId             String            @map("business_id") @db.Uuid
+  customerId             String            @map("customer_id") @db.Uuid
+  professionalId         String            @map("professional_id") @db.Uuid
+  // Pet do atendimento (conta pet). Nulo em agendamentos antigos e em contas sem nicho. No SQL: FK composta
+  // `appointments_pet_id_same_customer_fkey` (o pet é do cliente do agendamento).
+  petId                  String?           @map("pet_id") @db.Uuid
+  // Encaixe: a equipe marcou por cima de outro agendamento normal. A restrição `appointments_no_overlap` só vale entre normais.
+  isSqueezeIn            Boolean           @default(false) @map("is_squeeze_in")
+  startsAt               DateTime          @map("starts_at") @db.Timestamptz(3)
+  endsAt                 DateTime          @map("ends_at") @db.Timestamptz(3)
+  status                 AppointmentStatus
+  source                 AppointmentSource
+  totalCents             Int               @map("total_cents")
+  totalDurationMin       Int               @map("total_duration_min")
+  commissionCents        Int?              @map("commission_cents")
+  notes                  String?
+  customerNote           String?           @map("customer_note")
   // Chave de idempotência do pedido do app (cabeçalho Idempotency-Key). O índice único parcial
   // (business_id, customer_id, idempotency_key) WHERE idempotency_key IS NOT NULL vive só na migração.
-  idempotencyKey   String?           @map("idempotency_key")
-  idempotencyKeyAt DateTime?         @map("idempotency_key_at") @db.Timestamptz(3)
+  idempotencyKey         String?           @map("idempotency_key")
+  idempotencyKeyAt       DateTime?         @map("idempotency_key_at") @db.Timestamptz(3)
   // SHA-256 do pedido original que usou a chave: a repetição compara só isto, não o estado atual do agendamento.
-  idempotencyRequestHash String?     @map("idempotency_request_hash")
-  createdByType    PartyType         @map("created_by_type")
-  createdById      String?           @map("created_by_id") @db.Uuid
-  canceledAt       DateTime?         @map("canceled_at") @db.Timestamptz(3)
-  canceledByType   PartyType?        @map("canceled_by_type")
-  canceledById     String?           @map("canceled_by_id") @db.Uuid
-  cancelReason     String?           @map("cancel_reason")
-  completedAt      DateTime?         @map("completed_at") @db.Timestamptz(3)
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  idempotencyRequestHash String?           @map("idempotency_request_hash")
+  createdByType          PartyType         @map("created_by_type")
+  createdById            String?           @map("created_by_id") @db.Uuid
+  canceledAt             DateTime?         @map("canceled_at") @db.Timestamptz(3)
+  canceledByType         PartyType?        @map("canceled_by_type")
+  canceledById           String?           @map("canceled_by_id") @db.Uuid
+  cancelReason           String?           @map("cancel_reason")
+  completedAt            DateTime?         @map("completed_at") @db.Timestamptz(3)
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
   professional Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  pet          Pet?         @relation(fields: [petId], references: [id], onDelete: Restrict)
 
   items         AppointmentItem[]
   notifications Notification[]
@@ -787,23 +850,26 @@ model Appointment {
   @@index([businessId, professionalId, startsAt])
   @@index([businessId, endsAt])
   @@index([businessId, customerId, startsAt])
+  @@index([businessId, petId, startsAt])
   @@index([startsAt])
   @@index([businessId, createdAt])
   @@map("appointments")
 }
 
 model AppointmentItem {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId    String   @map("business_id") @db.Uuid
-  appointmentId String   @map("appointment_id") @db.Uuid
-  serviceId     String   @map("service_id") @db.Uuid
+  id            String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String        @map("business_id") @db.Uuid
+  appointmentId String        @map("appointment_id") @db.Uuid
+  serviceId     String        @map("service_id") @db.Uuid
   name          String
-  priceCents    Int      @map("price_cents")
-  durationMin   Int      @map("duration_min")
-  rewardPoints  Int      @map("reward_points")
+  priceCents    Int           @map("price_cents")
+  durationMin   Int           @map("duration_min")
+  rewardPoints  Int           @map("reward_points")
   position      Int
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // Variante (animal e porte) atendida, guardada no momento da marcação.
+  variant       PriceVariant?
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business    Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
   appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
@@ -1040,23 +1106,23 @@ model ProductCategory {
 }
 
 model Product {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  businessId    String    @map("business_id") @db.Uuid
-  categoryId    String?   @map("category_id") @db.Uuid
-  name          String
-  description   String?
-  priceCents    Int       @map("price_cents")
-  promoPriceCents Int?    @map("promo_price_cents")
-  stock         Int       @default(0)
-  weightGrams   Int?      @map("weight_grams")
-  lengthCm      Int?      @map("length_cm")
-  heightCm      Int?      @map("height_cm")
-  widthCm       Int?      @map("width_cm")
-  active        Boolean   @default(true)
-  displayOrder  Int       @default(0) @map("display_order")
-  archivedAt    DateTime? @map("archived_at") @db.Timestamptz(3)
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId      String    @map("business_id") @db.Uuid
+  categoryId      String?   @map("category_id") @db.Uuid
+  name            String
+  description     String?
+  priceCents      Int       @map("price_cents")
+  promoPriceCents Int?      @map("promo_price_cents")
+  stock           Int       @default(0)
+  weightGrams     Int?      @map("weight_grams")
+  lengthCm        Int?      @map("length_cm")
+  heightCm        Int?      @map("height_cm")
+  widthCm         Int?      @map("width_cm")
+  active          Boolean   @default(true)
+  displayOrder    Int       @default(0) @map("display_order")
+  archivedAt      DateTime? @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   business Business         @relation(fields: [businessId], references: [id], onDelete: Cascade)
   category ProductCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -1232,15 +1298,15 @@ enum CalendarConnectionStatus {
 /// A ligação da pessoa com a agenda principal do Google dela (plataforma). O token de renovação fica selado (leitor restrito
 /// `calendar/token.ts`). CHECKs `calendar_connections_token_by_status` e `calendar_connections_revoked_at`: só no SQL.
 model CalendarConnection {
-  userId         String                   @id @map("user_id") @db.Uuid
-  googleSub      String                   @map("google_sub")
-  status         CalendarConnectionStatus
-  refreshTokenEnc String?                 @map("refresh_token_enc")
-  connectedAt    DateTime                 @map("connected_at") @db.Timestamptz(3)
-  revokedAt      DateTime?                @map("revoked_at") @db.Timestamptz(3)
-  lastSyncedAt   DateTime?                @map("last_synced_at") @db.Timestamptz(3)
-  createdAt      DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
+  userId          String                   @id @map("user_id") @db.Uuid
+  googleSub       String                   @map("google_sub")
+  status          CalendarConnectionStatus
+  refreshTokenEnc String?                  @map("refresh_token_enc")
+  connectedAt     DateTime                 @map("connected_at") @db.Timestamptz(3)
+  revokedAt       DateTime?                @map("revoked_at") @db.Timestamptz(3)
+  lastSyncedAt    DateTime?                @map("last_synced_at") @db.Timestamptz(3)
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1275,4 +1341,58 @@ model CalendarSync {
   @@unique([businessId, appointmentId])
   @@index([placedUserId])
   @@map("calendar_syncs")
+}
+
+/// Pet do cliente. Só no SQL: FKs compostas `pets_customer_id_same_business_fkey` e `pets_photo_upload_id_same_business_fkey`;
+/// CHECKs `pets_size_by_species_check` (cão tem porte, gato não), `pets_name_check`, `pets_breed_check`, `pets_care_notes_check`
+/// e `pets_birth_month_check` (sempre o dia 1).
+model Pet {
+  id            String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId    String     @map("business_id") @db.Uuid
+  customerId    String     @map("customer_id") @db.Uuid
+  name          String
+  searchName    String     @default("") @map("search_name")
+  species       PetSpecies
+  size          PetSize?
+  breed         String?
+  birthMonth    DateTime?  @map("birth_month") @db.Date
+  coat          PetCoat?
+  careNotes     String?    @map("care_notes")
+  photoUploadId String?    @map("photo_upload_id") @db.Uuid
+  archivedAt    DateTime?  @map("archived_at") @db.Timestamptz(3)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  photo    Upload?  @relation("PetPhoto", fields: [photoUploadId], references: [id], onDelete: SetNull)
+
+  appointments Appointment[]
+
+  @@unique([businessId, id])
+  @@unique([businessId, customerId, id])
+  @@index([businessId, customerId])
+  @@index([businessId, searchName])
+  @@map("pets")
+}
+
+/// Preço e tempo de um serviço por variante (animal e porte). Só no SQL: FK composta
+/// `service_prices_service_id_same_business_fkey` e CHECKs `service_prices_price_cents_check` (0 a 10.000.000)
+/// e `service_prices_duration_min_check` (5 a 600, múltiplo de 5).
+model ServicePrice {
+  id          String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId  String       @map("business_id") @db.Uuid
+  serviceId   String       @map("service_id") @db.Uuid
+  variant     PriceVariant
+  priceCents  Int          @map("price_cents")
+  durationMin Int          @map("duration_min")
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  service  Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@unique([serviceId, variant])
+  @@map("service_prices")
 }

@@ -1,5 +1,6 @@
 import type { TenantContext } from '@/server/auth/actor'
 import type { Prisma } from '@/server/db/generated/client'
+import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, orNotFound, parse, z } from '@/server/domain/errors'
@@ -11,6 +12,8 @@ import {
 import { cancelPendingForCustomer } from '@/server/domain/notifications/outbox'
 import { enqueueCalendarFor } from '@/server/domain/calendar/queue'
 import { formatPhone, normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
+import { checkPetInput, createPetIn, type PetInput, type PetView } from '@/server/domain/pets/pets'
+import { requirePetNiche } from '@/server/domain/settings/niche-settings'
 import { deleteUploadRecord, publicUploadUrl, removeUploadFile, uploadUrl } from '@/server/storage/images'
 import { dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
 
@@ -192,8 +195,8 @@ function assertBirthDateNotFuture(ctx: TenantContext, birthDate: string | null |
   }
 }
 
-async function assertEmailFree(ctx: TenantContext, email: string, selfId: string | null): Promise<void> {
-  const taken = await ctx.db.customer.findFirst({
+async function assertEmailFree(db: TenantClient | TenantTx, email: string, selfId: string | null): Promise<void> {
+  const taken = await db.customer.findFirst({
     where: { email, ...(selfId ? { id: { not: selfId } } : {}) },
     select: { id: true },
   })
@@ -243,6 +246,8 @@ export async function listCustomers(
     conditions.push({
       OR: [
         { searchName: { contains: escapeLike(key) } },
+        // Quem tem um pet ativo com este nome também aparece.
+        { pets: { some: { archivedAt: null, searchName: { contains: escapeLike(key) } } } },
         { email: { contains: escapeLike(term), mode: 'insensitive' } },
         ...(looksLikePhone ? [{ phone: { contains: digits } }] : []),
       ],
@@ -284,8 +289,8 @@ export async function getCustomer(ctx: TenantContext, id: string): Promise<Custo
   return toView(ctx, await loadRow(ctx, id))
 }
 
-export async function createCustomer(ctx: TenantContext, input: CustomerInput): Promise<CustomerView> {
-  authorize(ctx, 'manage_clients')
+/** Cria o cliente dentro de uma transação já aberta (também usada por `createCustomerWithPet`). */
+async function createCustomerIn(tx: TenantTx, ctx: TenantContext, input: CustomerInput): Promise<CustomerRow> {
   const { name, birthDate, ...optional } = parse(createSchema, input)
   assertBirthDateNotFuture(ctx, birthDate)
   const data = {
@@ -294,17 +299,40 @@ export async function createCustomer(ctx: TenantContext, input: CustomerInput): 
     ...definedOnly(optional),
     ...(birthDate ? { birthDate: localToDbDate(birthDate) } : {}),
   }
-  if (data.email) await assertEmailFree(ctx, data.email, null)
+  if (data.email) await assertEmailFree(tx, data.email, null)
+  const customer = await tx.customer.create({
+    data: { ...data, businessId: ctx.businessId, origin: 'PANEL' },
+    include: withAvatar,
+  })
+  await audit(ctx, { action: 'customer.created', targetType: 'Customer', targetId: customer.id }, tx)
+  return customer
+}
+
+export async function createCustomer(ctx: TenantContext, input: CustomerInput): Promise<CustomerView> {
+  authorize(ctx, 'manage_clients')
   try {
-    const created = await ctx.db.$transaction(async (tx) => {
-      const customer = await tx.customer.create({
-        data: { ...data, businessId: ctx.businessId, origin: 'PANEL' },
-        include: withAvatar,
-      })
-      await audit(ctx, { action: 'customer.created', targetType: 'Customer', targetId: customer.id }, tx)
-      return customer
+    return toView(ctx, await ctx.db.$transaction((tx) => createCustomerIn(tx, ctx, input)))
+  } catch (err) {
+    if (isEmailUniqueViolation(err)) throw emailTaken()
+    throw err
+  }
+}
+
+/** Cliente e primeiro pet numa transação só: se o pet não passa, o cliente não é gravado. */
+export async function createCustomerWithPet(
+  ctx: TenantContext,
+  customer: CustomerInput,
+  pet: PetInput,
+): Promise<{ customer: CustomerView; pet: PetView }> {
+  authorize(ctx, 'manage_clients')
+  await requirePetNiche(ctx)
+  checkPetInput(ctx, pet)
+  try {
+    return await ctx.db.$transaction(async (tx) => {
+      const row = await createCustomerIn(tx, ctx, customer)
+      const novoPet = await createPetIn(tx, ctx, row.id, pet)
+      return { customer: toView(ctx, row), pet: novoPet }
     })
-    return toView(ctx, created)
   } catch (err) {
     if (isEmailUniqueViolation(err)) throw emailTaken()
     throw err
@@ -348,7 +376,7 @@ export async function updateCustomer(
     ...changes,
     ...(changes.name !== undefined ? { searchName: searchKey(changes.name) } : {}),
   }
-  if (changes.email) await assertEmailFree(ctx, changes.email, id)
+  if (changes.email) await assertEmailFree(ctx.db, changes.email, id)
   try {
     const updated = await ctx.db.$transaction(async (tx) => {
       const row = await tx.customer.update({ where: { id }, data, include: withAvatar })
@@ -427,6 +455,7 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
   await loadRow(ctx, id)
   const now = ctx.clock()
   let avatarPath: string | null = null
+  const petPhotoPaths: string[] = []
   try {
     await withCustomerAppointmentsLocked(ctx, id, async (tx, open) => {
       // Relê sob a trava: outra chamada pode ter anonimizado entre a leitura de fora e a trava.
@@ -471,6 +500,20 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
       // O nome e a observação somem do Google Agenda: reescreve os eventos que já estão numa agenda.
       await enqueueCalendarFor(tx, ctx, { customerId: id }, { futureOnly: false, onlyPlaced: true })
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
+      // Os pets também perdem o que identifica: ficam "Pet", arquivados, sem raça, cuidados, nascimento e foto.
+      const pets = await tx.pet.findMany({ where: { customerId: id }, select: { photoUploadId: true } })
+      if (pets.length > 0) {
+        await tx.pet.updateMany({ where: { customerId: id, archivedAt: null }, data: { archivedAt: now } })
+        await tx.pet.updateMany({
+          where: { customerId: id },
+          data: { name: 'Pet', searchName: 'pet', breed: null, careNotes: null, birthMonth: null, photoUploadId: null },
+        })
+        for (const p of pets) {
+          if (p.photoUploadId === null) continue
+          const caminho = await deleteUploadRecord(tx, p.photoUploadId)
+          if (caminho !== null) petPhotoPaths.push(caminho)
+        }
+      }
       await audit(
         ctx,
         {
@@ -489,5 +532,10 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
   // O arquivo só sai depois do commit, em melhor esforço; se falhar, a auditoria registra e nada é lançado.
   if (avatarPath !== null && !(await removeUploadFile(avatarPath)).fileRemoved) {
     await audit(ctx, { action: 'customer.avatar_file_orphaned', targetType: 'Customer', targetId: id })
+  }
+  for (const caminho of petPhotoPaths) {
+    if (!(await removeUploadFile(caminho)).fileRemoved) {
+      await audit(ctx, { action: 'customer.avatar_file_orphaned', targetType: 'Customer', targetId: id })
+    }
   }
 }

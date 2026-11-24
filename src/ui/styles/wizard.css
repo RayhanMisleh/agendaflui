@@ -173,4 +173,75 @@
     flex-wrap: wrap;
     gap: 0.75rem;
   }
+
+  /* ---- Etapa Nicho: um cartão só, já selecionado em Caramelo ---- */
+  .af-nichepick {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .af-nichecard {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem 1rem;
+    padding: 1rem;
+    border: 2px solid var(--accent);
+    border-radius: var(--radius-card);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+    cursor: default;
+  }
+  .af-nichecard__icon {
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    background-color: var(--surface);
+    color: var(--ink);
+  }
+  .af-nichecard__body {
+    display: grid;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .af-nichecard__title {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: 700;
+  }
+  .af-nichecard__text {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+  .af-nichecard__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  @media (max-width: 479.98px) {
+    .af-nichecard {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .af-nichecard__badge {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-nichecard {
+      transition: transform var(--af-dur-fast) var(--af-ease);
+    }
+    .af-nichecard:active {
+      transform: scale(0.98);
+    }
+  }
 }

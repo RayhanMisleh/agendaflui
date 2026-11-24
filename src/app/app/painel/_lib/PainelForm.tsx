@@ -25,6 +25,7 @@ export function PainelForm({
   labels,
   anchors,
   secondary,
+  id,
 }: {
   action(prev: EstadoPainel, form: FormData): Promise<EstadoPainel>
   initial?: EstadoPainel
@@ -35,6 +36,7 @@ export function PainelForm({
   labels?: Record<string, string>
   anchors?: Record<string, string>
   secondary?: ReactNode
+  id?: string
 }) {
   const [state, formAction, pending] = useActionState(action, initial)
   const feito = useRef<EstadoPainel | null>(null)
@@ -45,7 +47,7 @@ export function PainelForm({
     }
   }, [state, onDone])
   return (
-    <form action={formAction} className={className ?? 'af-acctform'} noValidate>
+    <form id={id} action={formAction} className={className ?? 'af-acctform'} noValidate>
       {state.ok ? null : <FormErrors message={state.message} fields={state.fields} labels={labels} anchors={anchors} />}
       {children(state)}
       <div className="af-acctform__foot">

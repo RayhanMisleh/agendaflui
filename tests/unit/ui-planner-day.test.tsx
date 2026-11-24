@@ -9,8 +9,8 @@ const COLUNAS: PlannerColumn[] = [
     id: 'ana',
     name: 'Ana',
     slips: [
-      { id: 's1', professionalId: 'ana', status: 'CONFIRMED', customerName: 'Rex', services: 'Banho', startLabel: '14:00', endLabel: '15:00', box: { id: 's1', topMin: 360, heightMin: 60, lane: 0, lanes: 1 }, attention: false, draggable: false },
-      { id: 's2', professionalId: 'ana', status: 'PENDING', customerName: 'Mel', services: 'Tosa + Banho', startLabel: '15:30', endLabel: '16:30', box: { id: 's2', topMin: 450, heightMin: 60, lane: 0, lanes: 1 }, attention: true, draggable: false },
+      { id: 's1', professionalId: 'ana', status: 'CONFIRMED', customerName: 'Rex', petName: null, squeezeIn: false, services: 'Banho', startLabel: '14:00', endLabel: '15:00', box: { id: 's1', topMin: 360, heightMin: 60, lane: 0, lanes: 1 }, attention: false, draggable: false },
+      { id: 's2', professionalId: 'ana', status: 'PENDING', customerName: 'Mel', petName: null, squeezeIn: false, services: 'Tosa + Banho', startLabel: '15:30', endLabel: '16:30', box: { id: 's2', topMin: 450, heightMin: 60, lane: 0, lanes: 1 }, attention: true, draggable: false },
     ],
     blocks: [{ id: 'b1', startLabel: '12:00', endLabel: '13:00', topMin: 240, heightMin: 60, label: 'Almoço' }],
     gaps: [{ startMin: 540, endMin: 600, startLabel: '09:00', endLabel: '10:00' }],
@@ -19,7 +19,7 @@ const COLUNAS: PlannerColumn[] = [
   {
     id: 'caio',
     name: 'Caio',
-    slips: [{ id: 's3', professionalId: 'caio', status: 'COMPLETED', customerName: 'Bidu', services: 'Tosa', startLabel: '14:30', endLabel: '15:00', box: { id: 's3', topMin: 390, heightMin: 30, lane: 0, lanes: 1 }, attention: false, draggable: false }],
+    slips: [{ id: 's3', professionalId: 'caio', status: 'COMPLETED', customerName: 'Bidu', petName: null, squeezeIn: false, services: 'Tosa', startLabel: '14:30', endLabel: '15:00', box: { id: 's3', topMin: 390, heightMin: 30, lane: 0, lanes: 1 }, attention: false, draggable: false }],
     blocks: [],
     gaps: [],
     inactive: false,

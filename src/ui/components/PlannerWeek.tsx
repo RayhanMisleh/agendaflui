@@ -29,7 +29,8 @@ export function PlannerWeek({ days, hrefFor, label }: { days: PageWeekDay[]; hre
                 {d.items.map((i) => (
                   <li key={i.id} className={cx('af-week__item', i.status === 'PENDING' && 'af-week__item--attention')}>
                     <span className="af-week__itemtime">{i.startLabel}</span>
-                    <span className="af-week__itemname">{i.customerName}</span>
+                    <span className="af-week__itemname">{i.petName ?? i.customerName}</span>
+                    {i.squeezeIn ? <span className="af-week__tag">Encaixe</span> : null}
                     {i.status === 'PENDING' ? <span className="af-sr"> ({SITUACOES.PENDING.texto})</span> : null}
                   </li>
                 ))}

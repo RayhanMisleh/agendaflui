@@ -1,10 +1,11 @@
 'use client'
 import { useState } from 'react'
 import type { AgendaPage, PageDetail } from '@/server/domain/scheduling/agenda-page'
-import { Field, Select, Sheet } from '@/ui/components'
+import { Field, MinutesField, Select, Sheet } from '@/ui/components'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import { remarcarAtendimento } from './actions'
+import { ConflitosDialog } from './ConflitosDialog'
 import { HorarioFields } from './HorarioFields'
 
 function Formulario({ detalhe, page, professionalSingular, onDone }: { detalhe: PageDetail; page: AgendaPage; professionalSingular: string; onDone: () => void }) {
@@ -12,9 +13,11 @@ function Formulario({ detalhe, page, professionalSingular, onDone }: { detalhe: 
   const [dia, setDia] = useState(detalhe.date)
   const [hora, setHora] = useState('')
   const [escolhido, setEscolhido] = useState('')
+  const [duracao, setDuracao] = useState(String(detalhe.totalDurationMin))
+  const duracaoNum = /^\d{1,4}$/.test(duracao) && Number(duracao) >= 5 && Number(duracao) <= 720 ? Number(duracao) : undefined
   const inicial: EstadoPainel = { ok: false, message: null, fields: {}, values: {} }
   return (
-    <PainelForm action={remarcarAtendimento} initial={inicial} submit="Remarcar atendimento" onDone={onDone} labels={{ date: 'Dia', time: 'Horário', professionalId: professionalSingular }}>
+    <PainelForm id="remarcar-form" action={remarcarAtendimento} initial={inicial} submit="Remarcar atendimento" onDone={onDone} labels={{ date: 'Dia', time: 'Horário', professionalId: professionalSingular, durationMin: 'Duração' }}>
       {(state) => (
         <>
           <input type="hidden" name="id" value={detalhe.id} />
@@ -36,7 +39,10 @@ function Formulario({ detalhe, page, professionalSingular, onDone }: { detalhe: 
           ) : (
             <input type="hidden" name="professionalId" value={detalhe.professional.id} />
           )}
+          <MinutesField id="remarcar-duracao" name="durationMin" value={duracao} onChange={setDuracao} sumMin={detalhe.totalDurationMin} error={state.fields.durationMin} />
           <HorarioFields
+            {...(detalhe.pet ? { petId: detalhe.pet.id } : {})}
+            {...(duracaoNum !== undefined ? { durationMin: duracaoNum } : {})}
             serviceIds={detalhe.items.map((i) => i.serviceId)}
             professionalId={profissional}
             date={dia}
@@ -50,6 +56,7 @@ function Formulario({ detalhe, page, professionalSingular, onDone }: { detalhe: 
             errors={{ date: state.fields.date, time: state.fields.time }}
             idPrefix="remarcar"
           />
+          <ConflitosDialog formId="remarcar-form" confirmation={state.confirmation} confirmLabel="Remarcar mesmo assim" />
         </>
       )}
     </PainelForm>

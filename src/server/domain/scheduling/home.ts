@@ -26,7 +26,7 @@ export type HomeOverview = {
   counts: { today: number; month: number }
 }
 
-const include = { items: true, customer: true, professional: true } satisfies Prisma.AppointmentInclude
+const include = { items: true, customer: true, professional: true, pet: true } satisfies Prisma.AppointmentInclude
 /** Teto da lista de hoje, contando o próximo. */
 const TODAY_LIMIT = 8
 

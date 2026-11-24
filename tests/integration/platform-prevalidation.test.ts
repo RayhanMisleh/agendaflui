@@ -46,7 +46,7 @@ describe('validateAccountSetup usa os mesmos esquemas das funções de escrita',
 })
 
 describe('validateNewBusiness', () => {
-  const novo = { name: 'Pata Viva', slug: 'pata-viva', owner: { name: 'Marina', email: 'marina@exemplo.test' } }
+  const novo = { name: 'Pata Viva', slug: 'pata-viva', niche: 'PET' as const, owner: { name: 'Marina', email: 'marina@exemplo.test' } }
 
   test('dados válidos não têm erro; slug e e-mail do dono ruins aparecem nos campos', () => {
     expect(validateNewBusiness(novo)).toEqual({})

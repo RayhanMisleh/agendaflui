@@ -33,7 +33,7 @@ export function renomear(err: unknown, mapa: Record<string, string>): unknown {
   if (!(err instanceof DomainError) || !err.fields) return err
   const nome = (k: string): string => (Object.hasOwn(mapa, k) ? mapa[k] : undefined) ?? porCodigo(mapa, k.split('.')[0] ?? k) ?? k
   const fields = Object.fromEntries(Object.entries(err.fields).map(([k, m]) => [nome(k), m]))
-  return new DomainError(err.code, err.message, { fields, ...(err.reason ? { reason: err.reason } : {}) })
+  return new DomainError(err.code, err.message, { fields, ...(err.reason ? { reason: err.reason } : {}), ...(err.details ? { details: err.details } : {}) })
 }
 
 export function feito(mensagem: string, v: Campos, extra: Campos = {}): EstadoCampos {

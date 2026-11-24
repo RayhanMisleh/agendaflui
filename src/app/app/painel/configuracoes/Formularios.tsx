@@ -1,12 +1,14 @@
 'use client'
 import { Trash2 } from 'lucide-react'
-import { Checkbox, EmptyHint, Field, Input, MaskedInput, Select } from '@/ui/components'
+import { useState } from 'react'
+import { Checkbox, EmptyHint, Field, Input, MaskedInput, Select, Switch } from '@/ui/components'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import { PainelForm } from '../_lib/PainelForm'
 import type { EstadoPainel } from '../_lib/PainelForm'
 import {
   criarFechamento,
   removerFechamento,
+  salvarAnimais,
   salvarAvisos,
   salvarNegocio,
   salvarRegras,
@@ -98,6 +100,30 @@ export function RegrasForm({ version, valores, grades, limites }: { version: num
         )
       }}
     </PainelForm>
+  )
+}
+
+// ---------------------------------------------------------------- animais
+
+export function AnimaisForm({ version, servesCats }: { version: number; servesCats: boolean }) {
+  return (
+    <PainelForm action={salvarAnimais} initial={estado({ servesCats: servesCats ? 'on' : '' })} submit="Salvar animais" labels={{ servesCats: 'Atende gatos' }}>
+      {(state) => <AnimaisCampos version={version} inicial={state.values.servesCats === 'on'} />}
+    </PainelForm>
+  )
+}
+
+function AnimaisCampos({ version, inicial }: { version: number; inicial: boolean }) {
+  const [gatos, setGatos] = useState(inicial)
+  return (
+    <>
+      <Versao version={version} />
+      {gatos ? <input type="hidden" name="servesCats" value="on" /> : null}
+      <Switch checked={gatos} onCheckedChange={setGatos} label="Atende gatos" />
+      <p className="af-field__hint">
+        Desligado: os clientes não marcam horário para gatos e a tabela de preços esconde a linha de gato. A equipe ainda pode marcar. Nada é apagado.
+      </p>
+    </>
   )
 }
 

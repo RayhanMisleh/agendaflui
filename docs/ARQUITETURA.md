@@ -54,6 +54,16 @@ proxy do servidor precisa preservar o `Host`; as rotas POST do painel dev confer
 O ESLint impõe as fronteiras: cliente Prisma cru só em `src/server/db`, `auth`, `notifications`, `domain/platform`, `prisma`, `scripts` e
 `tests`; rotas não importam `tenantDb`; `new Date(texto)` e os métodos locais de data são proibidos fora de `src/server/time/`.
 
+## Nicho e agenda da equipe
+
+- Nicho: o que é do ramo da conta mora no registro `src/server/niches/` (puro) e em tabelas próprias (`pets`, `service_prices`).
+  O domínio lê o nicho por `getNicheSettings`; funções do nicho pet chamam `requirePetNiche` (`niche_unavailable`). O nicho não é
+  módulo. Elegibilidade, preço e tempo por animal e porte têm uma regra só, em `domain/catalog/pricing.ts`.
+- Agenda: o cliente segue todas as regras (grade, folga, expediente, prazos); a equipe marca em qualquer minuto e com duração de 5 a
+  720 min. Conflito da equipe volta como `conflict` com `reason: 'needs_confirmation'` e uma impressão (`acknowledged`); repetir o pedido
+  com a impressão grava, e o que sobrepõe um normal vira encaixe (`is_squeeze_in`, `scheduling/squeeze-in.ts`). Quando um normal sai,
+  os encaixes do intervalo são reavaliados na mesma transação.
+
 ## Isolamento entre contas
 
 Cada negócio é uma conta (`businesses`). Os modelos são classificados em `src/server/db/models.ts` (de conta,
@@ -120,6 +130,8 @@ pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca e
   ordem crescente de id, depois a linha do usuário, depois tokens e sessões (`lockUserAccess` em `auth/password-reset.ts`).
 - Pessoa e loja (cadastro, entrada pela loja, adoção, Google): `lockUserAccess` da pessoa primeiro, depois `customer` da loja.
 - Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
+  A reavaliação de encaixes (`scheduling/squeeze-in.ts`) roda sob as mesmas travas de profissional (nenhuma trava nova). A
+  restrição `appointments_no_overlap` vale só entre agendamentos normais; o encaixe (`is_squeeze_in`) fica de fora.
 - Remover profissional (`removerProfissional`, `access-core.ts`): acesso primeiro (`business_owners`, vínculos), depois `professional`.
 - Escopos sozinhos, sem combinar com outros: `catalog`, `loyalty`, `banners`, `customer` (resgate, ajuste, endereço) e `membership`. `store` também trava sozinho em produtos e categorias.
 - Loja: criar pedido trava `store` e reserva o estoque; cancelar, vencer e estornar travam `order` e devolvem. As linhas de

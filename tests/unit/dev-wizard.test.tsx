@@ -22,9 +22,9 @@ test('sem JavaScript todas as etapas aparecem num formulário só, com os campos
   const html = renderToString(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
   const doc = new DOMParser().parseFromString(html, 'text/html')
   const secoes = doc.querySelectorAll('section.af-wizard__step')
-  expect(secoes).toHaveLength(5)
+  expect(secoes).toHaveLength(6)
   for (const s of secoes) expect(s.hasAttribute('hidden')).toBe(false)
-  for (const nome of ['name', 'slug', 'primary', 'material', 'bufferMin', 'ownerEmail']) {
+  for (const nome of ['name', 'slug', 'primary', 'material', 'niche', 'servesCats', 'bufferMin', 'ownerEmail']) {
     expect(doc.querySelector(`form [name="${nome}"]`), nome).not.toBeNull()
   }
   expect(doc.querySelector('form [name="keyName"]')).toBeNull()
@@ -70,6 +70,27 @@ test('não há etapa de termos: os termos são fixos para todas as contas', () =
   const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
   expect(within(trilho).queryByRole('link', { name: /Termos/ })).not.toBeInTheDocument()
   expect(screen.queryByLabelText('Profissional (singular)')).not.toBeInTheDocument()
+})
+
+test('passo Nicho: o cartão Pet shop está marcado e clicar não desmarca; o switch "Atende gatos" muda o valor enviado', async () => {
+  render(<Wizard initial={inicial} grades={SLOT_STEPS} limites={RULE_LIMITS} />)
+  const trilho = screen.getByRole('navigation', { name: 'Etapas da criação da conta' })
+  await userEvent.click(within(trilho).getByRole('link', { name: /Nicho/ }))
+  expect(screen.getByRole('heading', { name: 'Nicho' })).toBeVisible()
+  const grupo = screen.getByRole('radiogroup', { name: 'Nicho da conta' })
+  const cartao = within(grupo).getByRole('radio', { name: /Pet shop/ })
+  expect(cartao).toHaveAttribute('aria-checked', 'true')
+  expect(cartao).toHaveAttribute('aria-disabled', 'true')
+  await userEvent.click(cartao)
+  await userEvent.keyboard(' ')
+  expect(cartao).toHaveAttribute('aria-checked', 'true')
+  expect(screen.getByText('Selecionado')).toBeVisible()
+  const chave = screen.getByRole('switch', { name: 'Atende gatos' })
+  expect(chave).toHaveAttribute('aria-checked', 'false')
+  expect(document.querySelector('form [name="servesCats"]')).toBeNull()
+  await userEvent.click(chave)
+  expect(chave).toHaveAttribute('aria-checked', 'true')
+  expect((document.querySelector('form [name="servesCats"]') as HTMLInputElement).value).toBe('on')
 })
 
 test('erro do servidor leva à etapa do primeiro campo com erro, mantém os valores e liga a mensagem ao campo', async () => {

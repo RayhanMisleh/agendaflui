@@ -11,6 +11,7 @@ vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 import {
   criarFechamento,
   removerFechamento,
+  salvarAnimais,
   salvarAvisos,
   salvarNegocio,
   salvarRegras,
@@ -200,5 +201,37 @@ describe('fechamentos', () => {
     expect(r.ok).toBe(true)
     expect(r.message).toBe('Fechamento removido.')
     expect(await fechamentos()).toHaveLength(0)
+  })
+})
+
+describe('animais atendidos', () => {
+  beforeEach(async () => {
+    await prisma.business.update({ where: { id: businessId }, data: { niche: 'PET' } })
+  })
+
+  test('salvarAnimais liga gatos e responde "Animais atendidos salvos."; profissional recebe a mensagem de sem permissão', async () => {
+    const antes = await config()
+    const r = await salvarAnimais(ini, form({ version: String(antes.version), servesCats: 'on' }))
+    expect(r.ok).toBe(true)
+    expect(r.message).toBe('Animais atendidos salvos.')
+    expect((await config()).nicheOptions).toEqual({ servesCats: true })
+    const v = (await config()).version
+    const desliga = await salvarAnimais(ini, form({ version: String(v) }))
+    expect(desliga.ok).toBe(true)
+    expect((await config()).nicheOptions).toEqual({ servesCats: false })
+    guards.requireTenant.mockResolvedValue(await ctxWithRole({ id: businessId }, 'PROFESSIONAL'))
+    const negado = await salvarAnimais(ini, form({ version: String((await config()).version), servesCats: 'on' }))
+    expect(negado.ok).toBe(false)
+    expect(negado.message).toBe(NEGADO)
+    expect((await config()).nicheOptions).toEqual({ servesCats: false })
+  })
+
+  test('salvarAnimais com versão velha → mensagem de conflito, nada muda', async () => {
+    const antes = await config()
+    await salvarAnimais(ini, form({ version: String(antes.version), servesCats: 'on' }))
+    const r = await salvarAnimais(ini, form({ version: String(antes.version) }))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBe(CONFLITO)
+    expect((await config()).nicheOptions).toEqual({ servesCats: true })
   })
 })

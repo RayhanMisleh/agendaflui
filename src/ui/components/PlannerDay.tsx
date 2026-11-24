@@ -152,7 +152,7 @@ export function PlannerDay({
                     <AppointmentSlip key={s.id} slip={s} onOpen={onOpenSlip} drag={bind(s)} />
                   ))}
                 {preview && preview.professionalId === c.id ? (
-                  <DropPreview preview={preview} windowStartMin={startMin} customerName={columns.flatMap((x) => x.slips).find((x) => x.id === preview.slipId)?.customerName ?? ''} />
+                  <DropPreview preview={preview} windowStartMin={startMin} customerName={(() => { const f = columns.flatMap((x) => x.slips).find((x) => x.id === preview.slipId); return f ? (f.petName ?? f.customerName) : '' })()} />
                 ) : null}
                 {showNow ? <span className="af-planner__now" aria-hidden="true" style={{ top: `${(nowMin - startMin) * PX_PER_MIN}px` }} /> : null}
               </div>
