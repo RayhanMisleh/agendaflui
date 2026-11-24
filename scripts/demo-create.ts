@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import type { Actor, TenantContext } from '../src/server/auth/actor'
 import type { PrismaClient } from '../src/server/db/generated/client'
+import { NotificationKind } from '../src/server/db/generated/enums'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
 import { DomainError } from '../src/server/domain/errors'
 import { normalizeContactPhone, searchKey } from '../src/server/domain/customers/contact'
@@ -302,6 +303,18 @@ export async function criarDemo(
   const hoje = todayIn(tz, now)
   const doCliente = (c: { id: string; name: string }) => d.contexto.createTenantContext({ businessId, actor: { kind: 'customer', customerId: c.id, name: c.name }, clock, channel: 'app' })
 
+  // Os clientes da demo têm e-mail de formato real. Em produção o agendador roda junto e pega qualquer aviso PENDING já
+  // vencido: então, antes de qualquer marcação, todos os avisos ficam desligados (nada é enfileirado) e os do cliente só
+  // voltam a ligar no fim. Se a execução parar no meio, os avisos seguem desligados até a próxima rodada concluir.
+  const tipos = Object.values(NotificationKind)
+  const tiposDoCliente = tipos.filter((k) => !k.startsWith('STAFF_') && !k.startsWith('PROFESSIONAL_'))
+  const emTodos = (email: boolean, lista: readonly NotificationKind[]) => {
+    const patch: Partial<Record<NotificationKind, { email: boolean }>> = {}
+    for (const k of lista) patch[k] = { email }
+    return patch
+  }
+  await d.avisos.updateNotificationSettings(ctx, emTodos(false, tipos))
+
   const secaoFeita = async (secao: string) => (await prisma.auditLog.count({ where: { businessId, action: ACAO_SECAO, targetId: secao } })) > 0
   const concluirSecao = async (secao: string) => {
     await d.audit.audit(ctx, { action: ACAO_SECAO, targetType: 'demo', targetId: secao })
@@ -317,8 +330,8 @@ export async function criarDemo(
 
   // ---- 2. Configuração (avisos) -------------------------------------------------------------------
   await secao('configuracao', async () => {
-    // Avisos para a equipe usariam os e-mails fictícios da equipe: desligados. Os avisos ao cliente ficam ligados, mas os
-    // clientes não têm e-mail cadastrado, então nada sai (e a fila é descartada no fim).
+    // Avisos para a equipe usariam os e-mails fictícios da equipe: ficam desligados para sempre. Os do cliente só são
+    // religados no fim da rodada (veja acima).
     await d.avisos.updateNotificationSettings(ctx, {
       STAFF_NEW_APPOINTMENT: { email: false },
       STAFF_APPOINTMENT_CANCELED: { email: false },
@@ -745,8 +758,10 @@ export async function criarDemo(
   }
 
   // ---- 10. Fila de avisos (cru) ---------------------------------------------------------------------------------
-  // As marcações e pedidos enfileiraram avisos aos clientes (sem e-mail nem aparelho): nenhum deve tentar sair.
+  // Rede de segurança: com os avisos desligados nada deveria estar na fila, mas uma demo antiga pode ter deixado linhas.
+  // Só depois disso os avisos ao cliente voltam a ligar.
   await prisma.notification.updateMany({ where: { businessId, status: 'PENDING' }, data: { status: 'SKIPPED', skipReason: 'demonstracao' } })
+  await d.avisos.updateNotificationSettings(ctx, emTodos(true, tiposDoCliente))
 
   const contar = async () => {
     resumo['clientes'] = await ctx.db.customer.count()

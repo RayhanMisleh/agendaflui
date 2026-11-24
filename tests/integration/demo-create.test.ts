@@ -109,6 +109,18 @@ describe('agenda', () => {
   })
 })
 
+describe('avisos', () => {
+  test('nenhum aviso fica na fila (nada foi enfileirado durante a criação) e os avisos ao cliente terminam ligados', async () => {
+    expect(await prisma.notification.count({ where: { businessId, status: 'PENDING' } })).toBe(0)
+    expect(await prisma.notification.count({ where: { businessId } })).toBe(0)
+    const conf = await prisma.businessSettings.findUniqueOrThrow({ where: { businessId } })
+    const n = conf.notifications as Record<string, { email: boolean }>
+    expect(n['APPOINTMENT_CONFIRMED']?.email).toBe(true)
+    expect(n['APPOINTMENT_REMINDER_24H']?.email).toBe(true)
+    expect(n['STAFF_NEW_APPOINTMENT']?.email).toBe(false)
+  })
+})
+
 describe('segurança e texto', () => {
   test('as senhas só saem por aoCriar: auditoria e logs não as contêm', async () => {
     expect(senhas).not.toBeNull()

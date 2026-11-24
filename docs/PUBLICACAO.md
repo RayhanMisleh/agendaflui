@@ -103,10 +103,11 @@ uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante 
 
 1. No Google Cloud Console, crie um cliente OAuth do tipo "Aplicativo da Web".
 2. Em URIs de redirecionamento autorizados, ponha `https://<APP_HOST>/google/retorno`.
-3. Na tela de consentimento, peça só os escopos `openid`, `email` e `profile`.
-4. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
+3. Em APIs e serviços, ative a **Google Calendar API** no mesmo projeto. Sem isso, toda gravação na agenda do dono volta 403 (`accessNotConfigured`) e os agendamentos não chegam ao Google Agenda.
+4. Na tela de consentimento, peça os escopos `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (a agenda só recebe eventos; nunca é lida).
+5. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
 
-O aviso de "app não verificado" do Google só passa a importar quando a agenda do Google entrar (fase 4); com estes escopos básicos não há verificação a pedir.
+Enquanto o Google não verificar o app, o escopo da agenda é sensível: quem ligar o Google Agenda vê o aviso "app não verificado" (precisa clicar em Avançado → continuar) e o app fica limitado a 100 usuários de teste, que devem ser cadastrados como usuários de teste na tela de consentimento. Para abrir ao público, peça a verificação do app ao Google (política de privacidade publicada e justificativa do escopo `calendar.events`); o processo leva dias ou semanas, então comece antes do lançamento.
 
 ## Integrações (Mercado Pago)
 
@@ -120,6 +121,13 @@ O aviso de "app não verificado" do Google só passa a importar quando a agenda 
 - Prazo mínimo para pagar: 30 minutos (o Pix exige). A preferência vence em `max(prazo do pedido, agora + 30 min)`; um
   pagamento que chegar depois do prazo do pedido segue a regra "pago depois de vencer".
 - A varredura do agendador confere os pedidos vencidos com o Mercado Pago por até 60 s por rodada.
+
+### Virada do endereço antigo do webhook
+
+O webhook antigo (`https://api.<domínio>/v1/webhooks/mercadopago/{chave}`) deixou de existir junto com o domínio `api.`.
+Ao publicar: troque no painel do Mercado Pago qualquer webhook colado à mão para `https://<APP_HOST>/webhooks/mercadopago/{chave}`
+(o endereço novo aparece na aba Integrações da conta). Preferências criadas antes da virada ainda apontam para o endereço
+antigo: um pedido pago depois da virada fica aguardando pagamento até a varredura do agendador conferi-lo no Mercado Pago.
 
 ### Teste no sandbox antes de abrir a loja
 

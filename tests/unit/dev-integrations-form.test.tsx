@@ -12,7 +12,7 @@ const VAZIO: IntegracoesDados = {
 }
 const CONFIGURADO: IntegracoesDados = {
   version: 3,
-  mercadoPago: { configured: true, accessTokenLast4: 'Qz7K', webhookSecretLast4: 'Hy5N', webhookUrl: 'http://api.exemplo.test/v1/webhooks/mercadopago/chave123', updatedLabel: '17/11/2026 10:00' },
+  mercadoPago: { configured: true, accessTokenLast4: 'Qz7K', webhookSecretLast4: 'Hy5N', webhookUrl: 'http://app.exemplo.test/webhooks/mercadopago/chave123', updatedLabel: '17/11/2026 10:00' },
   frenet: { configured: true, tokenLast4: 'Vb6D', updatedLabel: '17/11/2026 10:05' },
 }
 
@@ -28,7 +28,7 @@ test('configurado: mostra só os finais, endereço com botão de copiar e remove
   expect(screen.getAllByText('Configurado')).toHaveLength(2)
   expect(screen.getByText(/Token termina em Qz7K, assinatura termina em Hy5N/)).toBeInTheDocument()
   expect(screen.getByText(/Token termina em Vb6D/)).toBeInTheDocument()
-  expect(screen.getByText('http://api.exemplo.test/v1/webhooks/mercadopago/chave123')).toBeInTheDocument()
+  expect(screen.getByText('http://app.exemplo.test/webhooks/mercadopago/chave123')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Copiar o endereço do webhook' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Remover o Mercado Pago' })).toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Remover a Frenet' })).toBeInTheDocument()

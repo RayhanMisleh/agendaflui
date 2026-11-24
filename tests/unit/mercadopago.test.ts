@@ -99,7 +99,7 @@ const pref = {
     { id: 'shipping', title: 'Frete', quantity: 1, unitPriceCents: 5 },
   ],
   payerEmail: 'maria@exemplo.test',
-  notificationUrl: 'https://api.exemplo.test/v1/webhooks/mercadopago/chave',
+  notificationUrl: 'https://app.exemplo.test/webhooks/mercadopago/chave',
   backUrl: null as string | null,
   expiresAt: new Date('2026-11-17T16:00:00Z'),
 }
