@@ -25,3 +25,22 @@ export async function enqueueCalendarForProfessionalsRaw(
       generation = calendar_syncs.generation + 1, attempts = 0, next_attempt_at = NULL, failed_at = NULL, last_error = NULL,
       updated_at = EXCLUDED.updated_at`
 }
+
+/**
+ * Reenfileira, com o cliente cru, os agendamentos futuros que já estão numa agenda do Google e pertencem às cópias de cliente
+ * de uma pessoa (nome mudou: o evento mostra o nome). Trava as linhas em ordem de id. Devolve quantas linhas tocou.
+ */
+export async function enqueueCalendarForCustomerUserRaw(tx: Prisma.TransactionClient, i: { userId: string; now: Date }): Promise<number> {
+  const agora = toIsoInstant(i.now)
+  return tx.$executeRaw`
+    UPDATE calendar_syncs SET generation = generation + 1, attempts = 0, next_attempt_at = NULL, failed_at = NULL, last_error = NULL,
+      updated_at = ${agora}::timestamptz
+    WHERE id IN (
+      SELECT s.id FROM calendar_syncs s
+      JOIN appointments a ON a.business_id = s.business_id AND a.id = s.appointment_id
+      JOIN customers c ON c.business_id = a.business_id AND c.id = a.customer_id
+      WHERE c.user_id = ${i.userId}::uuid AND s.placed_user_id IS NOT NULL AND a.ends_at >= ${agora}::timestamptz
+      ORDER BY s.id
+      FOR UPDATE OF s
+    )`
+}

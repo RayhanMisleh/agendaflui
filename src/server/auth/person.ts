@@ -1,5 +1,6 @@
 import 'server-only'
 import type { Prisma } from '@/server/db/generated/client'
+import { enqueueCalendarForCustomerUserRaw } from '@/server/calendar/backfill'
 import { searchKey } from '@/server/domain/customers/contact'
 import { toIsoInstant } from '@/server/time'
 
@@ -50,12 +51,13 @@ export async function activatePerson(
 
 /**
  * Copia nome, telefone e/ou e-mail da pessoa para todos os clientes ligados a ela (uma cópia por loja). O nome regrava
- * `search_name`. Chame na mesma transação que muda a pessoa.
+ * `search_name` e reenfileira no Google Agenda os agendamentos futuros já colocados. Chame na mesma transação que muda a pessoa.
  */
 export async function syncCustomerCopies(
   tx: Prisma.TransactionClient,
   userId: string,
   data: { name?: string; phone?: string | null; email?: string },
+  now: Date = new Date(),
 ): Promise<void> {
   const campos: Prisma.CustomerUncheckedUpdateManyInput = {
     ...(data.name !== undefined ? { name: data.name, searchName: searchKey(data.name) } : {}),
@@ -64,4 +66,6 @@ export async function syncCustomerCopies(
   }
   if (Object.keys(campos).length === 0) return
   await tx.customer.updateMany({ where: { userId }, data: campos })
+  // O evento do Google mostra o nome do cliente: quem já está numa agenda é reenviado.
+  if (data.name !== undefined) await enqueueCalendarForCustomerUserRaw(tx, { userId, now })
 }

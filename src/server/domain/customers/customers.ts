@@ -380,6 +380,8 @@ export async function updateCustomer(
   try {
     const updated = await ctx.db.$transaction(async (tx) => {
       const row = await tx.customer.update({ where: { id }, data, include: withAvatar })
+      // O evento do Google mostra o nome do cliente (e é o título quando não há pet).
+      if (changes.name !== undefined && changes.name !== current.name) await enqueueCalendarFor(tx, ctx, { customerId: id }, { futureOnly: true, onlyPlaced: true })
       await audit(
         ctx,
         { action: 'customer.updated', targetType: 'Customer', targetId: id, metadata: { fields } },

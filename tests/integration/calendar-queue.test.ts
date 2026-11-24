@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, test } from 'vitest'
 import { alterarVinculo } from '@/server/domain/platform/access-core'
 import { enqueueCalendarForProfessionalsRaw } from '@/server/calendar/backfill'
+import { updatePersonProfile } from '@/server/auth/person-account'
 import { prisma } from '@/server/db/client'
-import { anonymizeCustomer } from '@/server/domain/customers/customers'
+import { anonymizeCustomer, updateCustomer } from '@/server/domain/customers/customers'
 import {
   adjustAppointment,
   bookAppointment,
@@ -164,6 +165,27 @@ describe('mudanças que não passam pelo agendamento', () => {
     expect((await linha(naAgenda.id)).generation).toBeGreaterThan(antes)
     // O que não estava numa agenda e foi cancelado pelo anonimizar sobe uma vez só (o cancelamento), não duas.
     expect((await linha(semAgenda.id)).generation).toBe(antesSem + 1)
+  })
+
+  test('trocar o nome do cliente (pela equipe ou pela própria pessoa) reenfileira só o que já está numa agenda', async () => {
+    const s = await montar()
+    const dona = await makeUser()
+    const pessoa = await makeUser()
+    const cliente = await makeCustomer(s.b.id, { userId: pessoa.id, name: 'Marina' })
+    const naAgenda = await marcar(s, hora(9), cliente.id)
+    const semAgenda = await marcar(s, hora(14), cliente.id)
+    await prisma.calendarSync.update({ where: { appointmentId: naAgenda.id }, data: { placedUserId: dona.id, syncedGeneration: 1 } })
+    await prisma.calendarSync.update({ where: { appointmentId: semAgenda.id }, data: { syncedGeneration: 1 } })
+
+    await updateCustomer(s.gerente, cliente.id, { notes: 'só uma nota' })
+    expect((await linha(naAgenda.id)).generation).toBe(1)
+    await updateCustomer(s.gerente, cliente.id, { name: 'Marina Souza' })
+    expect((await linha(naAgenda.id)).generation).toBe(2)
+    // A pessoa troca o nome com o relógio real: o agendamento precisa estar no futuro dele.
+    await prisma.appointment.updateMany({ where: { id: naAgenda.id }, data: { startsAt: new Date('2099-01-05T12:00:00Z'), endsAt: new Date('2099-01-05T13:00:00Z') } })
+    await updatePersonProfile(pessoa.id, { name: 'Marina Souza Lima' })
+    expect((await linha(naAgenda.id)).generation).toBe(3)
+    expect((await linha(semAgenda.id)).generation).toBe(1)
   })
 
   test('religar o profissional a outro vínculo reenfileira os futuros', async () => {
