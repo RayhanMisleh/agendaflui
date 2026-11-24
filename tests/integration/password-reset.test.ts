@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { AuthError } from '@/server/auth/actor'
-import { loginUser } from '@/server/auth/member-auth'
+import { loginWithPassword } from '@/server/auth/session'
 import { verifyPassword } from '@/server/auth/password'
 import { checkPanelResetLimit, readPanelPasswordReset, requestPanelPasswordReset, resetPanelPassword } from '@/server/auth/password-reset'
 import { hashToken } from '@/server/auth/tokens'
@@ -194,8 +194,8 @@ describe('resetPanelPassword', () => {
     const e = await domainError(resetPanelPassword({ token, password: 'outra-senha-bem-longa' }, META, addMinutes(AGORA, 6)))
     expect(e.code).toBe('not_found')
     expect(await verifyPassword((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).passwordHash ?? '', 'senha-nova-bem-longa')).toBe(true)
-    const sessao = await loginUser({ email: user.email, password: 'senha-nova-bem-longa' })
-    expect(sessao.session.user.id).toBe(user.id)
+    const sessao = await loginWithPassword({ email: user.email, password: 'senha-nova-bem-longa' }, new Date())
+    expect(sessao.userId).toBe(user.id)
   })
 
   test('vencido (61 min), desconhecido e de outro propósito falham com a mesma mensagem', async () => {

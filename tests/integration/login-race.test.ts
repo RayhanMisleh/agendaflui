@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { loginPlatformAdmin } from '@/server/auth/platform-auth'
-import { loginUser } from '@/server/auth/member-auth'
+import { loginWithPassword } from '@/server/auth/session'
 import { hashPassword } from '@/server/auth/password'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
@@ -29,7 +29,7 @@ describe('login condicional ao hash conferido', () => {
         return u
       })
     }) as never)
-    await expect(loginUser({ email: 'ana@exemplo.test', password: 'senha-antiga-1' })).rejects.toMatchObject({ code: 'invalid_credentials' })
+    await expect(loginWithPassword({ email: 'ana@exemplo.test', password: 'senha-antiga-1' }, new Date())).rejects.toMatchObject({ code: 'invalid_credentials' })
     expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0)
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).lastLoginAt).toBeNull()
   })
@@ -53,7 +53,7 @@ describe('login condicional ao hash conferido', () => {
     const conta = await makeBusiness()
     await makeMembership(conta.id, user.id, 'OWNER')
     const admin = await makePlatformAdmin({ email: 'adm@exemplo.test', password: 'senha-antiga-1' })
-    expect((await loginUser({ email: 'ok@exemplo.test', password: 'senha-antiga-1' })).session.user.id).toBe(user.id)
+    expect((await loginWithPassword({ email: 'ok@exemplo.test', password: 'senha-antiga-1' }, new Date())).userId).toBe(user.id)
     await loginPlatformAdmin({ email: 'adm@exemplo.test', password: 'senha-antiga-1' })
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).lastLoginAt).not.toBeNull()
     expect((await prisma.platformAdmin.findUniqueOrThrow({ where: { id: admin.id } })).lastLoginAt).not.toBeNull()

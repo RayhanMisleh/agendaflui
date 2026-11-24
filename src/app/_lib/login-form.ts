@@ -10,7 +10,6 @@ export const loginSchema = z.object({
 })
 
 export const SEM_DADOS = 'Informe um e-mail válido e a sua senha.'
-export const SEM_CONTA = 'Seu acesso não está ligado a nenhuma conta ativa. Fale com quem administra o seu negócio.'
 
 /** Mensagem para a pessoa; nunca diz se foi o e-mail ou a senha que errou. */
 export function mensagemDeLogin(err: AuthError): string {

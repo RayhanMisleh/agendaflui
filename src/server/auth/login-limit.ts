@@ -4,12 +4,12 @@ import { ipLimitKeyPart } from './client-ip'
 import { clearRateLimit, hitRateLimit, LIMITS, limitKey } from './rate-limit-db'
 
 /**
- * Chaves de limite do login, com `<area>` = `painel`, `dev`, `app-cliente:<businessId>` ou `app-equipe` (a equipe entra no app sem escolher a loja):
+ * Chaves de limite do login, com `<area>` = `app` (a entrada única da pessoa) ou `dev`:
  * `login:<area>:email-ip:<e-mail>|<ip>` (5), `login:<area>:ip:<ip>` (20) e `login:<area>:email:<e-mail>`
  * (teto largo, 30) quando há IP confiável; `login:<area>:email-sem-ip:<e-mail>` (5) quando não há.
  * O IPv6 entra como /64 expandido.
  */
-export type LoginArea = 'painel' | 'dev' | `app-cliente:${string}` | 'app-equipe'
+export type LoginArea = 'app' | 'dev'
 
 const chaveEmailLargo = (area: LoginArea, email: string): string => limitKey(`login:${area}:email`, email)
 const chaveEmailSemIp = (area: LoginArea, email: string): string => limitKey(`login:${area}:email-sem-ip`, email)

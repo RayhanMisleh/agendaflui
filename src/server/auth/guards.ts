@@ -6,7 +6,7 @@ import { requestInfo } from './request-info'
 import { env } from '@/server/env'
 import type { Actor, TenantContext } from './actor'
 import { can, type Capability } from './capabilities'
-import { getMemberSession, getTenantContext, type MemberSession } from './member-auth'
+import { getPersonSession, getStaffContext, type PersonSession } from './session'
 import { getPlatformActor } from './platform-auth'
 
 export const DEV_COOKIE = 'af_dev_session'
@@ -38,8 +38,8 @@ export async function readCookie(name: string): Promise<string | undefined> {
 type PlatformAdminActor = Extract<Actor, { kind: 'platform_admin' }>
 
 const lerAdmin = cache((token: string | undefined) => getPlatformActor(token))
-const lerSessao = cache((token: string | undefined) => getMemberSession(token))
-const lerContexto = cache((token: string | undefined) => getTenantContext(token))
+const lerSessao = cache((token: string | undefined) => getPersonSession(token))
+const lerContexto = cache((token: string | undefined) => getStaffContext(token))
 
 /** Administrador da plataforma da sessão do painel dev. Sem sessão válida, vai para a entrada. */
 export async function requirePlatformAdmin(): Promise<PlatformAdminActor> {
@@ -48,23 +48,30 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminActor> {
   return actor
 }
 
-/** Sessão do painel do negócio, sem exigir conta ativa. */
-export async function requireMemberSession(): Promise<MemberSession> {
-  const session = await lerSessao(await readCookie(APP_COOKIE))
+/** Sessão da pessoa (ou do suporte), ou `null`. Não redireciona: para telas que decidem o que mostrar sem sessão. */
+export async function readPersonSession(): Promise<PersonSession | null> {
+  return lerSessao(await readCookie(APP_COOKIE))
+}
+
+/** Sessão de uma pessoa. Sem sessão vai para a entrada; o modo suporte (admin) não é pessoa e volta ao painel. */
+export async function requirePerson(): Promise<Extract<PersonSession, { kind: 'person' }>> {
+  const session = await readPersonSession()
   if (!session) redirect('/entrar')
+  if (session.kind === 'support') redirect('/painel')
   return session
 }
 
 /**
- * Contexto da conta ativa da sessão. Sem sessão válida ou sem conta ativa vai para a entrada; sem a capacidade
- * pedida, é 404 (a rota não existe para quem não pode usá-la).
+ * Contexto da loja da equipe. Sem sessão vai para a entrada; pessoa que não é da equipe de nenhuma conta ativa vai para `/`
+ * (que decide o destino dela); sem a capacidade pedida, é 404 (a rota não existe para quem não pode usá-la). O vínculo é
+ * relido a cada chamada.
  */
 export async function requireTenant(capability?: Capability): Promise<TenantContext> {
   const token = await readCookie(APP_COOKIE)
-  const session = await requireMemberSession()
-  if (!session.activeBusinessId) redirect('/entrar')
+  const session = await lerSessao(token)
+  if (!session) redirect('/entrar')
   const ctx = await lerContexto(token)
-  if (!ctx) redirect('/entrar')
+  if (!ctx) redirect('/')
   if (capability && !can(ctx.actor, capability)) notFound()
   const info = await requestInfo()
   return { ...ctx, request: { ip: info.ip ?? null, userAgent: info.userAgent ?? null } }

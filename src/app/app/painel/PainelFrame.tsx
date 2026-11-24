@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
-import { requireMemberSession } from '@/server/auth/guards'
+import { readPersonSession } from '@/server/auth/guards'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { getPublicBrandById } from '@/server/domain/platform/branding'
@@ -27,7 +27,7 @@ export async function PainelFrame({
   actions?: ReactNode
   children: ReactNode
 }) {
-  const [session, marca, painel] = await Promise.all([requireMemberSession(), getPublicBrandById(ctx.businessId), getPainelContext(ctx)])
+  const [session, marca, painel] = await Promise.all([readPersonSession(), getPublicBrandById(ctx.businessId), getPainelContext(ctx)])
   if (!marca) redirect('/entrar')
 
   const nav = painelNav({ can: (c) => can(ctx.actor, c), modules: painel.modules }).map((item) => ({
@@ -35,7 +35,7 @@ export async function PainelFrame({
     disabled: !ROTAS_PRONTAS.has(item.href),
   }))
   const suporte = ctx.actor.kind === 'impersonator'
-  const nome = painel.userName || (session.kind === 'member' ? session.user.name : '')
+  const nome = painel.userName || (session?.kind === 'person' ? session.user.name : '')
 
   return (
     <PainelShell
