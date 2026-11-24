@@ -78,7 +78,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   ) : (
     <EmptyState
       title={`Cadastre ${podeEscrever ? 'o primeiro' : 'os primeiros'} ${plural.toLowerCase()}`}
-      description={podeEscrever ? 'Quem você cadastra aqui já pode ser agendado. Quem se cadastrar pelo app aparece nesta lista.' : 'Quem se cadastrar pelo app ou for cadastrado pela equipe aparece nesta lista.'}
+      description={podeEscrever ? 'Quem você cadastra aqui já pode ser agendado. Quem se cadastrar pelo link da loja aparece nesta lista.' : 'Quem se cadastrar pelo link da loja ou for cadastrado pela equipe aparece nesta lista.'}
       action={
         podeEscrever ? (
           <LinkButton href="/painel/clientes/novo" variant="primary" icon={<UserPlus size={18} />}>

@@ -339,7 +339,7 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
               ))}
             </div>
             <div className="vt-row">
-              <StatusDot tone="success" label="API do aplicativo" detail="Funcionando" />
+              <StatusDot tone="success" label="Entrada e painel" detail="Funcionando" />
               <StatusDot tone="warning" label="Fila de avisos" detail="Atenção" />
               <StatusDot tone="danger" label="Envio de e-mail" detail="Com falha" />
               <StatusDot tone="neutral" label="Conta" detail="Arquivada" />

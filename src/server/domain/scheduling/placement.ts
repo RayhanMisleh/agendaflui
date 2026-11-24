@@ -48,7 +48,7 @@ export function assertCustomerWindow(ctx: TenantContext, rules: SchedulingRules,
   if (!withinCustomerWindow(ctx.clock(), startsAt, rules.customerChangeWindowMin)) {
     throw new DomainError(
       'conflict',
-      `O prazo para ${verb} pelo app é de ${windowLabel(rules.customerChangeWindowMin)} antes do horário. Fale com o estabelecimento.`,
+      `O prazo para ${verb} pelo link da loja é de ${windowLabel(rules.customerChangeWindowMin)} antes do horário. Fale com o estabelecimento.`,
       { reason: 'too_late' },
     )
   }

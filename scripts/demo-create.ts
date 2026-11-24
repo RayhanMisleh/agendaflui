@@ -16,7 +16,6 @@ import type { Actor, TenantContext } from '../src/server/auth/actor'
 import type { PrismaClient } from '../src/server/db/generated/client'
 import { hashPassword, passwordSchema } from '../src/server/auth/password'
 import { searchKey } from '../src/server/domain/customers/contact'
-import { hostConfigFromEnv } from '../src/server/hosts'
 import { addDays, addMinutes, fromIsoInstant, minuteToInstant, todayIn } from '../src/server/time'
 import { DEMO_MARCA, renderDemoBrandImages } from './demo-brand'
 import {
@@ -566,10 +565,9 @@ async function main(): Promise<void> {
     const simulada = process.env['DEMO_NOW']
     if (simulada && process.env['NODE_ENV'] === 'production') throw new Error('DEMO_NOW não vale em produção.')
     const now = simulada ? fromIsoInstant(simulada) : undefined
-    const { app } = hostConfigFromEnv(process.env)
-    const esquema = process.env['NODE_ENV'] === 'production' ? 'https' : 'http'
-    const link = `${esquema}://${app}/entrar`
-    // Depois do `.env`: o módulo lê o ambiente ao ser carregado.
+    // Depois do `.env`: os módulos leem o ambiente ao serem carregados.
+    const { areaLink } = await import('../src/server/area-links')
+    const link = areaLink('app', '/entrar')
     const { customerLinkUrl } = await import('../src/server/customer-link')
     const linkClientes = customerLinkUrl(DEMO_SLUG)
     const r = await criarDemo(prisma, {

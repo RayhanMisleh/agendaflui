@@ -1,5 +1,5 @@
-// Fumaça por HTTP das telas dos dois painéis: sobe `next start`, entra com uma sessão temporária de admin (painel dev) e
-// outra de membro, o dono da conta de demonstração (painel do negócio), e pede cada página das listas abaixo. Falha se
+// Fumaça por HTTP das telas do painel dev e do app (entrada, área do cliente e painel da loja): sobe `next start`, entra com uma sessão temporária de admin (painel dev) e
+// outra de pessoa, o dono da conta de demonstração (app), e pede cada página das listas abaixo. Falha se
 // alguma não responder 200 ou trouxer marca de erro do Next. Sem navegador. As sessões temporárias são apagadas no fim.
 // Antes: `npm run build` e o banco de desenvolvimento com o seed (este script sobe o banco se a porta 54329 estiver livre).
 import { spawn } from 'node:child_process'
@@ -38,6 +38,7 @@ const PAGINAS = [
   '/contas/{conta}/integracoes',
   '/contas/{conta}/auditoria',
   '/sistema',
+  '/sistema/google',
   '/auditoria',
   '/auditoria?de=2026-11-01&ate=2026-11-10&ator=PLATFORM_ADMIN&acao=business.status_changed',
   '/auditoria?de=2026-01-01&ate=2026-12-31',
@@ -91,9 +92,20 @@ const PAGINAS_PAINEL = [
   '/painel/configuracoes?secao=termos',
   '/painel/configuracoes?secao=perfil',
   '/painel/configuracoes?secao=nao-existe',
-  '/esqueci-a-senha',
-  '/redefinir-senha/nao-existe',
+]
+
+/** Páginas da entrada e da área do cliente no host do app, pedidas como o dono da conta de demonstração (`{slug}` é a loja dele). */
+const PAGINAS_APP = [
+  '/entrar',
   '/entrar?senha=nova',
+  '/esqueci-a-senha',
+  '/redefinir-senha/x',
+  '/convite/x',
+  '/{slug}',
+  '/{slug}/entrar',
+  '/{slug}/cadastro',
+  '/nao-existe',
+  '/conta',
 ]
 
 /** Páginas dos módulos, pedidas como o dono da conta com TODOS os módulos ligados. Cada tarefa de módulo acrescenta as suas. */
@@ -220,7 +232,7 @@ async function main(): Promise<number> {
       if ((await prisma.business.count()) === 0) await seed(prisma, process.env)
     }
     const admin = await prisma.platformAdmin.findFirst({ where: { active: true }, select: { id: true } })
-    const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } })
+    const conta = await prisma.business.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true, slug: true } })
     if (!admin || !conta) throw new Error('O banco não tem admin nem conta de demonstração. Rode `npm run dev` uma vez para criar o seed.')
 
     const dono = await prisma.membership.findFirst({
@@ -320,12 +332,13 @@ async function main(): Promise<number> {
     const hostPainel = `app.localhost:${porta}`
     const lotes = [
       { host, cookie: `${DEV_COOKIE}=${token}`, paginas: PAGINAS, rotulo: 'dev' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_APP, rotulo: 'app' },
       { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
       { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
-        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id)
+        const caminho = modelo.replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id).replace('{slug}', conta.slug)
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
         if (faltaRegistro) {
@@ -364,7 +377,7 @@ async function main(): Promise<number> {
       }
       console.log(linha)
     }
-    const total = PAGINAS.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_LOJA_DESLIGADA.length - pulados
+    const total = PAGINAS.length + PAGINAS_APP.length + PAGINAS_PAINEL.length + PAGINAS_MODULOS.length + PAGINAS_LOJA_DESLIGADA.length - pulados
     const aviso = pulados > 0 ? ` (${pulados} puladas por falta de registro no seed)` : ''
     console.log(falhas === 0 ? `\nFumaça: ${total} páginas responderam 200 sem marca de erro${aviso}.` : `\nFumaça: ${falhas} de ${total} páginas falharam${aviso}.`)
     return falhas === 0 ? 0 : 1

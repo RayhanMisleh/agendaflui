@@ -34,7 +34,7 @@ ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
 RUN if [ -z "${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}" ]; then unset NEXT_SERVER_ACTIONS_ENCRYPTION_KEY; fi; \
     DATABASE_URL="postgres://build:build@localhost:5432/build" \
     APP_SECRET="segredo-ficticio-so-para-o-build-do-next-0123456789" \
-    DEV_HOST="dev.build.test" PAINEL_HOST="painel.build.test" API_HOST="api.build.test" \
+    DEV_HOST="dev.build.test" APP_HOST="app.build.test" \
     npm run build
 
 # Só dependências de produção (inclui prisma e tsx, usados na partida e no admin:create).

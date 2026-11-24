@@ -63,7 +63,7 @@ function ModulosCampos({ v, businessId, uso }: { v: Campos; businessId: string; 
       <p id={`${uid}-loyalty`} className="af-wizard__note">
         Em andamento: {andamento('loyalty', uso)}
       </p>
-      <Checkbox name="banners" label="Banners: avisos e promoções no app" defaultChecked={v.banners === 'on'} />
+      <Checkbox name="banners" label="Banners: avisos e promoções para clientes" defaultChecked={v.banners === 'on'} />
       <Checkbox name="store" label="Loja: produtos e pedidos" defaultChecked={v.store === 'on'} aria-describedby={`${uid}-store`} />
       <p id={`${uid}-store`} className="af-wizard__note">
         Em andamento: {andamento('store', uso)}
@@ -75,7 +75,7 @@ function ModulosCampos({ v, businessId, uso }: { v: Campos; businessId: string; 
         </p>
       ) : null}
       <p className="af-wizard__note">
-        Desligar um módulo esconde tudo isso da conta e do app, mas guarda os dados: ao ligar de novo, tudo volta.
+        Desligar um módulo esconde tudo isso da conta e dos clientes, mas guarda os dados: ao ligar de novo, tudo volta.
       </p>
     </div>
   )

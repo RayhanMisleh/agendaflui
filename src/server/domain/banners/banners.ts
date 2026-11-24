@@ -28,7 +28,7 @@ const MAX_LIVE = 20
 const idSchema = z.uuid()
 const withImage = { image: true } as const
 
-const LINK_MESSAGE = 'Use um endereço que comece com https:// ou uma rota do app, como /servicos'
+const LINK_MESSAGE = 'Use um endereço que comece com https:// ou um caminho da loja, como /servicos'
 const INTERNAL_ROUTE = /^\/[a-z0-9][a-z0-9/_-]*$/
 
 function linkIsValid(link: string): boolean {
@@ -42,7 +42,7 @@ function linkIsValid(link: string): boolean {
   }
 }
 
-/** Link do banner: vazio, `https://` com endereço, ou rota interna do app. Qualquer outro esquema é recusado. */
+/** Link do banner: vazio, `https://` com endereço, ou caminho interno da loja. Qualquer outro esquema é recusado. */
 export const bannerLinkSchema: z.ZodType<string | null> = z
   .string(LINK_MESSAGE)
   .trim()

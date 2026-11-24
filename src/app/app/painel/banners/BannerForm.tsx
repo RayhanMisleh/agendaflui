@@ -27,7 +27,7 @@ export function BannerForm({ banner }: { banner: BannerDados | null }) {
             <Field label="Título" hint="Só a equipe vê. Ajuda a achar o banner na lista." error={state.fields.title}>
               <Input id="banner-titulo" name="title" defaultValue={v.title ?? ''} maxLength={80} autoComplete="off" required />
             </Field>
-            <Field label="Link" hint="Opcional. Comece com https:// ou use uma rota do app, como /servicos." error={state.fields.linkUrl}>
+            <Field label="Link" hint="Opcional. Comece com https:// ou use um caminho da loja, como /servicos." error={state.fields.linkUrl}>
               <Input id="banner-link" name="linkUrl" defaultValue={v.linkUrl ?? ''} maxLength={500} autoComplete="off" inputMode="url" />
             </Field>
             <div className="af-formgrid">
@@ -41,7 +41,7 @@ export function BannerForm({ banner }: { banner: BannerDados | null }) {
             {banner ? (
               <div>
                 {banner.temImagem ? null : <p className="af-field__hint">Envie a imagem para poder ativar o banner.</p>}
-                <Checkbox id="banner-ativo" name="active" label="Ativo no app" defaultChecked={v.active === 'on'} />
+                <Checkbox id="banner-ativo" name="active" label="Ativo para clientes" defaultChecked={v.active === 'on'} />
                 {state.fields.active ? <p className="af-field__error">{state.fields.active}</p> : null}
               </div>
             ) : null}

@@ -74,7 +74,7 @@ export function NovoProfissionalForm({ singular }: { singular: string }) {
     <PainelForm action={cadastrarNaEquipe} initial={estado({ role: 'PROFESSIONAL' })} submit="Cadastrar e enviar convite" labels={ROTULOS_CADASTRO}>
       {(state) => (
         <>
-          <p className="af-section__help">A pessoa recebe um e-mail para escolher a própria senha e entrar no painel e no app. Serviços, expediente e comissão você ajusta na ficha.</p>
+          <p className="af-section__help">A pessoa recebe um e-mail para escolher a própria senha e entrar no painel. Serviços, expediente e comissão você ajusta na ficha.</p>
           <Field label="Nome" error={state.fields.name}>
             <Input name="name" defaultValue={state.values.name ?? ''} maxLength={80} autoComplete="off" required />
           </Field>
@@ -251,7 +251,7 @@ export function AcessoGestao({ acesso, suporte, podeDono, termo, nomeFicha }: { 
         <div className="af-careful__text">
           <span className="af-careful__title">{ativo ? 'Desativar acesso' : 'Reativar acesso'}</span>
           <span className="af-careful__help">
-            {ativo ? `${nomeFicha} sai do painel e do app na hora, em todos os aparelhos. A ficha continua.` : `${nomeFicha} volta a poder entrar com a senha que já tem.`}
+            {ativo ? `${nomeFicha} sai do painel na hora, em todos os aparelhos. A ficha continua.` : `${nomeFicha} volta a poder entrar com a senha que já tem.`}
           </span>
         </div>
         {ativo ? (
@@ -298,7 +298,7 @@ export function AcessoGestao({ acesso, suporte, podeDono, termo, nomeFicha }: { 
         open={desativando}
         onClose={() => setDesativando(false)}
         title={`Desativar o acesso de ${acesso.name}?`}
-        description="A pessoa sai do painel e do app na hora, em todos os aparelhos, e não consegue entrar de novo até você reativar o acesso."
+        description="A pessoa sai do painel na hora, em todos os aparelhos, e não consegue entrar de novo até você reativar o acesso."
         confirmLabel="Desativar acesso"
         initialState={VAZIO}
         hidden={{ membershipId: acesso.membershipId, active: '0' }}

@@ -55,7 +55,7 @@ describe('criar e salvar', () => {
     const r = await criarBanner(ini, form({ ...CAMPOS, linkUrl: 'javascript:alert(1)' }))
     expect(r.ok).toBe(false)
     expect(Object.keys(r.fields)).toEqual(['linkUrl'])
-    expect(r.fields.linkUrl).toBe('Use um endereço que comece com https:// ou uma rota do app, como /servicos')
+    expect(r.fields.linkUrl).toBe('Use um endereço que comece com https:// ou um caminho da loja, como /servicos')
     expect(r.values.linkUrl).toBe('javascript:alert(1)')
     expect(await banners()).toHaveLength(0)
   })
