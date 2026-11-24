@@ -161,3 +161,29 @@
     }
   }
 }
+
+/*
+ * Área do cliente: a barra do topo e a pílula de navegação (que não mora dentro da barra do topo: um elemento com nome de
+ * transição contém os filhos fixos) também ficam acima da página que troca (z-index 100) e não animam; o esqueleto não leva nome.
+ */
+@media (max-width: 959.98px) {
+  .af-cl-shell:not(.af-shell--skeleton) .af-cl-nav--bottom {
+    view-transition-name: af-cl-nav;
+  }
+}
+.af-cl-shell:not(.af-shell--skeleton) .af-cl-top {
+  view-transition-name: af-cl-top;
+}
+::view-transition-group(af-cl-top),
+::view-transition-group(af-cl-nav) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(af-cl-top),
+::view-transition-old(af-cl-nav) {
+  display: none;
+}
+::view-transition-new(af-cl-top),
+::view-transition-new(af-cl-nav) {
+  animation: none;
+}

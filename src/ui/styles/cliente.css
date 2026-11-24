@@ -373,3 +373,679 @@
     }
   }
 }
+
+/* ---- Moldura, página da loja e estados ---- */
+@layer components {
+  .af-cl-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans, system-ui, sans-serif);
+  }
+
+  /* Barra do topo: logo (ou nome) da loja e o avatar; a navegação mora na base do celular. */
+  .af-cl-top {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--line);
+    background-color: var(--surface);
+  }
+  .af-cl-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    min-width: 0;
+    min-height: 44px;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .af-cl-brand__symbol {
+    display: block;
+    flex: none;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-chip);
+    object-fit: cover;
+  }
+  .af-cl-brand--symbol .af-brand__logo {
+    display: none;
+  }
+  .af-cl-avatar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-pill);
+    text-decoration: none;
+  }
+
+  /* Navegação: pílula flutuante na base (celular). */
+  .af-cl-nav {
+    position: fixed;
+    inset-inline: 0.75rem;
+    bottom: calc(0.75rem + env(safe-area-inset-bottom));
+    z-index: 40;
+    box-sizing: border-box;
+    max-width: 30rem;
+    margin-inline: auto;
+    padding: 0.375rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+    box-shadow: var(--shadow-pop);
+  }
+  /* No computador a navegação mora na barra do topo; no celular só a da base aparece. */
+  .af-cl-nav--top {
+    display: none;
+  }
+  .af-cl-nav--skel {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .af-cl-nav--skel .af-skel {
+    flex: 1 1 0;
+    --w: auto;
+  }
+
+  .af-cl-main {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 1.25rem 1rem calc(6.5rem + env(safe-area-inset-bottom));
+    outline: none;
+  }
+  .af-cl-inner {
+    width: 100%;
+    max-width: 72rem;
+  }
+  .af-cl-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 44px;
+    margin-inline-start: -0.25rem;
+    color: var(--brand-text);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .af-cl-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem 1rem;
+    margin-bottom: 1rem;
+  }
+  .af-cl-head--hidden {
+    margin: 0;
+  }
+  .af-cl-title {
+    margin: 0;
+    min-width: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-head__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .af-cl-body {
+    display: grid;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+  .af-cl-made {
+    margin: 2rem 0 0;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    text-align: center;
+  }
+  .af-cl-made a {
+    color: inherit;
+    text-decoration: none;
+  }
+  @media (hover: hover) {
+    .af-cl-made a:hover {
+      text-decoration: underline;
+    }
+  }
+
+  /* Computador: a navegação sobe para a barra do topo e o conteúdo fica à esquerda, em até 72 rem. */
+  @media (min-width: 60rem) {
+    .af-cl-top {
+      justify-content: flex-start;
+      gap: 1.5rem;
+      padding-inline: 2rem;
+    }
+    .af-cl-nav--bottom {
+      display: none;
+    }
+    .af-cl-nav--top {
+      display: block;
+    }
+    .af-cl-nav {
+      position: static;
+      flex: 1 1 auto;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      background: none;
+      box-shadow: none;
+    }
+    .af-cl-nav .af-nav {
+      justify-content: flex-start;
+      gap: 0.25rem;
+    }
+    .af-cl-nav .af-nav__item {
+      flex: 0 0 auto;
+    }
+    .af-cl-nav .af-navlink {
+      flex-direction: row;
+      gap: 0.5rem;
+      min-height: 44px;
+      padding: 0 1rem;
+      font-size: 0.9375rem;
+    }
+    .af-cl-nav--skel {
+      max-width: 28rem;
+    }
+    .af-cl-avatar {
+      margin-inline-start: auto;
+    }
+    .af-cl-main {
+      padding: 2rem 2rem 3rem;
+    }
+    .af-cl-made {
+      text-align: start;
+    }
+  }
+
+  /* Esqueleto */
+  .af-cl-skel__body {
+    display: grid;
+    gap: 1rem;
+  }
+  .af-cl-skel__list,
+  .af-cl-skel__choices {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .af-cl-skel__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+    gap: 0.75rem;
+  }
+  .af-cl-skel__row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .af-cl-skel__grow {
+    display: grid;
+    flex: 1 1 auto;
+    gap: 0.5rem;
+  }
+  .af-skel--block {
+    border-radius: var(--radius-block);
+  }
+
+  /* ---- Página da loja (visitante) ---- */
+  .af-cl-public {
+    min-height: 100dvh;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans, system-ui, sans-serif);
+    outline: none;
+  }
+  .af-cl-cover {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    max-height: 22rem;
+    overflow: hidden;
+    background-color: var(--brand);
+  }
+  .af-cl-cover__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .af-cl-public__body {
+    position: relative;
+    display: grid;
+    gap: 1rem;
+    max-width: 44rem;
+    margin-inline: auto;
+    padding: 0 1rem;
+  }
+  .af-cl-public__logo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    width: 5rem;
+    height: 5rem;
+    margin-top: -2.5rem;
+    overflow: hidden;
+    border: 3px solid var(--ground);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+  }
+  .af-cl-public__logo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .af-cl-public__name {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h1);
+    font-weight: 700;
+    line-height: var(--text-h1-lh);
+    letter-spacing: var(--text-h1-ls);
+    text-wrap: balance;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-contact {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ink-muted);
+  }
+  .af-cl-contact li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .af-cl-contact svg {
+    flex: none;
+  }
+  .af-cl-contact a {
+    color: var(--brand-text);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .af-cl-contact__wa {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 44px;
+    padding-inline: 0.5rem;
+  }
+  .af-cl-section {
+    margin: 0 0 0.5rem;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 600;
+    line-height: var(--text-h3-lh);
+  }
+  .af-cl-muted {
+    margin: 0;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+  .af-cl-services__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-cl-service {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.875rem 0;
+    border-top: 1px solid var(--line);
+  }
+  .af-cl-service:last-child {
+    border-bottom: 1px solid var(--line);
+  }
+  .af-cl-service__icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-cl-service__main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-width: 0;
+  }
+  .af-cl-service__name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-service__desc {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    line-height: var(--text-small-lh);
+  }
+  .af-cl-service__meta {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-variant-numeric: tabular-nums;
+  }
+  .af-cl-service__price {
+    flex: none;
+    max-width: 8rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .af-cl-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.125rem 0.625rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+  .af-cl-public__rule {
+    margin-top: 0.5rem;
+  }
+  .af-cl-public__actions {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 40;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background-color: var(--surface);
+    box-shadow: var(--shadow-pop);
+  }
+  .af-cl-public__actions > * {
+    flex: 1 1 0;
+  }
+  @media (min-width: 60rem) {
+    .af-cl-cover {
+      aspect-ratio: auto;
+      height: 22rem;
+    }
+    .af-cl-public {
+      padding-bottom: 3rem;
+    }
+    .af-cl-public__actions {
+      position: static;
+      max-width: 44rem;
+      margin: 1.5rem auto 0;
+      padding: 0 1rem;
+      border: 0;
+      background: none;
+      box-shadow: none;
+    }
+    .af-cl-public__actions > * {
+      flex: 0 0 auto;
+      min-width: 10rem;
+    }
+  }
+
+  /* Usar minha conta nesta loja */
+  .af-cl-join {
+    display: grid;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--brand-tint);
+  }
+  .af-cl-join__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 600;
+    line-height: var(--text-h3-lh);
+  }
+  .af-cl-join__text {
+    margin: 0;
+    color: var(--ink);
+  }
+  .af-cl-join__facts {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+  }
+  .af-cl-join__facts div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+  }
+  .af-cl-join__facts dt {
+    min-width: 4.5rem;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-cl-join__facts dd {
+    margin: 0;
+    min-width: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .af-cl-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.75rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--danger-tint);
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+  .af-cl-error svg {
+    flex: none;
+    margin-top: 1px;
+    color: var(--danger);
+  }
+  .af-cl-notice {
+    margin: 0;
+    padding: 0.875rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* ---- Estados (loja indisponível, erro, não encontrado, módulo desligado) ---- */
+  .af-cl-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    box-sizing: border-box;
+    min-height: 100dvh;
+    padding: 2rem 1rem;
+    background-color: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans, system-ui, sans-serif);
+    text-align: center;
+  }
+  .af-cl-state--inline {
+    min-height: 0;
+    padding: 2.5rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+  }
+  .af-cl-state__art {
+    color: var(--brand-text);
+  }
+  .af-cl-state__title {
+    margin: 0;
+    max-width: 24rem;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+    text-wrap: balance;
+  }
+  .af-cl-state__text {
+    margin: 0 0 0.5rem;
+    max-width: 24rem;
+    color: var(--ink-muted);
+  }
+  .af-cl-state__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
+  }
+
+  /* ---- Mais ---- */
+  .af-cl-menu {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-cl-menu li + li {
+    border-top: 1px solid var(--line);
+  }
+  .af-cl-menu__row {
+    display: flex;
+    align-items: center;
+    gap: 0.875rem;
+    min-height: 3.5rem;
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .af-cl-menu__icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-cl-menu__label {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .af-cl-menu__chevron {
+    flex: none;
+    color: var(--ink-muted);
+  }
+  .af-cl-menu__row:active {
+    transform: scale(0.99);
+  }
+
+  /* ---- Início (provisório) ---- */
+  .af-cl-home {
+    display: grid;
+    gap: 1rem;
+  }
+  .af-cl-greeting {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+  }
+  .af-cl-next {
+    display: grid;
+    gap: 0.5rem;
+  }
+  .af-cl-next__when {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+  }
+  .af-cl-next__what {
+    margin: 0;
+  }
+  .af-cl-next__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+  .af-cl-empty {
+    display: grid;
+    justify-items: start;
+    gap: 0.75rem;
+  }
+  .af-cl-empty__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 600;
+  }
+  .af-cl-rebook {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+    min-height: 3.5rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .af-cl-rebook__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-weight: 700;
+  }
+  .af-cl-rebook__what {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-cl-rebook:active {
+    transform: scale(0.98);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-cl-rebook,
+    .af-cl-menu__row {
+      transition: transform var(--af-dur-fast) var(--af-ease);
+    }
+  }
+}

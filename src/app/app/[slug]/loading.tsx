@@ -1,15 +1,6 @@
-import { Skeleton } from '@/ui/components'
+import { ClienteSkeleton } from '@/ui/shells'
 
-/** Esqueleto no desenho da tela de entrada da loja (faixa de destaque e cartão), enquanto a loja carrega. */
+/** Esqueleto do Início da loja (a rota mais aberta); entrar e cadastrar têm o seu. */
 export default function Loading() {
-  return (
-    <main className="af-entry">
-      <section className="af-entry__hero" aria-hidden="true" />
-      <div className="af-entry__panel">
-        <section className="af-card af-entry__card">
-          <Skeleton lines={4} />
-        </section>
-      </div>
-    </main>
-  )
+  return <ClienteSkeleton variant="inicio" />
 }
