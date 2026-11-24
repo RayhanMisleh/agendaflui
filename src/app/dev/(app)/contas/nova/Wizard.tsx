@@ -124,7 +124,7 @@ function AssistenteDeConta({ initial, grades, limites, onAgain }: { initial: Est
   if (state.ok && state.values.result) return <Concluida result={state.values.result} onAgain={onAgain} />
 
   const { warnings } = previewTheme(v)
-  const comPrevia = !hidratado || step === 1 || step === 3
+  const comPrevia = !hidratado || step === 1
   const ultima = step === STEPS.length - 1
   const rotulosErro = ROTULOS
 
