@@ -19,6 +19,7 @@ import {
   makeCtx,
   makeCustomer,
   makeMembership,
+  makePet,
   makePlatformAdmin,
   makeProfessional,
   makeService,
@@ -83,6 +84,21 @@ describe('reconciliação', () => {
     const antes = google.calls.length
     expect(await rodar()).toMatchObject({ upserted: 0, deleted: 0 })
     expect(google.calls.length).toBe(antes)
+  })
+
+  test('com pet: título "Banho · Rex (Cão médio)"; gato: "Mia (Gato)"', async () => {
+    const s = await montar()
+    await prisma.business.update({ where: { id: s.b.id }, data: { niche: 'PET' } })
+    await prisma.businessSettings.update({ where: { businessId: s.b.id }, data: { nicheOptions: { servesCats: true } } })
+    const cliente = await makeCustomer(s.b.id, { name: 'Marina Souza' })
+    const rex = await makePet(s.b.id, cliente.id, { name: 'Rex', species: 'DOG', size: 'MEDIUM' })
+    const mia = await makePet(s.b.id, cliente.id, { name: 'Mia', species: 'CAT', size: null })
+    const base = { customerId: cliente.id, professionalId: s.ana.id, serviceIds: [s.banho.id] }
+    const a = await bookAppointment(s.gerente, { ...base, petId: rex.id, startsAt: hora(10) })
+    const b = await bookAppointment(s.gerente, { ...base, petId: mia.id, startsAt: hora(14) })
+    await rodar()
+    expect(agenda().get(calendarEventId(a.id))?.summary).toBe('Banho · Rex (Cão médio)')
+    expect(agenda().get(calendarEventId(b.id))?.summary).toBe('Banho · Mia (Gato)')
   })
 
   test('cancelado e faltou apagam; concluído fica; desfazer recria com o mesmo id', async () => {

@@ -4,7 +4,7 @@ import { prisma } from '@/server/db/client'
 import { integrations, IntegrationError } from '@/server/integrations'
 import { addMinutes, localParts } from '@/server/time'
 import { claimCalendarSyncs, type ClaimedSync } from './claim'
-import { buildCalendarEvent, calendarEventId, isCalendarVisible } from './event'
+import { buildCalendarEvent, calendarEventId, isCalendarVisible, petEventLabel } from './event'
 import { openCalendarToken } from './token'
 
 /*
@@ -202,6 +202,7 @@ async function processLine(round: Round, line: ClaimedSync): Promise<void> {
       endsAt: true,
       customerNote: true,
       customer: { select: { name: true } },
+      pet: { select: { name: true, species: true, size: true } },
       items: { select: { name: true }, orderBy: { position: 'asc' } },
       business: { select: { timezone: true } },
       professional: { select: { membership: { select: { active: true, userId: true, user: { select: { calendarConnection: { select: { status: true } } } } } } } },
@@ -238,7 +239,7 @@ async function processLine(round: Round, line: ClaimedSync): Promise<void> {
         endsAt: a.endsAt,
         customerName: a.customer.name,
         customerNote: a.customerNote,
-        petLabel: null,
+        petLabel: a.pet === null ? null : petEventLabel(a.pet),
         serviceNames: a.items.map((i) => i.name),
       },
       { timeZone: a.business.timezone, painelUrl: areaLink('app', `/painel/agenda?data=${date}&ag=${a.id}`) },

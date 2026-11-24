@@ -2,6 +2,7 @@ import type { TenantContext } from '@/server/auth/actor'
 import type { PetCoat, PetSize, PetSpecies, Prisma, PriceVariant } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
+import { enqueueCalendarFor } from '@/server/domain/calendar/queue'
 import { searchKey } from '@/server/domain/customers/contact'
 import { authorize, DomainError, orNotFound, parse, z } from '@/server/domain/errors'
 import { definedOnly } from '@/server/domain/input'
@@ -290,6 +291,10 @@ export async function updatePet(ctx: TenantContext, id: string, input: Partial<P
     if (campos.length === 0) return toView(ctx, row)
     const nova = await tx.pet.update({ where: { id }, data: mudancas, include: withPhoto })
     await audit(ctx, { action: 'pet.updated', targetType: 'Pet', targetId: id, metadata: { fields: campos } }, tx)
+    // O título do evento no Google Agenda leva o nome, o animal e o porte do pet.
+    if (nova.name !== row.name || nova.species !== row.species || nova.size !== row.size) {
+      await enqueueCalendarFor(tx, ctx, { petId: id }, { futureOnly: true })
+    }
     return toView(ctx, nova)
   })
 }

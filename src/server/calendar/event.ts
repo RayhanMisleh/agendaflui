@@ -1,4 +1,5 @@
-import type { AppointmentStatus } from '@/server/db/generated/client'
+import type { AppointmentStatus, PetSize, PetSpecies } from '@/server/db/generated/client'
+import { variantDef, variantOfPet } from '@/server/niches'
 import { fromIsoInstant, localParts } from '@/server/time'
 
 /*
@@ -41,6 +42,11 @@ export function calendarEventId(appointmentId: string): string {
 /** PENDING, CONFIRMED e COMPLETED viram evento; CANCELED e NO_SHOW apagam. */
 export function isCalendarVisible(status: AppointmentStatus): boolean {
   return status === 'PENDING' || status === 'CONFIRMED' || status === 'COMPLETED'
+}
+
+/** "Rex (Cão médio)", "Mia (Gato)": o nome do pet e o animal e porte de hoje. */
+export function petEventLabel(p: { name: string; species: PetSpecies; size: PetSize | null }): string {
+  return `${p.name} (${variantDef(variantOfPet(p)).label})`
 }
 
 /** "Banho + Hidratação · Rex (Cão médio)"; sem pet, o nome do cliente. Passou de 200 caracteres, termina em "…". */

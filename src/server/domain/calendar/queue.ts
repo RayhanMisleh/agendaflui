@@ -17,11 +17,16 @@ export async function enqueueCalendarSync(tx: TenantTx, ctx: TenantContext, appo
   })
 }
 
-/** A fase 2 (pet) acrescenta `{ petId }` aqui quando o agendamento ganhar pet. */
-export type CalendarScope = { professionalId: string } | { customerId: string }
+export type CalendarScope = { professionalId: string } | { customerId: string } | { petId: string }
+
+function scopeWhere(scope: CalendarScope): CalendarScope {
+  if ('professionalId' in scope) return { professionalId: scope.professionalId }
+  if ('customerId' in scope) return { customerId: scope.customerId }
+  return { petId: scope.petId }
+}
 
 /**
- * Enfileira os agendamentos de um profissional ou de um cliente, em ordem de id (a ordem fixa evita espera em
+ * Enfileira os agendamentos de um profissional, de um cliente ou de um pet, em ordem de id (a ordem fixa evita espera em
  * círculo entre duas operações). `futureOnly`: só os que ainda não terminaram. `onlyPlaced`: só os que já estão numa agenda.
  * Devolve quantos enfileirou.
  */
@@ -31,7 +36,7 @@ export async function enqueueCalendarFor(
   scope: CalendarScope,
   o: { futureOnly: boolean; onlyPlaced?: boolean },
 ): Promise<number> {
-  const where = 'professionalId' in scope ? { professionalId: scope.professionalId } : { customerId: scope.customerId }
+  const where = scopeWhere(scope)
   const rows = await tx.appointment.findMany({
     where: { ...where, ...(o.futureOnly ? { endsAt: { gte: ctx.clock() } } : {}) },
     select: { id: true },

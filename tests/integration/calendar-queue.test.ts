@@ -13,6 +13,7 @@ import {
   rescheduleAppointment,
   undoOutcome,
 } from '@/server/domain/scheduling/appointments'
+import { updatePet } from '@/server/domain/pets/pets'
 import { updateProfessional } from '@/server/domain/team/professionals'
 import { fakeGoogleAuthority } from '@/server/integrations/fakes'
 import { resetDb } from '../setup/db'
@@ -23,6 +24,7 @@ import {
   makeCtx,
   makeCustomer,
   makeMembership,
+  makePet,
   makeProfessional,
   makeService,
   makeUser,
@@ -118,9 +120,34 @@ describe('a fila acompanha o agendamento', () => {
     expect(e.reason).toBe('slot_unavailable')
     expect(await prisma.calendarSync.count()).toBe(0)
   })
+
+  test('falha da marcação (needs_confirmation) não deixa linha na fila', async () => {
+    const s = await montar()
+    // 12:00 é o intervalo do almoço: a equipe precisa confirmar.
+    const e = await domainError(marcar(s, hora(12)))
+    expect(e.reason).toBe('needs_confirmation')
+    expect(await prisma.calendarSync.count()).toBe(0)
+  })
 })
 
 describe('mudanças que não passam pelo agendamento', () => {
+  test('mudar o nome, o animal ou o porte do pet reenfileira os futuros dele; outro campo não', async () => {
+    const s = await montar()
+    await prisma.business.update({ where: { id: s.b.id }, data: { niche: 'PET' } })
+    const rex = await makePet(s.b.id, s.cliente.id, { name: 'Rex' })
+    const futuro = await bookAppointment(s.gerente, { customerId: s.cliente.id, petId: rex.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: hora(10) })
+    const passado = await bookAppointment(s.gerente, { customerId: s.cliente.id, petId: rex.id, professionalId: s.ana.id, serviceIds: [s.banho.id], startsAt: hora(14) })
+    await prisma.appointment.updateMany({ where: { id: passado.id }, data: { startsAt: new Date('2026-11-10T12:00:00Z'), endsAt: new Date('2026-11-10T13:00:00Z') } })
+
+    await updatePet(s.gerente, rex.id, { breed: 'Vira-lata' })
+    expect((await linha(futuro.id)).generation).toBe(1)
+    await updatePet(s.gerente, rex.id, { name: 'Rex Junior' })
+    expect((await linha(futuro.id)).generation).toBe(2)
+    await updatePet(s.gerente, rex.id, { size: 'LARGE' })
+    expect((await linha(futuro.id)).generation).toBe(3)
+    expect((await linha(passado.id)).generation).toBe(1)
+  })
+
   test('anonimizar reenfileira só os agendamentos que já estão numa agenda', async () => {
     const s = await montar()
     const pessoa = await makeUser()
