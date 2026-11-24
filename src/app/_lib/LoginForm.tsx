@@ -6,10 +6,22 @@ import type { LoginState } from '@/app/_lib/login-form'
 import { Button, Field, Input } from '@/ui/components'
 
 /** Formulário de entrada. Funciona sem JavaScript: a action de servidor é a action nativa do formulário. */
-export function LoginForm({ action, forgotHref }: { action: (prev: LoginState, form: FormData) => Promise<LoginState>; forgotHref?: string }) {
+export function LoginForm({
+  action,
+  forgotHref,
+  hidden,
+  submitLabel = 'Entrar',
+}: {
+  action: (prev: LoginState, form: FormData) => Promise<LoginState>
+  forgotHref?: string
+  /** Campos que a ação precisa e a pessoa não digita (por exemplo, a loja). */
+  hidden?: Record<string, string>
+  submitLabel?: string
+}) {
   const [state, formAction, pending] = useActionState(action, { error: null, email: '' })
   return (
     <form action={formAction} className="af-entry__form">
+      {hidden ? Object.entries(hidden).map(([nome, valor]) => <input key={nome} type="hidden" name={nome} value={valor} />) : null}
       <Field label="E-mail">
         <Input
           name="email"
@@ -38,7 +50,7 @@ export function LoginForm({ action, forgotHref }: { action: (prev: LoginState, f
         </p>
       ) : null}
       <Button type="submit" variant="primary" size="lg" loading={pending}>
-        Entrar
+        {submitLabel}
       </Button>
     </form>
   )

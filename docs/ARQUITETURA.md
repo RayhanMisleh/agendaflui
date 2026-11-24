@@ -97,6 +97,7 @@ pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca e
 
 - Acesso (convite, papel, desativação, redefinição de senha, login do app): `business_owners` da conta, depois os vínculos em
   ordem crescente de id, depois a linha do usuário, depois tokens e sessões (`lockUserAccess` em `auth/password-reset.ts`).
+- Pessoa e loja (cadastro, entrada pela loja, adoção, Google): `lockUserAccess` da pessoa primeiro, depois `customer` da loja.
 - Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
 - Remover profissional (`removerProfissional`, `access-core.ts`): acesso primeiro (`business_owners`, vínculos), depois `professional`.
 - Escopos sozinhos, sem combinar com outros: `catalog`, `loyalty`, `banners`, `customer` (resgate, ajuste, endereço, conta do
