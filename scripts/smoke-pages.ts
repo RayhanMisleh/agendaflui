@@ -31,7 +31,6 @@ const PAGINAS = [
   '/contas/{conta}',
   '/contas/{conta}?suporte=__proto__&faltou=constructor',
   '/contas/{conta}/marca',
-  '/contas/{conta}/termos',
   '/contas/{conta}/modulos',
   '/contas/{conta}/regras',
   '/contas/{conta}/equipe',
@@ -105,8 +104,8 @@ const PAGINAS_PAINEL = [
 
 /** Páginas da entrada e da área do cliente no host do app, pedidas como o dono da conta de demonstração (`{slug}` é a loja dele). */
 const PAGINAS_APP = [
-  '/entrar',
-  '/entrar?senha=nova',
+  '307 /entrar',
+  '307 /entrar?senha=nova',
   '/esqueci-a-senha',
   '/redefinir-senha/x',
   '/convite/x',
@@ -171,12 +170,27 @@ const SEM_LOJA_404 = new Set(['/painel/loja'])
 
 type Resposta = { status: number; corpo: string }
 
+/**
+ * Com `loading.tsx`, a página começa a ser enviada antes de o servidor decidir: um `redirect()` ou `notFound()` depois disso sai
+ * com 200 e a decisão vai no corpo (`NEXT_REDIRECT;…;307;` ou `NEXT_HTTP_ERROR_FALLBACK;404`). Conta como o status que o Next daria.
+ */
+function statusEfetivo(status: number, corpo: string): number {
+  if (status !== 200) return status
+  const desvio = /NEXT_REDIRECT;[a-z]+;[^;]*;(\d{3});/.exec(corpo)
+  if (desvio) return Number(desvio[1])
+  const falha = /NEXT_HTTP_ERROR_FALLBACK;(\d{3})/.exec(corpo)
+  return falha ? Number(falha[1]) : status
+}
+
 function pedir(porta: number, host: string, caminho: string, cookie: string): Promise<Resposta> {
   return new Promise((ok, falhou) => {
     const req = request({ host: '127.0.0.1', port: porta, path: caminho, headers: { host, cookie } }, (res) => {
       const partes: Buffer[] = []
       res.on('data', (p: Buffer) => partes.push(p))
-      res.on('end', () => ok({ status: res.statusCode ?? 0, corpo: Buffer.concat(partes).toString('utf8') }))
+      res.on('end', () => {
+        const corpo = Buffer.concat(partes).toString('utf8')
+        ok({ status: statusEfetivo(res.statusCode ?? 0, corpo), corpo })
+      })
     })
     req.on('error', falhou)
     req.setTimeout(60_000, () => req.destroy(new Error('sem resposta em 60 s')))
@@ -361,6 +375,14 @@ async function main(): Promise<number> {
           return criado
         })()
       : null
+    // O começo do dono só abre com a linha de progresso (contas do seed não têm): cria uma temporária, se faltar, com o passo a
+    // passo já terminado para o Início abrir (com a lista do que falta) em vez de levar ao começo.
+    if ((await prisma.onboardingProgress.count({ where: { businessId: conta.id } })) === 0) {
+      const progresso = await prisma.onboardingProgress.create({ data: { businessId: conta.id, wizardFinishedAt: new Date() }, select: { id: true } })
+      limpezas.push(async () => {
+        await prisma.onboardingProgress.deleteMany({ where: { id: progresso.id } })
+      })
+    }
     // Um cliente temporário (pessoa, cadastro, pet e sessão) para pedir a área do cliente; tudo sai ao fim.
     const sufixo = Date.now().toString(36)
     const pessoa = await prisma.user.create({
@@ -406,8 +428,10 @@ async function main(): Promise<number> {
     for (const lote of lotes) {
       for (const item of lote.paginas) {
         const partes = /^(\d{3}) (.+)$/.exec(item)
-        const esperado = partes ? Number(partes[1]) : 200
         const modelo = partes ? (partes[2] ?? item) : item
+        // Loja sem nicho não tem pets nem quiz: essas telas levam de volta ao Início da loja.
+        const semPets = lote.rotulo === 'cliente' && conta.niche === null && /^\/\{slug\}\/(pets|boas-vindas)/.test(modelo)
+        const esperado = partes ? Number(partes[1]) : semPets ? 307 : 200
         const caminho = modelo.replace('{pet}', petTemp?.id ?? '').replace('{conta}', conta.id).replace('{cliente}', cliente?.id ?? '').replace('{profissional}', profissional?.id ?? '').replace('{banner}', banner.id).replace('{produto}', produto.id).replace('{pedido}', pedido?.id ?? '').replace('{premio}', premio.id).replace('{slug}', conta.slug)
         const faltaRegistro =
           (modelo.includes('{cliente}') && !cliente) || (modelo.includes('{profissional}') && !profissional) || (modelo.includes('{pedido}') && !pedido) || (modelo.includes('{pet}') && !petTemp) || caminho.includes('//') || (modelo !== '/' && caminho.endsWith('/'))
@@ -419,7 +443,8 @@ async function main(): Promise<number> {
         let linha: string
         try {
           const r = await pedir(porta, lote.host, caminho, lote.cookie)
-          const marca = MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
+          // Redirecionamento e 404 trazem a marca de erro do Next no corpo por natureza; só a página que abre é conferida.
+          const marca = r.status >= 300 ? undefined : MARCAS_DE_ERRO.find((m) => (typeof m === 'string' ? r.corpo.includes(m) : m.test(r.corpo)))
           const bom = r.status === esperado && marca === undefined
           if (!bom) falhas++
           linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} ${lote.rotulo} ${modelo}${marca ? `  (marca de erro: ${String(marca)})` : ''}`

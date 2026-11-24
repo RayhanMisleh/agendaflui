@@ -29,8 +29,6 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
 - Entregue: acesso e domínio do cliente, tema da loja, moldura, página pública, quiz do pet (`/<slug>/boas-vindas`), Início, Agendar e
   Remarcar, Meus horários (cancelar no prazo e `.ics`), Meus pets, Prêmios, Loja, Mais (avisos por e-mail e excluir a conta na loja).
   `needsPetQuiz` agora leva a loja de pet shop sem pet ativo ao quiz depois de entrar.
-- A fumaça (`scripts/smoke-pages.ts`) pede as telas do cliente com um cliente temporário da conta de demonstração e a loja sem sessão.
-  Não foi rodada nesta etapa (pede `npm run build` e o banco local de pé).
 - Para o dono conferir no celular: cadastro pela loja até o quiz; quiz com e sem gatos (e a tela de boas-vindas); agendar com "Qualquer um"
   e com um profissional; horário tomado entre escolher e confirmar (sugestões); sucesso e `.ics` no calendário do celular; remarcar perto do
   próprio horário; cancelar fora do prazo (mensagem com o telefone); Meus pets com gato e gatos desligados; Prêmios; Loja até o Mercado Pago
