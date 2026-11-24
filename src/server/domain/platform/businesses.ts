@@ -439,6 +439,7 @@ export async function createBusiness(
               branding: { create: { displayName: i.name } },
               modules: { create: {} },
               settings: { create: { nicheOptions: { servesCats: i.nicheOptions?.servesCats ?? false } } },
+              onboarding: { create: {} },
             },
             select: { id: true },
           })

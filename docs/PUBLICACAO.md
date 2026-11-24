@@ -62,13 +62,19 @@ No terminal do contêiner (Coolify): `npm run admin:create`. Pergunta nome, e-ma
 
 ## Conta de demonstração
 
-No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Focinho Feliz Pet Shop", com nome, paleta, logo, símbolo e favicon próprios (identificador `demo`,
-dono `demo@agendaflui.com.br`) com equipe, 40 clientes, agenda de 4 semanas atrás a 2 semanas à frente, fidelidade,
-banners e loja. Não chama nenhum serviço externo (os pagamentos entram pelo mesmo caminho do webhook, sem consultar o
-Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`. A senha do dono é gerada na hora e aparece
-**uma única vez** no terminal, junto do link de entrada e do link para clientes. Se o e-mail do dono (ou de alguém da equipe) já for ativo em outra loja, o comando para com uma mensagem clara e não grava nada. Rodar de novo não duplica nada, completa o que faltar, atualiza a agenda até 2 semanas à frente (rode de novo para atualizar a agenda), reaplica a marca e os pedidos se estiverem diferentes, e nunca troca a senha
-(para trocá-la, use a redefinição de senha do painel). O gerente e os profissionais têm e-mails `@demo.agendaflui.com.br`
-com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
+No terminal do contêiner: `npm run demo:create`. Cria a conta fictícia "Focinho Feliz Pet Shop" (identificador `demo`, dono `demo@agendaflui.com.br`),
+com marca própria (nome, paleta, logo, símbolo e favicon), serviços com preço por porte, gatos atendidos, equipe, 14 clientes
+(8 com conta e 6 de balcão) com pets de todos os portes e três gatos, agenda de 4 semanas atrás a 2 semanas à frente (com um
+encaixe), fidelidade, banners e loja. O começo do dono já vem concluído. Não chama nenhum serviço externo (os pagamentos entram
+pelo mesmo caminho do webhook, sem consultar o Mercado Pago, e a loja só tem retirada) e funciona com `INTEGRATIONS_MODE=real`.
+
+As senhas do dono e do cliente de teste (`cliente.teste@agendaflui.com.br`) são geradas na hora e aparecem **uma única vez** no
+terminal, junto do link de entrada e do link para clientes; nunca vão para log, auditoria nem banco (só o hash). Pessoa que já
+existia mantém a senha (para trocá-la, use a redefinição de senha do painel). Se o e-mail do dono (ou de alguém da equipe) já for
+ativo em outra loja, o comando para com uma mensagem clara e não grava nada. Rodar de novo não duplica nada, completa o que
+faltar e atualiza a agenda até 2 semanas à frente. `npm run demo:create -- --recriar` refaz a demonstração do zero: a antiga é
+**desligada** (identificador `demo-antiga-AAAAMMDD`, conta suspensa, acessos inativos), nunca apagada. O gerente e os profissionais
+têm e-mails `@demo.agendaflui.com.br` com senhas que ninguém conhece, e os avisos para a equipe ficam desligados.
 
 ## Backup e restauração
 

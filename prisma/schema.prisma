@@ -368,6 +368,7 @@ model Business {
   orderItems           OrderItem[]
   notifications        Notification[]
   calendarSyncs        CalendarSync[]
+  onboarding           OnboardingProgress?
   supportHandoffs      SupportHandoff[]
 
   @@map("businesses")
@@ -1395,4 +1396,36 @@ model ServicePrice {
   @@unique([businessId, id])
   @@unique([serviceId, variant])
   @@map("service_prices")
+}
+
+enum OnboardingStep {
+  STORE
+  BRAND
+  ANIMALS
+  SERVICES
+  HOURS
+  TEAM
+  LINK
+
+  @@map("onboarding_step")
+}
+
+/// Progresso do começo do dono (`/painel/comecar`). Só no SQL: CHECK `onboarding_progress_steps_disjoint` (um passo é feito
+/// ou pulado, nunca os dois). Conta sem linha não tem começo (as contas anteriores à fase 4 já estão montadas).
+model OnboardingProgress {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  businessId       String           @unique @map("business_id") @db.Uuid
+  doneSteps        OnboardingStep[] @default([]) @map("done_steps")
+  skippedSteps     OnboardingStep[] @default([]) @map("skipped_steps")
+  wizardFinishedAt DateTime?        @map("wizard_finished_at") @db.Timestamptz(3)
+  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(3)
+  dismissedAt      DateTime?        @map("dismissed_at") @db.Timestamptz(3)
+  version          Int              @default(1)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, id])
+  @@map("onboarding_progress")
 }

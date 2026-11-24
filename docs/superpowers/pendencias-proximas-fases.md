@@ -23,7 +23,8 @@ O que continua aberto. Nenhum agente abriu as telas em navegador: só há testes
 
 - Entregue: nicho pet, pets, preço e tempo por animal e porte, agenda da equipe livre com confirmação e encaixe, telas do painel.
 - Fase 3: o quiz usa `NICHES.PET.quiz`; a área do cliente usa `listMyPets`, `listServicesForPet`, `fromPrice` e `getAvailability({ petId })`.
-- Fase 4: `serviceSuggestions` e a demo com pets de portes variados e um encaixe.
+- Fase 4: `serviceSuggestions` no começo do dono (`/painel/comecar`) e a demo com pets de portes variados e um encaixe (entregues).
+- Conferir no navegador: `/painel/comecar` a 360 px (tabela de serviços por porte, expediente, QR e Compartilhar), prévia da marca ao vivo, envio da logo e foco ao trocar de passo.
 - Conferir no navegador: folha de marcar a 360 px (pets em rolagem), diálogo "Confirme o horário", encaixe na grade do dia e na semana.
 
 ## Fase 3 (área do cliente): entregue e o que fica

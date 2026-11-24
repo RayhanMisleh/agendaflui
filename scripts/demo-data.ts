@@ -2,15 +2,22 @@
  * Dados fixos e planejamento puro (sem banco, sem relógio) da conta de demonstração do comando `npm run demo:create`.
  * Tudo é fictício: nomes, telefones e pets. Datas entram como parâmetro (nunca `new Date()` aqui).
  */
+import type { PetCoat, PetSize, PetSpecies, PriceVariant } from '../src/server/db/generated/client'
+import { NICHES, variantOfPet } from '../src/server/niches'
+import type { ServiceIconName } from '../src/shared/service-icons'
 import { DEMO_MARCA } from './demo-brand'
 import { addDays, minuteToInstant, weekdayOf, WEEKDAYS, type Weekday } from '../src/server/time'
 
 export const DEMO_SLUG = 'demo'
 export const DEMO_NOME = DEMO_MARCA.nome
 export const DEMO_EMAIL_DONO = 'demo@agendaflui.com.br'
+export const DEMO_EMAIL_CLIENTE_TESTE = 'cliente.teste@agendaflui.com.br'
 const DOMINIO_EQUIPE = 'demo.agendaflui.com.br'
+const DOMINIO_CLIENTES = 'clientes.demo.agendaflui.com.br'
 
 export const demoEmailEquipe = (apelido: string): string => `${apelido}@${DOMINIO_EQUIPE}`
+/** O e-mail de um cliente de demonstração com conta (o de teste usa `DEMO_EMAIL_CLIENTE_TESTE`). */
+export const demoEmailCliente = (apelido: string): string => `${apelido}@${DOMINIO_CLIENTES}`
 
 export const DEMO_DONO_NOME = 'Dono Demonstração'
 export const DEMO_GERENTE = { nome: 'Patrícia Lima', email: demoEmailEquipe('gerente') } as const
@@ -21,18 +28,61 @@ export type Expediente = Partial<Record<Weekday, Faixa[]>>
 const manha = { startMin: 480, endMin: 720 }
 const tarde = { startMin: 810, endMin: 1080 }
 
-export const DEMO_SERVICOS = [
-  { nome: 'Banho porte pequeno', descricao: 'Banho com shampoo neutro, secagem e perfume.', minutos: 45, centavos: 5000, pontos: 10 },
-  { nome: 'Banho porte médio', descricao: 'Banho com shampoo neutro, secagem e perfume.', minutos: 60, centavos: 7000, pontos: 14 },
-  { nome: 'Banho porte grande', descricao: 'Banho com shampoo neutro, secagem e perfume.', minutos: 75, centavos: 9500, pontos: 19 },
-  { nome: 'Tosa higiênica', descricao: 'Pelos das patas, barriga e região íntima.', minutos: 30, centavos: 4500, pontos: 9 },
-  { nome: 'Tosa completa', descricao: 'Tosa na máquina ou na tesoura, conforme a raça.', minutos: 60, centavos: 8500, pontos: 17 },
-  { nome: 'Banho e tosa', descricao: 'Banho completo e tosa da raça.', minutos: 90, centavos: 12000, pontos: 24 },
-  { nome: 'Hidratação de pelagem', descricao: 'Máscara de hidratação para pelos macios.', minutos: 30, centavos: 5500, pontos: 11 },
-  { nome: 'Corte de unhas', descricao: null, minutos: 15, centavos: 2500, pontos: 5 },
-  { nome: 'Limpeza de ouvidos', descricao: null, minutos: 15, centavos: 3000, pontos: 6 },
-  { nome: 'Spa relaxante', descricao: 'Banho, massagem e hidratação. Exclusivo do clube.', minutos: 45, centavos: 11000, pontos: 22, clube: true },
-] as const
+type PrecoDeVariante = { priceCents: number; durationMin: number }
+export type DemoServico = {
+  nome: string
+  descricao: string | null
+  icone: ServiceIconName
+  /** Preço e tempo por porte (`BY_VARIANT`); `null` = preço único, em `unico`. */
+  porVariante: Partial<Record<PriceVariant, PrecoDeVariante>> | null
+  unico?: PrecoDeVariante
+  pontos: number
+  clube?: boolean
+}
+
+/** Pontos de fidelidade: um por R$ 5,00 do preço (do porte médio, nos serviços por porte). */
+const pontosDe = (centavos: number): number => Math.round(centavos / 100 / 5)
+
+const SUGESTOES: DemoServico[] = NICHES.PET.serviceSuggestions.map((s) => ({
+  nome: s.name,
+  descricao: s.description,
+  icone: s.icon,
+  porVariante: { ...s.prices },
+  pontos: pontosDe(s.prices.DOG_MEDIUM.priceCents),
+}))
+
+/** 0 Banho, 1 Banho e tosa, 2 Tosa higiênica, 3 Hidratação, 4 Corte de unha, 5 Limpeza de ouvidos, 6 Spa relaxante. */
+export const DEMO_SERVICOS: DemoServico[] = [
+  ...SUGESTOES,
+  { nome: 'Limpeza de ouvidos', descricao: null, icone: 'heart', porVariante: null, unico: { priceCents: 3000, durationMin: 15 }, pontos: pontosDe(3000) },
+  {
+    nome: 'Spa relaxante',
+    descricao: 'Banho, massagem e hidratação. Exclusivo do clube.',
+    icone: 'flower',
+    // Só cães: o gato não tem linha neste serviço.
+    porVariante: {
+      DOG_SMALL: { priceCents: 9000, durationMin: 60 },
+      DOG_MEDIUM: { priceCents: 11000, durationMin: 75 },
+      DOG_LARGE: { priceCents: 14000, durationMin: 90 },
+      DOG_GIANT: { priceCents: 18000, durationMin: 105 },
+    },
+    pontos: pontosDe(11000),
+    clube: true,
+  },
+]
+export const SERVICO_SPA = 6
+
+/** Preço e tempo do serviço para o porte, ou `null` se o serviço não é feito para ele. */
+export function precoDoServico(s: DemoServico, variante: PriceVariant): PrecoDeVariante | null {
+  if (s.porVariante === null) return s.unico ?? null
+  return s.porVariante[variante] ?? null
+}
+
+/** O serviço é feito para esse porte e, se for do clube, o cliente é do clube. */
+export function servicoOferecido(indice: number, variante: PriceVariant, clube: boolean): boolean {
+  const s = DEMO_SERVICOS[indice]
+  return s !== undefined && precoDoServico(s, variante) !== null && (s.clube !== true || clube)
+}
 
 export type DemoProfissional = {
   nome: string
@@ -50,9 +100,9 @@ export const DEMO_PROFISSIONAIS: DemoProfissional[] = [
   {
     nome: 'Bia Nogueira',
     apelido: 'bia',
-    bio: 'Tosadora há 9 anos, especialista em raças de pelo longo.',
+    bio: 'Cuida de banho e tosa há 9 anos, com jeito para pelo longo.',
     comissaoBps: 4000,
-    servicos: [1, 2, 3, 4, 5, 6, 7, 9],
+    servicos: [0, 1, 2, 3, 4, 5, 6],
     expediente: {
       MONDAY: [manha, tarde],
       TUESDAY: [manha, tarde],
@@ -61,14 +111,14 @@ export const DEMO_PROFISSIONAIS: DemoProfissional[] = [
       FRIDAY: [manha, tarde],
       SATURDAY: [{ startMin: 480, endMin: 780 }],
     },
-    combinacoes: [[1], [2], [3], [4], [5], [1, 7], [2, 6], [4, 7], [3, 7], [5], [9]],
+    combinacoes: [[1], [1], [0], [2], [3], [1, 3], [0, 4], [2, 4], [6], [0, 3]],
   },
   {
     nome: 'Caio Ribeiro',
     apelido: 'caio',
-    bio: 'Banhista, cuida dos mais agitados com muita paciência.',
+    bio: 'Cuida do banho dos mais agitados com muita paciência.',
     comissaoBps: 3500,
-    servicos: [0, 1, 2, 6, 7, 8, 9],
+    servicos: [0, 1, 3, 4, 5, 6],
     expediente: {
       TUESDAY: [{ startMin: 540, endMin: 720 }, { startMin: 810, endMin: 1140 }],
       WEDNESDAY: [{ startMin: 540, endMin: 720 }, { startMin: 810, endMin: 1140 }],
@@ -76,14 +126,14 @@ export const DEMO_PROFISSIONAIS: DemoProfissional[] = [
       FRIDAY: [{ startMin: 540, endMin: 720 }, { startMin: 810, endMin: 1140 }],
       SATURDAY: [{ startMin: 540, endMin: 840 }],
     },
-    combinacoes: [[0], [1], [2], [0, 7], [1, 8], [6], [2, 6], [1, 7, 8], [9]],
+    combinacoes: [[0], [0], [1], [0, 4], [3], [0, 5], [1, 4], [6], [4]],
   },
   {
     nome: 'Renata Lopes',
     apelido: 'renata',
-    bio: 'Tosadora e esteticista pet, adora gatos e filhotes.',
+    bio: 'Cuida de tosa e estética, e adora gatos e filhotes.',
     comissaoBps: 4500,
-    servicos: [0, 3, 4, 5, 7, 8],
+    servicos: [0, 1, 2, 4, 5],
     expediente: {
       MONDAY: [manha, { startMin: 810, endMin: 1020 }],
       WEDNESDAY: [manha, { startMin: 810, endMin: 1020 }],
@@ -91,53 +141,82 @@ export const DEMO_PROFISSIONAIS: DemoProfissional[] = [
       FRIDAY: [manha, { startMin: 810, endMin: 1020 }],
       SATURDAY: [{ startMin: 480, endMin: 780 }],
     },
-    combinacoes: [[0], [3], [4], [5], [0, 7], [3, 8], [5, 7]],
+    combinacoes: [[0], [2], [1], [0, 4], [2, 5], [1, 4], [4]],
   },
 ]
 
-/** Cliente, pet e se é do clube. */
-export const DEMO_CLIENTES: { nome: string; pet: string; clube?: boolean }[] = [
-  { nome: 'Aline Moreira', pet: 'Thor, golden retriever, porte grande.', clube: true },
-  { nome: 'Bruno Tavares', pet: 'Mel, shih tzu. Não gosta do secador.' },
-  { nome: 'Carla Fontes', pet: 'Pipoca, poodle toy.', clube: true },
-  { nome: 'Diego Lacerda', pet: 'Bolt, border collie.' },
-  { nome: 'Eliane Prates', pet: 'Luna e Nina, gatas persas.' },
-  { nome: 'Fábio Cordeiro', pet: 'Rex, pastor alemão.' },
-  { nome: 'Gabriela Siqueira', pet: 'Amora, yorkshire.', clube: true },
-  { nome: 'Henrique Aragão', pet: 'Bento, labrador.' },
-  { nome: 'Isabela Quintana', pet: 'Fiona, spitz alemão.' },
-  { nome: 'João Pedro Salles', pet: 'Tobias, beagle.' },
-  { nome: 'Karina Bastos', pet: 'Nina, maltês.', clube: true },
-  { nome: 'Leandro Veloso', pet: 'Zeca, bulldog francês.' },
-  { nome: 'Mariana Teixeira', pet: 'Princesa, lhasa apso. Alérgica a perfume forte.' },
-  { nome: 'Nelson Prado', pet: 'Duque, rottweiler. Dócil, mas desconfia de estranhos.' },
-  { nome: 'Olívia Ramos', pet: 'Chico, vira-lata caramelo.' },
-  { nome: 'Paulo Henrique Dias', pet: 'Max, pinscher.' },
-  { nome: 'Queila Moura', pet: 'Branca, gata angorá.' },
-  { nome: 'Rodrigo Esteves', pet: 'Simba, chow chow. Tosa só na tesoura.', clube: true },
-  { nome: 'Sabrina Couto', pet: 'Lola, cavalier king charles.' },
-  { nome: 'Thiago Ferraz', pet: 'Apolo, husky siberiano.' },
-  { nome: 'Úrsula Mendes', pet: 'Dora, dachshund.' },
-  { nome: 'Vinícius Batista', pet: 'Pingo, jack russell.' },
-  { nome: 'Wanda Carvalho', pet: 'Mingau, gato siamês.' },
-  { nome: 'Xavier Pinheiro', pet: 'Trovão, boxer.' },
-  { nome: 'Yara Bittencourt', pet: 'Cacau, cocker spaniel.', clube: true },
-  { nome: 'Zélia Andrade', pet: 'Biscoito, pug.' },
-  { nome: 'Alexandre Bonfim', pet: 'Rocky, staffordshire.' },
-  { nome: 'Beatriz Camargo', pet: 'Estrela, samoieda.' },
-  { nome: 'Caetano Rezende', pet: 'Fred, schnauzer.' },
-  { nome: 'Daniela Freitas', pet: 'Gigi, poodle médio.' },
-  { nome: 'Eduardo Sampaio', pet: 'Jade, pastor belga.' },
-  { nome: 'Fernanda Guedes', pet: 'Moli, lulu da pomerânia.', clube: true },
-  { nome: 'Gustavo Neves', pet: 'Totó, vira-lata.' },
-  { nome: 'Helena Barros', pet: 'Pérola, gata ragdoll.' },
-  { nome: 'Ícaro Valadares', pet: 'Nick, golden retriever.' },
-  { nome: 'Juliana Cardoso', pet: 'Bela, bichon frisé.' },
-  { nome: 'Kleber Monteiro', pet: 'Hulk, american bully.' },
-  { nome: 'Larissa Vieira', pet: 'Charlotte, yorkshire.' },
-  { nome: 'Mateus Coelho', pet: 'Oliver, basset hound.' },
-  { nome: 'Natália Peixoto', pet: 'Cléo e Tom, gatos sem raça definida.' },
+export type DemoPet = {
+  nome: string
+  especie: PetSpecies
+  /** Só cães têm porte. */
+  porte: PetSize | null
+  raca: string
+  pelagem: PetCoat
+  cuidados?: string
+}
+
+export type DemoCliente = {
+  nome: string
+  /** Vira o e-mail `<apelido>@clientes.demo...` de quem tem conta; clientes de balcão não têm pessoa. */
+  apelido: string
+  /** `true` = cliente com conta (ligado a uma pessoa); `false` = cliente de balcão. */
+  conta: boolean
+  /** O cliente de teste: e-mail fixo e senha gerada e mostrada uma vez, só no terminal. */
+  teste?: boolean
+  clube?: boolean
+  pets: DemoPet[]
+}
+
+/** 14 clientes: 8 com conta (o de teste entre eles) e 6 de balcão; cães dos quatro portes e 3 gatos. */
+export const DEMO_CLIENTES: DemoCliente[] = [
+  { nome: 'Aline Moreira', apelido: 'aline', conta: true, clube: true, pets: [{ nome: 'Thor', especie: 'DOG', porte: 'LARGE', raca: 'Golden retriever', pelagem: 'LONG' }] },
+  { nome: 'Bruno Tavares', apelido: 'bruno', conta: true, pets: [{ nome: 'Mel', especie: 'DOG', porte: 'SMALL', raca: 'Shih tzu', pelagem: 'LONG', cuidados: 'Medo de secador' }] },
+  { nome: 'Carla Fontes', apelido: 'carla', conta: false, clube: true, pets: [{ nome: 'Pipoca', especie: 'DOG', porte: 'SMALL', raca: 'Poodle toy', pelagem: 'MEDIUM' }] },
+  { nome: 'Diego Lacerda', apelido: 'diego', conta: true, pets: [{ nome: 'Bolt', especie: 'DOG', porte: 'MEDIUM', raca: 'Border collie', pelagem: 'MEDIUM' }] },
+  {
+    nome: 'Eliane Prates',
+    apelido: 'eliane',
+    conta: true,
+    pets: [
+      { nome: 'Luna', especie: 'CAT', porte: null, raca: 'Persa', pelagem: 'LONG' },
+      { nome: 'Pérola', especie: 'CAT', porte: null, raca: 'Ragdoll', pelagem: 'LONG', cuidados: 'Idosa' },
+    ],
+  },
+  { nome: 'Fábio Cordeiro', apelido: 'fabio', conta: false, pets: [{ nome: 'Rex', especie: 'DOG', porte: 'LARGE', raca: 'Pastor alemão', pelagem: 'MEDIUM' }] },
+  { nome: 'Gabriela Siqueira', apelido: 'gabriela', conta: true, clube: true, pets: [{ nome: 'Amora', especie: 'DOG', porte: 'SMALL', raca: 'Yorkshire', pelagem: 'LONG' }] },
+  { nome: 'Henrique Aragão', apelido: 'henrique', conta: false, pets: [{ nome: 'Duque', especie: 'DOG', porte: 'GIANT', raca: 'Rottweiler', pelagem: 'SHORT', cuidados: 'Dócil, mas desconfia de estranhos' }] },
+  {
+    nome: 'Isabela Quintana',
+    apelido: 'isabela',
+    conta: true,
+    pets: [
+      { nome: 'Fiona', especie: 'DOG', porte: 'SMALL', raca: 'Spitz alemão', pelagem: 'LONG' },
+      { nome: 'Tobias', especie: 'DOG', porte: 'MEDIUM', raca: 'Beagle', pelagem: 'SHORT' },
+    ],
+  },
+  { nome: 'João Pedro Salles', apelido: 'joao', conta: false, pets: [{ nome: 'Zeca', especie: 'DOG', porte: 'MEDIUM', raca: 'Bulldog francês', pelagem: 'SHORT' }] },
+  { nome: 'Karina Bastos', apelido: 'karina', conta: false, clube: true, pets: [{ nome: 'Nina', especie: 'DOG', porte: 'SMALL', raca: 'Maltês', pelagem: 'LONG', cuidados: 'Idosa' }] },
+  { nome: 'Leandro Veloso', apelido: 'leandro', conta: true, pets: [{ nome: 'Simba', especie: 'DOG', porte: 'LARGE', raca: 'Chow chow', pelagem: 'LONG', cuidados: 'Tosa só na tesoura' }] },
+  { nome: 'Mariana Teixeira', apelido: 'mariana', conta: false, pets: [{ nome: 'Princesa', especie: 'DOG', porte: 'SMALL', raca: 'Lhasa apso', pelagem: 'LONG', cuidados: 'Alergia a perfume forte' }] },
+  {
+    nome: 'Camila Teste',
+    apelido: 'camila',
+    conta: true,
+    teste: true,
+    pets: [
+      { nome: 'Chico', especie: 'DOG', porte: 'MEDIUM', raca: 'Vira-lata caramelo', pelagem: 'SHORT' },
+      { nome: 'Mingau', especie: 'CAT', porte: null, raca: 'Siamês', pelagem: 'SHORT' },
+    ],
+  },
 ]
+
+/** O e-mail da pessoa de um cliente com conta. */
+export function emailDoCliente(c: DemoCliente): string {
+  return c.teste === true ? DEMO_EMAIL_CLIENTE_TESTE : demoEmailCliente(c.apelido)
+}
+
+/** O porte de preço de cada pet do cliente, na ordem de `pets`. */
+export const variantesDoCliente = (c: DemoCliente): PriceVariant[] => c.pets.map((p) => variantOfPet({ species: p.especie, size: p.porte }))
 
 export const DEMO_PREMIOS = [
   { nome: 'Petisco natural', descricao: 'Um saquinho de petisco natural para o seu pet.', pontos: 40, estoque: 50 },
@@ -202,21 +281,21 @@ export type DemoPedido = {
 
 export const DEMO_PEDIDOS: DemoPedido[] = [
   { diasAtras: 27, minuto: 620, cliente: 0, linhas: [{ produto: 0, qtd: 1 }, { produto: 3, qtd: 2 }], fim: 'entregue' },
-  { diasAtras: 25, minuto: 700, cliente: 4, linhas: [{ produto: 1, qtd: 1 }], fim: 'entregue' },
-  { diasAtras: 24, minuto: 905, cliente: 7, linhas: [{ produto: 6, qtd: 2 }, { produto: 7, qtd: 1 }], fim: 'entregue' },
-  { diasAtras: 20, minuto: 780, cliente: 2, linhas: [{ produto: 10, qtd: 1 }, { produto: 11, qtd: 1 }], fim: 'entregue' },
-  { diasAtras: 19, minuto: 990, cliente: 17, linhas: [{ produto: 14, qtd: 1 }, { produto: 15, qtd: 1 }], fim: 'cancelado_pago' },
-  { diasAtras: 17, minuto: 600, cliente: 9, linhas: [{ produto: 2, qtd: 2 }], fim: 'entregue' },
-  { diasAtras: 15, minuto: 840, cliente: 20, linhas: [{ produto: 12, qtd: 1 }], fim: 'cancelado' },
-  { diasAtras: 12, minuto: 930, cliente: 24, linhas: [{ produto: 17, qtd: 1 }], fim: 'entregue' },
-  { diasAtras: 10, minuto: 660, cliente: 3, linhas: [{ produto: 0, qtd: 1 }, { produto: 5, qtd: 3 }], fim: 'entregue' },
-  { diasAtras: 7, minuto: 870, cliente: 6, linhas: [{ produto: 8, qtd: 1 }], fim: 'entregue' },
-  { diasAtras: 6, minuto: 615, cliente: 15, linhas: [{ produto: 3, qtd: 1 }, { produto: 4, qtd: 2 }], fim: 'entregue' },
-  { diasAtras: 4, minuto: 960, cliente: 33, linhas: [{ produto: 16, qtd: 2 }, { produto: 18, qtd: 1 }], fim: 'pronto' },
-  { diasAtras: 3, minuto: 690, cliente: 8, linhas: [{ produto: 1, qtd: 1 }, { produto: 10, qtd: 1 }], fim: 'pronto' },
-  { diasAtras: 2, minuto: 800, cliente: 22, linhas: [{ produto: 13, qtd: 1 }], fim: 'pago' },
-  { diasAtras: 1, minuto: 645, cliente: 26, linhas: [{ produto: 0, qtd: 1 }], fim: 'pago' },
-  { diasAtras: 1, minuto: 1010, cliente: 10, linhas: [{ produto: 6, qtd: 3 }], fim: 'cancelado' },
+  { diasAtras: 25, minuto: 700, cliente: 6, linhas: [{ produto: 1, qtd: 1 }], fim: 'entregue' },
+  { diasAtras: 24, minuto: 905, cliente: 13, linhas: [{ produto: 6, qtd: 2 }, { produto: 7, qtd: 1 }], fim: 'entregue' },
+  { diasAtras: 20, minuto: 780, cliente: 3, linhas: [{ produto: 10, qtd: 1 }, { produto: 11, qtd: 1 }], fim: 'entregue' },
+  { diasAtras: 19, minuto: 990, cliente: 1, linhas: [{ produto: 14, qtd: 1 }, { produto: 15, qtd: 1 }], fim: 'cancelado_pago' },
+  { diasAtras: 17, minuto: 600, cliente: 1, linhas: [{ produto: 2, qtd: 2 }], fim: 'entregue' },
+  { diasAtras: 15, minuto: 840, cliente: 6, linhas: [{ produto: 12, qtd: 1 }], fim: 'cancelado' },
+  { diasAtras: 12, minuto: 930, cliente: 0, linhas: [{ produto: 17, qtd: 1 }], fim: 'entregue' },
+  { diasAtras: 10, minuto: 660, cliente: 4, linhas: [{ produto: 0, qtd: 1 }, { produto: 5, qtd: 3 }], fim: 'entregue' },
+  { diasAtras: 7, minuto: 870, cliente: 11, linhas: [{ produto: 8, qtd: 1 }], fim: 'entregue' },
+  { diasAtras: 6, minuto: 615, cliente: 13, linhas: [{ produto: 3, qtd: 1 }, { produto: 4, qtd: 2 }], fim: 'entregue' },
+  { diasAtras: 4, minuto: 960, cliente: 1, linhas: [{ produto: 16, qtd: 2 }, { produto: 18, qtd: 1 }], fim: 'pronto' },
+  { diasAtras: 3, minuto: 690, cliente: 0, linhas: [{ produto: 1, qtd: 1 }, { produto: 10, qtd: 1 }], fim: 'pronto' },
+  { diasAtras: 2, minuto: 800, cliente: 11, linhas: [{ produto: 13, qtd: 1 }], fim: 'pago' },
+  { diasAtras: 1, minuto: 645, cliente: 3, linhas: [{ produto: 0, qtd: 1 }], fim: 'pago' },
+  { diasAtras: 1, minuto: 1010, cliente: 3, linhas: [{ produto: 6, qtd: 3 }], fim: 'cancelado' },
 ]
 
 /** Resgates de prêmios, em ordem cronológica: índice do prêmio em `DEMO_PREMIOS`, dias atrás e situação final. */
@@ -259,6 +338,8 @@ export type Marcacao = {
   endsAt: Date
   servicos: number[]
   cliente: number
+  /** Qual dos pets do cliente (posição em `pets`). */
+  pet: number
   /** Sorteio de 0 a 1 que decide o desfecho de uma marcação já passada. */
   sorteio: number
 }
@@ -271,21 +352,35 @@ export type EntradaDoPlano = {
   fuso: string
   /** Datas sem expediente (fechamentos). */
   fechados: readonly string[]
-  /** Horários já bloqueados (por profissional e data). */
+  /** Horários já bloqueados ou reservados (por profissional e data): nada é marcado neles. */
   bloqueios: readonly { profissional: number; data: string; startMin: number; endMin: number }[]
-  clubeDosClientes: readonly boolean[]
+  /** Por cliente: se é do clube e o porte de preço de cada pet. */
+  clientes: readonly { clube: boolean; variantes: readonly PriceVariant[] }[]
 }
 
 type Intervalo = { startMin: number; endMin: number }
 const sobrepoe = (a: Intervalo, b: Intervalo) => a.startMin < b.endMin && b.startMin < a.endMin
 
+/** O dia do encaixe da demonstração: o primeiro dia útil (segunda a sexta, aberto) depois da âncora. */
+export function diaDoEncaixe(ancora: string, fechados: readonly string[]): string {
+  for (let delta = 1; ; delta += 1) {
+    const data = addDays(ancora, delta)
+    const dia = weekdayOf(data)
+    if (dia !== 'SATURDAY' && dia !== 'SUNDAY' && !fechados.includes(data)) return data
+  }
+}
+
+/** A janela da Bia nesse dia (10:00 às 12:00) fica livre no plano: nela a demonstração põe o atendimento normal e o encaixe. */
+export const JANELA_DO_ENCAIXE = { profissional: 0, startMin: 600, endMin: 720 } as const
+
 /**
  * Distribui as marcações de `ancora - 28` até `ate` (a sequência é determinística e só cresce no fim), em rodízio de profissionais e de clientes (alguns
- * clientes voltam bem mais que outros), sem sobrepor horários de um profissional, de um cliente nem bloqueios.
+ * clientes voltam bem mais que outros), sem sobrepor horários de um profissional, de um cliente nem bloqueios. O pet é
+ * sorteado entre os do cliente e só entram serviços oferecidos ao porte dele (e ao clube, quando o serviço é do clube).
  */
 export function planejarAgenda(e: EntradaDoPlano): Marcacao[] {
   const sorteio = sorteador(20261123)
-  const clientes = e.clubeDosClientes.length
+  const total = e.clientes.length
   const ocupadoProf = new Map<string, Intervalo[]>()
   const ocupadoCliente = new Map<string, Intervalo[]>()
   for (const b of e.bloqueios) {
@@ -313,14 +408,25 @@ export function planejarAgenda(e: EntradaDoPlano): Marcacao[] {
             continue
           }
           // Cliente com preferência: o expoente concentra as visitas nos primeiros da lista.
-          let cliente = Math.floor(sorteio() ** 1.5 * clientes)
-          let combinacao = prof.combinacoes[Math.floor(sorteio() * prof.combinacoes.length)] ?? [1]
-          if (combinacao.includes(9) && e.clubeDosClientes[cliente] !== true) {
-            const clube = e.clubeDosClientes.findIndex((c, n) => c && n >= cliente)
-            if (clube >= 0) cliente = clube
-            else combinacao = [prof.servicos[0] ?? 0]
+          const cliente = Math.floor(sorteio() ** 1.5 * total)
+          const perfil = e.clientes[cliente]
+          const pet = Math.floor(sorteio() * (perfil?.variantes.length ?? 1))
+          const variante = perfil?.variantes[pet] ?? 'DOG_MEDIUM'
+          const clube = perfil?.clube === true
+          const sugerida = prof.combinacoes[Math.floor(sorteio() * prof.combinacoes.length)] ?? [0]
+          let combinacao = sugerida.filter((n) => servicoOferecido(n, variante, clube))
+          if (combinacao.length === 0) {
+            const alternativa = prof.servicos.find((n) => servicoOferecido(n, variante, clube))
+            combinacao = alternativa === undefined ? [] : [alternativa]
           }
-          const minutos = combinacao.reduce((soma, n) => soma + (DEMO_SERVICOS[n]?.minutos ?? 0), 0)
+          const minutos = combinacao.reduce((soma, n) => {
+            const s = DEMO_SERVICOS[n]
+            return soma + ((s && precoDoServico(s, variante)?.durationMin) ?? 0)
+          }, 0)
+          if (combinacao.length === 0 || minutos === 0) {
+            cursor += GRADE_MIN
+            continue
+          }
           const intervalo = { startMin: cursor, endMin: cursor + minutos }
           const chaveCliente = `${cliente}|${data}`
           const conflito =
@@ -342,6 +448,7 @@ export function planejarAgenda(e: EntradaDoPlano): Marcacao[] {
             endsAt: minuteToInstant(data, intervalo.endMin, e.fuso),
             servicos: combinacao,
             cliente,
+            pet,
             sorteio: sorteio(),
           })
           cursor = intervalo.endMin + GRADE_MIN * Math.floor(sorteio() * 3)

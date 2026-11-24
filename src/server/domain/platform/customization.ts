@@ -74,7 +74,8 @@ function auditar(tx: Prisma.TransactionClient, actor: PlatformAdminActor, action
 // A coluna tem CHECK `^#[0-9A-F]{6}$` (maiúsculas): a forma canônica da cor é `#RRGGBB` em maiúsculas.
 
 const MSG_COR = 'Use uma cor no formato #rrggbb, com 6 dígitos.'
-const cor = z
+/** A cor da marca: `#RRGGBB`, guardada em maiúsculas (o mesmo esquema do painel dev e do dono). */
+export const brandColorSchema = z
   .string(MSG_COR)
   .regex(/^#[0-9a-fA-F]{6}$/, MSG_COR)
   .transform((v) => v.toUpperCase())
@@ -82,8 +83,8 @@ const cor = z
 
 const marcaSchema = z.strictObject({
   displayName: displayNameSchema,
-  primary: cor,
-  accent: cor,
+  primary: brandColorSchema,
+  accent: brandColorSchema,
   material: z.enum(COVER_MATERIALS, { error: 'Escolha uma das barras laterais da lista.' }),
 })
 
