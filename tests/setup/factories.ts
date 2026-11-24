@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
+import type { Appointment, AppointmentStatus, AuditLog, Business, Customer, Membership, MembershipRole, Pet, Prisma, Professional, Service, Upload, User, WorkingHours } from '@/server/db/generated/client'
 import { hashPassword } from '@/server/auth/password'
 import type { GoogleLink } from '@/server/auth/person'
 import type { PlatformAdmin } from '@/server/db/generated/client'
@@ -111,6 +111,18 @@ export async function makeService(
 ): Promise<Service> {
   return prisma.service.create({
     data: { name: `Serviço ${sufixo()}`, priceCents: 5000, durationMin: 30, ...overrides, businessId },
+  })
+}
+
+/** Pet direto no banco (cão médio, nome único). */
+export async function makePet(
+  businessId: string,
+  customerId: string,
+  overrides: Partial<Omit<Prisma.PetUncheckedCreateInput, 'businessId' | 'customerId'>> = {},
+): Promise<Pet> {
+  const name = overrides.name ?? `Pet ${sufixo()}`
+  return prisma.pet.create({
+    data: { species: 'DOG', size: 'MEDIUM', searchName: searchKey(name), ...overrides, name, businessId, customerId },
   })
 }
 

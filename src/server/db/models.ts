@@ -9,6 +9,7 @@ export const TENANT_MODELS: Modelos = [
   'BusinessModules',
   'BusinessSettings',
   'Customer',
+  'Pet',
   'Professional',
   'Service',
   'ProfessionalService',
