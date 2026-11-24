@@ -2,6 +2,8 @@ import { EntryScreen } from '@/ui/shells'
 import type { ThemeTokens } from '@/ui/theme/derive'
 import { entrar } from './actions'
 import { LoginForm } from '@/app/_lib/LoginForm'
+import { GoogleAviso, GoogleOu } from '@/app/app/google/GoogleAviso'
+import { GoogleButton } from '@/ui/components'
 
 type Marca = {
   name: string
@@ -13,7 +15,7 @@ type Marca = {
 }
 
 /** A tela de entrada geral, com a marca Agenda Flui. */
-export function Entrada({ marca, senhaNova = false }: { marca: Marca; senhaNova?: boolean }) {
+export function Entrada({ marca, senhaNova = false, googleEnabled = false, googleCode = '' }: { marca: Marca; senhaNova?: boolean; googleEnabled?: boolean; googleCode?: string }) {
   return (
     <EntryScreen
       theme={marca.theme}
@@ -23,6 +25,9 @@ export function Entrada({ marca, senhaNova = false }: { marca: Marca; senhaNova?
       message={senhaNova ? 'Senha nova salva. Entre com ela.' : 'Use o e-mail e a senha da sua conta.'}
       testId="app-entry"
     >
+      <GoogleAviso codigo={googleCode} />
+      <GoogleButton enabled={googleEnabled} fluxo="entrar" />
+      {googleEnabled ? <GoogleOu /> : null}
       <LoginForm action={entrar} forgotHref="/esqueci-a-senha" />
     </EntryScreen>
   )

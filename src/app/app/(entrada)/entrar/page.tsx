@@ -4,6 +4,7 @@ import { destinationFor, destinationPath } from '@/server/auth/destination'
 import { readPersonSession } from '@/server/auth/guards'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 import { deriveTheme } from '@/ui/theme/derive'
+import { isGoogleConfigured } from '@/server/domain/platform/google-settings'
 import { um } from '@/app/_lib/params'
 import { Entrada } from './Entrada'
 
@@ -24,6 +25,7 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
   if (session) {
     redirect(destinationPath(await destinationFor(session)))
   }
-  const senhaNova = um((await searchParams).senha) === 'nova'
-  return <Entrada marca={MARCA_PADRAO} senhaNova={senhaNova} />
+  const params = await searchParams
+  const senhaNova = um(params.senha) === 'nova'
+  return <Entrada marca={MARCA_PADRAO} senhaNova={senhaNova} googleEnabled={await isGoogleConfigured()} googleCode={um(params.google)} />
 }

@@ -43,9 +43,9 @@ export async function issueInvite(tx: PlatformTx, userId: string, now: Date): Pr
 export type InviteView = { userId: string; userName: string; email: string; businessName: string | null }
 
 /** Quem recebeu o convite (e a conta do vínculo ativo mais recente), ou `null` se o token não existe, venceu ou já foi usado. */
-export async function readInvite(token: string, now: Date): Promise<InviteView | null> {
+export async function readInvite(token: string, now: Date, db: Pick<Prisma.TransactionClient, 'userToken'> = prisma): Promise<InviteView | null> {
   if (token === '') return null
-  const linha = await prisma.userToken.findFirst({
+  const linha = await db.userToken.findFirst({
     where: { tokenHash: hashToken(token), purpose: 'INVITE', usedAt: null, expiresAt: { gt: now } },
     select: {
       user: {
