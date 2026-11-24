@@ -7,19 +7,19 @@ import { Pergunta, type PassoProps } from './Pergunta'
 
 const MAX_FOTO = 8 * 1024 * 1024
 
-/** Prévia redonda da foto escolhida; some e libera a memória quando a foto sai. */
+/** Prévia redonda da foto escolhida (lida no aparelho; nada sobe antes de o pet ser salvo). */
 export function usePrevia(foto: File | null): string | null {
-  const [url, setUrl] = useState<string | null>(null)
+  const [lida, setLida] = useState<{ foto: File; url: string } | null>(null)
   useEffect(() => {
-    if (!foto || typeof URL.createObjectURL !== 'function') {
-      setUrl(null)
-      return
+    if (!foto) return
+    const leitor = new FileReader()
+    leitor.onload = () => {
+      if (typeof leitor.result === 'string') setLida({ foto, url: leitor.result })
     }
-    const novo = URL.createObjectURL(foto)
-    setUrl(novo)
-    return () => URL.revokeObjectURL(novo)
+    leitor.readAsDataURL(foto)
+    return () => leitor.abort()
   }, [foto])
-  return url
+  return foto && lida?.foto === foto ? lida.url : null
 }
 
 export function Foto({ a, set, error }: PassoProps) {

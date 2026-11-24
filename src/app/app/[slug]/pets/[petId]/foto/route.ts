@@ -34,7 +34,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ slu
       atualizarLoja()
       return responder('ok')
     }
-    const arquivo = form.get('foto')
+    const arquivo = form.get('foto') ?? form.get('file')
     if (!(arquivo instanceof File) || arquivo.size === 0) return responder('no_file')
     if (arquivo.size > MAX_ARQUIVO) return responder('too_large')
     await setPetPhoto(visit.ctx, petId, { bytes: new Uint8Array(await arquivo.arrayBuffer()) })
