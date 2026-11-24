@@ -6,6 +6,10 @@ import { addMinutes } from '@/server/time'
 import { AuthError } from './actor'
 import { ipLimitKeyPart } from './client-ip'
 import { hashPassword, passwordSchema } from './password'
+import { lockUserAccess, revokeUserAccess } from './password-reset'
+import { activatePerson, personState } from './person'
+import { openSession } from './session'
+import type { RequestMeta } from './support-session'
 import { hitRateLimit, LIMITS, limitKey } from './rate-limit-db'
 import { generateToken, hashToken } from './tokens'
 
@@ -20,14 +24,14 @@ export const INVITE_INVALID_MESSAGE =
 const invalido = (): DomainError => new DomainError('not_found', INVITE_INVALID_MESSAGE)
 
 /**
- * Emite o convite de acesso do usuário (token opaco de 32 bytes; no banco só o hash). Troca qualquer convite anterior
- * ainda não usado. O token em texto só existe neste retorno, para ir no e-mail.
+ * Emite o convite de acesso da pessoa (token opaco de 32 bytes; no banco só o hash). Só vale para conta pendente (sem senha
+ * e sem Google). Troca qualquer convite anterior ainda não usado. O token em texto só existe neste retorno, para ir no e-mail.
  */
 export async function issueInvite(tx: PlatformTx, userId: string, now: Date): Promise<{ token: string; expiresAt: Date }> {
-  const usuario = await tx.user.findUnique({ where: { id: userId }, select: { passwordHash: true } })
-  if (!usuario) throw new DomainError('not_found', 'Usuário não encontrado.')
-  if (usuario.passwordHash !== null) {
-    throw new DomainError('conflict', 'Este usuário já tem senha. Convite só vale para quem ainda não definiu uma.')
+  const pessoa = await tx.user.findUnique({ where: { id: userId }, select: { passwordHash: true, googleSub: true } })
+  if (!pessoa) throw new DomainError('not_found', 'Usuário não encontrado.')
+  if (personState(pessoa) !== 'pending') {
+    throw new DomainError('conflict', 'Esta pessoa já tem como entrar. Convite só vale para quem ainda não definiu a senha nem usou o Google.')
   }
   await tx.userToken.deleteMany({ where: { userId, purpose: 'INVITE', usedAt: null } })
   const { token, hash } = generateToken()
@@ -36,41 +40,71 @@ export async function issueInvite(tx: PlatformTx, userId: string, now: Date): Pr
   return { token, expiresAt }
 }
 
-/** Nome e e-mail de quem recebeu o convite, ou `null` se o token não existe, venceu ou já foi usado. */
-export async function readInvite(token: string, now: Date): Promise<{ userName: string; email: string } | null> {
+export type InviteView = { userId: string; userName: string; email: string; businessName: string | null }
+
+/** Quem recebeu o convite (e a conta do vínculo ativo mais recente), ou `null` se o token não existe, venceu ou já foi usado. */
+export async function readInvite(token: string, now: Date): Promise<InviteView | null> {
   if (token === '') return null
   const linha = await prisma.userToken.findFirst({
     where: { tokenHash: hashToken(token), purpose: 'INVITE', usedAt: null, expiresAt: { gt: now } },
-    select: { user: { select: { name: true, email: true } } },
+    select: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          memberships: { where: { active: true }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 1, select: { business: { select: { name: true } } } },
+        },
+      },
+    },
   })
-  return linha ? { userName: linha.user.name, email: linha.user.email } : null
+  if (!linha) return null
+  return {
+    userId: linha.user.id,
+    userName: linha.user.name,
+    email: linha.user.email,
+    businessName: linha.user.memberships[0]?.business.name ?? null,
+  }
 }
 
 const senhaSchema = z.object({ password: passwordSchema })
 
 /**
- * Define a senha com o convite. O token é consumido por um UPDATE condicional: de duas aceitações simultâneas, só uma
- * passa. Revoga as sessões antigas do usuário. Convite que não vale: `not_found` com a mesma frase em todos os casos.
+ * Cria a senha com o convite e abre a sessão. Trava o acesso da pessoa na ordem única, consome o token por um UPDATE
+ * condicional (de duas aceitações simultâneas, só uma passa), ativa a conta pendente (senha, e-mail verificado, todos os
+ * convites consumidos), revoga as sessões antigas e abre a nova. Convite que não vale (ou de quem já ficou ativa): `not_found`
+ * com a mesma frase em todos os casos.
  */
-export async function acceptInvite(i: { token: string; password: string }, now: Date): Promise<void> {
+export async function acceptInvite(
+  i: { token: string; password: string },
+  meta: RequestMeta,
+  now: Date,
+): Promise<{ token: string; expiresAt: Date }> {
   const { password } = parse(senhaSchema, { password: i.password })
-  if ((await readInvite(i.token, now)) === null) throw invalido()
+  const convite = await readInvite(i.token, now)
+  if (convite === null) throw invalido()
   const passwordHash = await hashPassword(password)
   const tokenHash = hashToken(i.token)
-  const definida = await prisma.$transaction(async (tx) => {
+  const aberta = await prisma.$transaction(async (tx) => {
+    await lockUserAccess(tx, convite.userId)
     const usado = await tx.userToken.updateMany({
-      where: { tokenHash, purpose: 'INVITE', usedAt: null, expiresAt: { gt: now } },
+      where: { tokenHash, purpose: 'INVITE', usedAt: null, expiresAt: { gt: now }, userId: convite.userId },
       data: { usedAt: now },
     })
     if (usado.count !== 1) throw invalido()
-    const { userId } = await tx.userToken.findUniqueOrThrow({ where: { tokenHash }, select: { userId: true } })
-    // Convite só define a primeira senha: quem já tem senha não a perde por um convite antigo (o token fica consumido).
-    const gravada = await tx.user.updateMany({ where: { id: userId, passwordHash: null }, data: { passwordHash } })
-    if (gravada.count !== 1) return false
-    await tx.session.updateMany({ where: { userId, revokedAt: null }, data: { revokedAt: now } })
-    return true
+    // Convite só ativa conta pendente: quem já tem como entrar não perde a senha nem o Google por um convite antigo (o token fica consumido).
+    if (!(await activatePerson(tx, convite.userId, { passwordHash }, now))) return null
+    await revokeUserAccess(tx, convite.userId, now)
+    return openSession(tx, {
+      userId: convite.userId,
+      now,
+      ...(meta.ip !== undefined ? { ip: meta.ip } : {}),
+      ...(meta.userAgent !== undefined ? { userAgent: meta.userAgent } : {}),
+      ...(meta.previousToken !== undefined ? { previousToken: meta.previousToken } : {}),
+    })
   })
-  if (!definida) throw invalido()
+  if (!aberta) throw invalido()
+  return aberta
 }
 
 /**

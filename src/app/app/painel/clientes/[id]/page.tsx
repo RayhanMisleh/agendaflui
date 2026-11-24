@@ -172,7 +172,7 @@ export default async function ClientePage({
                 <h2 id="cliente-cuidados" className="af-section__title">
                   Cuidados com o cadastro
                 </h2>
-                <Cuidados id={cliente.id} name={cliente.name} archived={cliente.archived} />
+                <Cuidados id={cliente.id} name={cliente.name} archived={cliente.archived} hasAccount={cliente.hasAccount} />
               </Card>
             ) : null}
           </div>

@@ -2,7 +2,7 @@
 import { redirect } from 'next/navigation'
 import { AuthError } from '@/server/auth/actor'
 import { requestInfo } from '@/server/auth/request-info'
-import { checkPanelResetLimit, RESET_INVALID_MESSAGE, resetPanelPassword } from '@/server/auth/password-reset'
+import { checkResetLimit, RESET_INVALID_MESSAGE, resetPassword } from '@/server/auth/password-reset'
 import { DomainError } from '@/server/domain/errors'
 import type { Campos } from '@/app/_lib/campos'
 import type { FormState } from '@/app/_lib/form-state'
@@ -24,14 +24,14 @@ export async function redefinirSenha(_anterior: EstadoRedefinir, form: FormData)
   const agora = new Date()
   const info = await requestInfo()
   try {
-    await checkPanelResetLimit(info.ip, token, agora)
+    await checkResetLimit(info.ip, token, agora)
   } catch (e) {
     if (e instanceof AuthError) return erro(e.message)
     throw e
   }
   if (password !== confirm) return erro(null, { confirm: 'As duas senhas precisam ser iguais.' })
   try {
-    await resetPanelPassword({ token, password }, info, agora)
+    await resetPassword({ token, password }, info, agora)
   } catch (e) {
     if (e instanceof DomainError && e.code === 'validation') return erro(null, e.fields ?? {})
     if (e instanceof DomainError && e.code === 'not_found') return erro(RESET_INVALID_MESSAGE)

@@ -1,11 +1,11 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Archive, ArchiveRestore, ShieldX } from 'lucide-react'
+import { Archive, ArchiveRestore, KeyRound, ShieldX } from 'lucide-react'
 import { Button, ConfirmDialog } from '@/ui/components'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import type { EstadoPainel } from '../_lib/PainelForm'
-import { anonimizarCliente, arquivarCliente, restaurarCliente } from './actions'
+import { anonimizarCliente, arquivarCliente, redefinirSenhaCliente, restaurarCliente } from './actions'
 
 const VAZIO = { ok: false, message: null, fields: {} }
 
@@ -14,16 +14,31 @@ export function Cuidados({
   id,
   name,
   archived,
+  hasAccount = false,
 }: {
   id: string
   name: string
   archived: boolean
+  /** Cliente com conta: só ele recebe o link de redefinição de senha. */
+  hasAccount?: boolean
 }) {
   const router = useRouter()
   const [dialogo, setDialogo] = useState<'arquivar' | 'anonimizar' | null>(null)
   const fechar = () => setDialogo(null)
   return (
     <div className="af-careful">
+      {hasAccount && !archived ? (
+        <div className="af-careful__row">
+          <div className="af-careful__text">
+            <span className="af-careful__title">Enviar link de redefinição</span>
+            <span className="af-careful__help">Manda ao e-mail da conta de {name} um link para criar uma senha nova. Vale por 1 hora.</span>
+          </div>
+          <AcaoDeLinha action={redefinirSenhaCliente} campos={{ id }} icon={<KeyRound size={16} />} size="md" showOk>
+            Enviar link de redefinição
+          </AcaoDeLinha>
+        </div>
+      ) : null}
+
       <div className="af-careful__row">
         <div className="af-careful__text">
           <span className="af-careful__title">{archived ? 'Cadastro arquivado' : 'Arquivar cadastro'}</span>

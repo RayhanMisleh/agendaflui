@@ -9,6 +9,7 @@ import {
   updateCustomer,
 } from '@/server/domain/customers/customers'
 import type { CustomerInput } from '@/server/domain/customers/customers'
+import { sendCustomerAccountReset } from '@/server/auth/customer-reset'
 import { erroDeCampo, feito, ler } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
 import { tenantAction } from '../_lib/action'
@@ -93,4 +94,15 @@ export const anonimizarCliente = tenantAction(
     return 'Dados do cliente removidos.'
   },
   (mensagem, v) => feito(mensagem, { id: v.id ?? '' }),
+)
+
+/** Manda o link de redefinição de senha à pessoa ligada ao cliente (só cliente com conta). */
+export const redefinirSenhaCliente = tenantAction(
+  'manage_clients',
+  (fd) => ler(fd, ['id']),
+  async (ctx, v) => {
+    await sendCustomerAccountReset(ctx, v.id ?? '')
+    return 'Link de redefinição enviado por e-mail.'
+  },
+  (mensagem, v) => feito(mensagem, v),
 )

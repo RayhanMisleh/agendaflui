@@ -1,7 +1,7 @@
 'use server'
 import { runAfterResponse } from '@/server/after'
 import { requestInfo } from '@/server/auth/request-info'
-import { requestPanelPasswordReset } from '@/server/auth/password-reset'
+import { requestPasswordReset } from '@/server/auth/password-reset'
 import { DomainError } from '@/server/domain/errors'
 import type { Campos } from '@/app/_lib/campos'
 import type { FormState } from '@/app/_lib/form-state'
@@ -18,7 +18,7 @@ export async function esqueciASenha(_anterior: EstadoEsqueci, form: FormData): P
   const bruto = form.get('email')
   const email = typeof bruto === 'string' ? bruto.slice(0, 320) : ''
   try {
-    runAfterResponse(await requestPanelPasswordReset(email, await requestInfo(), new Date()))
+    runAfterResponse(await requestPasswordReset(email, await requestInfo(), new Date()))
   } catch (erro) {
     if (erro instanceof DomainError && erro.code === 'validation') {
       return { ok: false, message: null, fields: { email: erro.fields?.email ?? erro.message }, values: { email } }

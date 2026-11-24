@@ -3,7 +3,7 @@ import type { TenantContext } from '@/server/auth/actor'
 import { prisma } from '@/server/db/client'
 import { listCustomers } from '@/server/domain/customers/customers'
 import { resetDb } from '../setup/db'
-import { ctxWithRole, makeBusiness, makeCustomer } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCustomer, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
@@ -19,6 +19,7 @@ import {
   arquivarCliente,
   criarCliente,
   editarCliente,
+  redefinirSenhaCliente,
   restaurarCliente,
 } from '@/app/app/painel/clientes/actions'
 
@@ -125,6 +126,35 @@ describe('busca e filtros', () => {
     await makeCustomer(businessId, { name: 'Guardado', archivedAt: new Date() })
     expect((await listCustomers(dono)).items.map((i) => i.name)).toEqual(['Ativo'])
     expect((await listCustomers(dono, { onlyArchived: true })).items.map((i) => i.name)).toEqual(['Guardado'])
+  })
+})
+
+describe('redefinição de senha do cliente', () => {
+  test('equipe envia a redefinição ao cliente com conta; cliente de balcão: "Este cliente ainda não tem conta."', async () => {
+    const pessoa = await makeUser({ email: 'ana@exemplo.test', name: 'Ana' })
+    const comConta = await makeCustomer(businessId, { userId: pessoa.id })
+    const balcao = await makeCustomer(businessId, { name: 'Balcão', email: 'balcao@exemplo.test' })
+    const r = await redefinirSenhaCliente(ini, form({ id: comConta.id }))
+    expect(r.ok).toBe(true)
+    expect(mail.sent).toHaveLength(1)
+    expect(mail.sent[0]?.to).toBe('ana@exemplo.test')
+    expect(mail.sent[0]?.text).toContain('/redefinir-senha/')
+    expect(await prisma.userToken.count({ where: { userId: pessoa.id, purpose: 'PASSWORD_RESET' } })).toBe(1)
+    const sem = await redefinirSenhaCliente(ini, form({ id: balcao.id }))
+    expect(sem.ok).toBe(false)
+    expect(sem.message).toBe('Este cliente ainda não tem conta.')
+    expect(mail.sent).toHaveLength(1)
+  })
+
+  test('profissional não envia; cliente de outra loja não é encontrado', async () => {
+    const pessoa = await makeUser()
+    const c = await makeCustomer(businessId, { userId: pessoa.id })
+    const outra = await makeBusiness()
+    const alheio = await makeCustomer(outra.id, { userId: pessoa.id })
+    expect((await redefinirSenhaCliente(ini, form({ id: alheio.id }))).message).toBe('Cliente não encontrado.')
+    guards.requireTenant.mockResolvedValue(await ctxWithRole({ id: businessId }, 'PROFESSIONAL'))
+    expect((await redefinirSenhaCliente(ini, form({ id: c.id }))).message).toBe(NEGADO)
+    expect(mail.sent).toHaveLength(0)
   })
 })
 

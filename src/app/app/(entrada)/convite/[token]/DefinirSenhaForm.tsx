@@ -7,19 +7,16 @@ import type { DefinirSenhaState } from './actions'
 /** Formulário de definir a senha. Funciona sem JavaScript: a ação de servidor é a ação nativa do formulário. */
 export function DefinirSenhaForm({
   token,
-  appLine,
   action,
 }: {
   token: string
-  /** Frase que lembra de baixar o app (vem do servidor, a mesma dos e-mails de convite). */
-  appLine: string
   action: (anterior: DefinirSenhaState, form: FormData) => Promise<DefinirSenhaState>
 }) {
   const [state, formAction, pending] = useActionState(action, { error: null, fields: {} })
   return (
     <form action={formAction} className="af-entry__form">
       <input type="hidden" name="token" value={token} />
-      <Field label="Nova senha" hint="Use pelo menos 10 caracteres." error={state.fields['password']}>
+      <Field label="Senha" hint="Use 10 caracteres ou mais." error={state.fields['password']}>
         <Input name="password" type="password" autoComplete="new-password" minLength={10} maxLength={200} required invalid={Boolean(state.fields['password'])} />
       </Field>
       <Field label="Repita a senha" error={state.fields['confirm']}>
@@ -32,9 +29,8 @@ export function DefinirSenhaForm({
         </p>
       ) : null}
       <Button type="submit" variant="primary" size="lg" loading={pending}>
-        Definir senha
+        Criar senha e entrar
       </Button>
-      <p className="af-entry__foot">{appLine}</p>
     </form>
   )
 }

@@ -3,7 +3,8 @@ import { areaLink } from '@/server/area-links'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { INVITE_TTL_DAYS, issueInvite } from '@/server/auth/invites'
-import { allowResetEmail, issuePanelPasswordReset, lockUserAccess, PANEL_RESET_TTL_MINUTES } from '@/server/auth/password-reset'
+import { allowResetEmail, issuePasswordReset, lockUserAccess, RESET_TTL_MINUTES } from '@/server/auth/password-reset'
+import { personState } from '@/server/auth/person'
 import { assertPlatformAdmin, requireActiveAdmin, type PlatformAdminActor } from '@/server/auth/platform-actor'
 import { roleLabel } from '@/server/auth/role-labels'
 import { prisma } from '@/server/db/client'
@@ -14,7 +15,7 @@ import { searchKey } from '@/server/domain/customers/contact'
 import { DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
 import { deliverAccessMail } from '@/server/notifications/deliver-mail'
 import { renderAccessGranted, renderMemberInvite } from '@/server/notifications/render-invite'
-import { renderPanelPasswordReset } from '@/server/notifications/render-password-reset'
+import { renderPasswordReset } from '@/server/notifications/render-password-reset'
 import { emailSchema, personNameSchema } from './schemas'
 
 /*
@@ -36,7 +37,8 @@ export type TeamMember = {
   email: string
   role: MembershipRole
   active: boolean
-  hasPassword: boolean
+  /** A pessoa já tem como entrar (senha ou Google). Falso = conta pendente, com convite. */
+  hasAccount: boolean
   /** O último e-mail de convite (ou de acesso) não foi aceito pelo canal. Sai quando um envio dá certo. */
   inviteMailFailed: boolean
   lastLoginAt: Date | null
@@ -78,7 +80,7 @@ const SELECAO = {
   role: true,
   active: true,
   inviteMailFailedAt: true,
-  user: { select: { id: true, name: true, email: true, passwordHash: true, lastLoginAt: true } },
+  user: { select: { id: true, name: true, email: true, passwordHash: true, googleSub: true, lastLoginAt: true } },
   professionals: { select: { id: true }, take: 1 },
 } satisfies Prisma.MembershipSelect
 
@@ -92,7 +94,7 @@ function paraMembro(m: Bruto): TeamMember {
     email: m.user.email,
     role: m.role,
     active: m.active,
-    hasPassword: m.user.passwordHash !== null,
+    hasAccount: personState(m.user) === 'active',
     inviteMailFailed: m.inviteMailFailedAt !== null,
     lastLoginAt: m.user.lastLoginAt,
     professionalId: m.professionals[0]?.id ?? null,
@@ -146,9 +148,9 @@ export async function listarEquipe(businessId: string): Promise<TeamMember[]> {
 
 /**
  * Recorte da equipe para a porta da conta (dono, gerente e suporte): o que é global do usuário não passa. `lastLoginAt` é a
- * última sessão do painel registrada NESTA conta (senão `null`; a sessão some na limpeza periódica). `hasPassword` é o estado
+ * última sessão do painel registrada NESTA conta (senão `null`; a sessão some na limpeza periódica). `hasAccount` é o estado
  * do acesso nesta conta: falso só quando o convite foi emitido por ela (convite, reenvio ou criação da conta, todos na
- * auditoria dela) e a pessoa ainda não tem senha; senão é verdadeiro. A porta do admin devolve os dados globais, como sempre.
+ * auditoria dela) e a pessoa ainda não tem como entrar (conta pendente); senão é verdadeiro. A porta do admin devolve os dados globais, como sempre.
  */
 export async function recortarParaConta(businessId: string, membros: TeamMember[]): Promise<TeamMember[]> {
   if (membros.length === 0) return []
@@ -159,6 +161,18 @@ export async function recortarParaConta(businessId: string, membros: TeamMember[
     _max: { createdAt: true },
   })
   const ultimo = new Map(sessoes.map((s) => [s.userId, s._max.createdAt]))
+  // A sessão da pessoa não guarda mais a conta (o vínculo ativo é relido a cada chamada): para quem tem o acesso ativo, vale a
+  // última sessão aberta desde que o acesso nasceu. Quem foi desativado só mostra o que a sessão antiga de conta guardou.
+  const ativos = await prisma.membership.findMany({
+    where: { id: { in: membros.filter((m) => m.active).map((m) => m.membershipId) } },
+    select: { userId: true, createdAt: true },
+  })
+  for (const v of ativos) {
+    const ultima = await prisma.session.aggregate({ where: { userId: v.userId, createdAt: { gte: v.createdAt } }, _max: { createdAt: true } })
+    const antes = ultimo.get(v.userId)
+    const nova = ultima._max.createdAt
+    if (nova && (!antes || nova.getTime() > antes.getTime())) ultimo.set(v.userId, nova)
+  }
   const convidados = new Set(
     (
       await prisma.auditLog.findMany({
@@ -172,7 +186,7 @@ export async function recortarParaConta(businessId: string, membros: TeamMember[
   return membros.map((m) => ({
     ...m,
     lastLoginAt: ultimo.get(m.userId) ?? null,
-    hasPassword: m.hasPassword || !(convidados.has(m.membershipId) || (donoDaCriacao.success && donoDaCriacao.data.ownerUserId === m.userId)),
+    hasAccount: m.hasAccount || !(convidados.has(m.membershipId) || (donoDaCriacao.success && donoDaCriacao.data.ownerUserId === m.userId)),
   }))
 }
 
@@ -268,13 +282,13 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
           : null
         if (!conta) throw contaInexistente()
         if (conta.status === 'ARCHIVED') throw contaArquivada()
-        let usuario = await tx.user.findUnique({ where: { email: i.email }, select: { id: true, name: true, passwordHash: true } })
+        let usuario = await tx.user.findUnique({ where: { email: i.email }, select: { id: true, name: true, passwordHash: true, googleSub: true } })
         const existente = usuario !== null
         if (usuario === null) {
           try {
             usuario = await tx.user.create({
               data: { name: i.name, searchName: searchKey(i.name), email: i.email },
-              select: { id: true, name: true, passwordHash: true },
+              select: { id: true, name: true, passwordHash: true, googleSub: true },
             })
           } catch (err) {
             if (isUniqueViolation(err)) throw new UsuarioCriadoPorOutro()
@@ -318,7 +332,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
             })
           }
         }
-        const convite = usuario.passwordHash === null ? await issueInvite(tx, usuario.id, now) : null
+        const convite = personState(usuario) === 'pending' ? await issueInvite(tx, usuario.id, now) : null
         await auditar(tx, autor, conta.id, {
           action: 'team.member_invited',
           targetType: 'membership',
@@ -345,7 +359,7 @@ export async function convidar(autor: Autor, businessId: string, input: InviteIn
               link: areaLink('app', `/convite/${convite.token}`),
               ttlDays: INVITE_TTL_DAYS,
             })
-          : renderAccessGranted({ ownerName: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('app', '/entrar') }),
+          : renderAccessGranted({ name: feito.nomeDoUsuario, businessName: conta.name, entryLink: areaLink('app', '/entrar') }),
       )
       await marcarEnvio(membro.membershipId, enviado, now)
       return { ...membro, inviteMailFailed: !enviado }
@@ -466,7 +480,7 @@ const MEMBRO = {
   role: true,
   active: true,
   business: { select: { name: true, status: true } },
-  user: { select: { id: true, name: true, email: true, passwordHash: true } },
+  user: { select: { id: true, name: true, email: true, passwordHash: true, googleSub: true } },
 } satisfies Prisma.MembershipSelect
 
 /**
@@ -484,8 +498,8 @@ export async function reenviarConvite(autor: Autor, businessId: string, membersh
     conferirAlvo(quem, { id: m.id, role: m.role })
     if (m.business.status === 'ARCHIVED') throw contaArquivada()
     if (!m.active) throw new DomainError('conflict', 'Este acesso está desativado. Reative-o antes de mandar um convite.')
-    if (m.user.passwordHash !== null) {
-      throw new DomainError('conflict', 'Esta pessoa já definiu a senha. Convite só vale para quem ainda não tem senha.')
+    if (personState(m.user) === 'active') {
+      throw new DomainError('conflict', 'Esta pessoa já tem conta. Convite só vale para quem ainda não definiu a senha.')
     }
     const convite = await issueInvite(tx, m.user.id, now)
     await auditar(tx, autor, businessId, { action: 'team.invite_resent', targetType: 'membership', targetId: membershipId })
@@ -526,7 +540,7 @@ export async function enviarRedefinicao(autor: Autor, businessId: string, member
     conferirAlvo(quem, { id: m.id, role: m.role })
     if (m.business.status === 'ARCHIVED') throw contaArquivada('Esta conta está arquivada. Reative a conta antes de mandar a redefinição de senha.')
     if (!m.active) throw new DomainError('conflict', 'Este acesso está desativado. Reative-o antes de mandar a redefinição de senha.')
-    if (m.user.passwordHash === null) {
+    if (personState(m.user) === 'pending') {
       throw new DomainError('conflict', 'Esta pessoa ainda não definiu a senha. Reenvie o convite para ela escolher a senha.')
     }
     if (!(await allowResetEmail(m.user.email, now, tx))) {
@@ -534,18 +548,18 @@ export async function enviarRedefinicao(autor: Autor, businessId: string, member
         reason: 'too_early',
       })
     }
-    const emitido = await issuePanelPasswordReset(tx, m.user.id, now, eu)
+    const emitido = await issuePasswordReset(tx, m.user.id, now, eu)
     await auditar(tx, autor, businessId, { action: 'team.password_reset_sent', targetType: 'membership', targetId: membershipId })
     return { m, emitido }
   })
   await deliverAccessMail(
     'password_reset',
     feito.m.user.email,
-    renderPanelPasswordReset({
+    renderPasswordReset({
       name: feito.m.user.name,
       businessName: feito.m.business.name,
       link: areaLink('app', `/redefinir-senha/${feito.emitido.token}`),
-      ttlMin: PANEL_RESET_TTL_MINUTES,
+      ttlMin: RESET_TTL_MINUTES,
     }),
   )
 }

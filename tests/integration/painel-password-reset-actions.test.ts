@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { setAfterScheduler } from '@/server/after'
 import { verifyPassword } from '@/server/auth/password'
-import { RESET_INVALID_MESSAGE, requestPanelPasswordReset } from '@/server/auth/password-reset'
+import { RESET_INVALID_MESSAGE, requestPasswordReset } from '@/server/auth/password-reset'
 import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
 import { makeBusiness, makeMembership, makeUser } from '../setup/factories'
@@ -71,7 +71,7 @@ describe('esqueci a senha', () => {
 describe('redefinir a senha', () => {
   async function comLink() {
     const user = await pessoa()
-    await (await requestPanelPasswordReset(user.email, { ip: '198.51.100.4' }, new Date()))()
+    await (await requestPasswordReset(user.email, { ip: '198.51.100.4' }, new Date()))()
     const token = /\/redefinir-senha\/([A-Za-z0-9_-]+)/.exec(mail.sent[0]?.text ?? '')?.[1] ?? ''
     return { user, token }
   }

@@ -16,7 +16,7 @@ import {
 import { addMinutes } from '@/server/time'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeCtx, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeCtx, makeCustomer, makeMembership, makePlatformAdmin, makeProfessional, makeService, makeUser } from '../setup/factories'
 import { fakeMail } from '../setup/mail'
 
 const AGORA = new Date('2026-11-17T12:00:00.000Z')
@@ -183,7 +183,7 @@ describe('listAccess', () => {
     await prisma.membership.update({ where: { id: m.id }, data: { active: false } })
     const lista = await listAccess(gerente)
     expect(lista).toHaveLength(4)
-    expect(lista.find((x) => x.membershipId === m.id)).toMatchObject({ active: false, hasPassword: true, professionalId: ficha.id, lastLoginAt: AGORA })
+    expect(lista.find((x) => x.membershipId === m.id)).toMatchObject({ active: false, hasAccount: true, professionalId: ficha.id, lastLoginAt: AGORA })
   })
 })
 
@@ -236,15 +236,45 @@ describe('o que o dono vê do usuário: só o que é da própria conta', () => {
     expect((await listAccess(dono)).find((x) => x.userId === existente.id)?.lastLoginAt).toBeNull()
   })
 
-  test('hasPassword é "convite pendente" desta conta: falso só para convite emitido por ela a quem ainda não tem senha', async () => {
+  test('hasAccount é "convite pendente" desta conta: falso só para convite emitido por ela a quem ainda não tem senha', async () => {
     const pendente = await inviteAccess(dono, { name: 'Bia', email: 'bia@exemplo.test', role: 'MANAGER' })
-    expect(pendente.hasPassword).toBe(false)
-    expect((await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasPassword).toBe(false)
-    expect((await resendAccessInvite(dono, pendente.membershipId), (await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasPassword)).toBe(false)
+    expect(pendente.hasAccount).toBe(false)
+    expect((await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasAccount).toBe(false)
+    expect((await resendAccessInvite(dono, pendente.membershipId), (await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasAccount)).toBe(false)
     const comSenha = await vinculo('PROFESSIONAL')
-    expect((await listAccess(dono)).find((x) => x.membershipId === comSenha.membership.id)?.hasPassword).toBe(true)
-    await prisma.user.update({ where: { id: pendente.userId }, data: { passwordHash: comSenha.user.passwordHash } })
-    expect((await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasPassword).toBe(true)
+    expect((await listAccess(dono)).find((x) => x.membershipId === comSenha.membership.id)?.hasAccount).toBe(true)
+    await prisma.user.update({ where: { id: pendente.userId }, data: { passwordHash: comSenha.user.passwordHash, emailVerifiedAt: AGORA } })
+    expect((await listAccess(dono)).find((x) => x.membershipId === pendente.membershipId)?.hasAccount).toBe(true)
+  })
+
+  test('convite para e-mail de pessoa ativa (já cliente): vínculo ativo, sem convite, e-mail "Você entrou para a equipe da loja X. Entre com a sua conta."', async () => {
+    const outraLoja = await makeBusiness()
+    const cliente = await makeUser({ email: 'clara@exemplo.test', password: 'senha-da-clara-1' })
+    await makeCustomer(outraLoja.id, { userId: cliente.id })
+    const m = await inviteAccess(dono, { name: 'Clara', email: 'clara@exemplo.test', role: 'PROFESSIONAL' })
+    expect(m).toMatchObject({ userId: cliente.id, active: true, hasAccount: true })
+    expect(await prisma.userToken.count({ where: { userId: cliente.id } })).toBe(0)
+    const enviados = mailTo('clara@exemplo.test')
+    expect(enviados).toHaveLength(1)
+    expect(enviados[0]?.text).toContain('Você entrou para a equipe da loja Barbearia Central. Entre com a sua conta.')
+    expect(enviados[0]?.text).not.toContain('/convite/')
+    // Continua cliente da outra loja: a pessoa é uma só.
+    expect(await prisma.customer.count({ where: { userId: cliente.id } })).toBe(1)
+  })
+
+  test('convite para pessoa só com Google também não gera convite', async () => {
+    const g = await makeUser({ email: 'gui@exemplo.test', password: null, google: { sub: 'sub-gui', email: 'gui@exemplo.test' } })
+    const m = await inviteAccess(dono, { name: 'Gui', email: 'gui@exemplo.test', role: 'MANAGER' })
+    expect(m).toMatchObject({ userId: g.id, hasAccount: true })
+    expect(await prisma.userToken.count({ where: { userId: g.id } })).toBe(0)
+  })
+
+  test('a regra de um vínculo ativo por pessoa continua (OUTRA_LOJA_MESSAGE)', async () => {
+    const outra = (await makeBusiness()).id
+    const u = await makeUser({ email: 'dani@exemplo.test' })
+    await makeMembership(outra, u.id, 'PROFESSIONAL')
+    const e = await domainError(inviteAccess(dono, { name: 'Dani', email: 'dani@exemplo.test', role: 'PROFESSIONAL' }))
+    expect(e.message).toBe(OUTRA_LOJA_MESSAGE)
   })
 
   test('o suporte também vê só o que é da conta', async () => {
@@ -324,7 +354,7 @@ describe('addTeamMember: cadastro num passo e situação do convite', () => {
     const servico = await makeService(businessId, { name: 'Banho' })
     const antes = await makeProfessional(businessId, { name: 'Antiga' })
     const m = await addTeamMember(dono, { name: 'Duda Lima', email: 'Duda@Exemplo.test', role: 'PROFESSIONAL' })
-    expect(m).toMatchObject({ name: 'Duda Lima', email: 'duda@exemplo.test', role: 'PROFESSIONAL', active: true, hasPassword: false, inviteMailFailed: false })
+    expect(m).toMatchObject({ name: 'Duda Lima', email: 'duda@exemplo.test', role: 'PROFESSIONAL', active: true, hasAccount: false, inviteMailFailed: false })
     expect(m.professionalId).not.toBeNull()
     const vinculo = await membroDe('duda@exemplo.test')
     expect(vinculo.professionals).toHaveLength(1)

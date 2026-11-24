@@ -56,7 +56,7 @@ async function novaSessao(userId: string, activeBusinessId: string | null) {
 describe('inviteMember', () => {
   test('pessoa nova: usuário sem senha, vínculo, convite só com hash e e-mail com o link', async () => {
     const m = await inviteMember(actor, businessId, { name: 'Bia Souza', email: 'Bia@Exemplo.test', role: 'MANAGER' }, AGORA)
-    expect(m).toMatchObject({ name: 'Bia Souza', email: 'bia@exemplo.test', role: 'MANAGER', active: true, hasPassword: false, professionalId: null })
+    expect(m).toMatchObject({ name: 'Bia Souza', email: 'bia@exemplo.test', role: 'MANAGER', active: true, hasAccount: false, professionalId: null })
     const user = await prisma.user.findUniqueOrThrow({ where: { email: 'bia@exemplo.test' } })
     expect(user.passwordHash).toBeNull()
     expect(user.searchName).toBe('bia souza')
@@ -78,7 +78,7 @@ describe('inviteMember', () => {
     const user = await makeUser({ email: 'carla@exemplo.test', name: 'Carla Dias', password: 'senha-da-carla-1' })
     const antes = user.passwordHash
     const m = await inviteMember(actor, businessId, { name: 'Outro Nome', email: 'CARLA@exemplo.test', role: 'PROFESSIONAL' }, AGORA)
-    expect(m).toMatchObject({ userId: user.id, name: 'Carla Dias', hasPassword: true, role: 'PROFESSIONAL' })
+    expect(m).toMatchObject({ userId: user.id, name: 'Carla Dias', hasAccount: true, role: 'PROFESSIONAL' })
     const depois = await prisma.user.findUniqueOrThrow({ where: { id: user.id } })
     expect(depois.passwordHash).toBe(antes)
     expect(depois.name).toBe('Carla Dias')
@@ -152,8 +152,8 @@ describe('listTeam', () => {
 
     const equipe = await listTeam(actor, businessId)
     expect(equipe.map((m) => m.name)).toEqual(['Dora Dona', 'Paulo'])
-    expect(equipe[0]).toMatchObject({ role: 'OWNER', hasPassword: true, lastLoginAt: AGORA, professionalId: null, active: true })
-    expect(equipe[1]).toMatchObject({ role: 'PROFESSIONAL', hasPassword: false, lastLoginAt: null, professionalId: ficha.id })
+    expect(equipe[0]).toMatchObject({ role: 'OWNER', hasAccount: true, lastLoginAt: AGORA, professionalId: null, active: true })
+    expect(equipe[1]).toMatchObject({ role: 'PROFESSIONAL', hasAccount: false, lastLoginAt: null, professionalId: ficha.id })
   })
 })
 

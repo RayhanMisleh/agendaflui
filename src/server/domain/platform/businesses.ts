@@ -3,6 +3,7 @@ import type { Actor } from '@/server/auth/actor'
 import { areaLink } from '@/server/area-links'
 import { customerLinkUrl } from '@/server/customer-link'
 import { issueInvite, INVITE_TTL_DAYS } from '@/server/auth/invites'
+import { personState } from '@/server/auth/person'
 import { requireActiveAdmin } from '@/server/auth/platform-actor'
 import { prisma } from '@/server/db/client'
 import { Prisma } from '@/server/db/generated/client'
@@ -367,7 +368,7 @@ async function enviarEmailDoDono(m: OwnerMail): Promise<boolean> {
   try {
     const mail =
       m.token === null
-        ? renderAccessGranted({ ownerName: m.ownerName, businessName: m.businessName, entryLink: areaLink('app', '/entrar') })
+        ? renderAccessGranted({ name: m.ownerName, businessName: m.businessName, entryLink: areaLink('app', '/entrar') })
         : renderOwnerInvite({
             ownerName: m.ownerName,
             businessName: m.businessName,
@@ -430,12 +431,12 @@ export async function createBusiness(
           if (isUniqueViolation(err)) throw slugEmUso()
           throw err
         }
-        let usuario = await tx.user.findUnique({ where: { email: i.owner.email }, select: { id: true, name: true } })
+        let usuario = await tx.user.findUnique({ where: { email: i.owner.email }, select: { id: true, name: true, passwordHash: true, googleSub: true } })
         const existente = usuario !== null
-        const semSenha = usuario === null || (await tx.user.findUniqueOrThrow({ where: { id: usuario.id }, select: { passwordHash: true } })).passwordHash === null
+        const semSenha = usuario === null || personState(usuario) === 'pending'
         if (usuario === null) {
           try {
-            usuario = await tx.user.create({ data: { name: i.owner.name, searchName: searchKey(i.owner.name), email: i.owner.email }, select: { id: true, name: true } })
+            usuario = await tx.user.create({ data: { name: i.owner.name, searchName: searchKey(i.owner.name), email: i.owner.email }, select: { id: true, name: true, passwordHash: true, googleSub: true } })
           } catch (err) {
             if (isUniqueViolation(err)) throw new DonoCriadoPorOutro()
             throw err
