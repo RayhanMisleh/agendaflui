@@ -94,6 +94,12 @@
   .af-row-hit:active,
   .af-navlink:active:not(.af-navlink--disabled),
   .af-tab:active,
+  .af-planner__tab:active,
+  .af-planner__gap:active,
+  .af-pick__item:active,
+  .af-timechip:active:not(:disabled),
+  .af-week__day:has(.af-week__link:active),
+  .af-datalist__table tr:has(.af-row-hit:active),
   a.af-card:active,
   button.af-card:active {
     transform: scale(0.98);
@@ -104,9 +110,15 @@
     .af-row-hit,
     .af-navlink,
     .af-tab,
+    .af-planner__tab,
+    .af-planner__gap,
+    .af-pick__item,
+    .af-timechip,
+    .af-week__day,
+    .af-datalist__table tr,
     a.af-card,
     button.af-card {
-      transition-property: background-color, border-color, color, transform;
+      transition-property: transform;
       transition-duration: var(--af-dur-fast);
       transition-timing-function: var(--af-ease);
     }

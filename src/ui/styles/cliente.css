@@ -98,10 +98,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-cl-choice {
-      transition:
-        transform var(--af-dur-fast) var(--af-ease),
-        background-color var(--af-dur-fast) var(--af-ease),
-        border-color var(--af-dur-fast) var(--af-ease);
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
     .af-cl-choice__check {
       transition:
@@ -187,9 +184,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-cl-day {
-      transition:
-        transform var(--af-dur-fast) var(--af-ease),
-        background-color var(--af-dur-fast) var(--af-ease);
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
   }
 
@@ -238,9 +233,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-cl-time {
-      transition:
-        transform var(--af-dur-fast) var(--af-ease),
-        background-color var(--af-dur-fast) var(--af-ease);
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
   }
 

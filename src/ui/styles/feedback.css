@@ -171,7 +171,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-toast {
-      animation: af-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation: af-rise var(--af-dur) var(--af-ease) both;
     }
   }
   @media (max-width: 40rem) {

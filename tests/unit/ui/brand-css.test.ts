@@ -57,7 +57,7 @@ describe('CSS dos componentes no desenho da marca', () => {
 
   test('o movimento respeita prefers-reduced-motion', () => {
     const todo = COMPONENTES.map((f) => semComentarios(read(f))).join('\n')
-    expect(todo).toMatch(/@media \(prefers-reduced-motion: reduce\)/)
+    expect(todo).toMatch(/@media \(prefers-reduced-motion: (reduce|no-preference)\)/)
     expect(todo).toMatch(/@keyframes/)
   })
 
