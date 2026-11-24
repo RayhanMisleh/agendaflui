@@ -125,16 +125,21 @@
     transform: none;
   }
 
-  /* Ficha: bloco cheio na cor da conta; caramelo quando pede atenção. */
+  /*
+   * Ficha: bloco cheio na cor da conta; caramelo quando pede atenção. O miolo (`__box`) é um contêiner de tamanho:
+   * o que aparece depende da ALTURA do evento, nunca das linhas que couberam por sorte.
+   *   curta  (até ~25 min): pet e hora de início numa linha só;
+   *   média  (~30 a 60 min): pet e hora na primeira linha, cliente e serviço na segunda;
+   *   alta   (mais que isso): tudo, em linhas separadas, com o horário completo e a situação.
+   * Os limites medem a área útil do miolo (altura da ficha menos borda e margem interna). Cada linha trunca com reticências;
+   * o excesso é cortado pela ficha e nunca sobrepõe outro texto.
+   */
   .af-slip {
     position: absolute;
     left: calc(var(--lane) * 100% / var(--lanes) + 2px);
     width: calc(100% / var(--lanes) - 4px);
-    display: flex;
-    flex-direction: column;
-    gap: 0.125rem;
     min-height: 1.75rem;
-    padding: 0.25rem 0.5rem;
+    padding: 0;
     overflow: hidden;
     border: 1px solid transparent;
     border-radius: var(--radius-chip);
@@ -146,10 +151,36 @@
     text-align: left;
     cursor: pointer;
   }
+  .af-slip__box {
+    position: absolute;
+    inset: 0;
+    container: af-slip / size;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-auto-rows: min-content;
+    align-content: start;
+    column-gap: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    overflow: hidden;
+  }
+  .af-slip__name,
+  .af-slip__service,
+  .af-slip__status,
+  .af-slip__tag {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
   .af-slip__name {
+    grid-column: 1;
     font-weight: 700;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .af-slip__time {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: baseline;
     white-space: nowrap;
   }
   .af-slip__service {
@@ -162,6 +193,33 @@
     font-variant-numeric: tabular-nums;
     font-size: 0.8125rem;
     opacity: 0.9;
+  }
+  /* Média: a primeira linha leva pet e hora de início; o fim e a situação ficam para a ficha alta. */
+  @container af-slip (max-height: 4.499rem) {
+    .af-slip__end,
+    .af-slip__status,
+    .af-slip__tag {
+      display: none;
+    }
+  }
+  /* Alta: o horário completo desce para a própria linha, abaixo do serviço. */
+  @container af-slip (min-height: 4.5rem) {
+    .af-slip__name {
+      grid-column: 1 / -1;
+    }
+    .af-slip__time {
+      grid-column: 1 / -1;
+      grid-row: 3;
+    }
+    .af-slip__status {
+      font-weight: 600;
+    }
+  }
+  /* Curta: uma linha só (pet e hora de início). */
+  @container af-slip (max-height: 2.18rem) {
+    .af-slip__service {
+      display: none;
+    }
   }
   .af-slip--attention {
     background-color: var(--accent);

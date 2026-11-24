@@ -586,4 +586,28 @@
     font-size: var(--text-small);
     line-height: var(--text-small-lh);
   }
+  /*
+   * Toque: alvos de 44 px no mínimo em qualquer tela sem mouse (o botão pequeno sobe), campos com 16 px (o iOS não dá zoom
+   * ao focar) e sem o atraso de toque duplo nos controles.
+   */
+  @media (pointer: coarse) {
+    .af-button--sm {
+      min-height: 44px;
+    }
+    .af-input,
+    .af-select__control,
+    .af-searchbar__input {
+      min-height: 48px;
+      font-size: max(1rem, 16px);
+    }
+    .af-button,
+    .af-tab,
+    .af-input,
+    .af-select__control,
+    .af-checkbox,
+    .af-switch__btn,
+    .af-timechip {
+      touch-action: manipulation;
+    }
+  }
 }

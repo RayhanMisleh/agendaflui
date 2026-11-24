@@ -232,7 +232,7 @@
     gap: 0.75rem 1rem;
   }
   .af-toolbar .af-navtabs {
-    margin: 0;
+    margin-block: 0;
   }
   .af-formgrid {
     display: grid;
@@ -273,9 +273,14 @@
   }
   .af-service__name {
     font-weight: 700;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .af-service__desc {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
     color: var(--ink-muted);
     font-size: var(--text-small);
     font-weight: 400;

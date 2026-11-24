@@ -5,8 +5,11 @@
 @layer components {
   /* ---- Cartão ---- */
   .af-card {
+    /* Margem interna fluida: mais enxuta no celular, 20 px a partir do tablet. Quem rola até a borda do cartão (abas) a usa. */
+    --card-pad: clamp(0.875rem, 0.4rem + 2vw, 1.25rem);
+    --bleed: var(--card-pad);
     position: relative;
-    padding: 1.25rem;
+    padding: var(--card-pad);
     border: 1px solid var(--line);
     border-radius: var(--radius-card);
     background-color: var(--surface);

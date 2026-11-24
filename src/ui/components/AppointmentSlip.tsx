@@ -6,7 +6,8 @@ import { PX_PER_MIN } from './planner/metrics'
 
 /**
  * A ficha de um atendimento na grade: botão cheio na cor da conta (caramelo quando pede atenção). A altura é proporcional
- * à duração; fichas que se sobrepõem dividem a largura. O nome acessível diz hora, cliente, serviços e situação, nunca só cor.
+ * à duração; fichas que se sobrepõem dividem a largura. O conteúdo se adapta à altura (consulta de contêiner no CSS): curta mostra
+ * pet e hora numa linha, média acrescenta cliente e serviço, alta mostra tudo, sem nunca sobrepor texto. O nome acessível diz hora, cliente, serviços e situação, nunca só cor.
  */
 export type SlipDrag = {
   draggable: boolean
@@ -41,13 +42,16 @@ export function AppointmentSlip({ slip, onOpen, drag }: { slip: PageSlip; onOpen
       }}
       {...(drag?.draggable ? { onPointerDown: drag.onPointerDown, onKeyDown: drag.onKeyDown, onBlur: drag.onBlur } : {})}
     >
-      <span className="af-slip__name">{principal}</span>
-      <span className="af-slip__service">{slip.petName ? `${slip.customerName} · ${slip.services}` : slip.services}</span>
-      <span className="af-slip__time">
-        {slip.startLabel} às {slip.endLabel}
+      <span className="af-slip__box">
+        <span className="af-slip__name">{principal}</span>
+        <span className="af-slip__time">
+          {slip.startLabel}
+          <span className="af-slip__end"> às {slip.endLabel}</span>
+        </span>
+        <span className="af-slip__service">{slip.petName ? `${slip.customerName} · ${slip.services}` : slip.services}</span>
+        {slip.status === 'CONFIRMED' ? null : <span className="af-slip__status">{situacao}</span>}
+        {slip.squeezeIn ? <span className="af-slip__tag">Encaixe</span> : null}
       </span>
-      {slip.status === 'CONFIRMED' ? null : <span className="af-slip__status">{situacao}</span>}
-      {slip.squeezeIn ? <span className="af-slip__tag">Encaixe</span> : null}
     </button>
   )
 }

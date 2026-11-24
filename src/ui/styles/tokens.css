@@ -37,6 +37,9 @@
   --side-active-bg: #FFFFFF;
   --side-active-ink: #0B6E66;
 
+  /* Margem lateral da página no celular: as abas e faixas que rolam sangram até a borda da tela. */
+  --bleed: 1rem;
+
   /* Forma */
   --radius-chip: 10px; /* campos e chips de horário */
   --radius-card: 16px; /* cartões */
