@@ -28,7 +28,7 @@ describe('buildIcs', () => {
 
   test('escapa barra, ponto e vírgula, vírgula e quebra de linha', () => {
     const t = buildIcs({ ...base, summary: 'Banho, tosa; "x"\n', description: 'a\\b' })
-    expect(t).toContain('SUMMARY:Banho\\, tosa\; "x"\\n\r\n')
+    expect(t).toContain('SUMMARY:Banho\\, tosa\\; "x"\\n\r\n')
     expect(t).toContain('DESCRIPTION:a\\\\b\r\n')
   })
 

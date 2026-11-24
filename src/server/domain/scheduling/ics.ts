@@ -22,7 +22,7 @@ function utc(d: Date): string {
 
 /** Texto do arquivo de agenda: `\`, `;`, `,` e quebra de linha com barra; o resto passa. */
 function escapeText(t: string): string {
-  return t.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n')
+  return t.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n')
 }
 
 /** Dobra a linha em 75 octetos (UTF-8, sem cortar caractere no meio); as continuações começam com um espaço. */
