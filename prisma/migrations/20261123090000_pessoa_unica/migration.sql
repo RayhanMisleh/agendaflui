@@ -20,7 +20,21 @@ UPDATE "users" SET "email_verified_at" = "updated_at" WHERE "password_hash" IS N
 -- 3. O cliente da loja aponta para a pessoa (nulo = cliente de balcão, sem conta).
 ALTER TABLE "customers" ADD COLUMN "user_id" UUID, ADD COLUMN "linked_at" TIMESTAMPTZ(3);
 
--- 4. Clientes com senha viram pessoas (ou se ligam à pessoa que já tem o mesmo e-mail).
+-- 4. Clientes com senha e e-mail verificado viram pessoas (ou se ligam à pessoa que já tem o mesmo e-mail).
+-- Senha sem e-mail, ou com e-mail que ninguém provou (a equipe pode editá-lo sem zerar a senha), não vira conta:
+-- o cliente fica de balcão e a senha é descartada. Isso também impede que ele ative uma pessoa pendente.
+DO $$
+DECLARE
+  rebaixados INTEGER;
+BEGIN
+  UPDATE "customers" SET "password_hash" = NULL
+   WHERE "password_hash" IS NOT NULL AND ("email" IS NULL OR "email_verified_at" IS NULL);
+  GET DIAGNOSTICS rebaixados = ROW_COUNT;
+  IF rebaixados > 0 THEN
+    RAISE NOTICE 'Pessoa única: % clientes com senha sem e-mail verificado ficaram de balcão (senha descartada).', rebaixados;
+  END IF;
+END $$;
+
 DO $$
 DECLARE
   c RECORD;
@@ -32,18 +46,15 @@ DECLARE
   descartadas INTEGER := 0;
 BEGIN
   FOR c IN SELECT * FROM "customers" WHERE "password_hash" IS NOT NULL ORDER BY "created_at", "id" LOOP
-    IF c."email" IS NULL THEN
-      RAISE EXCEPTION 'Cliente % (loja %) tem senha mas não tem e-mail; corrija antes de migrar.', c."id", c."business_id";
-    END IF;
     SELECT * INTO p FROM "users" WHERE "email" = c."email";
     IF NOT FOUND THEN
       INSERT INTO "users" ("name", "search_name", "email", "phone", "password_hash", "email_verified_at", "updated_at")
-      VALUES (c."name", c."search_name", c."email", c."phone", c."password_hash", coalesce(c."email_verified_at", now()), now())
+      VALUES (c."name", c."search_name", c."email", c."phone", c."password_hash", c."email_verified_at", now())
       RETURNING "id" INTO alvo;
       criadas := criadas + 1;
     ELSIF p."password_hash" IS NULL AND p."google_sub" IS NULL THEN
       -- Pessoa pendente (convite não aceito): recebe a senha e a verificação do cliente, senão ficaria trancada.
-      UPDATE "users" SET "password_hash" = c."password_hash", "email_verified_at" = coalesce(p."email_verified_at", c."email_verified_at", now()),
+      UPDATE "users" SET "password_hash" = c."password_hash", "email_verified_at" = coalesce(p."email_verified_at", c."email_verified_at"),
         "phone" = coalesce(p."phone", c."phone"), "updated_at" = now() WHERE "id" = p."id";
       alvo := p."id";
       ativadas := ativadas + 1;

@@ -129,12 +129,20 @@ test('customers perde password_hash e email_verified_at; verification_codes sai'
   })
 })
 
-test('cliente com senha e sem e-mail faz a migração falhar com mensagem clara', async () => {
+test('cliente com senha e sem e-mail verificado vira cliente de balcão e não ativa pessoa pendente', async () => {
   await withScratchDb(async (c) => {
     await applyMigrationsThrough(c, ANTES)
     const b = await loja(c, 'loja-a')
-    await cliente(c, b, { email: null, hash: 'hash' })
-    const erro = await applyMigration(c, MIGRACAO).then(() => null, (e: unknown) => e)
-    expect(String((erro as Error).message)).toContain('tem senha mas não tem e-mail')
+    const pendente = await pessoa(c, 'convidado@exemplo.test', null)
+    const semEmail = await cliente(c, b, { email: null, hash: 'hash' })
+    const naoVerificado = await cliente(c, b, { email: 'convidado@exemplo.test', hash: 'hash-do-cliente', verified: false })
+    const novo = await cliente(c, b, { email: 'novo@exemplo.test', hash: 'hash-novo', verified: false })
+    await applyMigration(c, MIGRACAO)
+    const linhas = (await c.query(`SELECT user_id FROM customers WHERE id IN ($1, $2, $3)`, [semEmail, naoVerificado, novo])).rows
+    expect(linhas.every((l) => l.user_id === null)).toBe(true)
+    const u = (await c.query(`SELECT password_hash, email_verified_at FROM users WHERE id = $1`, [pendente])).rows[0]
+    expect(u.password_hash).toBeNull()
+    expect(u.email_verified_at).toBeNull()
+    expect((await c.query(`SELECT count(*)::int AS n FROM users`)).rows[0].n).toBe(1)
   })
 })
