@@ -1,0 +1,499 @@
+/*
+ * Começo do dono (/painel/comecar) e a lista "o que falta" do Início. Tudo por tokens e pelo kit existente (Card, Meter,
+ * trilha de etapas, campos). Movimento só com `transform` e `opacity`, só sob `prefers-reduced-motion: no-preference`.
+ */
+@layer components {
+  .af-onb {
+    display: grid;
+    gap: 1rem;
+    max-width: 62rem;
+    min-width: 0;
+  }
+
+  /* ---- Topo: progresso e trilha ---- */
+  .af-onb__top {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+    background-image: linear-gradient(135deg, var(--brand-tint), var(--surface) 70%);
+  }
+  .af-onb__top-head {
+    display: grid;
+    gap: 0.25rem;
+  }
+  .af-onb__top-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
+  }
+  .af-onb__top-text {
+    margin: 0;
+    color: var(--ink-muted);
+  }
+  .af-onb__meter .af-meter__fill {
+    transform-origin: left center;
+  }
+  .af-onb__rail {
+    min-width: 0;
+  }
+  /* Passo pulado: o círculo fica tracejado, e o texto "(pulado)" fala por ele. */
+  .af-onb__rail-skipped .af-steprail__dot {
+    border-style: dashed;
+    color: var(--ink-muted);
+  }
+
+  /* ---- O passo ---- */
+  .af-onb__stage {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-onb__card {
+    display: grid;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+  .af-onb__head {
+    display: grid;
+    gap: 0.25rem;
+  }
+  .af-onb__kicker {
+    margin: 0;
+    color: var(--brand-text);
+    font-size: var(--text-small);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .af-onb__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+    outline: none;
+  }
+  .af-onb__lead {
+    max-width: 40rem;
+    margin: 0;
+    color: var(--ink-muted);
+    line-height: var(--text-body-lh);
+  }
+  .af-onb__nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+  }
+  .af-onb__dismiss {
+    margin-inline-start: auto;
+    color: var(--ink-muted);
+  }
+
+  /* Animais */
+  .af-onb__animals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-onb__animal {
+    display: grid;
+    justify-items: center;
+    gap: 0.25rem;
+    min-width: 7rem;
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+    font-weight: 700;
+  }
+  .af-onb__animal--off {
+    opacity: 0.5;
+    filter: grayscale(1);
+  }
+
+  /* Marca */
+  .af-onb__brand {
+    display: grid;
+    gap: 1.5rem;
+    min-width: 0;
+  }
+  .af-onb__logo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+    align-items: center;
+  }
+  .af-onb__logo-frame {
+    display: grid;
+    place-items: center;
+    width: 8rem;
+    height: 8rem;
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--ground);
+    overflow: hidden;
+  }
+  .af-onb__logo-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .af-onb__logo-empty {
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+  }
+  .af-onb__logo-body {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+  .af-onb__logo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  @media (min-width: 40rem) {
+    .af-onb__logo {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+  }
+
+  /* Expediente */
+  .af-onb__choices {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .af-onb__choicegrid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (min-width: 40rem) {
+    .af-onb__choicegrid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .af-onb__week {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  /* Equipe */
+  .af-onb__people {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-onb__person {
+    display: grid;
+    gap: 0.5rem 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+  }
+  @media (min-width: 48rem) {
+    .af-onb__person {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(8rem, 10rem);
+    }
+  }
+
+  /* Link e QR */
+  .af-onb__link {
+    display: grid;
+    gap: 1.25rem;
+    align-items: center;
+    min-width: 0;
+  }
+  .af-onb__link-main {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-onb__url {
+    width: 100%;
+    min-width: 0;
+    font-size: var(--text-body-lg);
+    font-weight: 700;
+  }
+  .af-onb__link-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .af-onb__qr {
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+  }
+  .af-onb__qr-img {
+    width: min(11rem, 60vw);
+    padding: 0.5rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: #fff;
+    overflow: hidden;
+  }
+  .af-onb__qr-img svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .af-onb__finish {
+    display: grid;
+    gap: 0.5rem;
+    justify-items: start;
+    grid-column: 1 / -1;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  @media (min-width: 40rem) {
+    .af-onb__link {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+  }
+
+  .af-share {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .af-share__note {
+    color: var(--ink);
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+
+  /* ---- Serviços sugeridos ---- */
+  .af-onb-svc__list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-onb-svc {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+  }
+  .af-onb-svc--off {
+    background-color: var(--ground);
+  }
+  .af-onb-svc--off .af-onb-svc__sizes,
+  .af-onb-svc--off .af-onb-svc__name {
+    opacity: 0.55;
+  }
+  .af-onb-svc__head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+  }
+  .af-onb-svc__name {
+    max-width: 28rem;
+  }
+  .af-onb-svc__sizes {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-onb-svc__size {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-chip);
+    background-color: var(--ground);
+    min-width: 0;
+  }
+  .af-onb-svc__art {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-onb-svc__label {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-onb-svc__label small {
+    color: var(--ink-muted);
+    font-weight: 500;
+  }
+  .af-onb-svc__size > .af-field {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  @media (min-width: 40rem) {
+    .af-onb-svc__size {
+      grid-template-columns: auto minmax(8rem, 1fr) minmax(7rem, 9rem) minmax(7rem, 9rem);
+    }
+    .af-onb-svc__size > .af-field {
+      grid-column: auto;
+    }
+  }
+
+  /* ---- "O que falta" no Início ---- */
+  .af-onb-check {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+    border-color: var(--brand);
+    background-image: linear-gradient(135deg, var(--brand-tint), var(--surface) 65%);
+  }
+  .af-onb-check--done {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    border-color: transparent;
+    background-image: none;
+  }
+  .af-onb-check__party {
+    display: grid;
+    place-items: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 50%;
+    background-color: var(--brand);
+    color: var(--on-brand);
+  }
+  .af-onb-check__body {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-onb-check__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h3);
+    font-weight: 700;
+    line-height: var(--text-h3-lh);
+    letter-spacing: -0.015em;
+  }
+  .af-onb-check__text {
+    margin: 0;
+    color: var(--ink-muted);
+  }
+  .af-onb-check__list {
+    display: grid;
+    gap: 0.25rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  @media (min-width: 40rem) {
+    .af-onb-check__list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  .af-onb-check__link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-chip);
+    color: var(--ink);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .af-onb-check__link:hover {
+    background-color: var(--brand-tint);
+  }
+  .af-onb-check__dot {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1.5px dashed var(--brand);
+    border-radius: 50%;
+    color: var(--brand-text);
+  }
+  .af-onb-check__tag {
+    margin-inline-start: auto;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-weight: 500;
+  }
+  .af-onb-check__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  /* ---- Movimento ---- */
+  @media (prefers-reduced-motion: no-preference) {
+    .af-onb__stage {
+      animation: af-onb-in var(--af-dur-slow) var(--af-ease) backwards;
+    }
+    .af-onb__meter .af-meter__fill {
+      animation: af-onb-fill var(--af-dur-slow) var(--af-ease) backwards;
+    }
+    .af-steprail__link--done .af-steprail__dot {
+      animation: af-onb-pop var(--af-dur) var(--af-ease);
+    }
+    .af-onb-svc {
+      animation: af-enter var(--af-dur) var(--af-ease) backwards;
+      animation-delay: calc(min(var(--i, 0), 6) * 25ms);
+    }
+    .af-onb__animal {
+      transition:
+        opacity var(--af-dur) var(--af-ease),
+        transform var(--af-dur) var(--af-ease);
+    }
+    .af-onb__animal:not(.af-onb__animal--off) {
+      transform: scale(1.04);
+    }
+    .af-onb-check--done {
+      animation: af-onb-pop var(--af-dur-slow) var(--af-ease);
+    }
+  }
+}
+
+@keyframes af-onb-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+@keyframes af-onb-fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes af-onb-pop {
+  from {
+    opacity: 0.6;
+    transform: scale(0.85);
+  }
+}

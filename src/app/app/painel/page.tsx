@@ -1,15 +1,19 @@
 import type { Metadata } from 'next'
 import { CalendarPlus, CalendarX2 } from 'lucide-react'
+import { redirect } from 'next/navigation'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
+import { getOnboarding, shouldRedirectToOnboarding } from '@/server/domain/onboarding/progress'
 import { getHomeOverview } from '@/server/domain/scheduling/home'
 import { getCustomerLink } from '@/server/domain/settings/customer-link'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { addDays } from '@/server/time'
 import { Card, EmptyHint, EmptyState, LinkButton, PhoneLink, StatNumber, StatusBadge, TimeChip } from '@/ui/components'
 import { formatDuration, shortDate, weekdayName } from '@/ui/format'
+import { ChecklistComeco, mostraChecklist } from './_lib/ChecklistComeco'
 import { LinkParaClientes } from './_lib/LinkParaClientes'
+import { dispensar } from './comecar/actions'
 import { PainelFrame } from './PainelFrame'
 import { TERMS } from '@/shared/terms'
 
@@ -37,7 +41,9 @@ function Situacao({ status }: { status: AppointmentView['status'] }) {
 
 export default async function InicioPage() {
   const ctx = await requireTenant('view_dashboard')
-  const [home, , link] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx), getCustomerLink(ctx)])
+  // O dono que ainda não terminou nem dispensou o começo cai nele; o suporte e a equipe nunca são levados.
+  if (await shouldRedirectToOnboarding(ctx)) redirect('/painel/comecar')
+  const [home, , link, comeco] = await Promise.all([getHomeOverview(ctx), getPainelContext(ctx), getCustomerLink(ctx), getOnboarding(ctx)])
   const semFicha = home.unlinked
   const avisoSemFicha = `Seu acesso ainda não está ligado a uma ficha de ${TERMS.professionalSingular.toLowerCase()}. Peça ao dono da conta para resolver isso em ${TERMS.professionalPlural}.`
   const todos = home.scope === 'all'
@@ -51,6 +57,7 @@ export default async function InicioPage() {
   return (
     <PainelFrame ctx={ctx} title="Início">
       <div className="af-home">
+        {mostraChecklist(comeco, ctx.clock()) ? <ChecklistComeco view={comeco} dismissAction={dispensar} /> : null}
         {link ? <LinkParaClientes link={link} /> : null}
         <div className="af-home__top">
           <Card variant="block" bubbles as="section" aria-labelledby="inicio-hoje" className="af-home__hero">
