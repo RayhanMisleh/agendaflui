@@ -14,7 +14,7 @@ export function ChoiceCard(p: {
   checked: boolean
   onChange: (value: string, checked: boolean) => void
   title: string
-  detail?: string
+  detail?: ReactNode
   media?: ReactNode
   disabled?: boolean
   disabledReason?: string

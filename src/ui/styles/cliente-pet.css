@@ -383,4 +383,176 @@
     padding-top: 1rem;
     border-top: 1px solid var(--line);
   }
+
+  /* ---- Agendar e remarcar ---- */
+  .af-cl-flow {
+    padding-bottom: 5.5rem;
+  }
+  .af-cl-flow__loading {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .af-cl-flow__failed {
+    display: grid;
+    justify-items: start;
+    gap: 0.75rem;
+  }
+  .af-cl-flow__empty {
+    margin: 0;
+    padding: 1.25rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+    color: var(--ink-muted);
+    text-align: center;
+  }
+  .af-cl-flow__pet {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+    object-fit: cover;
+  }
+  .af-cl-flow__any {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-cl-flow__add {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    color: var(--brand-text);
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .af-cl-flow__desc {
+    display: block;
+    margin-top: 0.125rem;
+  }
+  .af-cl-flow__notice {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.875rem 1rem;
+    border-radius: var(--radius-card);
+    background-color: var(--accent-tint);
+    color: var(--ink);
+  }
+  .af-cl-flow__suggest {
+    margin: 0;
+    font-size: var(--text-small);
+    font-weight: 600;
+  }
+  .af-cl-flow__line {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .af-cl-bar {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    box-sizing: border-box;
+    max-width: 40rem;
+    margin-inline: auto;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    border-radius: var(--radius-block) var(--radius-block) 0 0;
+    background-color: var(--surface);
+    box-shadow: var(--shadow-pop);
+  }
+  .af-cl-bar__summary {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  @media (min-width: 60rem) {
+    .af-cl-bar {
+      position: sticky;
+      bottom: 1rem;
+      margin-inline: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-block);
+      padding-bottom: 0.75rem;
+    }
+    .af-cl-flow {
+      padding-bottom: 1rem;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-cl-bar {
+      animation: af-cl-bar-up var(--af-dur) var(--af-ease) both;
+    }
+  }
+  @keyframes af-cl-bar-up {
+    from {
+      transform: translateY(100%);
+    }
+  }
+
+  /* ---- Sucesso do agendamento ---- */
+  .af-cl-done {
+    display: grid;
+    gap: 1.25rem;
+    max-width: 40rem;
+  }
+  .af-cl-done__hero {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    gap: 0.5rem;
+    padding: 2rem 1.25rem;
+    overflow: hidden;
+    border-radius: var(--radius-block);
+    background-color: var(--brand);
+    color: var(--on-brand);
+    text-align: center;
+  }
+  .af-cl-done__title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: var(--text-h2);
+    font-weight: 700;
+    line-height: var(--text-h2-lh);
+    letter-spacing: var(--text-h2-ls);
+    text-wrap: balance;
+  }
+  .af-cl-done__sub {
+    margin: 0;
+  }
+  .af-cl-done__when {
+    display: grid;
+    gap: 0.125rem;
+    margin: 0.5rem 0 0;
+    font-weight: 600;
+  }
+  .af-cl-done__when > span:first-child::first-letter {
+    text-transform: uppercase;
+  }
+  .af-cl-done__time {
+    font-family: var(--font-display);
+    font-size: var(--text-h1);
+    font-weight: 700;
+    line-height: var(--text-h1-lh);
+    letter-spacing: var(--text-h1-ls);
+  }
+  .af-cl-done__actions {
+    display: grid;
+    gap: 0.75rem;
+  }
 }
