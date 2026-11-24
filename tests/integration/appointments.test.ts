@@ -73,7 +73,7 @@ describe('bookAppointment pelo cliente', () => {
     expect(v.local).toEqual({ date: '2026-11-16', start: '10:00', end: '11:00' })
     expect(v.startsAt.toISOString()).toBe('2026-11-16T13:00:00.000Z')
     expect(v.endsAt.toISOString()).toBe('2026-11-16T14:00:00.000Z')
-    expect(v.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60 }])
+    expect(v.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60, variant: null }])
     expect(v.totalCents).toBe(8000)
     expect(v.totalDurationMin).toBe(60)
     expect(v.professional).toEqual({ id: s.ana.id, name: 'Ana' })
@@ -118,7 +118,7 @@ describe('bookAppointment pelo cliente', () => {
     await prisma.service.update({ where: { id: s.banho.id }, data: { priceCents: 9999, name: 'Banho premium', durationMin: 90 } })
     const depois = await getAppointment(s.gerente, v.id)
     expect(depois.totalCents).toBe(8000)
-    expect(depois.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60 }])
+    expect(depois.items).toEqual([{ serviceId: s.banho.id, name: 'Banho', priceCents: 8000, durationMin: 60, variant: null }])
     expect(depois.endsAt.toISOString()).toBe('2026-11-16T14:00:00.000Z')
   })
 

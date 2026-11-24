@@ -204,6 +204,8 @@ export async function makeAppointment(
     startsAt: Date
     durationMin?: number
     status?: AppointmentStatus
+    petId?: string | null
+    isSqueezeIn?: boolean
   },
 ): Promise<Appointment> {
   const service = await prisma.service.findFirstOrThrow({ where: { id: o.serviceId, businessId } })
@@ -216,6 +218,8 @@ export async function makeAppointment(
       startsAt: o.startsAt,
       endsAt: addMinutes(o.startsAt, durationMin),
       status: o.status ?? 'CONFIRMED',
+      petId: o.petId ?? null,
+      isSqueezeIn: o.isSqueezeIn ?? false,
       source: 'PANEL',
       totalCents: service.priceCents,
       totalDurationMin: durationMin,

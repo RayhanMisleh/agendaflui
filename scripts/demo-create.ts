@@ -148,6 +148,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
           slug: DEMO_SLUG,
           name: DEMO_NOME,
           searchName: searchKey(DEMO_NOME),
+          niche: 'PET',
           addressLine: 'Rua das Acácias, 120',
           city: 'São Paulo',
           state: 'SP',
@@ -319,6 +320,17 @@ export async function criarDemo(prisma: PrismaClient, opts: {
     if (!achado) throw new Error(`Cliente de demonstração ausente: ${c.nome}.`)
     return achado
   })
+  // Conta pet: um cão médio por cliente (nomes em ordem, repetindo), criado só se o cliente ainda não tem pet.
+  const NOMES_PETS = ['Thor', 'Mel', 'Bob', 'Luna', 'Pipoca', 'Fred', 'Nina', 'Max']
+  const petPorCliente = new Map<string, string>()
+  if ((await prisma.business.findUniqueOrThrow({ where: { id: businessId }, select: { niche: true } })).niche === 'PET') {
+    for (const [n, cliente] of clientePorIdx.entries()) {
+      const nome = NOMES_PETS[n % NOMES_PETS.length] ?? 'Thor'
+      const existente = await prisma.pet.findFirst({ where: { businessId, customerId: cliente.id, archivedAt: null }, orderBy: { createdAt: 'asc' }, select: { id: true } })
+      const pet = existente ?? (await prisma.pet.create({ data: { businessId, customerId: cliente.id, name: nome, searchName: searchKey(nome), species: 'DOG', size: 'MEDIUM' }, select: { id: true } }))
+      petPorCliente.set(cliente.id, pet.id)
+    }
+  }
   const profissionais = DEMO_PROFISSIONAIS.map((p) => p.nome)
   const profRows = await ctx.db.professional.findMany({ where: { name: { in: profissionais } }, select: { id: true, name: true } })
   const profPorIdx = DEMO_PROFISSIONAIS.map((p) => {
@@ -369,6 +381,7 @@ export async function criarDemo(prisma: PrismaClient, opts: {
         relogio.t = now
         const marcado = await d.agendamentos.bookAppointment(ctx, {
           customerId: cliente.id,
+          ...(petPorCliente.has(cliente.id) ? { petId: petPorCliente.get(cliente.id) ?? null } : {}),
           professionalId: prof.id,
           serviceIds: m.servicos.map((i) => servPorIdx[i] ?? ''),
           startsAt: m.startsAt,

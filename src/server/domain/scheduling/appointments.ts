@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
-import type { Prisma } from '@/server/db/generated/client'
+import type { Prisma, PriceVariant } from '@/server/db/generated/client'
 import { audit } from '@/server/domain/audit'
 import { DomainError, parse, z } from '@/server/domain/errors'
+import { loadPetForBooking } from '@/server/domain/pets/pets'
+import { getNicheSettings } from '@/server/domain/settings/niche-settings'
 import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import {
   listCandidates,
@@ -58,6 +60,7 @@ const bookSchema = z.object({
   customerId: z.uuid('Escolha um cliente válido.').optional(),
   professionalId: z.uuid('Escolha um profissional válido.').nullish(),
   startsAt: startsAtSchema,
+  petId: z.uuid('Escolha o pet.').nullish(),
   notes: optionalText(2000).nullable().optional(),
   customerNote: optionalText(500).nullable().optional(),
   idempotencyKey: z
@@ -101,13 +104,43 @@ export function itemRows(ctx: TenantContext, appointmentId: string, items: Await
     durationMin: item.durationMin,
     rewardPoints: item.rewardPoints,
     position: index + 1,
+    variant: item.variant,
   }))
+}
+
+type BookingPet = { id: string; name: string; variant: PriceVariant }
+
+/**
+ * O pet da marcação e os serviços com preço e tempo dele. Conta pet: o pet é obrigatório e do cliente do agendamento;
+ * conta sem nicho: `petId` informado é recusado. Lê com o `db` dado (fora ou dentro da transação).
+ */
+async function resolveBooking(
+  ctx: TenantContext,
+  db: Db,
+  i: { petId: string | null; customerId: string; serviceIds: string[] },
+): Promise<{ pet: BookingPet | null; services: Awaited<ReturnType<typeof resolveServices>> }> {
+  const { niche } = await getNicheSettings(ctx, db)
+  if (niche === null) {
+    if (i.petId !== null) {
+      const message = 'Esta loja não usa pets.'
+      throw new DomainError('validation', message, { fields: { petId: message } })
+    }
+    return { pet: null, services: await resolveServices(ctx, i.serviceIds, db) }
+  }
+  if (i.petId === null) {
+    const message = 'Escolha o pet.'
+    throw new DomainError('validation', message, { fields: { petId: message } })
+  }
+  const pet = await loadPetForBooking(db, { petId: i.petId, customerId: i.customerId })
+  return { pet, services: await resolveServices(ctx, i.serviceIds, db, { variant: pet.variant }) }
 }
 
 type BookInput = {
   customerId?: string
   professionalId?: string | null
   serviceIds: string[]
+  /** Pet do atendimento: obrigatório em conta pet. */
+  petId?: string | null
   startsAt: Date
   /** Anotação interna: só a equipe. */
   notes?: string | null
@@ -139,9 +172,12 @@ export function idempotencyRequestHash(r: {
   startsAt: Date
   professionalId?: string | null
   customerNote?: string | null
+  petId?: string | null
 }): string {
   const note = r.customerNote?.trim() ?? ''
-  const canonical = JSON.stringify([[...r.serviceIds].sort(), r.startsAt.getTime(), r.professionalId ?? null, note === '' ? null : note])
+  const base = [[...r.serviceIds].sort(), r.startsAt.getTime(), r.professionalId ?? null, note === '' ? null : note]
+  // O pet entra só quando existe: as impressões antigas (sem pet) não mudam.
+  const canonical = JSON.stringify(r.petId ? [...base, r.petId] : base)
   return createHash('sha256').update(canonical).digest('hex')
 }
 
@@ -186,6 +222,7 @@ export async function bookAppointmentWithOutcome(
   const input = parse(bookSchema, {
     customerId: i.customerId,
     professionalId: i.professionalId,
+    petId: i.petId,
     startsAt: i.startsAt,
     notes: i.notes,
     customerNote: i.customerNote,
@@ -224,6 +261,7 @@ export async function bookAppointmentWithOutcome(
             startsAt: input.startsAt,
             professionalId: specificId,
             customerNote: input.customerNote ?? null,
+            petId: input.petId ?? null,
           }),
         }
   // Repetição de um pedido já atendido: responde antes de revalidar serviços e horário (que podem ter mudado desde então).
@@ -233,7 +271,8 @@ export async function bookAppointmentWithOutcome(
   }
 
   // Leitura prévia, só para validar cedo e saber quem travar; a decisão é refeita dentro da transação.
-  const pre = await resolveServices(ctx, i.serviceIds)
+  const petId = input.petId ?? null
+  const pre = (await resolveBooking(ctx, ctx.db, { petId, customerId, serviceIds: i.serviceIds })).services
   const lockIds = specificId
     ? [specificId]
     : restrictToScope(who, scope, await listCandidates(ctx, i.serviceIds)).map((c) => c.id)
@@ -268,7 +307,7 @@ export async function bookAppointmentWithOutcome(
           if (replay) return { appointment: replay, replayed: true }
         }
         const rules = await getSchedulingRules(ctx, tx)
-        const services = await resolveServices(ctx, i.serviceIds, tx)
+        const { pet, services } = await resolveBooking(ctx, tx, { petId, customerId, serviceIds: i.serviceIds })
         const endsAt = addMinutes(startsAt, services.durationMin)
         const candidates = await listCandidates(ctx, services.items.map((s) => s.id), tx)
         const locked = new Set(lockIds)
@@ -296,6 +335,7 @@ export async function bookAppointmentWithOutcome(
             businessId: ctx.businessId,
             customerId,
             professionalId,
+            petId: pet?.id ?? null,
             startsAt,
             endsAt,
             status: who === 'customer' && !rules.autoConfirm ? 'PENDING' : 'CONFIRMED',

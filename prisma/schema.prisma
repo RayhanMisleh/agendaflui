@@ -800,6 +800,11 @@ model Appointment {
   businessId       String            @map("business_id") @db.Uuid
   customerId       String            @map("customer_id") @db.Uuid
   professionalId   String            @map("professional_id") @db.Uuid
+  // Pet do atendimento (conta pet). Nulo em agendamentos antigos e em contas sem nicho. No SQL: FK composta
+  // `appointments_pet_id_same_customer_fkey` (o pet é do cliente do agendamento).
+  petId            String?           @map("pet_id") @db.Uuid
+  // Encaixe: a equipe marcou por cima de outro agendamento normal. A restrição `appointments_no_overlap` só vale entre normais.
+  isSqueezeIn      Boolean           @default(false) @map("is_squeeze_in")
   startsAt         DateTime          @map("starts_at") @db.Timestamptz(3)
   endsAt           DateTime          @map("ends_at") @db.Timestamptz(3)
   status           AppointmentStatus
@@ -828,6 +833,7 @@ model Appointment {
   business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
   professional Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+  pet          Pet?         @relation(fields: [petId], references: [id], onDelete: Restrict)
 
   items         AppointmentItem[]
   notifications Notification[]
@@ -839,6 +845,7 @@ model Appointment {
   @@index([businessId, professionalId, startsAt])
   @@index([businessId, endsAt])
   @@index([businessId, customerId, startsAt])
+  @@index([businessId, petId, startsAt])
   @@index([startsAt])
   @@index([businessId, createdAt])
   @@map("appointments")
@@ -854,6 +861,8 @@ model AppointmentItem {
   durationMin   Int      @map("duration_min")
   rewardPoints  Int      @map("reward_points")
   position      Int
+  // Variante (animal e porte) atendida, guardada no momento da marcação.
+  variant       PriceVariant?
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -1297,6 +1306,8 @@ model Pet {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   photo    Upload?  @relation("PetPhoto", fields: [photoUploadId], references: [id], onDelete: SetNull)
+
+  appointments Appointment[]
 
   @@unique([businessId, id])
   @@unique([businessId, customerId, id])
