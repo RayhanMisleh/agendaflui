@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen, within } from '@testing-library/react'
 import { CalendarDays, Users } from 'lucide-react'
-import { BrandMark, DevShell, EntryScreen, PainelShell } from '@/ui/shells'
+import { BrandMark, DevShell, EntryScreen, PainelShell, ShellPage } from '@/ui/shells'
 import { deriveTheme } from '@/ui/theme/derive'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 
@@ -15,7 +15,6 @@ const painel = (material: 'LEATHER' | 'LINEN' | 'WOOD' | 'ENAMEL') => ({
   brand: { name: 'Patas e Pelos', logoUrl: null, symbolUrl: null },
   nav,
   user,
-  title: 'Agenda do dia',
 })
 
 describe('moldura do painel do negócio', () => {
@@ -31,8 +30,10 @@ describe('moldura do painel do negócio', () => {
 
   test('a ação da conta (Sair) fica no pé da barra, não no cabeçalho da página', () => {
     render(
-      <PainelShell {...painel('LEATHER')} accountActions={<button type="button">Sair</button>} actions={<button type="button">Nova</button>}>
-        x
+      <PainelShell {...painel('LEATHER')} accountActions={<button type="button">Sair</button>}>
+        <ShellPage title="Agenda do dia" actions={<button type="button">Nova</button>}>
+          x
+        </ShellPage>
       </PainelShell>,
     )
     const pe = screen.getByRole('contentinfo')
@@ -82,7 +83,7 @@ describe('moldura do painel do negócio', () => {
 describe('moldura do painel dev', () => {
   test('tema noite exato, marca em negativo e Meu perfil no pé', () => {
     const { container } = render(
-      <DevShell nav={nav} admin={{ name: 'Admin Flui' }} title="Contas" accountActions={<a href="/perfil">Meu perfil</a>}>
+      <DevShell nav={nav} admin={{ name: 'Admin Flui' }} accountActions={<a href="/perfil">Meu perfil</a>}>
         x
       </DevShell>,
     )
@@ -142,5 +143,44 @@ describe('tela de entrada', () => {
     )
     expect(screen.getByTestId('dev-entry')).toHaveAttribute('data-scheme', 'night')
     expect(container.innerHTML).not.toMatch(/af-(cover|stitched|engraved|on-cover-text|material-metal)/)
+  })
+})
+
+describe('página dentro da moldura', () => {
+  test('a moldura não traz título: o cabeçalho é da página e as ações ficam ao lado dele', () => {
+    render(<PainelShell {...painel('LEATHER')}>x</PainelShell>)
+    expect(screen.queryByRole('heading', { level: 1 })).toBeNull()
+    expect(screen.getByRole('main')).toHaveTextContent('x')
+  })
+
+  test('trocar só a página mantém a moldura (barra, menu e usuário) no mesmo lugar do DOM', () => {
+    const { rerender } = render(
+      <PainelShell {...painel('LEATHER')}>
+        <ShellPage title="Agenda">primeira</ShellPage>
+      </PainelShell>,
+    )
+    const barra = screen.getByRole('navigation', { name: 'Principal' })
+    const raiz = screen.getByTestId('painel-shell')
+    rerender(
+      <PainelShell {...painel('LEATHER')}>
+        <ShellPage title="Clientes">segunda</ShellPage>
+      </PainelShell>,
+    )
+    expect(screen.getByRole('navigation', { name: 'Principal' })).toBe(barra)
+    expect(screen.getByTestId('painel-shell')).toBe(raiz)
+    expect(screen.getByRole('heading', { level: 1, name: 'Clientes' })).toBeInTheDocument()
+    expect(screen.getByRole('main')).toHaveTextContent('segunda')
+  })
+
+  test('com headingLevel 2 o título da página vira h2 (moldura embutida na vitrine)', () => {
+    render(
+      <PainelShell {...painel('LEATHER')} embedded label="Início">
+        <ShellPage title="Início" headingLevel={2}>
+          x
+        </ShellPage>
+      </PainelShell>,
+    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Início' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Início' })).toBeInTheDocument()
   })
 })

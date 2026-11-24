@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { resetDb } from '../setup/db'
@@ -11,8 +10,6 @@ vi.mock('next/navigation', async (original) => {
   const real = await original<typeof import('next/navigation')>()
   return { ...real, useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn(), prefetch: vi.fn() }), usePathname: () => '/painel', useSearchParams: () => new URLSearchParams() }
 })
-// A moldura lê sessão e marca; aqui só interessa o conteúdo da página.
-vi.mock('@/app/app/painel/PainelFrame', () => ({ PainelFrame: ({ children }: { children: ReactNode }) => children }))
 
 import InicioPage from '@/app/app/painel/page'
 import ClientesPage from '@/app/app/painel/clientes/page'

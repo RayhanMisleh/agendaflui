@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requirePerson } from '@/server/auth/guards'
 import { getPersonAccount } from '@/server/auth/person-account'
 import { Button } from '@/ui/components'
-import { AccountShell } from '@/ui/shells'
+import { AccountPage } from '@/ui/shells'
 import { LogOut } from 'lucide-react'
 import { GoogleAviso } from '../google/GoogleAviso'
 import { sair } from './actions'
@@ -35,7 +35,7 @@ export default async function ContaPage({ searchParams }: Props) {
       ? { href: `/${lojaAtual.slug}`, label: 'Voltar à loja' }
       : null
   return (
-    <AccountShell title="Minha conta" back={voltar}>
+    <AccountPage title="Minha conta" back={voltar}>
       <DadosForm name={conta.name} phoneLabel={conta.phoneLabel} shared={conta.stores.length > 0} />
       <EmailForm email={conta.email} google={conta.google ? { email: conta.google.email } : null} hasPassword={conta.hasPassword} />
       <SenhaForm hasPassword={conta.hasPassword} />
@@ -66,6 +66,6 @@ export default async function ContaPage({ searchParams }: Props) {
           </Button>
         </form>
       </div>
-    </AccountShell>
+    </AccountPage>
   )
 }

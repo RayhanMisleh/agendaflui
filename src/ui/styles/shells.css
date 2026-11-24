@@ -650,4 +650,18 @@
   .af-shell--phone .af-shell__actions > * {
     flex: 1 1 auto;
   }
+
+  /*
+   * Páginas dentro da moldura persistente: a falha (error.tsx) fica no miolo, não ocupa a tela toda; e o link de volta de
+   * Minha conta, que agora mora na página, não estica a coluna.
+   */
+  .af-shell__main .af-fallback {
+    min-height: min(32rem, 70dvh);
+    padding-inline: 0;
+    background: none;
+  }
+  .af-account__main > .af-account__back {
+    justify-self: start;
+    margin-inline-start: -0.5rem;
+  }
 }

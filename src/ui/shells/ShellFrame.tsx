@@ -3,7 +3,6 @@ import { cx } from '../components/cx'
 import { AccountMenu } from './AccountMenu'
 import { BrandMark } from './BrandMark'
 import type { NavItem } from './nav'
-import { PageTransition } from './PageTransition'
 import { ShellNav } from './ShellNav'
 import { UserPlate } from './UserPlate'
 import type { ShellUser } from './UserPlate'
@@ -24,25 +23,24 @@ export type ShellFrameProps = {
   banner?: string
   /** Botão da faixa de suporte (por exemplo "Encerrar"). Só aparece com `banner`. */
   bannerAction?: ReactNode
-  title: string
-  actions?: ReactNode
+  /** A página (`ShellPage`): é a única parte que troca ao navegar. */
   children: ReactNode
   /** Dentro de outra página (vitrine): altura própria e borda de cartão. */
   embedded?: boolean
   /** Com `embedded`, mostra a moldura do celular (barra do topo e barra flutuante na base) em vez da do computador. */
   phone?: boolean
   contentId?: string
-  headingLevel?: 1 | 2
+  /** Nome da região de conteúdo quando a moldura vem embutida (`section`); a moldura de verdade é um `main`. */
+  label?: string
 }
 
 /**
  * Estrutura comum das duas molduras: faixa de suporte, barra lateral (computador) ou barra do topo e barra flutuante da
- * base (celular), e o conteúdo sobre o fundo `ground`, com cabeçalho de página e ações à direita.
+ * base (celular), e a área de conteúdo sobre o fundo `ground`. Mora no `layout.tsx`, por isso não remonta ao navegar:
+ * cabeçalho da página, ações e transição são da `ShellPage`, dentro dela.
  */
 export function ShellFrame(p: ShellFrameProps) {
   const contentId = p.contentId ?? 'conteudo'
-  const titleId = `${contentId}-titulo`
-  const Heading = p.headingLevel === 2 ? 'h2' : 'h1'
   const Main = p.embedded ? 'section' : 'main'
   const navNodes = p.nav.map((n) => {
     const Icon = n.icon
@@ -92,18 +90,8 @@ export function ShellFrame(p: ShellFrameProps) {
             {p.bubble ? <span className="af-shell__bubble" aria-hidden="true" /> : null}
           </footer>
         </div>
-        <Main id={contentId} tabIndex={-1} aria-labelledby={p.embedded ? titleId : undefined} className="af-shell__main">
-          <PageTransition>
-            <div className="af-shell__inner">
-              <div className="af-shell__head">
-                <Heading id={titleId} className="af-shell__title">
-                  {p.title}
-                </Heading>
-                {p.actions ? <div className="af-shell__actions">{p.actions}</div> : null}
-              </div>
-              <div className="af-shell__body">{p.children}</div>
-            </div>
-          </PageTransition>
+        <Main id={contentId} tabIndex={-1} aria-label={p.embedded ? p.label : undefined} className="af-shell__main">
+          {p.children}
         </Main>
       </div>
     </div>
