@@ -97,7 +97,7 @@ de conta opcional, de plataforma ou o próprio registro da conta).
 - **Google** (OIDC, código + PKCE): `auth/google/` guarda `state`, `nonce` e o verificador no cookie assinado `af_google`, confere o
   `id_token` pelo JWKS e aplica as regras de vínculo na função pura `decideGoogle`, sob trava. As chaves (ID e segredo do cliente)
   são gravadas só pelo admin (`domain/platform/google-settings.ts`, cifradas) e lidas em texto só pelo leitor restrito
-  `domain/platform/google-secrets.ts`, que só `src/server/auth/google/**` importa (ESLint e `tests/unit/google-secrets-imports.test.ts`).
+  `domain/platform/google-secrets.ts`, que só `src/server/auth/google/**` importa (o embrulho `auth/google/config.ts` também é importado por `src/server/calendar/**`; ESLint e `tests/unit/google-secrets-imports.test.ts`).
 - **Suporte** ("entrar como", `support-session.ts`): o admin troca um token de passagem (60 s, uso único) por uma sessão de
   60 minutos fixos no painel do negócio, com poderes de dono, exceto gerir acessos da equipe. Admin ou conta inativos derrubam a
   sessão na requisição seguinte. As ações ficam na auditoria.

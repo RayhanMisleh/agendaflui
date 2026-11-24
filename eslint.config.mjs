@@ -63,9 +63,16 @@ const semSegredos = {
   message: 'O leitor de segredos de integração só vale em src/server/domain/store (o teste tests/unit/integration-secrets-imports.test.ts confere o mesmo).',
 }
 
-const semSegredosGoogle = {
+const semLeitorGoogle = {
   group: ['**/google-secrets', '**/google-secrets.*'],
   message: 'O leitor das chaves do Google só vale em src/server/auth/google (o teste tests/unit/google-secrets-imports.test.ts confere o mesmo).',
+}
+
+/** `auth/google/config` devolve as chaves em texto: só o login com Google e o envio à agenda (`src/server/calendar`) o importam. */
+const semSegredosGoogle = {
+  group: [...semLeitorGoogle.group, '**/auth/google/config', '**/auth/google/config.*'],
+  message:
+    'As chaves do Google em texto só valem em src/server/auth/google e src/server/calendar (o teste tests/unit/google-secrets-imports.test.ts confere o mesmo).',
 }
 
 const semTokenDaAgenda = {
@@ -153,7 +160,7 @@ export default defineConfig([
   {
     // O envio ao Google Agenda atravessa contas por desenho (como os avisos) e é o único que abre o token de renovação.
     files: ['src/server/calendar/**'],
-    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semSegredosGoogle, semInterface] }] },
+    rules: { 'no-restricted-imports': ['error', { patterns: [semSegredos, semLeitorGoogle, semInterface] }] },
   },
   {
     // O domínio da loja é o único que lê segredos de integração em texto; vale o resto das regras de `src/server`.

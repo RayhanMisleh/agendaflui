@@ -7,6 +7,9 @@ const SRC = join(RAIZ, 'src')
 const ARQUIVO_DOS_SEGREDOS = 'src/server/domain/platform/google-secrets.ts'
 /** Só o login com Google lê as chaves do Google em texto. A mesma lista vive no ESLint (`semSegredosGoogle`). */
 const PASTAS_LIBERADAS = ['src/server/auth/google/']
+/** `auth/google/config` devolve as chaves em texto (embrulha o leitor): só o login e o envio à agenda o importam. */
+const PASTAS_DA_CONFIG = ['src/server/auth/google/', 'src/server/calendar/']
+const REFERENCIA_CONFIG = /['"`][^'"`\n]*\/auth\/google\/config(?:\.[cm]?[jt]sx?)?['"`]/
 /** Texto entre aspas cujo caminho termina em `/google-secrets`, com ou sem extensão (`.js`, `.ts`, `.mjs`...). */
 const REFERENCIA = /['"`][^'"`\n]*\/google-secrets(?:\.[cm]?[jt]sx?)?['"`]/
 /** Reexportação do leitor (`export * from`, `export { x } from`, `export type { x } from`): vale para qualquer pasta. */
@@ -61,6 +64,14 @@ describe('quem pode importar o leitor das chaves do Google', () => {
 
   test('nenhum arquivo de src fora de auth/google o importa (nem o resto de domain/platform)', () => {
     const indevidos = importadores().filter((f) => !PASTAS_LIBERADAS.some((p) => f.startsWith(p)))
+    expect(indevidos).toEqual([])
+  })
+
+  test('quem embrulha o leitor (auth/google/config) só é importado pelo login e pela agenda', () => {
+    expect(REFERENCIA_CONFIG.test("import { googleClient } from '@/server/auth/google/config'")).toBe(true)
+    const indevidos = arquivos(SRC).filter(
+      (f) => !PASTAS_DA_CONFIG.some((p) => f.startsWith(p)) && REFERENCIA_CONFIG.test(readFileSync(join(RAIZ, f), 'utf8')),
+    )
     expect(indevidos).toEqual([])
   })
 

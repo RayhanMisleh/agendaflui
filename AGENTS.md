@@ -29,7 +29,7 @@ usado por nós, os admins) e `APP_HOST` (o Agenda Flui de donos, equipes e clien
 - Esquemas de validação importam `z` de `@/server/domain/errors`, nunca de `zod`.
 - Data e hora só por `src/server/time/`. Leia a spec antes de mexer em agenda ou fuso.
 - Travas de concorrência só pela função única `$lockKey` (`lockKeyRaw` no domínio de plataforma; a exceção é a trava global dos admins em `domain/platform/admins.ts`), na ordem descrita em `docs/ARQUITETURA.md`.
-- Segredos de integração só pelo leitor restrito `domain/platform/integration-secrets.ts` (só `domain/store/**` importa; o ESLint e `tests/unit/integration-secrets-imports.test.ts` conferem), e as chaves do Google só por `domain/platform/google-secrets.ts` (só `auth/google/**` importa; `tests/unit/google-secrets-imports.test.ts` confere), e o token da agenda do Google só por `calendar/token.ts` (só `src/server/calendar/**` importa; `tests/unit/calendar-token-imports.test.ts` confere).
+- Segredos de integração só pelo leitor restrito `domain/platform/integration-secrets.ts` (só `domain/store/**` importa; o ESLint e `tests/unit/integration-secrets-imports.test.ts` conferem), e as chaves do Google só por `domain/platform/google-secrets.ts` (só `auth/google/**` importa; o embrulho `auth/google/config.ts`, só `auth/google/**` e `src/server/calendar/**`; `tests/unit/google-secrets-imports.test.ts` confere), e o token da agenda do Google só por `calendar/token.ts` (só `src/server/calendar/**` importa; `tests/unit/calendar-token-imports.test.ts` confere).
 - Módulo opcional: toda função de domínio chama `requireModule` (`module_disabled`).
 - Hosts só por `hostConfigFromEnv` (`src/server/hosts.ts`).
 - Sem `any` e sem `@ts-ignore`.
