@@ -234,7 +234,7 @@ export function ResgatesLista({ resgates, termos }: { resgates: ResgateLinha[]; 
   ]
   return (
     <>
-      <DataList label="Resgates" columns={colunas} rows={resgates} rowKey={(r) => r.id} stack="lg" empty={<EmptyState title="Nenhum resgate por aqui" description="Quando alguém trocar pontos por um prêmio, o resgate aparece nesta lista." />} />
+      <DataList label="Resgates" columns={colunas} rows={resgates} rowKey={(r) => r.id} stack="lg" empty={<EmptyState title="Nenhum resgate por aqui" description="Quando alguém trocar pontos por um prêmio, o resgate aparece nesta lista." action={<LinkButton href="/painel/fidelidade">Ver prêmios</LinkButton>} />} />
       <Sheet open={cancelando !== null} onClose={() => setCancelando(null)} title={cancelando ? `Cancelar ${cancelando.prizeName}` : ''}>
         {cancelando ? (
           <PainelForm action={cancelarResgate} submit="Cancelar resgate" onDone={() => setCancelando(null)} labels={{ reason: 'Motivo' }} anchors={{ reason: 'resgate-motivo' }}>
@@ -275,7 +275,7 @@ export function ClubeLista({ membros, termos }: { membros: ClubeLinha[]; termos:
   return (
     <>
       <p className="af-section__help">Quem faz parte do {termos.clube}. Para incluir ou tirar alguém, abra a ficha e mude a marcação em Dados.</p>
-      <DataList label={`Membros do ${termos.clube}`} columns={colunas} rows={membros} rowKey={(m) => m.id} stack="md" empty={<EmptyState title={`Ninguém no ${termos.clube} ainda`} description="Marque o cliente como membro na ficha dele." />} />
+      <DataList label={`Membros do ${termos.clube}`} columns={colunas} rows={membros} rowKey={(m) => m.id} stack="md" empty={<EmptyState title={`Ninguém no ${termos.clube} ainda`} description="Marque o cliente como membro na ficha dele." action={<LinkButton href="/painel/clientes">Abrir clientes</LinkButton>} />} />
     </>
   )
 }

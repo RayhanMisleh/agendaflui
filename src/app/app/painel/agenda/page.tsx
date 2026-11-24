@@ -27,6 +27,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         abrir={acao === 'marcar' || acao === 'bloquear' ? acao : null}
         podeBloquear={can(ctx.actor, 'manage_own_availability')}
         podeCadastrar={can(ctx.actor, 'manage_clients')}
+        podeEquipe={can(ctx.actor, 'manage_team')}
       />
     </PainelFrame>
   )

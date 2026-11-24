@@ -4,7 +4,7 @@ import { vi } from 'vitest'
 import { NavTabs } from '@/ui/components/NavTabs'
 import { SearchBar } from '@/ui/components/SearchBar'
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/contas' }))
+vi.mock('next/navigation', () => ({ usePathname: () => '/contas', useSearchParams: () => new URLSearchParams() }))
 
 describe('NavTabs com filtro por parâmetro da URL', () => {
   const itens = [

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CalendarPlus, CalendarX2, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { AgendaPage } from '@/server/domain/scheduling/agenda-page'
-import { Button, Card, EmptyHint, EmptyState, NavTabs, PlannerDay, PlannerWeek, ToastProvider } from '@/ui/components'
+import { Button, Card, EmptyState, LinkButton, NavTabs, PlannerDay, PlannerWeek, ToastProvider } from '@/ui/components'
 import { labelOfMinute } from '@/ui/components'
 import { formatLocalDate, shortDate, weekdayName } from '@/ui/format'
 import { AppointmentSheet } from './AppointmentSheet'
@@ -37,6 +37,7 @@ export function AgendaPainel({
   agendamento = null,
   podeBloquear,
   podeCadastrar,
+  podeEquipe = false,
 }: {
   page: AgendaPage
   termos: TermosAgenda
@@ -45,6 +46,8 @@ export function AgendaPainel({
   agendamento?: string | null
   podeBloquear: boolean
   podeCadastrar: boolean
+  /** Quem gerencia a equipe vê o atalho para cadastrar o primeiro profissional. */
+  podeEquipe?: boolean
 }) {
   const router = useRouter()
   const prefillBase: Prefill = { professionalId: page.scope === 'own' ? (page.ownProfessionalId ?? '') : page.filter !== 'todos' ? page.filter : '', date: page.view === 'dia' || page.date >= page.today ? page.date : page.today, time: '' }
@@ -126,7 +129,19 @@ export function AgendaPainel({
           ) : null}
           {page.closed.closed ? <p className="af-planner__warn">Dia fechado{page.closed.reason ? `: ${page.closed.reason}` : ''}. Você ainda pode marcar, se precisar.</p> : null}
           {page.day.columns.length === 0 ? (
-            <EmptyHint>Nenhum {termos.professionalSingular.toLowerCase()} na agenda deste dia.</EmptyHint>
+            <EmptyState
+              title={`Nenhum ${termos.professionalSingular.toLowerCase()} na agenda deste dia`}
+              description={podeEquipe ? 'Cadastre quem atende para abrir a agenda e marcar horários.' : 'Quem gerencia a equipe cadastra quem atende. Depois a agenda abre.'}
+              {...(podeEquipe
+                ? {
+                    action: (
+                      <LinkButton href="/painel/equipe/novo" variant="primary">
+                        Cadastrar {termos.professionalSingular.toLowerCase()}
+                      </LinkButton>
+                    ),
+                  }
+                : {})}
+            />
           ) : (
             <PlannerDay
               columns={page.day.columns}

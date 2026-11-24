@@ -1,9 +1,10 @@
+import Form from 'next/form'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
-import { Button } from './Button'
 import { Field } from './Field'
 import { Input } from './Input'
 import { Select } from './Select'
+import { SubmitButton } from './SubmitButton'
 
 export type SearchFilter = {
   name: string
@@ -38,7 +39,7 @@ export function SearchBar({
 }) {
   const aplicado = query !== '' || filters.some((f) => f.value !== '')
   return (
-    <form role="search" method="get" action={action} className="af-searchbar">
+    <Form role="search" action={action} className="af-searchbar">
       {Object.entries(hidden ?? {}).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
@@ -59,15 +60,15 @@ export function SearchBar({
         </Field>
       ))}
       <div className="af-searchbar__go">
-        <Button type="submit" variant="secondary" icon={<Search size={18} />}>
+        <SubmitButton variant="secondary" icon={<Search size={18} />}>
           Buscar
-        </Button>
+        </SubmitButton>
         {aplicado ? (
           <Link href={clearHref} className="af-searchbar__clear">
             Limpar busca
           </Link>
         ) : null}
       </div>
-    </form>
+    </Form>
   )
 }

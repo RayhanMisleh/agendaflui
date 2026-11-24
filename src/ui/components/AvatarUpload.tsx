@@ -2,7 +2,7 @@
 import { useEffect, useId, useState } from 'react'
 import { Camera, Trash2 } from 'lucide-react'
 import { Avatar } from './Avatar'
-import { Button } from './Button'
+import { SubmitButton } from './SubmitButton'
 
 /** Teto do arquivo, o mesmo do servidor (8 MiB). */
 export const FOTO_MAX_BYTES = 8 * 1024 * 1024
@@ -58,13 +58,13 @@ export function AvatarUpload({ action, name, src, size = 'lg' }: { action: strin
           <p className="af-field__hint">JPEG, PNG ou WebP, até 8 MB. A foto sai quadrada.</p>
         )}
         <div className="af-avatarup__actions">
-          <Button type="submit" variant="secondary" size="sm" icon={<Camera size={16} />}>
+          <SubmitButton variant="secondary" size="sm" icon={<Camera size={16} />}>
             Enviar foto
-          </Button>
+          </SubmitButton>
           {src ? (
-            <Button type="submit" name="intent" value="remove" variant="ghost" size="sm" icon={<Trash2 size={16} />}>
+            <SubmitButton name="intent" value="remove" variant="ghost" size="sm" icon={<Trash2 size={16} />}>
               Remover foto
-            </Button>
+            </SubmitButton>
           ) : null}
         </div>
       </div>

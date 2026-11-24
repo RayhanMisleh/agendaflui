@@ -1,47 +1,13 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { declaracoes, keyframes, regras, scanCss } from '../setup/css-scan'
 
 const DIR = join(process.cwd(), 'src/ui')
 const ARQUIVOS = ['ui.css', ...readdirSync(join(DIR, 'styles')).map((f) => `styles/${f}`)].filter((f) => f.endsWith('.css'))
 
-type Regra = { prelude: string; body: string; contexto: string[] }
-
-/** Percorre os blocos `prelude { corpo }` do CSS (sem comentários), guardando os @-blocos que envolvem cada regra. */
-function regras(css: string, contexto: string[] = []): Regra[] {
-  const out: Regra[] = []
-  const texto = css.replace(/\/\*[\s\S]*?\*\//g, '')
-  let i = 0
-  while (i < texto.length) {
-    const abre = texto.indexOf('{', i)
-    if (abre === -1) break
-    let fundo = 1
-    let j = abre + 1
-    while (j < texto.length && fundo > 0) {
-      if (texto[j] === '{') fundo++
-      else if (texto[j] === '}') fundo--
-      j++
-    }
-    const prelude = texto.slice(i, abre).split(';').pop()!.trim()
-    const body = texto.slice(abre + 1, j - 1)
-    out.push({ prelude, body, contexto })
-    if (prelude.startsWith('@')) out.push(...regras(body, [...contexto, prelude]))
-    i = j
-  }
-  return out
-}
-
 const CSS = new Map(ARQUIVOS.map((f) => [f, readFileSync(join(DIR, f), 'utf8')]))
 const TODAS = [...CSS.entries()].flatMap(([arquivo, css]) => regras(css).map((r) => ({ ...r, arquivo })))
 const MOTION = CSS.get('styles/motion.css') ?? ''
-
-function declaracoes(body: string): [string, string][] {
-  const semAninhados = body.replace(/\{[^{}]*\}/g, '')
-  return semAninhados
-    .split(';')
-    .map((d) => d.trim())
-    .filter((d) => d.includes(':'))
-    .map((d) => [d.slice(0, d.indexOf(':')).trim(), d.slice(d.indexOf(':') + 1).trim()] as [string, string])
-}
 
 const VARS = new Map(declaracoes(regras(MOTION).find((r) => r.prelude === ':root')?.body ?? '').filter(([p]) => p.startsWith('--')))
 const resolve = (v: string) => v.replace(/var\((--[\w-]+)\)/g, (_, n: string) => VARS.get(n) ?? '')
@@ -140,4 +106,41 @@ test('motion.css nomeia a barra do topo e a pílula do celular para ficarem acim
 
 test('o esqueleto não leva nome de transição: todo nome exclui .af-shell--skeleton (evita nome duplicado com a moldura)', () => {
   expect(regras(MOTION).filter((r) => !r.prelude.startsWith('@') && /view-transition-name/.test(r.body)).every((r) => /:not\(\.af-shell--skeleton\)/.test(r.prelude))).toBe(true)
+})
+
+// ---- Regras estritas de movimento: valem para todos os arquivos de src/ui ----
+const SO_TRANSFORM = /^(transform|opacity|translate|scale)$/
+/** `display` e `overlay` com `allow-discrete` só seguram o diálogo na tela até a saída acabar: não animam nada. */
+const DISCRETA = (parte: string) => /^(display|overlay)\s.*allow-discrete/.test(parte.trim())
+const DECLARACOES = [...CSS.entries()].flatMap(([arquivo, css]) => scanCss(css).map((d) => ({ ...d, arquivo })))
+const MOVIMENTO = DECLARACOES.filter((d) => /^(transition|transition-property|animation)$/.test(d.prop) && d.value !== 'none')
+const ondeEsta = (d: { selector: string; arquivo: string }) => `${d.selector} (${d.arquivo})`
+
+test('toda transition/animation diferente de none fica dentro de @media (prefers-reduced-motion: no-preference)', () => {
+  expect(MOVIMENTO.length).toBeGreaterThan(5)
+  const fora = MOVIMENTO.filter((d) => !semMovimento(d.media)).map(ondeEsta)
+  expect(fora).toEqual([])
+})
+
+test('transition só de transform, opacity, translate ou scale', () => {
+  const erradas = MOVIMENTO.filter((d) => d.prop === 'transition' || d.prop === 'transition-property')
+    .filter((d) =>
+      resolve(d.value)
+        .split(/,(?![^(]*\))/)
+        .some((parte) => !DISCRETA(parte) && !SO_TRANSFORM.test(parte.trim().split(/\s+/)[0] ?? '')),
+    )
+    .map((d) => `${ondeEsta(d)}: ${d.value}`)
+  expect(erradas).toEqual([])
+})
+
+test('@keyframes só mexem em transform, opacity, translate ou scale', () => {
+  const erradas = Object.entries(Object.assign({}, ...[...CSS.values()].map(keyframes)) as Record<string, string[]>).flatMap(([nome, props]) =>
+    props.filter((p) => !SO_TRANSFORM.test(p)).map((p) => `${nome}: ${p}`),
+  )
+  expect(erradas).toEqual([])
+})
+
+test('durações de transition e animation usam var(--af-dur…)', () => {
+  const erradas = MOVIMENTO.filter((d) => !/af-spin|af-pulse|af-cl-bubble-up/.test(d.value) && !/var\(--af-dur/.test(d.value) && d.prop !== 'transition-property').map((d) => `${ondeEsta(d)}: ${d.value}`)
+  expect(erradas).toEqual([])
 })

@@ -69,6 +69,12 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
 
   const vazio = aviso ? (
     <EmptyState title="Esta página da lista não existe mais" description={aviso} action={<LinkButton href="/painel/clientes">Voltar ao início da lista</LinkButton>} />
+  ) : filtrado && search.length < 2 && situacao !== 'ativos' ? (
+    <EmptyState
+      title={situacao === 'arquivados' ? `Nenhum ${terms.customerSingular.toLowerCase()} arquivado` : `Nenhum ${terms.customerSingular.toLowerCase()} no ${TERMS.club.toLowerCase()}`}
+      description={situacao === 'arquivados' ? 'Quem você arquivar fica aqui e pode voltar para a lista.' : `Marque o ${terms.customerSingular.toLowerCase()} como membro na ficha dele.`}
+      action={<LinkButton href="/painel/clientes">Ver ativos</LinkButton>}
+    />
   ) : filtrado ? (
     <EmptyState
       title={`Nenhum ${terms.customerSingular.toLowerCase()} encontrado`}

@@ -171,7 +171,7 @@
   }
   @media (prefers-reduced-motion: no-preference) {
     .af-toast {
-      animation: af-rise 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      animation: af-rise var(--af-dur) var(--af-ease) both;
     }
   }
   @media (max-width: 40rem) {
@@ -493,5 +493,28 @@
   }
   .af-phone--none {
     color: var(--ink-muted);
+  }
+
+  /* ---- Falha de tela do painel (error.tsx): cartão centrado, sem moldura ---- */
+  .af-fallback {
+    display: grid;
+    min-height: 100dvh;
+    place-items: center;
+    padding: 1.5rem 1rem;
+    background-color: var(--ground);
+  }
+  .af-fallback__card {
+    width: min(32rem, 100%);
+  }
+  .af-fallback__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-fallback__card {
+      animation: af-rise var(--af-dur-slow) var(--af-ease) both;
+    }
   }
 }

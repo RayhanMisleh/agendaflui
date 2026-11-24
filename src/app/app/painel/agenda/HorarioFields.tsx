@@ -42,35 +42,43 @@ export function HorarioFields({
   errors: { date?: string | undefined; time?: string | undefined }
   idPrefix: string
 }) {
-  const [horarios, setHorarios] = useState<HorarioLivre[] | null>(null)
-  const [erro, setErro] = useState<string | null>(null)
+  // A resposta guarda a consulta que a gerou: se a consulta de agora é outra (dia, serviços, pet, duração), há uma busca em
+  // andamento e a lista antiga não aparece (não dá para escolher um horário de outro dia).
+  const [resposta, setResposta] = useState<{ consulta: string; horarios: HorarioLivre[]; erro: string | null } | null>(null)
+  const [tentativa, setTentativa] = useState(0)
   const chave = serviceIds.join(',')
+  const consulta = [chave, date, professionalId, petId ?? '', durationMin ?? '', prefillTime, tentativa].join('|')
+  const consultavel = chave !== '' && date !== ''
+  const buscando = consultavel && resposta?.consulta !== consulta
 
   useEffect(() => {
     // Dia, profissional ou serviços mudaram: o instante escolhido na lista antiga não vale mais (outro dia, outra duração).
     if (chosen !== '') onChosen('')
-    if (chave === '' || date === '') return
+    if (!consultavel) return
     let vivo = true
-    void buscarHorarios({ serviceIds: chave.split(','), date, professionalId, ...(petId ? { petId } : {}), ...(durationMin !== undefined ? { durationMin } : {}) }).then((r) => {
-      if (!vivo) return
-      if (r.ok) {
-        setHorarios(r.horarios)
-        setErro(null)
-        const ofertado = r.horarios.find((h) => horaDoRotulo(h.label) === prefillTime)
-        if (ofertado && chosen === '') onChosen(ofertado.iso)
-      } else {
-        setHorarios([])
-        setErro(r.message)
-      }
-    })
+    buscarHorarios({ serviceIds: chave.split(','), date, professionalId, ...(petId ? { petId } : {}), ...(durationMin !== undefined ? { durationMin } : {}) })
+      .then((r) => {
+        if (!vivo) return
+        if (r.ok) {
+          setResposta({ consulta, horarios: r.horarios, erro: null })
+          const ofertado = r.horarios.find((h) => horaDoRotulo(h.label) === prefillTime)
+          if (ofertado && chosen === '') onChosen(ofertado.iso)
+        } else {
+          setResposta({ consulta, horarios: [], erro: r.message })
+        }
+      })
+      .catch(() => {
+        if (vivo) setResposta({ consulta, horarios: [], erro: 'Não deu para buscar os horários.' })
+      })
     return () => {
       vivo = false
     }
     // `chosen` fica de fora de propósito: a consulta só refaz quando muda o que a define (ele é lido na resposta).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chave, date, professionalId, prefillTime, petId, durationMin])
+  }, [consulta])
 
-  const lista = chave === '' ? null : horarios
+  const lista = !consultavel || buscando ? null : (resposta?.horarios ?? null)
+  const erro = consultavel && !buscando ? (resposta?.erro ?? null) : null
   const foraDaLista = chosen === '' && time !== '' && lista !== null && !lista.some((h) => horaDoRotulo(h.label) === time)
 
   return (
@@ -91,11 +99,19 @@ export function HorarioFields({
       </Field>
       <fieldset className="af-pick">
         <legend className="af-field__label">Horários livres</legend>
-        {lista === null ? <p className="af-section__help">Escolha os serviços para ver os horários livres do dia.</p> : null}
-        {erro ? (
-          <p role="alert" className="af-rowerror">
-            {erro}
+        {!consultavel ? <p className="af-section__help">Escolha os serviços para ver os horários livres do dia.</p> : null}
+        {buscando ? (
+          <p aria-live="polite" className="af-section__help af-pick__loading">
+            Buscando horários…
           </p>
+        ) : null}
+        {erro ? (
+          <div role="alert" className="af-rowerror">
+            <p>{erro}</p>
+            <Button size="sm" variant="secondary" onClick={() => setTentativa((n) => n + 1)}>
+              Tentar de novo
+            </Button>
+          </div>
         ) : null}
         {lista && lista.length === 0 && !erro ? <p className="af-section__help">Nenhum horário livre neste dia. Escolha outro dia ou digite um horário abaixo.</p> : null}
         {lista && lista.length > 0 ? (

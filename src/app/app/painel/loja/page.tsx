@@ -84,7 +84,7 @@ export default async function LojaPage({ searchParams }: { searchParams: Promise
     ) : filtrado ? (
       <EmptyState title="Nenhum pedido encontrado" description="Nada combina com a busca ou com o filtro. Busque pelo número do pedido ou pelo nome do cliente." action={<LinkButton href="/painel/loja">Limpar busca</LinkButton>} />
     ) : (
-      <EmptyState title="Nenhum pedido ainda" description="Os pedidos feitos pelo link da loja aparecem aqui, com o pagamento e a entrega." />
+      <EmptyState title="Nenhum pedido ainda" description="Os pedidos feitos pelo link da loja aparecem aqui, com o pagamento e a entrega." action={<LinkButton href="/painel/loja?aba=produtos">Ver produtos</LinkButton>} />
     )
     corpo = (
       <>

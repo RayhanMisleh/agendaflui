@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useId, useState } from 'react'
 import { Camera, Trash2 } from 'lucide-react'
-import { Button, FOTO_MAX_BYTES } from '@/ui/components'
+import { FOTO_MAX_BYTES, SubmitButton } from '@/ui/components'
 
 /**
  * Envio de uma imagem retangular (banner, prêmio): formulário POST multipart para a rota própria, que funciona sem
@@ -61,13 +61,13 @@ export function ImagemUpload({ action, rotulo, src, dica }: { action: string; ro
           <p className="af-field__hint">{dica}</p>
         )}
         <div className="af-avatarup__actions">
-          <Button type="submit" variant="secondary" size="sm" icon={<Camera size={16} />}>
+          <SubmitButton variant="secondary" size="sm" icon={<Camera size={16} />}>
             Enviar imagem
-          </Button>
+          </SubmitButton>
           {src ? (
-            <Button type="submit" name="intent" value="remove" variant="ghost" size="sm" icon={<Trash2 size={16} />}>
+            <SubmitButton name="intent" value="remove" variant="ghost" size="sm" icon={<Trash2 size={16} />}>
               Remover imagem
-            </Button>
+            </SubmitButton>
           ) : null}
         </div>
       </div>
