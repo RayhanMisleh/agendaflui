@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Archive, ArrowDown, ArrowUp, Package, Pencil } from 'lucide-react'
-import { Button, Checkbox, ConfirmDialog, DataList, EmptyState, Field, Input, LinkButton, MaskedInput, Sheet, StatusDot, Textarea } from '@/ui/components'
+import { Button, Checkbox, ConfirmDialog, DataList, EmptyState, Field, Input, LinkButton, MaskedInput, Sheet, StatusDot, Textarea, Thumb } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import { formatInt, formatMoney } from '@/ui/format'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
@@ -85,14 +85,7 @@ export function ProdutosLista({ produtos, vazio }: { produtos: ProdutoLinha[]; v
       primary: true,
       cell: (p) => (
         <span className="af-service">
-          <span className="af-thumb">
-            {p.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a imagem vem do armazenamento da conta; sem otimização aqui
-              <img src={p.imageUrl} alt="" className="af-thumb__img" />
-            ) : (
-              <span>Sem imagem</span>
-            )}
-          </span>
+          <Thumb src={p.imageUrl} />
           <span className="af-service__text">
             <Link href={`/painel/loja/produtos/${p.id}`} className="af-service__name">
               {p.name}

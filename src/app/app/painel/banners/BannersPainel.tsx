@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowDown, ArrowUp, Eye, EyeOff, Pencil, Plus, Trash2 } from 'lucide-react'
-import { Button, ConfirmDialog, DataList, EmptyState, LinkButton, StatusBadge } from '@/ui/components'
+import { Button, ConfirmDialog, DataList, EmptyState, LinkButton, StatusBadge, Thumb } from '@/ui/components'
 import type { BadgeTone, DataColumn } from '@/ui/components'
 import { AcaoDeLinha } from '../_lib/AcaoDeLinha'
 import type { EstadoPainel } from '../_lib/PainelForm'
@@ -39,14 +39,7 @@ export function BannersPainel({ banners }: { banners: BannerLinha[] }) {
       primary: true,
       cell: (b) => (
         <span className="af-service">
-          <span className="af-thumb">
-            {b.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- a imagem vem do armazenamento da conta; sem otimização aqui
-              <img src={b.imageUrl} alt="" className="af-thumb__img" />
-            ) : (
-              <span>Sem imagem</span>
-            )}
-          </span>
+          <Thumb src={b.imageUrl} />
           <span className="af-service__text">
             <Link href={`/painel/banners/${b.id}`} className="af-service__name">
               {b.title}

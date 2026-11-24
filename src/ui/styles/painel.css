@@ -563,6 +563,7 @@
     flex: 1 1 16rem;
     min-width: 0;
   }
+  /* Miniatura de lista: proporção fixa 16:9; sem imagem, só o ícone centralizado (nunca texto). */
   .af-thumb {
     display: inline-grid;
     place-items: center;
@@ -574,7 +575,10 @@
     border-radius: var(--radius-chip);
     background-color: var(--brand-tint);
     color: var(--ink-muted);
-    font-size: var(--text-small);
+    line-height: 0;
+  }
+  .af-thumb > svg {
+    flex: none;
   }
   .af-thumb__img {
     width: 100%;
