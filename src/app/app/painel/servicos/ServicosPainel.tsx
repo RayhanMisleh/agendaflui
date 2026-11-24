@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { ArrowDown, ArrowUp, Archive, ArchiveRestore, Pencil, Plus } from 'lucide-react'
-import { Button, Checkbox, ConfirmDialog, DataList, DurationField, EmptyState, Field, Input, MoneyField, NavTabs, Sheet, StatusDot, Textarea } from '@/ui/components'
+import { Button, Checkbox, ConfirmDialog, DataList, DurationField, EmptyState, Field, Input, LinkButton, MoneyField, NavTabs, Sheet, StatusDot, Textarea } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import { formatDuration, formatInt, formatMoney } from '@/ui/format'
 import { formatMoneyInput } from '@/ui/money'
@@ -261,7 +261,11 @@ export function ServicosPainel({ servicos, arquivados, ctx }: { servicos: Servic
   ]
 
   const vazio = arquivados ? (
-    <EmptyState title="Nenhum serviço arquivado" description="Quando você arquivar um serviço, ele fica aqui e pode voltar para a lista." />
+    <EmptyState
+      title="Nenhum serviço arquivado"
+      description="Quando você arquivar um serviço, ele fica aqui e pode voltar para a lista."
+      action={<LinkButton href="/painel/servicos">Ver serviços em uso</LinkButton>}
+    />
   ) : (
     <EmptyState
       title="Cadastre o primeiro serviço"

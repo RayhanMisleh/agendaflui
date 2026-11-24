@@ -522,6 +522,14 @@
     padding: 0;
     list-style: none;
   }
+  .af-pick__loading {
+    margin: 0;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-pick__loading {
+      animation: af-pulse 1.2s ease-in-out infinite;
+    }
+  }
   .af-pick__item {
     display: flex;
     align-items: center;

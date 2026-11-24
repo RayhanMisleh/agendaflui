@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MailCheck, MailWarning, Trash2, UserCheck, UserX } from 'lucide-react'
-import { Button, Checkbox, ConfirmDialog, EmptyHint, Field, Input, Select, Textarea, WeekScheduleEditor } from '@/ui/components'
+import { Button, Checkbox, ConfirmDialog, EmptyHint, Field, Input, LinkButton, Select, Textarea, WeekScheduleEditor } from '@/ui/components'
 import type { WeekValue } from '@/ui/components'
 import { ACCESS_STATUS_LABEL } from '@/server/domain/team/access-status'
 import type { AccessStatus } from '@/server/domain/team/access-status'
@@ -31,7 +31,15 @@ export type ServicoMarca = { id: string; name: string; does: boolean }
 
 /** Os serviços que a pessoa faz, em caixas de marcar. */
 function ListaDeServicos({ servicos }: { servicos: ServicoMarca[] }) {
-  if (servicos.length === 0) return <EmptyHint>Cadastre os serviços da conta primeiro. Depois marque aqui os que esta pessoa faz.</EmptyHint>
+  if (servicos.length === 0)
+    return (
+      <>
+        <EmptyHint>Cadastre os serviços da conta primeiro. Depois marque aqui os que esta pessoa faz.</EmptyHint>
+        <LinkButton href="/painel/servicos" variant="secondary" size="sm">
+          Cadastrar serviços
+        </LinkButton>
+      </>
+    )
   return (
     <div className="af-checklist">
       {servicos.map((s) => (

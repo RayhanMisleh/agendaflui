@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CalendarPlus, CalendarX2 } from 'lucide-react'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
@@ -30,6 +31,9 @@ function resumo(todos: boolean, total: number, concluidos: number): string {
   const feitos = concluidos === 0 ? '' : concluidos === 1 ? ', 1 já concluído' : `, ${concluidos} já concluídos`
   return `${todos ? 'A agenda de hoje tem' : 'Você tem'} ${ATENDIMENTO(total)}${todos ? '' : ' hoje'}${feitos}.`
 }
+
+/** O atendimento aberto na agenda do dia dele (a agenda abre a ficha pelo `ag`). */
+const verNaAgenda = (a: AppointmentView): string => `/painel/agenda?data=${a.local.date}&ag=${a.id}`
 
 function Situacao({ status }: { status: AppointmentView['status'] }) {
   return status === 'PENDING' ? <StatusBadge tone="pending">Aguardando confirmação</StatusBadge> : <StatusBadge tone="confirmed">Confirmado</StatusBadge>
@@ -82,7 +86,11 @@ export default async function InicioPage() {
                 <TimeChip time={next.local.start} readOnly />
                 <span className="af-home__next-when">{quando}</span>
               </div>
-              <p className="af-home__next-name">{next.customer.name}</p>
+              <p className="af-home__next-name">
+                <Link href={verNaAgenda(next)} className="af-home__link">
+                  {next.customer.name}
+                </Link>
+              </p>
               <p className="af-home__next-detail">{detalhe(next, todos)}</p>
               <div className="af-home__next-foot">
                 <Situacao status={next.status} />
@@ -121,7 +129,9 @@ export default async function InicioPage() {
                       {a.local.start}
                     </time>
                     <div className="af-home__row-main">
-                      <span className="af-home__row-name">{a.customer.name}</span>
+                      <Link href={verNaAgenda(a)} className="af-home__row-name af-home__link">
+                        {a.customer.name}
+                      </Link>
                       <span className="af-home__row-detail">{detalhe(a, todos)}</span>
                       {a.status === 'PENDING' ? <Situacao status={a.status} /> : null}
                     </div>

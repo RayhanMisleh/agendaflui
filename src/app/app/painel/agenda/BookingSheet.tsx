@@ -23,31 +23,38 @@ const ANCORAS = { customerId: 'marcar-cliente', petId: 'marcar-pet', durationMin
 /** Busca o cliente pelo nome, telefone ou e-mail; sem resultado, cadastra na hora (nome e telefone). */
 function EscolherCliente({ valor, onChange, podeCadastrar, termo, erro, niche }: { valor: ClienteBusca | null; onChange: (c: ClienteBusca | null) => void; podeCadastrar: boolean; termo: string; erro: string | undefined; niche: { servesCats: boolean } | null }) {
   const [busca, setBusca] = useState('')
-  const [achados, setAchados] = useState<ClienteBusca[] | null>(null)
-  const [aviso, setAviso] = useState<string | null>(null)
+  // A resposta guarda o termo que a gerou: com outro termo na caixa há uma busca em andamento e a lista antiga some.
+  const [resposta, setResposta] = useState<{ chave: string; clientes: ClienteBusca[]; erro: string | null } | null>(null)
+  const [tentativa, setTentativa] = useState(0)
+  const [avisoCadastro, setAvisoCadastro] = useState<string | null>(null)
+  const [nomeNovo, setNomeNovo] = useState<string | null>(null)
   const [telefone, setTelefone] = useState('')
   const [nomePet, setNomePet] = useState('')
   const [tipoPet, setTipoPet] = useState<PetTypeValue>({ species: 'DOG', size: null })
   const [pendente, comecar] = useTransition()
   const termoBusca = busca.trim()
+  const chave = `${termoBusca}|${tentativa}`
+  const consultavel = termoBusca.length >= 2
+  const buscando = consultavel && resposta?.chave !== chave
 
   useEffect(() => {
-    if (termoBusca.length < 2) return
+    if (!consultavel) return
     let vivo = true
     const timer = setTimeout(() => {
-      void buscarClientes(termoBusca).then((r) => {
-        if (!vivo) return
-        if (r.ok) {
-          setAchados(r.clientes)
-          setAviso(null)
-        } else setAviso(r.message)
-      })
+      buscarClientes(termoBusca)
+        .then((r) => {
+          if (!vivo) return
+          setResposta(r.ok ? { chave, clientes: r.clientes, erro: null } : { chave, clientes: [], erro: r.message })
+        })
+        .catch(() => {
+          if (vivo) setResposta({ chave, clientes: [], erro: 'Não deu para buscar agora.' })
+        })
     }, 250)
     return () => {
       vivo = false
       clearTimeout(timer)
     }
-  }, [termoBusca])
+  }, [chave, consultavel, termoBusca])
 
   if (valor) {
     return (
@@ -63,16 +70,27 @@ function EscolherCliente({ valor, onChange, podeCadastrar, termo, erro, niche }:
       </div>
     )
   }
-  const lista = termoBusca.length >= 2 ? achados : null
+  const lista = consultavel && !buscando && !resposta?.erro ? resposta!.clientes : null
+  const aviso = avisoCadastro ?? (consultavel && !buscando ? (resposta?.erro ?? null) : null)
   return (
     <div className="af-pick">
       <Field label={termo} hint="Busque pelo nome, telefone ou e-mail." error={erro}>
         <Input id="marcar-cliente" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} autoComplete="off" maxLength={80} />
       </Field>
-      {aviso ? (
-        <p role="alert" className="af-rowerror">
-          {aviso}
+      {buscando ? (
+        <p aria-live="polite" className="af-section__help af-pick__loading">
+          Buscando…
         </p>
+      ) : null}
+      {aviso ? (
+        <div role="alert" className="af-rowerror">
+          <p>{aviso}</p>
+          {resposta?.erro && avisoCadastro === null ? (
+            <Button size="sm" variant="secondary" onClick={() => setTentativa((n) => n + 1)}>
+              Tentar de novo
+            </Button>
+          ) : null}
+        </div>
       ) : null}
       {lista && lista.length > 0 ? (
         <ul className="af-pick__list" aria-label="Resultados">
@@ -94,6 +112,9 @@ function EscolherCliente({ valor, onChange, podeCadastrar, termo, erro, niche }:
             <p className="af-section__help">
               Ninguém com esse nome. Cadastre {termo.toLowerCase()} agora{niche ? ': nome, telefone e o pet' : ': só o nome e o telefone'}.
             </p>
+            <Field label="Nome">
+              <Input value={nomeNovo ?? termoBusca} onChange={(e) => setNomeNovo(e.target.value)} maxLength={80} autoComplete="off" />
+            </Field>
             <Field label="Telefone" hint="Com DDD, por exemplo (11) 91234-5678.">
               <Input type="tel" inputMode="tel" value={telefone} onChange={(e) => setTelefone(e.target.value)} autoComplete="off" />
             </Field>
@@ -111,15 +132,15 @@ function EscolherCliente({ valor, onChange, podeCadastrar, termo, erro, niche }:
               loading={pendente}
               onClick={() =>
                 comecar(async () => {
-                  const r = await cadastrarClienteRapido({ nome: termoBusca, telefone, ...(niche ? { pet: { name: nomePet, species: tipoPet.species, size: tipoPet.size } } : {}) })
+                  const r = await cadastrarClienteRapido({ nome: (nomeNovo ?? termoBusca).trim(), telefone, ...(niche ? { pet: { name: nomePet, species: tipoPet.species, size: tipoPet.size } } : {}) })
                   if (r.ok) {
                     onChange(r.cliente)
-                    setAviso(null)
-                  } else setAviso(r.message)
+                    setAvisoCadastro(null)
+                  } else setAvisoCadastro(r.message)
                 })
               }
             >
-              Cadastrar {termoBusca}
+              Cadastrar {termo.toLowerCase()}
             </Button>
           </div>
         ) : (

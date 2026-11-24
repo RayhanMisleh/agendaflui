@@ -16,15 +16,17 @@ const LIMITE_MS = 10_000
  */
 export function SubmitButton(props: Omit<ButtonProps, 'loading' | 'type'>) {
   const { pending } = useFormStatus()
-  const [enviando, setEnviando] = useState(false)
+  // O endereço em que o envio começou: a espera acaba sozinha quando o endereço muda (navegação do cliente terminou).
+  const [enviadoEm, setEnviadoEm] = useState<string | null>(null)
   const ref = useRef<HTMLButtonElement>(null)
   const pathname = usePathname()
-  const busca = useSearchParams()?.toString() ?? ''
+  const aqui = `${pathname}?${useSearchParams()?.toString() ?? ''}`
+  const aquiRef = useRef(aqui)
+  const enviando = enviadoEm === aqui
 
-  // Navegação do cliente terminou: a URL mudou.
   useEffect(() => {
-    setEnviando(false)
-  }, [pathname, busca])
+    aquiRef.current = aqui
+  })
 
   useEffect(() => {
     const form = ref.current?.form
@@ -37,13 +39,13 @@ export function SubmitButton(props: Omit<ButtonProps, 'loading' | 'type'>) {
         const acao = form.getAttribute('action') ?? ''
         const serverAction = e.defaultPrevented && acao.startsWith('javascript:')
         if (serverAction) return
-        setEnviando(true)
+        setEnviadoEm(aquiRef.current)
         clearTimeout(temporizador)
-        temporizador = setTimeout(() => setEnviando(false), LIMITE_MS)
+        temporizador = setTimeout(() => setEnviadoEm(null), LIMITE_MS)
       }, 0)
     }
     // Voltar pelo histórico traz a página do cache com o botão ainda esperando.
-    const aoVoltar = () => setEnviando(false)
+    const aoVoltar = () => setEnviadoEm(null)
     form.addEventListener('submit', aoEnviar)
     window.addEventListener('pageshow', aoVoltar)
     return () => {

@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { DataList, StatusBadge } from '@/ui/components'
 import type { DataColumn } from '@/ui/components'
 import type { BadgeTone } from '@/ui/components'
@@ -20,6 +21,7 @@ export type PedidoLinha = {
 }
 
 export function PedidosLista({ pedidos, vazio }: { pedidos: PedidoLinha[]; vazio: React.ReactNode }) {
+  const router = useRouter()
   const colunas: DataColumn<PedidoLinha>[] = [
     {
       key: 'pedido',
@@ -44,5 +46,5 @@ export function PedidosLista({ pedidos, vazio }: { pedidos: PedidoLinha[]; vazio
     { key: 'entrega', header: 'Entrega', cell: (p) => p.entrega },
     { key: 'criado', header: 'Feito em', nowrap: true, cell: (p) => p.criado },
   ]
-  return <DataList label="Pedidos" columns={colunas} rows={pedidos} rowKey={(p) => p.id} stack="lg" empty={vazio} />
+  return <DataList label="Pedidos" columns={colunas} rows={pedidos} rowKey={(p) => p.id} stack="lg" empty={vazio} onRowClick={(p) => router.push(`/painel/loja/pedidos/${p.id}`)} />
 }

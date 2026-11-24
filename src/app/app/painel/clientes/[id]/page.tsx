@@ -314,7 +314,14 @@ export default async function ClientePage({
                   ))}
                 </ul>
               ) : (
-                <EmptyHint>{cliente.archived ? 'Cadastro arquivado: sem atendimentos por vir.' : `${cliente.name} não tem atendimentos marcados.`}</EmptyHint>
+                <>
+                  <EmptyHint>{cliente.archived ? 'Cadastro arquivado: sem atendimentos por vir.' : `${cliente.name} não tem atendimentos marcados.`}</EmptyHint>
+                  {cliente.archived ? null : (
+                    <LinkButton href="/painel/agenda?acao=marcar" variant="primary">
+                      Marcar horário
+                    </LinkButton>
+                  )}
+                </>
               )}
             </Card>
 
