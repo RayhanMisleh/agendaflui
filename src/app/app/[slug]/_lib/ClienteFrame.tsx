@@ -14,6 +14,7 @@ export async function ClienteFrame(p: {
   visit: CustomerVisit
   title: string
   hideTitle?: boolean
+  immersive?: boolean
   back?: { href: string; label: string }
   actions?: ReactNode
   children: ReactNode
@@ -28,6 +29,7 @@ export async function ClienteFrame(p: {
       person={{ name: visit.person.name }}
       title={p.title}
       {...(p.hideTitle ? { hideTitle: true } : {})}
+      {...(p.immersive ? { immersive: true } : {})}
       {...(p.back ? { back: p.back } : {})}
       {...(p.actions ? { actions: p.actions } : {})}
     >
