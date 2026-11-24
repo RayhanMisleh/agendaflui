@@ -3,6 +3,7 @@ import { can } from '@/server/auth/capabilities'
 import type { Prisma } from '@/server/db/generated/client'
 import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { audit } from '@/server/domain/audit'
+import { enqueueCalendarFor } from '@/server/domain/calendar/queue'
 import { definedOnly, isCustomer } from '@/server/domain/input'
 import { authorize, DomainError, isRecordNotFound, isUniqueViolation, orNotFound, parse, z } from '@/server/domain/errors'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
@@ -233,6 +234,10 @@ export async function updateProfessional(
       if (serviceIds !== undefined) await assertServicesExist(tx, serviceIds)
       if (data.membershipId) await assertMembershipFree(tx, data.membershipId, id)
       if (Object.keys(data).length > 0) await tx.professional.update({ where: { id }, data })
+      // O evento muda de dono: sai da agenda de quem tinha e entra na de quem tem agora.
+      if (data.membershipId !== undefined && data.membershipId !== current.membershipId) {
+        await enqueueCalendarFor(tx, ctx, { professionalId: id }, { futureOnly: true })
+      }
       if (serviceIds !== undefined) await replaceServices(tx, ctx, id, serviceIds)
       await audit(
         ctx,

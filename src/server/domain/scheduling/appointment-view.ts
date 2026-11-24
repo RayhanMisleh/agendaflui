@@ -12,6 +12,7 @@ import type { TenantClient, TenantTx } from '@/server/db/tenant'
 import { formatPhone } from '@/server/domain/customers/contact'
 import { isCustomer } from '@/server/domain/input'
 import { DomainError, z } from '@/server/domain/errors'
+import { enqueueCalendarSync } from '@/server/domain/calendar/queue'
 import { applyAppointmentLoyalty } from '@/server/domain/loyalty/appointment-points'
 import { enqueueAppointmentEvent } from '@/server/domain/notifications/outbox'
 import { ownProfessionalId } from '@/server/domain/team/professionals'
@@ -100,6 +101,8 @@ export async function afterChange(
   appointment: Row,
   extra: ChangeExtra = {},
 ): Promise<void> {
+  // O Google Agenda sempre acompanha: toda mudança sobe a geração da fila (sem chamar o Google) na mesma transação.
+  await enqueueCalendarSync(tx, ctx, appointment.id)
   if (event === 'adjusted') return
   await applyAppointmentLoyalty(tx, ctx, event, appointment, extra)
   const previous = typeof extra.previousStartsAt === 'number' ? fromEpochMs(extra.previousStartsAt) : undefined

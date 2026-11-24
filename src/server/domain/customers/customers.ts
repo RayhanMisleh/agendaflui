@@ -9,6 +9,7 @@ import {
   withCustomerAppointmentsLocked,
 } from '@/server/domain/scheduling/customer-appointments'
 import { cancelPendingForCustomer } from '@/server/domain/notifications/outbox'
+import { enqueueCalendarFor } from '@/server/domain/calendar/queue'
 import { formatPhone, normalizeEmail, normalizePhone, searchKey } from '@/server/domain/customers/contact'
 import { deleteUploadRecord, publicUploadUrl, removeUploadFile, uploadUrl } from '@/server/storage/images'
 import { dbDateToLocal, isLocalDate, localToDbDate, todayIn } from '@/server/time'
@@ -467,6 +468,8 @@ export async function anonymizeCustomer(ctx: TenantContext, id: string): Promise
       // Cancela depois de anonimizar: o cliente já não recebe aviso nenhum.
       const canceled = await cancelOpenAppointmentsOfCustomer(tx, ctx, open, CANCEL_REASON)
       await cancelPendingForCustomer(tx, id)
+      // O nome e a observação somem do Google Agenda: reescreve os eventos que já estão numa agenda.
+      await enqueueCalendarFor(tx, ctx, { customerId: id }, { futureOnly: false, onlyPlaced: true })
       if (current.avatarUploadId !== null) avatarPath = await deleteUploadRecord(tx, current.avatarUploadId)
       await audit(
         ctx,

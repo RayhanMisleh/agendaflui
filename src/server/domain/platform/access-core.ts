@@ -10,6 +10,7 @@ import { roleLabel } from '@/server/auth/role-labels'
 import { prisma } from '@/server/db/client'
 import type { MembershipRole, Prisma } from '@/server/db/generated/client'
 import { lockKeyRaw } from '@/server/db/tenant'
+import { enqueueCalendarForProfessionalsRaw } from '@/server/calendar/backfill'
 import { auditIn, auditPlatform } from '@/server/domain/audit'
 import { searchKey } from '@/server/domain/customers/contact'
 import { DomainError, isUniqueViolation, parse, z } from '@/server/domain/errors'
@@ -442,6 +443,12 @@ async function alterarVinculoEm(
   } catch (err) {
     if (violouUmaLoja(err)) throw outraLoja()
     throw err
+  }
+
+  // Desativar ou reativar o vínculo muda de quem é a agenda dos profissionais ligados a ele.
+  if (novo.active !== atual.active) {
+    const ligados = await tx.professional.findMany({ where: { businessId, membershipId }, select: { id: true }, orderBy: { id: 'asc' } })
+    await enqueueCalendarForProfessionalsRaw(tx, { businessId, professionalIds: ligados.map((p) => p.id), now })
   }
 
   const rebaixou = DEGRAU[novo.role] < DEGRAU[atual.role]

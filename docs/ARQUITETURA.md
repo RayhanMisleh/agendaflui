@@ -114,10 +114,22 @@ desenvolvimento), com até 5 tentativas e espera crescente. A garantia é "pelo 
 
 `scheduler.ts` sobe com o servidor (`src/instrumentation.ts`; desliga com `WORKER_ENABLED=false`) e roda em qualquer número de
 instâncias. Cada execução é gravada em `scheduler_runs` e aparece em `/sistema`. Tarefas: `notifications` (a cada minuto),
-`store` (varredura de pedidos vencidos e conferência no Mercado Pago), `usage_flush` (métricas de uso, a cada 30 s),
+`store` (varredura de pedidos vencidos e conferência no Mercado Pago), `calendar` (envio ao Google Agenda, a cada minuto),
 `cleanup` (sessões, códigos e limites vencidos, a cada hora) e `retention` (diária: avisos terminados com mais de 90 dias,
 uso da API com mais de 400, auditoria com mais de 2 anos; `src/server/db/retention.ts`, em lotes). `npm run worker:once` roda
 uma rodada de avisos e termina.
+
+### Google Agenda (só enviar)
+
+Cada agendamento tem uma linha em `calendar_syncs` com `generation` (sobe a cada mudança, na mesma transação do agendamento, em
+`afterChange` e nos pontos de `domain/calendar/queue.ts`; nunca chama o Google nem lê ligação) e `synced_generation`. A tarefa
+`calendar` do agendador (`src/server/calendar/worker.ts`) reserva as linhas atrasadas (`claim.ts`, `FOR UPDATE SKIP LOCKED`), lê o
+estado atual e deixa o Google igual a ele: evento com id determinístico `af<uuid sem hífens>` (PUT e, se não existe, POST); cancelado
+e falta apagam. Repetir é inofensivo; mudança durante o envio só sobe a geração e a linha volta na rodada seguinte. Falha do Google
+espera 1, 5, 15, 60 e 240 min e na 6ª para (`failed_at`; uma mudança nova a revive); 429 espera 1 min sem contar; token recusado vira
+`REVOKED` em `calendar_connections`. O token de renovação fica selado por pessoa (`calendar/token.ts`, leitor restrito: só
+`src/server/calendar/**` o importa; ESLint e `tests/unit/calendar-token-imports.test.ts` conferem). Nenhuma trava nova: o
+enfileiramento roda sob as travas da operação que o chama.
 
 ## Arquivos
 
