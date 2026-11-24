@@ -7,7 +7,8 @@ const USUARIO = 'agendaflui'
 const SENHA = 'agendaflui'
 
 export const DEV_DB = { dataDir: '.local/pg', port: 54329, database: 'agendaflui' }
-export const TEST_DB = { dataDir: '.local/pg-test', port: 54330, database: 'agendaflui_test' }
+// TEST_DB_PORT permite rodar várias suítes ao mesmo tempo (uma por cópia de trabalho), cada uma no seu banco.
+export const TEST_DB = { dataDir: '.local/pg-test', port: Number(process.env['TEST_DB_PORT'] || 54330), database: 'agendaflui_test' }
 
 export type StartDbOptions = { dataDir: string; port: number; database: string }
 export type RunningDb = { url: string; stop(): Promise<void> }
