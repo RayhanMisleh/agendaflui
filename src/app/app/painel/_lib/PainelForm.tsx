@@ -26,6 +26,7 @@ export function PainelForm({
   anchors,
   secondary,
   id,
+  blocked = false,
 }: {
   action(prev: EstadoPainel, form: FormData): Promise<EstadoPainel>
   initial?: EstadoPainel
@@ -37,6 +38,8 @@ export function PainelForm({
   anchors?: Record<string, string>
   secondary?: ReactNode
   id?: string
+  /** Impede o envio enquanto algo de que o formulário depende ainda carrega. */
+  blocked?: boolean
 }) {
   const [state, formAction, pending] = useActionState(action, initial)
   const feito = useRef<EstadoPainel | null>(null)
@@ -51,7 +54,7 @@ export function PainelForm({
       {state.ok ? null : <FormErrors message={state.message} fields={state.fields} labels={labels} anchors={anchors} />}
       {children(state)}
       <div className="af-acctform__foot">
-        <Button type="submit" variant="primary" loading={pending}>
+        <Button type="submit" variant="primary" loading={pending} disabled={blocked}>
           {typeof submit === 'function' ? submit(state) : submit}
         </Button>
         {secondary}

@@ -13,7 +13,7 @@ import { petsDoCliente } from './consultas'
 import type { PetResumo } from './consultas'
 import { ConflitosDialog } from './ConflitosDialog'
 import { EscolherPet, ServicosDoPetLista, useServicosDoPet } from './PetsEServicos'
-import { duracaoBase } from './duracao-ajuste'
+import { duracaoBase, nomeCampoDuracao } from './duracao-ajuste'
 
 type Decisao = 'complete' | 'noshow' | 'cancel'
 
@@ -105,6 +105,7 @@ function Ajustes({ detalhe, page, onDone }: { detalhe: PageDetail; page: AgendaP
         action={ajustarAtendimento}
         initial={inicial}
         submit="Salvar ajustes"
+        blocked={doPet.carregando}
         onDone={onDone}
         labels={{ price: 'Valor', notes: 'Observação', serviceIds: 'Serviços', petId: 'Pet', durationMin: 'Duração' }}
       >
@@ -156,7 +157,7 @@ function Ajustes({ detalhe, page, onDone }: { detalhe: PageDetail; page: AgendaP
             )}
             <MinutesField
               id="ajustar-duracao"
-              name="durationMin"
+              name={nomeCampoDuracao(editada)}
               value={valor}
               sumMin={soma}
               error={state.fields.durationMin}
