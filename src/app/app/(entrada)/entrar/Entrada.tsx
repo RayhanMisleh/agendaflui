@@ -15,14 +15,26 @@ type Marca = {
 }
 
 /** A tela de entrada geral, com a marca Agenda Flui. */
-export function Entrada({ marca, senhaNova = false, googleEnabled = false, googleCode = '' }: { marca: Marca; senhaNova?: boolean; googleEnabled?: boolean; googleCode?: string }) {
+export function Entrada({
+  marca,
+  senhaNova = false,
+  contaExcluida = false,
+  googleEnabled = false,
+  googleCode = '',
+}: {
+  marca: Marca
+  senhaNova?: boolean
+  contaExcluida?: boolean
+  googleEnabled?: boolean
+  googleCode?: string
+}) {
   return (
     <EntryScreen
       theme={marca.theme}
       brand={marca}
       headline="A agenda que flui."
       title="Entrar"
-      message={senhaNova ? 'Senha nova salva. Entre com ela.' : 'Use o e-mail e a senha da sua conta.'}
+      message={contaExcluida ? 'Sua conta foi excluída.' : senhaNova ? 'Senha nova salva. Entre com ela.' : 'Use o e-mail e a senha da sua conta.'}
       testId="app-entry"
     >
       <GoogleAviso codigo={googleCode} />
