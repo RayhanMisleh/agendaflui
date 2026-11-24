@@ -37,6 +37,16 @@ conferem `Origin == Host`.
 O ESLint impõe as fronteiras: cliente Prisma cru só em `src/server/db`, `auth`, `notifications`, `domain/platform`, `prisma`, `scripts` e
 `tests`; rotas não importam `tenantDb`; `new Date(texto)` e os métodos locais de data são proibidos fora de `src/server/time/`.
 
+## Nicho e agenda da equipe
+
+- Nicho: o que é do ramo da conta mora no registro `src/server/niches/` (puro) e em tabelas próprias (`pets`, `service_prices`).
+  O domínio lê o nicho por `getNicheSettings`; funções do nicho pet chamam `requirePetNiche` (`niche_unavailable`). O nicho não é
+  módulo. Elegibilidade, preço e tempo por animal e porte têm uma regra só, em `domain/catalog/pricing.ts`.
+- Agenda: o cliente segue todas as regras (grade, folga, expediente, prazos); a equipe marca em qualquer minuto e com duração de 5 a
+  720 min. Conflito da equipe volta como `conflict` com `reason: 'needs_confirmation'` e uma impressão (`acknowledged`); repetir o pedido
+  com a impressão grava, e o que sobrepõe um normal vira encaixe (`is_squeeze_in`, `scheduling/squeeze-in.ts`). Quando um normal sai,
+  os encaixes do intervalo são reavaliados na mesma transação.
+
 ## Isolamento entre contas
 
 Cada negócio é uma conta (`businesses`). Os modelos são classificados em `src/server/db/models.ts` (de conta,

@@ -44,7 +44,7 @@ test('Voltar fecha o diálogo e uma impressão nova abre de novo', async () => {
   const { rerender } = render(<ConflitosDialog formId="f" confirmation={confirmacao} confirmLabel="Salvar mesmo assim" />)
   await userEvent.click(screen.getByRole('button', { name: 'Voltar' }))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-  rerender(<ConflitosDialog formId="f" confirmation={{ ...confirmacao, ack: 'novo' }} confirmLabel="Salvar mesmo assim" />)
+  rerender(<ConflitosDialog formId="f" confirmation={{ ...confirmacao }} confirmLabel="Salvar mesmo assim" />)
   expect(await screen.findByRole('dialog', { name: 'Confirme o horário' })).toBeInTheDocument()
 })
 

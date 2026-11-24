@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Ban, CalendarClock, Clock, DoorClosed } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { Confirmacao } from '@/app/_lib/form-state'
@@ -33,15 +33,11 @@ export function ListaDeConflitos({ confirmation, notice }: { confirmation: Confi
  * indicado (`formId`) com `ack`; "Voltar" fecha sem limpar o que a pessoa preencheu.
  */
 export function ConflitosDialog({ formId, confirmation, confirmLabel, onBack }: { formId: string; confirmation: Confirmacao | undefined; confirmLabel: string; onBack?: () => void }): ReactNode {
-  const [fechado, setFechado] = useState<string | null>(null)
-  const ack = confirmation?.ack ?? null
-  // Uma impressão nova (o servidor pediu de novo) reabre o diálogo mesmo que a anterior tenha sido fechada.
-  useEffect(() => {
-    setFechado((atual) => (atual !== ack ? null : atual))
-  }, [ack])
-  const aberto = confirmation !== undefined && ack !== fechado
+  // Cada resposta do servidor traz um objeto novo: fechar guarda só aquele, então um pedido novo (mesmo com a mesma impressão) reabre.
+  const [fechado, setFechado] = useState<Confirmacao | null>(null)
+  const aberto = confirmation !== undefined && confirmation !== fechado
   const voltar = () => {
-    setFechado(ack)
+    setFechado(confirmation ?? null)
     onBack?.()
   }
   return (
@@ -54,7 +50,7 @@ export function ConflitosDialog({ formId, confirmation, confirmLabel, onBack }: 
           <Button variant="ghost" onClick={voltar}>
             Voltar
           </Button>
-          <Button type="submit" variant="primary" form={formId} name="ack" value={confirmation?.ack ?? ''} onClick={() => setFechado(ack)}>
+          <Button type="submit" variant="primary" form={formId} name="ack" value={confirmation?.ack ?? ''} onClick={() => setFechado(confirmation ?? null)}>
             {confirmLabel}
           </Button>
         </>

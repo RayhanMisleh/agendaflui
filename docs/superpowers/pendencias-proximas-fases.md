@@ -12,6 +12,13 @@ O que continua aberto depois das Fases 1 a 6. Nenhum agente abriu os painéis em
 - Entrada do painel do negócio sem JavaScript.
 - Testes de navegador (`npm run test:e2e`): não rodam desde a Fase 2B; `entrada.spec.ts` e `vitrine.spec.ts` foram ajustados sem rodar. Rodar, corrigir e ampliar (`entrada.spec.ts` ainda cita as rotas `/entrar/<slug>` e `/escolher-conta`, removidas).
 
+## Fase 2 (pet e agenda): entregue e o que fica
+
+- Entregue: nicho pet, pets, preço e tempo por animal e porte, agenda da equipe livre com confirmação e encaixe, telas do painel.
+- Fase 3: o quiz usa `NICHES.PET.quiz`; a área do cliente usa `listMyPets`, `listServicesForPet`, `fromPrice` e `getAvailability({ petId })`.
+- Fase 4: `serviceSuggestions` e a demo com pets de portes variados e um encaixe.
+- Conferir no navegador: folha de marcar a 360 px (pets em rolagem), diálogo "Confirme o horário", encaixe na grade do dia e na semana.
+
 ## Antes de abrir a loja (Mercado Pago real)
 
 - Mercado Pago, Frenet e ViaCEP reais nunca foram chamados (só as falsas). Testar com credenciais de teste: Pix (expiração mínima de 30 minutos), cartão, webhook e assinatura `x-signature` (roteiro em `docs/PUBLICACAO.md`).
