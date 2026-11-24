@@ -99,6 +99,8 @@ pertence a nenhuma conta e por isso não cabe em `conta:escopo:id`. Para nunca e
   ordem crescente de id, depois a linha do usuário, depois tokens e sessões (`lockUserAccess` em `auth/password-reset.ts`).
 - Pessoa e loja (cadastro, entrada pela loja, adoção, Google): `lockUserAccess` da pessoa primeiro, depois `customer` da loja.
 - Agenda (`lockedTransaction`, `scheduling/placement.ts`): o cliente primeiro, depois os profissionais em ordem crescente de id.
+  A reavaliação de encaixes (`scheduling/squeeze-in.ts`) roda sob as mesmas travas de profissional (nenhuma trava nova). A
+  restrição `appointments_no_overlap` vale só entre agendamentos normais; o encaixe (`is_squeeze_in`) fica de fora.
 - Remover profissional (`removerProfissional`, `access-core.ts`): acesso primeiro (`business_owners`, vínculos), depois `professional`.
 - Escopos sozinhos, sem combinar com outros: `catalog`, `loyalty`, `banners`, `customer` (resgate, ajuste, endereço, conta do
   app) e `membership` (login e renovação do app). `store` também trava sozinho em produtos e categorias.

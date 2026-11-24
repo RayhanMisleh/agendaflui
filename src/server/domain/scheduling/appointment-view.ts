@@ -41,6 +41,8 @@ export type AppointmentView = {
   commissionCents?: number | null
   /** Anotação interna da equipe (mesma regra de `commissionCents`). */
   notes?: string | null
+  /** Só na visão da equipe: marcado por cima de outro agendamento (encaixe). O cliente nunca recebe a chave. */
+  isSqueezeIn?: boolean
   /** Observação escrita pelo cliente ao marcar; visível ao cliente e à equipe. */
   customerNote: string | null
   /** Prazo do cliente para cancelar ou remarcar; para a equipe, `allowed` só segue a situação. */
@@ -244,7 +246,7 @@ export function toView(ctx: TenantContext, row: Row, scope: Scope, changeWindowM
   }
   // A visão do cliente é outra: sem as chaves internas, em vez de chaves nulas.
   if (isCustomer(ctx)) return view
-  return { ...view, commissionCents: internals ? row.commissionCents : null, notes: internals ? row.notes : null }
+  return { ...view, commissionCents: internals ? row.commissionCents : null, notes: internals ? row.notes : null, isSqueezeIn: row.isSqueezeIn }
 }
 
 /**

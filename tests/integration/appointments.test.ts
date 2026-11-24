@@ -718,7 +718,7 @@ describe('situação', () => {
     expect((await domainError(undoOutcome(s.gerente, a.id))).reason).toBe('invalid_transition')
   })
 
-  test('falta libera o horário; desfazer a falta com o horário ocupado dá slot_taken', async () => {
+  test('falta libera o horário; desfazer a falta com o horário ocupado pede confirmação e, confirmado, volta como encaixe', async () => {
     const s = await montar({ now: hora(12) })
     const cli = await makeCustomer(s.b.id)
     const a = await makeAppointment(s.b.id, { customerId: cli.id, professionalId: s.ana.id, serviceId: s.banho.id, startsAt: DEZ })
@@ -729,9 +729,11 @@ describe('situação', () => {
     expect(novo.id).not.toBe(a.id)
     const e = await domainError(undoOutcome(s.gerente, a.id))
     expect(e.code).toBe('conflict')
-    expect(e.reason).toBe('slot_taken')
-    expect(e.message).toBe('Não dá para desfazer: o horário já está ocupado por outro agendamento.')
+    expect(e.reason).toBe('needs_confirmation')
     expect((await prisma.appointment.findUniqueOrThrow({ where: { id: a.id } })).status).toBe('NO_SHOW')
+    const volta = await undoOutcome(s.gerente, a.id, { acknowledged: e.details?.['acknowledgement'] as string })
+    expect(volta.status).toBe('CONFIRMED')
+    expect(volta.isSqueezeIn).toBe(true)
   })
 
   test('concluir ou marcar falta de PENDING ou CANCELED dá invalid_transition', async () => {

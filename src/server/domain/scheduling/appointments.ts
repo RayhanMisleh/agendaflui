@@ -38,7 +38,7 @@ import {
   lockedTransaction,
   placeAppointment,
 } from '@/server/domain/scheduling/placement'
-import { overlapsNormal } from '@/server/domain/scheduling/squeeze-in'
+import { overlapsNormal, promoteSqueezeIns } from '@/server/domain/scheduling/squeeze-in'
 import { staffIssues } from '@/server/domain/scheduling/staff-issues'
 import { OPEN_STATUSES } from '@/server/domain/scheduling/status'
 import { addMinutes, minutesBetween, toIsoInstant } from '@/server/time'
@@ -512,6 +512,8 @@ export async function rescheduleAppointment(
         await tx.appointmentItem.deleteMany({ where: { appointmentId: id } })
         await tx.appointmentItem.createMany({ data: itemRows(ctx, id, services.items) })
       }
+      // Quem era normal saiu do intervalo antigo: os encaixes dele são reavaliados na mesma transação.
+      if (!row.isSqueezeIn) await promoteSqueezeIns(tx, ctx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt })
       await audit(
         ctx,
         {
@@ -656,6 +658,9 @@ export async function adjustAppointment(
       if (services) {
         await tx.appointmentItem.deleteMany({ where: { appointmentId: id } })
         await tx.appointmentItem.createMany({ data: itemRows(ctx, id, services.items) })
+      }
+      if (data.endsAt !== undefined && !row.isSqueezeIn) {
+        await promoteSqueezeIns(tx, ctx, { professionalId: row.professionalId, startsAt: row.startsAt, endsAt: row.endsAt })
       }
       await audit(
         ctx,
