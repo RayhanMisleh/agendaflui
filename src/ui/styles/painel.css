@@ -762,13 +762,15 @@
   }
   .af-barlist__row {
     display: grid;
-    grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+    grid-template-columns: minmax(4.5rem, 8rem) minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.75rem;
     font-size: var(--text-small);
     font-variant-numeric: tabular-nums;
   }
   .af-barlist__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--ink-muted);
   }
   .af-barlist__track {

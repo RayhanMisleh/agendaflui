@@ -22,6 +22,16 @@ describe('responsivo: regras que não podem se perder', () => {
     expect(controls).toMatch(/@media \(pointer: coarse\)/)
   })
 
+  test('a barra de ação do formulário fica presa na base no celular, acima da navegação e da área segura', () => {
+    const account = css('account.css')
+    expect(account).toMatch(/\.af-acctform__foot\s*\{[^}]*position:\s*sticky[^}]*safe-area-inset-bottom/)
+  })
+
+  test('a página nunca rola na lateral e os avisos sobem acima da navegação do celular', () => {
+    expect(css('base.css')).toMatch(/html,\s*body\s*\{[^}]*overflow-x:\s*clip/)
+    expect(css('feedback.css')).toMatch(/\.af-toasts\s*\{[^}]*safe-area-inset-bottom/)
+  })
+
   test('nenhuma classe-base é definida em dois arquivos de estilo (uma tela herdava a altura de outra)', () => {
     const dir = join(__dirname, '../../../src/ui/styles')
     const donos = new Map<string, Set<string>>()
