@@ -84,14 +84,16 @@ describe('getStorefront', () => {
     const { b, guest } = await loja()
     await prisma.business.update({ where: { id: b.id }, data: { niche: 'PET' } })
     const banho = await makeService(b.id, { name: 'Banho' })
-    await makeServicePrice(b.id, banho.id, 'DOG_SMALL', { priceCents: 4000 })
-    await makeServicePrice(b.id, banho.id, 'DOG_LARGE', { priceCents: 7000 })
-    await makeServicePrice(b.id, banho.id, 'CAT', { priceCents: 3000 })
+    await makeServicePrice(b.id, banho.id, 'DOG_SMALL', { priceCents: 4000, durationMin: 60 })
+    await makeServicePrice(b.id, banho.id, 'DOG_LARGE', { priceCents: 7000, durationMin: 90 })
+    await makeServicePrice(b.id, banho.id, 'CAT', { priceCents: 3000, durationMin: 120 })
     const soGato = await makeService(b.id, { name: 'Só gato' })
     await makeServicePrice(b.id, soGato.id, 'CAT', { priceCents: 3500 })
     const v = await getStorefront(guest)
     expect(v).toMatchObject({ petNiche: true, servesCats: false })
     expect(v.services.map((s) => [s.name, s.from])).toEqual([['Banho', { cents: 4000, varies: true }]])
+    // A linha do gato também fica fora da duração.
+    expect(v.services[0]?.durationLabel).toBe('1 h a 1 h 30')
 
     await prisma.businessSettings.update({ where: { businessId: b.id }, data: { nicheOptions: { servesCats: true } } })
     const comGatos = await getStorefront(guest)
@@ -100,6 +102,7 @@ describe('getStorefront', () => {
       ['Banho', { cents: 3000, varies: true }],
       ['Só gato', { cents: 3500, varies: false }],
     ])
+    expect(comGatos.services.map((s) => s.durationLabel)).toEqual(['1 h a 2 h', '30 min'])
   })
 
   test('loja sem nicho: sem pets nem gatos', async () => {

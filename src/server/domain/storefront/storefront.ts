@@ -1,13 +1,14 @@
 import type { TenantContext } from '@/server/auth/actor'
 import { formatPhone } from '@/server/domain/customers/contact'
 import { getModules } from '@/server/domain/modules'
-import { listServices } from '@/server/domain/catalog/services'
+import { listServices, type ServiceView } from '@/server/domain/catalog/services'
 import { DomainError, orNotFound } from '@/server/domain/errors'
 import { getSchedulingRules } from '@/server/domain/settings/scheduling-rules'
 import { formatDuration } from '@/shared/duration'
 import { SERVICE_ICON_NAMES, type ServiceIconName } from '@/shared/service-icons'
 import type { Modules } from '@/shared/modules'
 import { fromPrice } from '@/server/domain/catalog/pricing'
+import { isVariantVisible } from '@/server/niches'
 import { getStoreNiche } from '@/server/domain/settings/niche-settings'
 
 /** Vitrine pública da loja: só o que o visitante e o cliente podem ver. Nunca documento, e-mail de contato nem dado interno. */
@@ -51,6 +52,15 @@ function phoneOf(digits: string | null): Storefront['phone'] {
   return { label: formatPhone(digits), href: `tel:+${digits}`, whatsappHref: celular ? `https://wa.me/${digits}` : null }
 }
 
+/** A duração única, ou "1 h a 1 h 30" entre a menor e a maior das variantes visíveis (iguais → uma só). */
+function durationLabelOf(s: ServiceView, servesCats: boolean): string {
+  if (s.pricingMode === 'SINGLE') return formatDuration(s.durationMin)
+  const tempos = s.prices.filter((p) => isVariantVisible(p.variant, { servesCats })).map((p) => p.durationMin)
+  if (tempos.length === 0) return formatDuration(s.durationMin)
+  const [menor, maior] = [Math.min(...tempos), Math.max(...tempos)]
+  return menor === maior ? formatDuration(menor) : `${formatDuration(menor)} a ${formatDuration(maior)}`
+}
+
 export async function getStorefront(ctx: TenantContext): Promise<Storefront> {
   if (ctx.actor.kind !== 'guest' && ctx.actor.kind !== 'customer') throw new DomainError('forbidden', 'Você não tem permissão para fazer isso.')
   const [business, branding, services, modules, rules, niche] = await Promise.all([
@@ -74,7 +84,7 @@ export async function getStorefront(ctx: TenantContext): Promise<Storefront> {
       description: s.description,
       icon: isIcon(s.icon) ? s.icon : 'sparkles',
       from,
-      durationLabel: formatDuration(s.durationMin),
+      durationLabel: durationLabelOf(s, niche.servesCats),
       clubOnly: s.clubOnly,
     })
   }
