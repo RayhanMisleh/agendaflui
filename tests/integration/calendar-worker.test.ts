@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { setAfterScheduler } from '@/server/after'
 import { calendarEventId } from '@/server/calendar/event'
 import { sealCalendarToken } from '@/server/calendar/token'
@@ -39,6 +39,7 @@ const google = fakeGoogleAuthority()
 afterEach(() => {
   setIntegrationsForTests(null)
   setAfterScheduler(undefined)
+  vi.restoreAllMocks()
 })
 
 async function montar(o: { semGoogle?: boolean; semLigacao?: boolean } = {}) {
@@ -280,6 +281,18 @@ describe('falhas do Google', () => {
     expect(chamadas('refresh')).toHaveLength(1)
     expect(chamadas('upsert')).toHaveLength(0)
     for (const v of [a, b]) expect(await linha(v.id)).toMatchObject({ generation: 1, syncedGeneration: 1, attempts: 0, failedAt: null })
+  })
+
+  test('selo do token que não abre: ligação REVOKED (a tela pede para religar), sem chamar o Google', async () => {
+    const s = await montar()
+    const v = await marcar(s)
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const outro = sealCalendarToken('outra-pessoa', 'rt-x')
+    await prisma.calendarConnection.update({ where: { userId: s.pessoa.id }, data: { refreshTokenEnc: outro } })
+    expect((await rodar()).revoked).toBe(1)
+    expect(await prisma.calendarConnection.findUniqueOrThrow({ where: { userId: s.pessoa.id } })).toMatchObject({ status: 'REVOKED', refreshTokenEnc: null })
+    expect(google.calls).toHaveLength(0)
+    expect(await linha(v.id)).toMatchObject({ syncedGeneration: 1 })
   })
 
   test('token de acesso recusado no evento (permissão retirada) também desliga a ligação', async () => {

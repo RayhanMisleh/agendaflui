@@ -67,6 +67,11 @@ async function accessFor(round: Round, userId: string): Promise<Access> {
 async function openAccess(round: Round, userId: string): Promise<Access> {
   const token = await openCalendarToken(userId)
   if (token === null) return { kind: 'none' }
+  if (token.kind === 'unreadable') {
+    // Selo que não abre (chave trocada ou linha corrompida) não volta sozinho: a pessoa precisa religar, e a tela passa a pedir isso.
+    if (await markCalendarRevoked(userId, token.sealed, round.now)) round.result.revoked += 1
+    return { kind: 'revoked' }
+  }
   round.client ??= await googleClient()
   if (round.client === null) return { kind: 'wait', minutes: UNCONFIGURED_WAIT_MIN }
   try {

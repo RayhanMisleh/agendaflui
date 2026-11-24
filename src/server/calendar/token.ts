@@ -17,15 +17,17 @@ export function sealCalendarToken(userId: string, plain: string): string {
   return sealSecret(plain, calendarTokenAad(userId))
 }
 
-/** O token de renovação (e o selo de onde saiu) de uma ligação ativa; `null` sem ligação ativa ou com selo que não abre. */
-export async function openCalendarToken(userId: string): Promise<{ refreshToken: string; sealed: string } | null> {
+export type OpenedCalendarToken = { kind: 'open'; refreshToken: string; sealed: string } | { kind: 'unreadable'; sealed: string }
+
+/** O token de renovação (e o selo de onde saiu) de uma ligação ativa; `unreadable` com selo que não abre; `null` sem ligação ativa. */
+export async function openCalendarToken(userId: string): Promise<OpenedCalendarToken | null> {
   const row = await prisma.calendarConnection.findUnique({ where: { userId }, select: { status: true, refreshTokenEnc: true } })
   if (row === null || row.status !== 'CONNECTED' || row.refreshTokenEnc === null) return null
   try {
-    return { refreshToken: openSecret(row.refreshTokenEnc, calendarTokenAad(userId)), sealed: row.refreshTokenEnc }
+    return { kind: 'open', refreshToken: openSecret(row.refreshTokenEnc, calendarTokenAad(userId)), sealed: row.refreshTokenEnc }
   } catch (err) {
     console.error(JSON.stringify({ level: 'error', event: 'calendar_token_unreadable', error: err instanceof Error ? err.name : 'unknown' }))
-    return null
+    return { kind: 'unreadable', sealed: row.refreshTokenEnc }
   }
 }
 
