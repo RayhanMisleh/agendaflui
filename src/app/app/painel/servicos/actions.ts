@@ -1,8 +1,11 @@
 'use server'
 import { archiveService, createService, moveService, restoreService, updateService } from '@/server/domain/catalog/services'
 import type { ServiceInput } from '@/server/domain/catalog/services'
+import type { VariantPriceRow } from '@/server/domain/catalog/pricing'
 import { erroDeCampo, feito, ler, renomear } from '@/app/_lib/campos'
 import type { Campos } from '@/app/_lib/campos'
+import type { PriceVariant } from '@/server/db/generated/client'
+import { NICHES } from '@/server/niches'
 import { isServiceIcon } from '@/shared/service-icons'
 import { parseMoney } from '@/ui/money'
 import { tenantAction } from '../_lib/action'
@@ -15,26 +18,51 @@ import { atualizarPainel } from '../_lib/revalidar'
  * está gravado fica como está.
  */
 
-const DADOS = ['id', 'name', 'description', 'icon', 'price', 'durationMin', 'rewardPoints', 'loyalty'] as const
-const CAIXAS = ['clubOnly', 'active'] as const
+/** As linhas de porte do formulário: `v_<VARIANTE>_on` (atende), `v_<VARIANTE>_price` e `v_<VARIANTE>_duration`. */
+const VARIANTES: readonly PriceVariant[] = NICHES.PET.variants.map((d) => d.key)
+const CAMPOS_DE_PORTE = VARIANTES.flatMap((k) => [`v_${k}_price`, `v_${k}_duration`])
+const DADOS = ['id', 'name', 'description', 'icon', 'price', 'durationMin', 'pricingMode', 'rewardPoints', 'loyalty', ...CAMPOS_DE_PORTE] as const
+const CAIXAS = ['clubOnly', 'active', ...VARIANTES.map((k) => `v_${k}_on`)] as const
 const NOMES_DO_DOMINIO = { priceCents: 'price' }
+
+/** Só as linhas marcadas; preço vazio ou inválido numa linha marcada vira erro no campo da linha. */
+function linhasDePorte(v: Campos): VariantPriceRow[] {
+  const linhas: VariantPriceRow[] = []
+  for (const variant of VARIANTES) {
+    if (v[`v_${variant}_on`] !== 'on') continue
+    const preco = (v[`v_${variant}_price`] ?? '').trim()
+    if (preco === '') throw erroDeCampo(`v_${variant}_price`, 'Informe o preço.')
+    const priceCents = parseMoney(preco)
+    if (priceCents === null) throw erroDeCampo(`v_${variant}_price`, 'Digite o preço em reais, por exemplo 35,90.')
+    const durationMin = Number(v[`v_${variant}_duration`])
+    if (!Number.isInteger(durationMin)) throw erroDeCampo(`v_${variant}_duration`, 'Escolha a duração.')
+    linhas.push({ variant, priceCents, durationMin })
+  }
+  return linhas
+}
 
 function entrada(v: Campos): ServiceInput {
   if (!isServiceIcon(v.icon ?? '')) throw erroDeCampo('icon', 'Escolha um ícone da lista.')
-  const preco = (v.price ?? '').trim()
-  if (preco === '') throw erroDeCampo('price', 'Informe o preço em reais, por exemplo 35,90.')
-  const priceCents = parseMoney(preco)
-  if (priceCents === null) throw erroDeCampo('price', 'Digite o preço em reais, por exemplo 35,90.')
-  const durationMin = Number(v.durationMin)
-  if (!Number.isInteger(durationMin)) throw erroDeCampo('durationMin', 'Escolha a duração.')
   const pontos = (v.rewardPoints ?? '').trim()
   const input: ServiceInput = {
     name: v.name ?? '',
     description: v.description ?? '',
     icon: v.icon ?? '',
-    priceCents,
-    durationMin,
     active: v.active === 'on',
+  }
+  if (v.pricingMode === 'BY_VARIANT') {
+    input.pricingMode = 'BY_VARIANT'
+    input.variantPrices = linhasDePorte(v)
+  } else {
+    if (v.pricingMode === 'SINGLE') input.pricingMode = 'SINGLE'
+    const preco = (v.price ?? '').trim()
+    if (preco === '') throw erroDeCampo('price', 'Informe o preço em reais, por exemplo 35,90.')
+    const priceCents = parseMoney(preco)
+    if (priceCents === null) throw erroDeCampo('price', 'Digite o preço em reais, por exemplo 35,90.')
+    const durationMin = Number(v.durationMin)
+    if (!Number.isInteger(durationMin)) throw erroDeCampo('durationMin', 'Escolha a duração.')
+    input.priceCents = priceCents
+    input.durationMin = durationMin
   }
   if (v.loyalty === '1') {
     input.clubOnly = v.clubOnly === 'on'

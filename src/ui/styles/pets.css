@@ -248,6 +248,75 @@
     gap: 0.5rem 1rem;
   }
 
+  /* ---- Tabela de preço por animal e porte (tela de serviços) ---- */
+  .af-chips__set {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .af-varrows {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-varrows__list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .af-varrow {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background-color: var(--surface);
+    min-width: 0;
+  }
+  .af-varrow__art {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+  }
+  .af-varrow__name {
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .af-varrow__price,
+  .af-varrow__duration {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+  .af-varrow--off {
+    background-color: var(--ground);
+  }
+  .af-varrow--off .af-varrow__art,
+  .af-varrow--off .af-varrow__name,
+  .af-varrow--off .af-varrow__price,
+  .af-varrow--off .af-varrow__duration {
+    opacity: 0.55;
+  }
+  @media (min-width: 561px) {
+    .af-varrow {
+      grid-template-columns: auto minmax(8rem, 1fr) auto minmax(7rem, 9rem) minmax(7rem, 9rem);
+    }
+    .af-varrow__price,
+    .af-varrow__duration {
+      grid-column: auto;
+    }
+  }
+
   @keyframes af-pick {
     from {
       opacity: 0.6;

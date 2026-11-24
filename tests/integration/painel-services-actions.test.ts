@@ -4,7 +4,7 @@ import { prisma } from '@/server/db/client'
 import { moveService, reorderServices } from '@/server/domain/catalog/services'
 import { resetDb } from '../setup/db'
 import { domainError } from '../setup/expect'
-import { ctxWithRole, makeBusiness, makeService } from '../setup/factories'
+import { ctxWithRole, makeBusiness, makeService, makeServicePrice } from '../setup/factories'
 
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
@@ -205,4 +205,63 @@ test('sem sessão a ação redireciona e não grava', async () => {
   guards.requireTenant.mockRejectedValue(new Error('NEXT_REDIRECT'))
   await expect(criarServico(ini, form(CAMPOS))).rejects.toThrow('NEXT_REDIRECT')
   expect(await prisma.service.count()).toBe(0)
+})
+
+describe('preço por animal e porte', () => {
+  beforeEach(async () => {
+    await prisma.business.update({ where: { id: businessId }, data: { niche: 'PET' } })
+  })
+  const POR_PORTE = { ...CAMPOS, pricingMode: 'BY_VARIANT', price: '', durationMin: '' }
+  const linhas = (id: string) => prisma.servicePrice.findMany({ where: { serviceId: id }, orderBy: { variant: 'asc' } })
+
+  test('criarServico por porte com pequeno e grande grava duas linhas', async () => {
+    const r = await criarServico(
+      ini,
+      form({ ...POR_PORTE, v_DOG_SMALL_on: 'on', v_DOG_SMALL_price: '50,00', v_DOG_SMALL_duration: '60', v_DOG_LARGE_on: 'on', v_DOG_LARGE_price: '85', v_DOG_LARGE_duration: '90' }),
+    )
+    expect(r.ok).toBe(true)
+    const [s] = await servicos()
+    expect(s).toMatchObject({ pricingMode: 'BY_VARIANT', priceCents: 5000, durationMin: 60 })
+    expect((await linhas(s?.id ?? '')).map((l) => [l.variant, l.priceCents, l.durationMin])).toEqual([
+      ['DOG_SMALL', 5000, 60],
+      ['DOG_LARGE', 8500, 90],
+    ])
+  })
+
+  test('criarServico por porte sem nenhuma linha marcada → "Preencha o preço de pelo menos um porte."', async () => {
+    const r = await criarServico(ini, form(POR_PORTE))
+    expect(r.ok).toBe(false)
+    expect(r.message).toBe('Preencha o preço de pelo menos um porte.')
+    expect(r.fields.variantPrices).toBe('Preencha o preço de pelo menos um porte.')
+    expect(await prisma.service.count({ where: { businessId } })).toBe(0)
+  })
+
+  test('linha marcada sem preço → fields v_DOG_SMALL_price "Informe o preço."', async () => {
+    const r = await criarServico(ini, form({ ...POR_PORTE, v_DOG_SMALL_on: 'on', v_DOG_SMALL_price: '', v_DOG_SMALL_duration: '60' }))
+    expect(r.ok).toBe(false)
+    expect(r.fields.v_DOG_SMALL_price).toBe('Informe o preço.')
+    expect(r.values.v_DOG_SMALL_duration).toBe('60')
+  })
+
+  test('editarServico com gatos desligados mantém a linha de gato gravada', async () => {
+    const s = await makeService(businessId, { name: 'Banho' })
+    await makeServicePrice(businessId, s.id, 'CAT', { priceCents: 7000, durationMin: 60 })
+    await makeServicePrice(businessId, s.id, 'DOG_SMALL', { priceCents: 5000, durationMin: 60 })
+    const r = await editarServico(ini, form({ ...POR_PORTE, id: s.id, name: 'Banho', v_DOG_SMALL_on: 'on', v_DOG_SMALL_price: '55', v_DOG_SMALL_duration: '60' }))
+    expect(r.ok).toBe(true)
+    const depois = await linhas(s.id)
+    expect(depois.map((l) => [l.variant, l.priceCents])).toEqual([
+      ['DOG_SMALL', 5500],
+      ['CAT', 7000],
+    ])
+  })
+
+  test('voltar para preço único apaga as linhas', async () => {
+    const s = await makeService(businessId, { name: 'Banho' })
+    await makeServicePrice(businessId, s.id, 'DOG_SMALL')
+    const r = await editarServico(ini, form({ ...CAMPOS, id: s.id, pricingMode: 'SINGLE', price: '40', durationMin: '30' }))
+    expect(r.ok).toBe(true)
+    expect(await linhas(s.id)).toHaveLength(0)
+    expect(await prisma.service.findUniqueOrThrow({ where: { id: s.id } })).toMatchObject({ pricingMode: 'SINGLE', priceCents: 4000 })
+  })
 })
