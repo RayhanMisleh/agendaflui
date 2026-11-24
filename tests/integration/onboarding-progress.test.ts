@@ -102,9 +102,13 @@ describe('marcas', () => {
     await makeService(b.id)
     const prof = await makeProfessional(b.id)
     await makeWorkingHours(b.id, prof.id, 'MONDAY', [{ startMin: 540, endMin: 1080 }])
+    const versao = (await prisma.onboardingProgress.findUniqueOrThrow({ where: { businessId: b.id } })).version
     const v = await getOnboarding(dono)
     expect(v?.completed).toBe(true)
     expect(v?.completedAt).not.toBeNull()
+    // Ler não muda a versão: um formulário aberto com a versão lida não pode dar conflito por causa de uma leitura.
+    expect((await prisma.onboardingProgress.findUniqueOrThrow({ where: { businessId: b.id } })).version).toBe(versao)
+    await markOnboardingStep(dono, 'STORE', 'done')
     expect((await prisma.onboardingProgress.findUniqueOrThrow({ where: { businessId: b.id } })).completedAt).not.toBeNull()
   })
 

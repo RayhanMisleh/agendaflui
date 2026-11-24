@@ -93,8 +93,9 @@ export async function getOnboarding(ctx: TenantContext): Promise<OnboardingView 
   const view = viewOf(row, await lerFatos(ctx))
   if (row.completedAt !== null || view.done !== view.total) return view
   // Todos os passos já valem (um pulado foi feito depois, fora do passo a passo): conclui aqui, senão nada mais marcaria `completedAt`.
+  // Uma leitura não sobe a versão: ela só confere gravações de passos, e um formulário aberto não pode dar conflito por causa de um GET.
   const agora = ctx.clock()
-  await ctx.db.onboardingProgress.updateMany({ where: { businessId: ctx.businessId, completedAt: null }, data: { completedAt: agora, version: { increment: 1 } } })
+  await ctx.db.onboardingProgress.updateMany({ where: { businessId: ctx.businessId, completedAt: null }, data: { completedAt: agora } })
   const atual = await ctx.db.onboardingProgress.findUnique({ where: { businessId: ctx.businessId } })
   return atual === null ? view : viewOf(atual, await lerFatos(ctx))
 }
