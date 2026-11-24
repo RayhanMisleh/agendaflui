@@ -16,6 +16,7 @@ export type NavNode = {
   icon: ReactNode
   active?: boolean
   disabled?: boolean
+  exact?: boolean
 }
 
 /** Até 5 itens cabem na barra do celular; com mais, ficam 4 e o resto vai para "Mais". */
@@ -57,7 +58,7 @@ export function ShellNav({ items: given, userPlate }: { items: NavNode[]; userPl
   const [moreOpen, setMoreOpen] = useState(false)
   const pathname = usePathname()
   // `active` explícito vence; sem ele, a rota decide (e subpáginas ativam o destino pai).
-  const items = given.map((i) => ({ ...i, active: i.active ?? (!i.disabled && pathname !== null && isNavActive(pathname, i.href)) }))
+  const items = given.map((i) => ({ ...i, active: i.active ?? (!i.disabled && pathname !== null && isNavActive(pathname, i.href, i.exact)) }))
   const hasMore = items.length > MAX_BAR
   const keep = hasMore ? KEEP_WITH_MORE : items.length
   const overflow = items.slice(keep)

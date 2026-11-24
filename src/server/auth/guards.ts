@@ -10,9 +10,9 @@ import { getMemberSession, getTenantContext, type MemberSession } from './member
 import { getPlatformActor } from './platform-auth'
 
 export const DEV_COOKIE = 'af_dev_session'
-export const PAINEL_COOKIE = 'af_painel_session'
+export const APP_COOKIE = 'af_session'
 
-// Sem atributo Domain: cada cookie fica preso ao host que o gravou (dev. ou painel.).
+// Sem atributo Domain: cada cookie fica preso ao host que o gravou (dev. ou app.).
 function opcoes(extra: { expires?: Date; maxAge?: number }) {
   return {
     httpOnly: true,
@@ -23,11 +23,11 @@ function opcoes(extra: { expires?: Date; maxAge?: number }) {
   }
 }
 
-export async function setSessionCookie(name: typeof DEV_COOKIE | typeof PAINEL_COOKIE, token: string, expiresAt: Date): Promise<void> {
+export async function setSessionCookie(name: typeof DEV_COOKIE | typeof APP_COOKIE, token: string, expiresAt: Date): Promise<void> {
   ;(await cookies()).set(name, token, opcoes({ expires: expiresAt }))
 }
 
-export async function clearSessionCookie(name: typeof DEV_COOKIE | typeof PAINEL_COOKIE): Promise<void> {
+export async function clearSessionCookie(name: typeof DEV_COOKIE | typeof APP_COOKIE): Promise<void> {
   ;(await cookies()).set(name, '', opcoes({ maxAge: 0 }))
 }
 
@@ -50,7 +50,7 @@ export async function requirePlatformAdmin(): Promise<PlatformAdminActor> {
 
 /** Sessão do painel do negócio, sem exigir conta ativa. */
 export async function requireMemberSession(): Promise<MemberSession> {
-  const session = await lerSessao(await readCookie(PAINEL_COOKIE))
+  const session = await lerSessao(await readCookie(APP_COOKIE))
   if (!session) redirect('/entrar')
   return session
 }
@@ -60,7 +60,7 @@ export async function requireMemberSession(): Promise<MemberSession> {
  * pedida, é 404 (a rota não existe para quem não pode usá-la).
  */
 export async function requireTenant(capability?: Capability): Promise<TenantContext> {
-  const token = await readCookie(PAINEL_COOKIE)
+  const token = await readCookie(APP_COOKIE)
   const session = await requireMemberSession()
   if (!session.activeBusinessId) redirect('/entrar')
   const ctx = await lerContexto(token)

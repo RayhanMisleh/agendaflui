@@ -5,7 +5,7 @@ import { prisma } from '@/server/db/client'
 import { resetDb } from '../setup/db'
 import { ctxWithRole, makeAppointment, makeBusiness, makeCustomer, makeProfessional, makeService, makeUser, memberOf } from '../setup/factories'
 
-const guards = vi.hoisted(() => ({ requireTenant: vi.fn(), readCookie: vi.fn(), PAINEL_COOKIE: 'painel' }))
+const guards = vi.hoisted(() => ({ requireTenant: vi.fn(), readCookie: vi.fn(), APP_COOKIE: 'painel' }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
@@ -18,7 +18,7 @@ import {
   salvarRegras,
   salvarTermos,
   trocarSenha,
-} from '@/app/painel/(app)/configuracoes/actions'
+} from '@/app/app/painel/configuracoes/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -102,14 +102,14 @@ describe('regras da agenda', () => {
 })
 
 describe('avisos', () => {
-  test('a matriz grava uma caixa por tipo e canal; desmarcada desliga', async () => {
+  test('a matriz grava uma caixa de e-mail por tipo; desmarcada desliga', async () => {
     const v = (await config()).version
     const r = await salvarAvisos(ini, form({ version: String(v), APPOINTMENT_CONFIRMED__email: 'on' }))
     expect(r.ok).toBe(true)
     expect(r.message).toBe('Avisos salvos.')
-    const n = (await config()).notifications as Record<string, { email: boolean; push: boolean }>
-    expect(n.APPOINTMENT_CONFIRMED).toEqual({ email: true, push: false })
-    expect(n.APPOINTMENT_CANCELED).toEqual({ email: false, push: false })
+    const n = (await config()).notifications as Record<string, { email: boolean }>
+    expect(n.APPOINTMENT_CONFIRMED).toEqual({ email: true })
+    expect(n.APPOINTMENT_CANCELED).toEqual({ email: false })
   })
 
   test('versão antiga devolve o conflito', async () => {

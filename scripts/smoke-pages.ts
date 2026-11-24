@@ -18,7 +18,7 @@ try {
 }
 
 const DEV_COOKIE = 'af_dev_session'
-const PAINEL_COOKIE = 'af_painel_session'
+const APP_COOKIE = 'af_session'
 const MARCAS_DE_ERRO = ['__next_error__', 'Application error', /Digest: \d+/]
 
 /** Páginas pedidas. `{conta}` vira o id da primeira conta do seed; `{cliente}` e `{profissional}`, o primeiro cliente e o primeiro profissional dela. Acrescente aqui as telas novas de cada tarefa. */
@@ -52,45 +52,45 @@ const PAGINAS = [
 
 /** Páginas do painel do negócio, pedidas como o dono da conta de demonstração. Acrescente aqui as telas novas de cada tarefa. */
 const PAGINAS_PAINEL = [
-  '/',
-  '/agenda',
-  '/agenda?visao=dia&data=2026-11-17',
-  '/agenda?visao=semana',
-  '/agenda?visao=semana&data=2026-11-17&profissional=nao-existe',
-  '/agenda?data=lixo&visao=%00&acao=marcar',
-  '/agenda?acao=bloquear',
-  '/agenda?data=9999-12-31',
-  '/agenda?data=0000-01-01&visao=semana',
-  '/servicos',
-  '/servicos?situacao=arquivados',
-  '/clientes',
-  '/clientes?search=a&situacao=arquivados',
-  '/clientes?search=ab%00&cursor=nao-existe',
-  '/clientes/novo',
-  '/clientes/{cliente}',
-  '/equipe',
-  '/equipe/novo',
-  '/equipe/{profissional}',
-  '/equipe/{profissional}?aba=servicos',
-  '/equipe/{profissional}?aba=expediente',
-  '/equipe/{profissional}?aba=bloqueios',
-  '/equipe/{profissional}?aba=acesso&foto=ok',
-  '/relatorios',
-  '/relatorios?atalho=hoje',
-  '/relatorios?atalho=7dias',
-  '/relatorios?atalho=mes-passado',
-  '/relatorios?de=2026-01-01&ate=2026-11-17',
-  '/relatorios?de=2020-01-01&ate=2026-11-17',
-  '/relatorios?de=lixo&ate=%00&profissional=nao-existe&servico=nao-existe&cursor=nao-existe',
-  '/configuracoes',
-  '/configuracoes?secao=negocio',
-  '/configuracoes?secao=aparencia&logo=ok',
-  '/configuracoes?secao=agenda',
-  '/configuracoes?secao=fechamentos',
-  '/configuracoes?secao=avisos',
-  '/configuracoes?secao=termos',
-  '/configuracoes?secao=perfil',
-  '/configuracoes?secao=nao-existe',
+  '/painel',
+  '/painel/agenda',
+  '/painel/agenda?visao=dia&data=2026-11-17',
+  '/painel/agenda?visao=semana',
+  '/painel/agenda?visao=semana&data=2026-11-17&profissional=nao-existe',
+  '/painel/agenda?data=lixo&visao=%00&acao=marcar',
+  '/painel/agenda?acao=bloquear',
+  '/painel/agenda?data=9999-12-31',
+  '/painel/agenda?data=0000-01-01&visao=semana',
+  '/painel/servicos',
+  '/painel/servicos?situacao=arquivados',
+  '/painel/clientes',
+  '/painel/clientes?search=a&situacao=arquivados',
+  '/painel/clientes?search=ab%00&cursor=nao-existe',
+  '/painel/clientes/novo',
+  '/painel/clientes/{cliente}',
+  '/painel/equipe',
+  '/painel/equipe/novo',
+  '/painel/equipe/{profissional}',
+  '/painel/equipe/{profissional}?aba=servicos',
+  '/painel/equipe/{profissional}?aba=expediente',
+  '/painel/equipe/{profissional}?aba=bloqueios',
+  '/painel/equipe/{profissional}?aba=acesso&foto=ok',
+  '/painel/relatorios',
+  '/painel/relatorios?atalho=hoje',
+  '/painel/relatorios?atalho=7dias',
+  '/painel/relatorios?atalho=mes-passado',
+  '/painel/relatorios?de=2026-01-01&ate=2026-11-17',
+  '/painel/relatorios?de=2020-01-01&ate=2026-11-17',
+  '/painel/relatorios?de=lixo&ate=%00&profissional=nao-existe&servico=nao-existe&cursor=nao-existe',
+  '/painel/configuracoes',
+  '/painel/configuracoes?secao=negocio',
+  '/painel/configuracoes?secao=aparencia&logo=ok',
+  '/painel/configuracoes?secao=agenda',
+  '/painel/configuracoes?secao=fechamentos',
+  '/painel/configuracoes?secao=avisos',
+  '/painel/configuracoes?secao=termos',
+  '/painel/configuracoes?secao=perfil',
+  '/painel/configuracoes?secao=nao-existe',
   '/esqueci-a-senha',
   '/redefinir-senha/nao-existe',
   '/entrar?senha=nova',
@@ -98,30 +98,30 @@ const PAGINAS_PAINEL = [
 
 /** Páginas dos módulos, pedidas como o dono da conta com TODOS os módulos ligados. Cada tarefa de módulo acrescenta as suas. */
 const PAGINAS_MODULOS: string[] = [
-  '/banners',
-  '/banners/novo',
-  '/banners/{banner}',
-  '/fidelidade',
-  '/fidelidade?aba=resgates',
-  '/fidelidade?aba=clube',
-  '/fidelidade?aba=ajustes',
-  '/fidelidade/premios/novo',
-  '/fidelidade/premios/{premio}',
-  '/loja',
-  '/loja?aba=pedidos',
-  '/loja?aba=pedidos&situacao=a-entregar&search=1',
-  '/loja/pedidos/{pedido}',
-  '/loja?aba=produtos&search=a',
-  '/loja?aba=produtos&situacao=arquivados&categoria=nao-existe&cursor=nao-existe',
-  '/loja?aba=categorias',
-  '/loja?aba=configuracoes',
-  '/loja/produtos/novo',
-  '/loja/produtos/{produto}',
+  '/painel/banners',
+  '/painel/banners/novo',
+  '/painel/banners/{banner}',
+  '/painel/fidelidade',
+  '/painel/fidelidade?aba=resgates',
+  '/painel/fidelidade?aba=clube',
+  '/painel/fidelidade?aba=ajustes',
+  '/painel/fidelidade/premios/novo',
+  '/painel/fidelidade/premios/{premio}',
+  '/painel/loja',
+  '/painel/loja?aba=pedidos',
+  '/painel/loja?aba=pedidos&situacao=a-entregar&search=1',
+  '/painel/loja/pedidos/{pedido}',
+  '/painel/loja?aba=produtos&search=a',
+  '/painel/loja?aba=produtos&situacao=arquivados&categoria=nao-existe&cursor=nao-existe',
+  '/painel/loja?aba=categorias',
+  '/painel/loja?aba=configuracoes',
+  '/painel/loja/produtos/novo',
+  '/painel/loja/produtos/{produto}',
 ]
 
 /** Páginas de módulo que, com a Loja desligada, precisam responder 404. As de Fidelidade e Banners só entram na lista quando a tela existe. */
-const PAGINAS_LOJA_DESLIGADA = ['/fidelidade', '/banners', '/loja']
-const SEM_LOJA_404 = new Set(['/loja'])
+const PAGINAS_LOJA_DESLIGADA = ['/painel/fidelidade', '/painel/banners', '/painel/loja']
+const SEM_LOJA_404 = new Set(['/painel/loja'])
 
 type Resposta = { status: number; corpo: string }
 
@@ -251,7 +251,7 @@ async function main(): Promise<number> {
     const porta = await portaLivre()
     const host = `dev.localhost:${porta}`
     servidor = spawn(process.execPath, [resolve('node_modules/next/dist/bin/next'), 'start', '-p', String(porta)], {
-      env: { ...env, DEV_HOST: host, PAINEL_HOST: `painel.localhost:${porta}`, API_HOST: `api.localhost:${porta}`, WORKER_ENABLED: 'false' },
+      env: { ...env, DEV_HOST: host, APP_HOST: `app.localhost:${porta}`, WORKER_ENABLED: 'false' },
       stdio: ['ignore', 'ignore', 'inherit'],
     })
     let encerrou = false
@@ -317,11 +317,11 @@ async function main(): Promise<number> {
       : null
     let falhas = 0
     let pulados = 0
-    const hostPainel = `painel.localhost:${porta}`
+    const hostPainel = `app.localhost:${porta}`
     const lotes = [
       { host, cookie: `${DEV_COOKIE}=${token}`, paginas: PAGINAS, rotulo: 'dev' },
-      { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
-      { host: hostPainel, cookie: `${PAINEL_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_PAINEL, rotulo: 'painel' },
+      { host: hostPainel, cookie: `${APP_COOKIE}=${membro.token}`, paginas: PAGINAS_MODULOS, rotulo: 'módulos' },
     ]
     for (const lote of lotes) {
       for (const modelo of lote.paginas) {
@@ -354,7 +354,7 @@ async function main(): Promise<number> {
       const esperado = SEM_LOJA_404.has(caminho) ? 404 : null
       let linha: string
       try {
-        const r = await pedir(porta, hostPainel, caminho, `${PAINEL_COOKIE}=${membro.token}`)
+        const r = await pedir(porta, hostPainel, caminho, `${APP_COOKIE}=${membro.token}`)
         const bom = esperado === null ? r.status < 500 : r.status === esperado
         if (!bom) falhas++
         linha = `${bom ? 'OK   ' : 'FALHA'} ${String(r.status)} sem-loja ${caminho}${esperado === null ? '' : `  (esperava ${String(esperado)})`}`

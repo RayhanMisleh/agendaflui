@@ -146,7 +146,7 @@ describe('acceptInvite', () => {
 
 describe('ação de servidor da tela de definir senha', () => {
   async function chamar(token: string, password: string, confirm = password) {
-    const { definirSenha } = await import('@/app/painel/definir-senha/[token]/actions')
+    const { definirSenha } = await import('@/app/app/(entrada)/convite/[token]/actions')
     const form = new FormData()
     form.set('token', token)
     form.set('password', password)
@@ -195,7 +195,7 @@ describe('ação de servidor da tela de definir senha', () => {
   test('sem IP confiável o limite é por token: tokens lixo diferentes não travam um convite válido', async () => {
     vi.doMock('@/server/auth/request-info', () => ({ requestInfo: async () => ({}) }))
     vi.resetModules()
-    const { definirSenha } = await import('@/app/painel/definir-senha/[token]/actions')
+    const { definirSenha } = await import('@/app/app/(entrada)/convite/[token]/actions')
     const { token } = await novoConvite(new Date())
     const tentar = async (t: string) => {
       const form = new FormData()

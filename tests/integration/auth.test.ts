@@ -1,8 +1,8 @@
 import { vi } from 'vitest'
 import { AuthError } from '@/server/auth/actor'
-import { loginMember } from '@/app/painel/entrar/actions'
+import { loginMember } from '@/app/app/(entrada)/entrar/actions'
 import { SEM_CONTA } from '@/app/_lib/login-form'
-import { PAINEL_COOKIE, requireTenant } from '@/server/auth/guards'
+import { APP_COOKIE, requireTenant } from '@/server/auth/guards'
 import { getMemberSession, getTenantContext, loginUser, logoutUser } from '@/server/auth/member-auth'
 import { getPlatformActor, loginPlatformAdmin, logoutPlatform } from '@/server/auth/platform-auth'
 import { hashToken } from '@/server/auth/tokens'
@@ -114,8 +114,8 @@ test('login com uma conta ativa grava a sessão já nela e leva para o início',
   const form = new FormData()
   form.set('email', u.email)
   form.set('password', SENHA)
-  await expect(loginMember({ error: null, email: '' }, form)).rejects.toMatchObject({ to: '/' })
-  const token = jar.get(PAINEL_COOKIE)
+  await expect(loginMember({ error: null, email: '' }, form)).rejects.toMatchObject({ to: '/painel' })
+  const token = jar.get(APP_COOKIE)
   expect(token).toBeDefined()
   const sessao = await prisma.session.findFirstOrThrow({ where: { userId: u.id } })
   expect(sessao.activeBusinessId).toBe(b.id)
@@ -129,7 +129,7 @@ test('login sem nenhuma conta ativa devolve a frase e não deixa sessão nem coo
   form.set('email', u.email)
   form.set('password', SENHA)
   expect(await loginMember({ error: null, email: '' }, form)).toEqual({ error: SEM_CONTA, email: u.email })
-  expect(jar.has(PAINEL_COOKIE)).toBe(false)
+  expect(jar.has(APP_COOKIE)).toBe(false)
   expect(await prisma.session.count({ where: { userId: u.id, revokedAt: null } })).toBe(0)
 })
 test('requireTenant sem conta ativa manda para /entrar', async () => {
@@ -138,9 +138,9 @@ test('requireTenant sem conta ativa manda para /entrar', async () => {
   await makeMembership(b.id, u.id, 'OWNER')
   const { token } = await loginUser({ email: u.email, password: SENHA })
   await prisma.membership.updateMany({ where: { userId: u.id }, data: { active: false } })
-  jar.set(PAINEL_COOKIE, token)
+  jar.set(APP_COOKIE, token)
   await expect(requireTenant()).rejects.toMatchObject({ to: '/entrar' })
-  jar.delete(PAINEL_COOKIE)
+  jar.delete(APP_COOKIE)
   await expect(requireTenant()).rejects.toMatchObject({ to: '/entrar' })
 })
 test('quem só tem vínculo ativo numa conta suspensa entra sem nenhuma conta', async () => {

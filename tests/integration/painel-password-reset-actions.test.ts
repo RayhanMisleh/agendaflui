@@ -9,8 +9,8 @@ import { fakeMail } from '../setup/mail'
 
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.9' }) }))
 
-import { esqueciASenha } from '@/app/painel/esqueci-a-senha/actions'
-import { redefinirSenha } from '@/app/painel/redefinir-senha/[token]/actions'
+import { esqueciASenha } from '@/app/app/(entrada)/esqueci-a-senha/actions'
+import { redefinirSenha } from '@/app/app/(entrada)/redefinir-senha/[token]/actions'
 
 const mail = fakeMail()
 const MENSAGEM = 'Se houver uma conta com este e-mail, enviamos as instruções.'

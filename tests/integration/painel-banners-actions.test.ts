@@ -14,10 +14,10 @@ vi.mock('next/navigation', async (original) => {
   return { ...real, redirect: vi.fn((destino: string) => { throw Object.assign(new Error(`NEXT_REDIRECT ${destino}`), { digest: `NEXT_REDIRECT;replace;${destino};307;` }) }) }
 })
 
-import { alternarBanner, criarBanner, excluirBanner, moverBanner, salvarBanner } from '@/app/painel/(app)/banners/actions'
-import BannersPage from '@/app/painel/(app)/banners/page'
-import BannerPage from '@/app/painel/(app)/banners/[id]/page'
-import NovoBannerPage from '@/app/painel/(app)/banners/novo/page'
+import { alternarBanner, criarBanner, excluirBanner, moverBanner, salvarBanner } from '@/app/app/painel/banners/actions'
+import BannersPage from '@/app/app/painel/banners/page'
+import BannerPage from '@/app/app/painel/banners/[id]/page'
+import NovoBannerPage from '@/app/app/painel/banners/novo/page'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -46,7 +46,7 @@ const CAMPOS = { title: 'Natal', linkUrl: '', startsOn: '', endsOn: '' }
 
 describe('criar e salvar', () => {
   test('criar grava inativo e leva à ficha do banner', async () => {
-    await expect(criarBanner(ini, form({ ...CAMPOS, linkUrl: '/servicos', startsOn: '2026-12-01', endsOn: '2026-12-24' }))).rejects.toThrow(/NEXT_REDIRECT \/banners\//)
+    await expect(criarBanner(ini, form({ ...CAMPOS, linkUrl: '/servicos', startsOn: '2026-12-01', endsOn: '2026-12-24' }))).rejects.toThrow(/NEXT_REDIRECT \/painel\/banners\//)
     const [b] = await banners()
     expect(b).toMatchObject({ title: 'Natal', linkUrl: '/servicos', active: false, imageUploadId: null })
   })

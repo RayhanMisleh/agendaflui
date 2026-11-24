@@ -118,7 +118,7 @@ describe('hosts em produção', () => {
   test('LEGACY_PAINEL_HOST é opcional; se vier, não pode ser local nem igual aos outros', () => {
     expect(parseEnv(prod).LEGACY_PAINEL_HOST).toBeUndefined()
     expect(parseEnv({ ...prod, LEGACY_PAINEL_HOST: 'painel.exemplo.com' }).LEGACY_PAINEL_HOST).toBe('painel.exemplo.com')
-    expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'painel.localhost:3000' })).toMatch(/LEGACY_PAINEL_HOST/)
+    expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'app.localhost:3000' })).toMatch(/LEGACY_PAINEL_HOST/)
     expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'app.exemplo.com' })).toMatch(/LEGACY_PAINEL_HOST/)
     expect(mensagem({ ...prod, LEGACY_PAINEL_HOST: 'dev.exemplo.com' })).toMatch(/LEGACY_PAINEL_HOST/)
   })

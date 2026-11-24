@@ -1,5 +1,5 @@
 import { areaLink } from '@/server/area-links'
-import { PAINEL_COOKIE, readCookie, setSessionCookie } from '@/server/auth/guards'
+import { APP_COOKIE, readCookie, setSessionCookie } from '@/server/auth/guards'
 import { requestInfo } from '@/server/auth/request-info'
 import { checkSupportLimit, redeemSupport } from '@/server/auth/support-session'
 import { AuthError } from '@/server/auth/actor'
@@ -24,13 +24,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
     if (erro instanceof AuthError) return naoEncontrado()
     throw erro
   }
-  const anterior = await readCookie(PAINEL_COOKIE)
+  const anterior = await readCookie(APP_COOKIE)
   const sessao = await redeemSupport(
     token,
     { ...info, ...(anterior ? { previousToken: anterior } : {}) },
     agora,
   )
   if (!sessao) return naoEncontrado()
-  await setSessionCookie(PAINEL_COOKIE, sessao.sessionToken, sessao.expiresAt)
+  await setSessionCookie(APP_COOKIE, sessao.sessionToken, sessao.expiresAt)
   return new Response(null, { status: 303, headers: { ...CABECALHOS, Location: areaLink('app', '/painel') } })
 }

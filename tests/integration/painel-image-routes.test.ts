@@ -9,16 +9,16 @@ import { ctxWithRole, makeBusiness } from '../setup/factories'
 const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 
-import * as rotaBanner from '@/app/painel/(app)/banners/[id]/imagem/route'
-import * as rotaPremio from '@/app/painel/(app)/fidelidade/premios/[id]/imagem/route'
+import * as rotaBanner from '@/app/app/painel/banners/[id]/imagem/route'
+import * as rotaPremio from '@/app/app/painel/fidelidade/premios/[id]/imagem/route'
 
-const OK = { host: 'painel.localhost:3000', origin: 'http://painel.localhost:3000' }
+const OK = { host: 'app.localhost:3000', origin: 'http://app.localhost:3000' }
 const png = async (w = 800, h = 450) => new File([new Uint8Array(await sharp({ create: { width: w, height: h, channels: 3, background: '#0e4f5c' } }).png().toBuffer())], 'i.png', { type: 'image/png' })
 
 function pedido(base: string, id: string, campos: Record<string, string | File>, headers: Record<string, string> = OK) {
   const fd = new FormData()
   for (const [k, v] of Object.entries(campos)) fd.set(k, v)
-  return [new Request(`http://painel.localhost:3000${base}/${id}/imagem`, { method: 'POST', headers, body: fd }), { params: Promise.resolve({ id }) }] as const
+  return [new Request(`http://app.localhost:3000${base}/${id}/imagem`, { method: 'POST', headers, body: fd }), { params: Promise.resolve({ id }) }] as const
 }
 
 let businessId: string
@@ -37,8 +37,8 @@ beforeEach(async () => {
 afterEach(() => guards.requireTenant.mockReset())
 
 const alvos = [
-  { nome: 'banner', rota: rotaBanner, base: '/banners', volta: (id: string, c: string) => `/banners/${id}?imagem=${c}`, id: () => bannerId, coluna: async () => (await prisma.banner.findUniqueOrThrow({ where: { id: bannerId } })).imageUploadId },
-  { nome: 'prêmio', rota: rotaPremio, base: '/fidelidade/premios', volta: (id: string, c: string) => `/fidelidade/premios/${id}?imagem=${c}`, id: () => premioId, coluna: async () => (await prisma.prize.findUniqueOrThrow({ where: { id: premioId } })).imageUploadId },
+  { nome: 'banner', rota: rotaBanner, base: '/banners', volta: (id: string, c: string) => `/painel/banners/${id}?imagem=${c}`, id: () => bannerId, coluna: async () => (await prisma.banner.findUniqueOrThrow({ where: { id: bannerId } })).imageUploadId },
+  { nome: 'prêmio', rota: rotaPremio, base: '/fidelidade/premios', volta: (id: string, c: string) => `/painel/fidelidade/premios/${id}?imagem=${c}`, id: () => premioId, coluna: async () => (await prisma.prize.findUniqueOrThrow({ where: { id: premioId } })).imageUploadId },
 ]
 
 describe.each(alvos)('envio de imagem do $nome', ({ rota, base, volta, id, coluna }) => {

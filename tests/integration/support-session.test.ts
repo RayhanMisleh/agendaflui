@@ -298,7 +298,7 @@ describe('suporte encerrado por outro caminho', () => {
 
   test('sessão de suporte abre a conta da sessão em requireTenant, sem passar pela entrada', async () => {
     const { sessionToken, expiresAt } = await abrir(new Date())
-    jar.set('af_painel_session', { value: sessionToken, options: { expires: expiresAt } })
+    jar.set('af_session', { value: sessionToken, options: { expires: expiresAt } })
     const ctx = await requireTenant()
     expect(ctx.businessId).toBe(business.id)
     expect(ctx.actor.kind).toBe('impersonator')
@@ -320,7 +320,7 @@ describe('entrada do membro (pendência da Fase 1)', () => {
 })
 
 describe('rota /suporte/[token]', () => {
-  const PAINEL_COOKIE = 'af_painel_session'
+  const APP_COOKIE = 'af_session'
 
   async function chamar(token: string) {
     const { GET } = await import('@/app/app/suporte/[token]/route')
@@ -334,7 +334,7 @@ describe('rota /suporte/[token]', () => {
     expect(res.headers.get('location')).toBe('http://app.localhost:3000/painel')
     expect(res.headers.get('referrer-policy')).toBe('no-referrer')
     expect(res.headers.get('cache-control')).toBe('no-store')
-    const cookie = jar.get(PAINEL_COOKIE)
+    const cookie = jar.get(APP_COOKIE)
     expect(cookie?.options).toMatchObject({ httpOnly: true, sameSite: 'lax', path: '/' })
     const sessao = await prisma.session.findFirstOrThrow()
     expect(hashToken(cookie?.value ?? '')).toBe(sessao.tokenHash)
@@ -353,18 +353,18 @@ describe('rota /suporte/[token]', () => {
       expect(res.headers.get('referrer-policy')).toBe('no-referrer')
       expect(res.headers.get('cache-control')).toBe('no-store')
     }
-    expect(jar.has(PAINEL_COOKIE)).toBe(false)
+    expect(jar.has(APP_COOKIE)).toBe(false)
   })
 
   test('a troca pelo navegador revoga a sessão de membro que já estava no cookie', async () => {
     const user = await makeUser({ password: 'senha-bem-longa' })
     await makeMembership(business.id, user.id, 'OWNER')
     const membro = await loginUser({ email: user.email, password: 'senha-bem-longa', ip: '203.0.113.2' })
-    jar.set(PAINEL_COOKIE, { value: membro.token, options: {} })
+    jar.set(APP_COOKIE, { value: membro.token, options: {} })
     const token = tokenDaUrl((await startSupport(actor, business.id)).url)
     await chamar(token)
     expect(await getTenantContext(membro.token)).toBeNull()
-    expect(jar.get(PAINEL_COOKIE)?.value).not.toBe(membro.token)
+    expect(jar.get(APP_COOKIE)?.value).not.toBe(membro.token)
   })
 
   test('limite por IP: depois de 30 pedidos em 15 minutos, até o token bom vira 404', async () => {

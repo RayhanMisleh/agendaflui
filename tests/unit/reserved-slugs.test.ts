@@ -30,3 +30,19 @@ test('slugSchema recusa nome reservado e aceita os outros', () => {
   expect(isReservedSlug('google')).toBe(true)
   expect(isReservedSlug('demo')).toBe(false)
 })
+
+function pastasDePrimeiroNivel(dir: string): string[] {
+  return readdirSync(dir).flatMap((nome) => {
+    const caminho = join(dir, nome)
+    if (!statSync(caminho).isDirectory()) return []
+    if (nome.startsWith('_') || /^\[.*\]$/.test(nome)) return []
+    if (/^\(.*\)$/.test(nome)) return pastasDePrimeiroNivel(caminho)
+    return [nome]
+  })
+}
+
+test('toda pasta de primeiro nível de src/app/app é nome reservado', () => {
+  const pastas = pastasDePrimeiroNivel(join(process.cwd(), 'src/app/app'))
+  expect(pastas.length).toBeGreaterThan(3)
+  for (const nome of pastas) expect(RESERVED_SLUGS, `a pasta ${nome} precisa estar em RESERVED_SLUGS`).toContain(nome)
+})

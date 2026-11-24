@@ -201,7 +201,7 @@ describe('createLocalDiskStorage', () => {
 describe('GET /arquivos/[...key]', () => {
   const chamar = async (metodo: 'GET' | 'HEAD', key: string[]) => {
     const rota = await import('@/app/arquivos/[...key]/route')
-    return rota[metodo](new Request('http://painel.localhost/arquivos/' + key.join('/')), {
+    return rota[metodo](new Request('http://app.localhost/arquivos/' + key.join('/')), {
       params: Promise.resolve({ key }),
     })
   }

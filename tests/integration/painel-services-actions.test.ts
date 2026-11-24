@@ -16,7 +16,7 @@ import {
   editarServico,
   moverServico,
   restaurarServico,
-} from '@/app/painel/(app)/servicos/actions'
+} from '@/app/app/painel/servicos/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'

@@ -8,8 +8,8 @@ const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { ajustarAtendimento, avisarLivre, marcarHorario, mudarSituacao } from '@/app/painel/(app)/agenda/actions'
-import { bloquearHorario } from '@/app/painel/(app)/equipe/actions'
+import { ajustarAtendimento, avisarLivre, marcarHorario, mudarSituacao } from '@/app/app/painel/agenda/actions'
+import { bloquearHorario } from '@/app/app/painel/equipe/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const MANAUS = 'America/Manaus'

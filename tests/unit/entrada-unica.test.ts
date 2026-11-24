@@ -5,8 +5,8 @@ import { arquivosCom } from '../setup/varredura'
 const RAIZ = resolve(__dirname, '../..')
 
 test('as telas de entrada por conta e de escolher conta não existem mais', () => {
-  expect(existsSync(resolve(RAIZ, 'src/app/painel/entrar/[slug]'))).toBe(false)
-  expect(existsSync(resolve(RAIZ, 'src/app/painel/escolher-conta'))).toBe(false)
+  expect(existsSync(resolve(RAIZ, 'src/app/app/(entrada)/entrar/[slug]'))).toBe(false)
+  expect(existsSync(resolve(RAIZ, 'src/app/app/(entrada)/escolher-conta'))).toBe(false)
 })
 
 test('nenhum código cita /escolher-conta, BRAND_COOKIE nem link de entrada por conta', () => {

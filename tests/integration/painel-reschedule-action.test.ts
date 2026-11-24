@@ -7,7 +7,7 @@ const guards = vi.hoisted(() => ({ requireTenant: vi.fn() }))
 vi.mock('@/server/auth/guards', () => guards)
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-import { remarcarAtendimento } from '@/app/painel/(app)/agenda/actions'
+import { remarcarAtendimento } from '@/app/app/painel/agenda/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const MANAUS = 'America/Manaus'

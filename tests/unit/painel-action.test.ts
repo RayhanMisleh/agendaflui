@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { DomainError } from '@/server/domain/errors'
-import { tenantAction } from '@/app/painel/(app)/_lib/action'
+import { tenantAction } from '@/app/app/painel/_lib/action'
 import type { FormState } from '@/app/_lib/form-state'
 import type { TenantContext } from '@/server/auth/actor'
 
@@ -127,7 +127,7 @@ describe('redirect e notFound passam adiante, de run e de done', () => {
 
   test('redirect lançado por run', async () => {
     guards.requireTenant.mockResolvedValue(membro('OWNER'))
-    const run = async (): Promise<string> => redirect('/equipe')
+    const run = async (): Promise<string> => redirect('/painel/equipe')
     await expect(tenantAction('manage_team', generico, run, done)(vazio, formulario('x'))).rejects.toMatchObject({
       digest: expect.stringContaining('NEXT_REDIRECT'),
     })
@@ -135,7 +135,7 @@ describe('redirect e notFound passam adiante, de run e de done', () => {
 
   test('redirect lançado por done', async () => {
     guards.requireTenant.mockResolvedValue(membro('OWNER'))
-    const fim = (): FormState<V> => redirect('/equipe')
+    const fim = (): FormState<V> => redirect('/painel/equipe')
     await expect(tenantAction('manage_team', generico, async () => 'ok', fim)(vazio, formulario('x'))).rejects.toMatchObject({
       digest: expect.stringContaining('NEXT_REDIRECT'),
     })

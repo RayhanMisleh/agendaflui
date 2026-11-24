@@ -20,7 +20,7 @@ import {
   criarCliente,
   editarCliente,
   restaurarCliente,
-} from '@/app/painel/(app)/clientes/actions'
+} from '@/app/app/painel/clientes/actions'
 
 const ini = { ok: false, message: null, fields: {}, values: {} } as never
 const NEGADO = 'Você não tem permissão para fazer isso.'
@@ -48,7 +48,7 @@ afterEach(() => {
 
 describe('criar e editar', () => {
   test('cria o cliente com telefone formatado à brasileira e vai para a ficha', async () => {
-    await expect(criarCliente(ini, form({ name: 'João Silva', phone: '(11) 91234-5678', email: 'JOAO@exemplo.com' }))).rejects.toThrow(/NEXT_REDIRECT \/clientes\//)
+    await expect(criarCliente(ini, form({ name: 'João Silva', phone: '(11) 91234-5678', email: 'JOAO@exemplo.com' }))).rejects.toThrow(/NEXT_REDIRECT \/painel\/clientes\//)
     const c = await prisma.customer.findFirstOrThrow({ where: { businessId } })
     expect(c).toMatchObject({ name: 'João Silva', phone: '5511912345678', email: 'joao@exemplo.com', origin: 'PANEL' })
   })
