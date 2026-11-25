@@ -79,6 +79,17 @@
       line-height: var(--text-body-lh);
       text-align: center;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* Setas quadradas de 44 px e "Hoje" com folga menor: a data cabe inteira entre elas mesmo a 320 px. */
+    .af-agenda__nav > .af-button:nth-child(1),
+    .af-agenda__nav > .af-button:nth-child(3) {
+      min-width: 44px;
+      padding-inline: 0;
+    }
+    .af-agenda__nav > .af-button:nth-child(2) {
+      padding-inline: 0.875rem;
     }
     .af-agenda__title-long {
       display: none;

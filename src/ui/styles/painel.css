@@ -729,6 +729,12 @@
   .af-hours__time::-webkit-calendar-picker-indicator {
     margin-inline-start: 0.125rem;
   }
+  /* Tela muito estreita: sem o relógio do seletor (o horário se digita ou se escolhe no teclado do aparelho). */
+  @media (max-width: 22.5rem) {
+    .af-hours__time::-webkit-calendar-picker-indicator {
+      display: none;
+    }
+  }
   .af-hours__error {
     grid-column: 1 / -1;
     margin: 0;
