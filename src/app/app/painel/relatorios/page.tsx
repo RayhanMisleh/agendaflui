@@ -15,7 +15,7 @@ import { BarList, Card, DateRangeField, EmptyHint, Field, NavTabs, Pagination, S
 import type { BarItem } from '@/ui/components'
 import { formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ATALHOS, periodoDaUrl } from './periodo'
 import { Detalhe, PorProfissional, PorServico } from './RelatorioTabelas'
 import { TERMS } from '@/shared/terms'
@@ -93,7 +93,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
   const resumo = dados?.resumo
 
   return (
-    <PainelFrame ctx={ctx} title={titulo}>
+    <ShellPage title={titulo}>
       <div className="af-report">
         <Card as="section" aria-label="Período e filtros" className="af-report__filters">
           <NavTabs label="Períodos prontos" items={atalhos} />
@@ -216,6 +216,6 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
           </>
         ) : null}
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

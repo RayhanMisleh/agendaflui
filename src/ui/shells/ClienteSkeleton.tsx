@@ -67,29 +67,16 @@ function Corpo({ variant }: { variant: ClienteSkeletonVariant }) {
 }
 
 /**
- * Esqueleto de uma tela da área do cliente: a mesma moldura (barra do topo e navegação da base) com blocos que pulsam no
- * lugar do conteúdo. Cada `loading.tsx` escolhe a forma da sua tela. A classe `af-shell--skeleton` tira o esqueleto das
- * transições de página (ele não leva nome de transição).
+ * Esqueleto do MIOLO de uma tela da área do cliente: só o cabeçalho e o conteúdo, com blocos que pulsam. A moldura (barra do
+ * topo e navegação) é do layout e fica de pé enquanto isto aparece: nada aqui desenha menu. Cada `loading.tsx` escolhe a
+ * forma da sua tela. Sem `PageTransition`: o esqueleto não anima, a página real é que entra.
  */
 export function ClienteSkeleton({ variant }: { variant: ClienteSkeletonVariant }) {
   return (
-    <div role="status" className="af-cl-shell af-shell--skeleton">
+    <div role="status" className="af-cl-inner af-cl-skel__body">
       <span className="af-sr">Carregando…</span>
-      <div className="af-cl-top">
-        <Bloco w="7.5rem" h="1.5rem" />
-        <div className="af-cl-nav af-cl-nav--skel" aria-hidden="true">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Bloco key={i} h="2.75rem" />
-          ))}
-        </div>
-        <Bloco w="2.25rem" h="2.25rem" className="af-skel--round" />
-      </div>
-      <div className="af-cl-main">
-        <div className="af-cl-inner af-cl-skel__body">
-          <Bloco w="12rem" h="2rem" />
-          <Corpo variant={variant} />
-        </div>
-      </div>
+      <Bloco w="12rem" h="2rem" />
+      <Corpo variant={variant} />
     </div>
   )
 }

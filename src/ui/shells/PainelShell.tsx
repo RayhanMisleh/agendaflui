@@ -21,14 +21,12 @@ export function PainelShell(p: {
   supportBanner?: string
   /** Botão da faixa de suporte ("Encerrar"). */
   supportAction?: ReactNode
-  title: string
-  actions?: ReactNode
   children: ReactNode
   testId?: string
   embedded?: boolean
   phone?: boolean
   contentId?: string
-  headingLevel?: 1 | 2
+  label?: string
 }) {
   const dark = p.theme.material === 'leather' || p.theme.material === 'wood'
   return (
@@ -43,12 +41,10 @@ export function PainelShell(p: {
         accountActions={p.accountActions}
         banner={p.supportBanner}
         bannerAction={p.supportAction}
-        title={p.title}
-        actions={p.actions}
         embedded={p.embedded}
         phone={p.phone}
         contentId={p.contentId}
-        headingLevel={p.headingLevel}
+        label={p.label}
       >
         {p.children}
       </ShellFrame>

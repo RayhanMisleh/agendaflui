@@ -111,6 +111,13 @@
     background: transparent;
     color: var(--ink);
   }
+  /* Celular: o aviso sobe acima da navegação em pílula e da área segura, na largura da tela. */
+  @media (max-width: 47.9375rem) {
+    .af-toasts {
+      inset: auto 0.75rem calc(var(--af-nav-clearance, 5.25rem) + env(safe-area-inset-bottom)) 0.75rem;
+      width: auto;
+    }
+  }
   .af-toasts:not(:popover-open) {
     display: none;
   }

@@ -5,7 +5,7 @@ import { roleLabel } from '@/server/auth/role-labels'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { listTeamOverview } from '@/server/domain/team/sheet'
 import { Card, EmptyState, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { EquipeTabela } from './EquipeTabela'
 import type { EquipeLinha } from './EquipeTabela'
 import { TERMS } from '@/shared/terms'
@@ -28,8 +28,7 @@ export default async function EquipePage() {
   }))
 
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={terms.professionalPlural}
       actions={
         <LinkButton href="/painel/equipe/novo" variant="primary" icon={<UserPlus size={18} />}>
@@ -53,6 +52,6 @@ export default async function EquipePage() {
           }
         />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

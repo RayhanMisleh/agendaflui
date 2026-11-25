@@ -10,6 +10,11 @@
     --side-w: 264px;
     /* Altura da faixa de suporte: 0 sem faixa. A barra lateral e a barra do topo começam abaixo dela. */
     --support-h: 0px;
+    /*
+     * Espaço que a pílula de navegação ocupa na base do celular (pílula de ~4 rem + margem de 0,75 rem + folga). As barras
+     * presas do miolo (Salvar do formulário, ações da agenda) e os avisos param acima dela; a área segura soma à parte.
+     */
+    --af-nav-clearance: 5.25rem;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -649,5 +654,19 @@
   }
   .af-shell--phone .af-shell__actions > * {
     flex: 1 1 auto;
+  }
+
+  /*
+   * Páginas dentro da moldura persistente: a falha (error.tsx) fica no miolo, não ocupa a tela toda; e o link de volta de
+   * Minha conta, que agora mora na página, não estica a coluna.
+   */
+  .af-shell__main .af-fallback {
+    min-height: min(32rem, 70dvh);
+    padding-inline: 0;
+    background: none;
+  }
+  .af-account__main > .af-account__back {
+    justify-self: start;
+    margin-inline-start: -0.5rem;
   }
 }

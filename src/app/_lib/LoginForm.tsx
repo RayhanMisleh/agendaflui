@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { CircleAlert } from 'lucide-react'
 import type { LoginState } from '@/app/_lib/login-form'
 import { Button, Field, Input } from '@/ui/components'
+import { PasswordInput } from './PasswordInput'
 
 /** Formulário de entrada. Funciona sem JavaScript: a action de servidor é a action nativa do formulário. */
 export function LoginForm({
@@ -36,7 +37,7 @@ export function LoginForm({
         />
       </Field>
       <Field label="Senha">
-        <Input name="password" type="password" autoComplete="current-password" required invalid={state.error !== null} />
+        <PasswordInput name="password" autoComplete="current-password" required invalid={state.error !== null} />
       </Field>
       {forgotHref ? (
         <p className="af-entry__foot">

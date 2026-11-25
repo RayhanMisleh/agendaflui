@@ -47,7 +47,9 @@
     vertical-align: middle;
     min-width: 0;
     color: var(--ink);
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+    /* Tabela: nenhuma coluna espreme abaixo da largura mínima (a principal tem mais); o que não couber rola por dentro. */
+    min-width: var(--dl-col-min, 0);
   }
   .af-datalist__table th {
     display: var(--dl-cell, grid);
@@ -56,6 +58,15 @@
   .af-datalist__table td[data-primary] {
     display: var(--dl-cell, block);
     font-weight: 700;
+    min-width: var(--dl-primary-min, 0);
+  }
+  /* Texto longo de célula (descrição, lista de serviços): no máximo duas linhas, com reticências. */
+  .af-clamp {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
   }
   .af-datalist__label {
     display: var(--dl-label, inline);
@@ -106,6 +117,8 @@
       --dl-row-border: 0;
       --dl-row-radius: 0;
       --dl-row-bg: transparent;
+      --dl-col-min: 7rem;
+      --dl-primary-min: 13rem;
       --cell-px: 0.875rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
@@ -124,6 +137,8 @@
       --dl-row-border: 0;
       --dl-row-radius: 0;
       --dl-row-bg: transparent;
+      --dl-col-min: 7rem;
+      --dl-primary-min: 13rem;
       --cell-px: 0.875rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
@@ -142,6 +157,8 @@
       --dl-row-border: 0;
       --dl-row-radius: 0;
       --dl-row-bg: transparent;
+      --dl-col-min: 7rem;
+      --dl-primary-min: 13rem;
       --cell-px: 0.875rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
@@ -221,10 +238,13 @@
   @media (max-width: 40rem) {
     .af-tabs {
       flex-wrap: nowrap;
-      padding-inline: 1rem;
+      margin-inline: calc(var(--bleed) * -1);
+      padding-inline: var(--bleed);
+      scroll-padding-inline: var(--bleed);
+      overscroll-behavior-x: contain;
       overflow-x: auto;
       scrollbar-width: none;
-      mask-image: linear-gradient(90deg, transparent 0, var(--ink) 1rem, var(--ink) calc(100% - 1rem), transparent 100%);
+      mask-image: linear-gradient(90deg, transparent 0, var(--ink) var(--bleed), var(--ink) calc(100% - var(--bleed)), transparent 100%);
     }
     .af-tabs::-webkit-scrollbar {
       display: none;

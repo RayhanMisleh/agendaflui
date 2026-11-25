@@ -23,7 +23,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { arquivarPet, editarPet, restaurarPet } from '@/app/app/[slug]/pets/actions'
+import { arquivarPet, editarPet, restaurarPet } from '@/app/app/[slug]/(area)/pets/actions'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 
 async function montar(o: { servesCats?: boolean } = {}) {

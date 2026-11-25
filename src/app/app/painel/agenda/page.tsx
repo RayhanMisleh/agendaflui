@@ -4,7 +4,7 @@ import { requireTenant } from '@/server/auth/guards'
 import { getAgendaPage } from '@/server/domain/scheduling/agenda-page'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { um } from '@/app/_lib/params'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { AgendaPainel } from './AgendaPainel'
 import { TERMS } from '@/shared/terms'
 
@@ -19,7 +19,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
   ])
   const acao = um(q.acao)
   return (
-    <PainelFrame ctx={ctx} title="Agenda">
+    <ShellPage title="Agenda">
       <AgendaPainel
         page={page}
         termos={{ customerSingular: TERMS.customerSingular, professionalSingular: TERMS.professionalSingular, professionalPlural: TERMS.professionalPlural }}
@@ -29,6 +29,6 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
         podeCadastrar={can(ctx.actor, 'manage_clients')}
         podeEquipe={can(ctx.actor, 'manage_team')}
       />
-    </PainelFrame>
+    </ShellPage>
   )
 }

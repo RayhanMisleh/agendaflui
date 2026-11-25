@@ -7,6 +7,9 @@
   --af-dur-fast: 150ms;
   --af-dur: 200ms;
   --af-dur-slow: 250ms;
+  /* Troca de página: o antigo sai rápido e o novo chega um pouco mais devagar. */
+  --af-dur-out: 100ms;
+  --af-dur-in: 180ms;
   --af-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
@@ -16,10 +19,10 @@
 }
 
 /*
- * A barra lateral do computador, e no celular a barra do topo e a pílula de navegação, são elementos fixos entre as
- * páginas: não animam e ficam acima do conteúdo que troca (z-index 100), senão o snapshot da página os cobre. O menu da
- * conta é um <dialog> modal (camada superior), não um `position: fixed` dentro dessas barras. O esqueleto não leva o
- * nome, para ele nunca duplicar o da moldura.
+ * A moldura (barra lateral no computador; barra do topo e pílula de navegação no celular) mora no layout e persiste entre
+ * as páginas: ela nunca remonta. Mesmo assim ganha nome de transição, para o snapshot da página que troca (que é um grupo
+ * à parte e pinta acima do resto) não cobrir as barras fixas: elas ficam acima (z-index 100) e não animam. O menu da conta
+ * é um <dialog> modal (camada superior), não um `position: fixed` dentro dessas barras. O esqueleto não desenha moldura.
  */
 @media (min-width: 768px) {
   .af-shell:not(.af-shell--phone):not(.af-shell--embedded):not(.af-shell--skeleton) .af-shell__side {
@@ -51,13 +54,21 @@
   animation: none;
 }
 
+/* O que não tem nome (o destino ativo do menu, por exemplo) troca num fundido curto, sem deslocar nada. */
+::view-transition-group(root) {
+  animation-duration: var(--af-dur-fast);
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  /* Página: o conteúdo antigo sai rápido e o novo chega de leve, com no máximo 8 px de deslocamento. */
+  /*
+   * Página: só o miolo troca. O antigo sai por opacidade (100 ms) e o novo chega por opacidade com 4 px de subida (180 ms),
+   * sobrepostos, sem espera entre os dois: nunca fica um vazio. O mesmo vale para o esqueleto (saída) e a página (entrada).
+   */
   ::view-transition-old(.af-page) {
-    animation: af-page-out var(--af-dur-fast) var(--af-ease) both;
+    animation: af-page-out var(--af-dur-out) var(--af-ease) both;
   }
   ::view-transition-new(.af-page) {
-    animation: af-page-in var(--af-dur) var(--af-ease) var(--af-dur-fast) both;
+    animation: af-page-in var(--af-dur-in) var(--af-ease) both;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -72,13 +83,12 @@
 @keyframes af-page-out {
   to {
     opacity: 0;
-    transform: translateY(-4px);
   }
 }
 @keyframes af-page-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
 }
 @keyframes af-enter {

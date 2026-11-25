@@ -5,33 +5,38 @@ import { NightScope, ThemeScope } from '../theme/ThemeScope'
 import { AGENDAFLUI_BRAND } from '../theme/default-brand'
 import { deriveTheme } from '../theme/derive'
 import type { ThemeTokens } from '../theme/derive'
+import { Skeleton } from '../components/Skeleton'
 import { BrandMark } from './BrandMark'
+import { EntryStage } from './EntryStage'
 
-/**
- * Tela de entrada, em duas partes: à esquerda o bloco de destaque (cor da conta, bolhas, logo e uma frase grande);
- * à direita o formulário num cartão que flutua. No celular o bloco vira uma faixa no topo e o cartão sobe sobre ela.
- * No painel dev (`variant="dev"`) a tela inteira usa o tema noite da marca.
- */
-export function EntryScreen(p: {
+type Brand = { name: string; logoUrl: string | null; symbolUrl: string | null; loginImageUrl?: string | null; platform?: boolean }
+
+type FrameProps = {
   /** Tema da conta; sem ele vale o da marca Agenda Flui. No dev vale sempre o tema noite. */
   theme?: ThemeTokens
   variant?: 'painel' | 'dev'
-  brand: { name: string; logoUrl: string | null; symbolUrl: string | null; loginImageUrl?: string | null; platform?: boolean }
+  brand: Brand
   /** A frase grande do bloco de destaque: "A agenda que flui.", o nome da conta ou "Painel da plataforma". */
   headline: string
   /** Frase de apoio sob a frase grande (a mensagem de entrada da conta). */
   lede?: string | null
-  title: string
-  message?: string | null
-  children: ReactNode
-  testId?: string
   /** Cartão mais largo, para a escolha de conta. */
   wide?: boolean
   /** Dentro de outra página (vitrine): altura própria e borda de cartão. */
   embedded?: boolean
   /** Com `embedded`, mostra a tela do celular (bloco como faixa no topo) em vez da do computador. */
   phone?: boolean
-}) {
+  testId?: string
+  children: ReactNode
+}
+
+/**
+ * A moldura da entrada: o bloco de destaque (cor da conta, bolhas, logo e uma frase grande) e o cartão que flutua. Mora
+ * no `layout.tsx` das telas de entrada, então não remonta ao trocar de tela: só o conteúdo do cartão (`EntryBody`) muda, e
+ * o cartão acompanha a altura dele com animação. No celular o bloco vira uma faixa no topo e o cartão sobe sobre ela. No
+ * painel dev (`variant="dev"`) a tela inteira usa o tema noite da marca.
+ */
+export function EntryFrame(p: FrameProps) {
   const image = p.brand.loginImageUrl ?? null
   const body = (
     <main className={cx('af-entry', p.variant === 'dev' && 'af-entry--dev', image && 'af-entry--image', p.embedded && 'af-entry--embedded', p.phone && 'af-entry--phone')}>
@@ -56,13 +61,9 @@ export function EntryScreen(p: {
         ) : null}
       </section>
       <div className="af-entry__panel">
-        <section className={cx('af-card af-entry__card', p.wide && 'af-entry__card--wide')} aria-labelledby="entrada-titulo">
-          <h1 id="entrada-titulo" className="af-entry__title">
-            {p.title}
-          </h1>
-          {p.message ? <p className="af-entry__message">{p.message}</p> : null}
-          {p.children}
-        </section>
+        <div className={cx('af-card af-entry__card', p.wide && 'af-entry__card--wide')}>
+          <EntryStage>{p.children}</EntryStage>
+        </div>
         <p className="af-entry__foot">Agenda feita com Agenda Flui</p>
       </div>
     </main>
@@ -72,5 +73,39 @@ export function EntryScreen(p: {
     <ThemeScope theme={p.theme ?? deriveTheme(AGENDAFLUI_BRAND)} testId={p.testId ?? 'entry-screen'}>
       {body}
     </ThemeScope>
+  )
+}
+
+/** O conteúdo do cartão de uma tela: título, mensagem e o corpo. Entra com um movimento curto (só opacidade e 6 px). */
+export function EntryBody(p: { title: string; message?: string | null; children: ReactNode; testId?: string }) {
+  return (
+    <section className="af-entry__body" aria-labelledby="entrada-titulo" data-testid={p.testId}>
+      <h1 id="entrada-titulo" className="af-entry__title">
+        {p.title}
+      </h1>
+      {p.message ? <p className="af-entry__message">{p.message}</p> : null}
+      {p.children}
+    </section>
+  )
+}
+
+/** O que aparece no cartão enquanto a tela carrega: o cartão e a moldura ficam, só o miolo é esqueleto. */
+export function EntryBodySkeleton() {
+  return (
+    <div className="af-entry__body af-entry__body--wait">
+      <Skeleton lines={4} />
+    </div>
+  )
+}
+
+/** Uma tela de entrada inteira (moldura e cartão), para telas avulsas fora de um layout de entrada. */
+export function EntryScreen(p: Omit<FrameProps, 'children'> & { title: string; message?: string | null; children: ReactNode }) {
+  const { title, message, children, ...frame } = p
+  return (
+    <EntryFrame {...frame}>
+      <EntryBody title={title} message={message}>
+        {children}
+      </EntryBody>
+    </EntryFrame>
   )
 }

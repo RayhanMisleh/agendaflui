@@ -7,16 +7,14 @@ import type { NavItem } from './nav'
 export function DevShell(p: {
   nav: NavItem[]
   admin: { name: string }
-  title: string
   /** Meu perfil e Sair: vão no pé da barra e no menu da conta do celular. */
   accountActions?: ReactNode
-  actions?: ReactNode
   children: ReactNode
   testId?: string
   embedded?: boolean
   phone?: boolean
   contentId?: string
-  headingLevel?: 1 | 2
+  label?: string
 }) {
   return (
     <NightScope testId={p.testId ?? 'dev-shell'}>
@@ -27,12 +25,10 @@ export function DevShell(p: {
         nav={p.nav}
         user={{ name: p.admin.name, roleLabel: 'Administração', avatarUrl: null }}
         accountActions={p.accountActions}
-        title={p.title}
-        actions={p.actions}
         embedded={p.embedded}
         phone={p.phone}
         contentId={p.contentId}
-        headingLevel={p.headingLevel}
+        label={p.label}
       >
         {p.children}
       </ShellFrame>

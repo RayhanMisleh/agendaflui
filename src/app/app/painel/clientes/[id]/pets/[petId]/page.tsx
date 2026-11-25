@@ -11,7 +11,7 @@ import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { PET_NICHE } from '@/server/niches/pet'
 import { AvatarUpload, Card, LinkButton, PetCard } from '@/ui/components'
 import { um, porCodigo } from '@/app/_lib/params'
-import { PainelFrame } from '../../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { PetCuidados } from '../PetCuidados'
 import { PetForm } from '../PetForm'
 
@@ -55,8 +55,7 @@ export default async function PetPage({
   const novo = um(q.novo) === '1'
 
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={pet.name}
       actions={
         <LinkButton href={`/painel/clientes/${cliente.id}`} variant="ghost">
@@ -131,6 +130,6 @@ export default async function PetPage({
           </Card>
         ) : null}
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

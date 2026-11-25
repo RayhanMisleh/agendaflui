@@ -2,6 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import { CalendarDays, Users } from 'lucide-react'
 import { PainelShell } from '@/ui/shells/PainelShell'
+import { ShellPage } from '@/ui/shells/ShellPage'
 import { deriveTheme } from '@/ui/theme/derive'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 
@@ -14,7 +15,6 @@ const base = {
     { href: '/clientes', label: 'Clientes', icon: Users, disabled: true },
   ],
   user: { name: 'Marina Lopes', roleLabel: 'Dona', avatarUrl: null },
-  title: 'Agenda do dia',
 }
 
 test('sem logo, a marca aparece pelo nome', () => {
@@ -66,7 +66,11 @@ test('o tema chega ao elemento raiz', () => {
 })
 
 test('há um único h1 e o link de pular para o conteúdo', () => {
-  render(<PainelShell {...base}>x</PainelShell>)
+  render(
+    <PainelShell {...base}>
+      <ShellPage title="Agenda do dia">x</ShellPage>
+    </PainelShell>,
+  )
   expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   expect(screen.getByRole('link', { name: 'Pular para o conteúdo' })).toHaveAttribute('href', '#conteudo')
 })

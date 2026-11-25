@@ -6,7 +6,7 @@ import { formatBrl } from '@/server/notifications/render'
 import { Card, EmptyState, LinkButton, MiniBars, STATE_TEXT, StatNumber, StatTile, StatusDot, describeTrend } from '@/ui/components'
 import type { StateTone } from '@/ui/components'
 import { formatInt } from '@/ui/format'
-import { DevFrame } from './DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { HorariosNota } from './_lib/HorariosNota'
 import { quando } from './_lib/format'
 import { QuietTable } from './QuietTable'
@@ -39,7 +39,7 @@ export default async function VisaoGeralPage() {
 
   if (total === 0) {
     return (
-      <DevFrame admin={admin} title="Visão geral" actions={criar}>
+      <ShellPage title="Visão geral" actions={criar}>
         <Card className="af-listpanel">
           <EmptyState
             title="Ainda não há dados para mostrar"
@@ -51,7 +51,7 @@ export default async function VisaoGeralPage() {
             }
           />
         </Card>
-      </DevFrame>
+      </ShellPage>
     )
   }
 
@@ -59,7 +59,7 @@ export default async function VisaoGeralPage() {
   const quietas = o.quietAccounts.map((c) => ({ id: c.id, name: c.name, ultima: c.lastActivityAt ? quando(c.lastActivityAt) : null }))
 
   return (
-    <DevFrame admin={admin} title="Visão geral" actions={criar}>
+    <ShellPage title="Visão geral" actions={criar}>
       <div className="af-overview">
         {o.skippedAccounts > 0 ? (
           <p className="af-wizard__note" role="note">
@@ -174,6 +174,6 @@ export default async function VisaoGeralPage() {
           </LinkButton>
         </p>
       </div>
-    </DevFrame>
+    </ShellPage>
   )
 }

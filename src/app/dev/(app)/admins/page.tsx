@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { listAdmins } from '@/server/domain/platform/admins'
-import { DevFrame } from '../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
 import { AdminsPanel } from './AdminsPanel'
@@ -24,9 +24,9 @@ export default async function AdminsPage() {
     alternar: a.id === admin.adminId ? null : (a.active ? desativarAdmin : reativarAdmin).bind(null, a.id),
   }))
   return (
-    <DevFrame admin={admin} title="Admins">
+    <ShellPage title="Admins">
       <HorariosNota />
       <AdminsPanel criar={criarAdmin} admins={admins} />
-    </DevFrame>
+    </ShellPage>
   )
 }

@@ -31,8 +31,8 @@ const quiz = vi.hoisted(() => ({ needs: vi.fn(async () => false) }))
 vi.mock('@/server/auth/pet-onboarding', () => ({ needsPetQuiz: quiz.needs }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { entrarNaLoja } from '@/app/app/[slug]/entrar/actions'
-import { confirmarCadastro, pedirCodigo } from '@/app/app/[slug]/cadastro/actions'
+import { entrarNaLoja } from '@/app/app/[slug]/(acesso)/entrar/actions'
+import { concluirCadastro, confirmarCadastro, pedirCodigo } from '@/app/app/[slug]/(acesso)/cadastro/actions'
 import { usarMinhaConta } from '@/app/app/[slug]/actions'
 
 const SENHA = 'senha-bem-longa'
@@ -111,36 +111,66 @@ describe('/[slug]/entrar', () => {
   })
 })
 
-describe('/[slug]/cadastro', () => {
-  const ini = { step: 'dados', error: null, fields: {}, values: { name: '', email: '', phone: '' }, sent: 0 } as const
+describe('/[slug]/cadastro (quiz)', () => {
+  const dados = (extra: Record<string, string> = {}) => ({ slug: 'pet-bom', name: 'Ana', email: 'ana@exemplo.test', password: SENHA, ...extra })
 
-  test('pede o código, confirma e redireciona para /<slug> com cookie', async () => {
+  test('pede o código, confirma (abre a sessão e cria o cliente) e conclui sem telefone indo para /<slug>', async () => {
     const b = await makeBusiness({ slug: 'pet-bom' })
-    const r = await pedirCodigo(ini, form({ slug: 'pet-bom', name: 'Ana', email: 'ana@exemplo.test', phone: '', password: SENHA }))
-    expect(r).toMatchObject({ step: 'codigo', sent: 1, values: { email: 'ana@exemplo.test' } })
+    const r = await pedirCodigo(form(dados()))
+    expect(r).toEqual({ ok: true, error: null, fields: {} })
     expect(JSON.stringify(r)).not.toContain(SENHA)
     for (const t of tarefas) await t()
     expect(mail.sent).toHaveLength(1)
-    await expect(confirmarCadastro({ error: null, fields: {} }, form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf() }))).rejects.toMatchObject({ to: '/pet-bom' })
+    expect(await confirmarCadastro(form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf() }))).toEqual({ ok: true, error: null, fields: {} })
     const u = await prisma.user.findUniqueOrThrow({ where: { email: 'ana@exemplo.test' } })
+    expect(u.phone).toBeNull()
     expect(await prisma.customer.count({ where: { businessId: b.id, userId: u.id } })).toBe(1)
     expect(jar.has(APP_COOKIE)).toBe(true)
+    await expect(concluirCadastro(form({ slug: 'pet-bom', phone: '' }))).rejects.toMatchObject({ to: '/pet-bom' })
   })
 
-  test('cadastro novo de loja pet vai para /pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar', async () => {
+  test('o WhatsApp do último passo vai para a pessoa e para o cliente da loja', async () => {
+    const b = await makeBusiness({ slug: 'pet-bom' })
+    await pedirCodigo(form(dados()))
+    for (const t of tarefas) await t()
+    await confirmarCadastro(form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf() }))
+    await expect(concluirCadastro(form({ slug: 'pet-bom', phone: '(11) 91234-5678' }))).rejects.toMatchObject({ to: '/pet-bom' })
+    const u = await prisma.user.findUniqueOrThrow({ where: { email: 'ana@exemplo.test' } })
+    expect(u.phone).toBe('5511912345678')
+    expect((await prisma.customer.findFirstOrThrow({ where: { businessId: b.id, userId: u.id } })).phone).toBe('5511912345678')
+  })
+
+  test('telefone inválido fica no passo com o erro no campo e nada é gravado nem redirecionado', async () => {
+    await makeBusiness({ slug: 'pet-bom' })
+    await pedirCodigo(form(dados()))
+    for (const t of tarefas) await t()
+    await confirmarCadastro(form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf() }))
+    const r = await concluirCadastro(form({ slug: 'pet-bom', phone: 'abc' }))
+    expect(r.ok).toBe(false)
+    expect(r.fields['phone']).toBeDefined()
+    expect((await prisma.user.findUniqueOrThrow({ where: { email: 'ana@exemplo.test' } })).phone).toBeNull()
+  })
+
+  test('sem sessão, concluir volta para a entrada da loja e não grava telefone', async () => {
+    await makeBusiness({ slug: 'pet-bom' })
+    await expect(concluirCadastro(form({ slug: 'pet-bom', phone: '(11) 91234-5678' }))).rejects.toMatchObject({ to: '/pet-bom/entrar' })
+  })
+
+  test('cadastro novo de loja pet conclui em /pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar', async () => {
     quiz.needs.mockResolvedValue(true)
     await makeBusiness({ slug: 'pet-bom' })
-    await pedirCodigo(ini, form({ slug: 'pet-bom', name: 'Ana', email: 'ana@exemplo.test', phone: '', password: SENHA, volta: '/pet-bom/agendar' }))
+    await pedirCodigo(form(dados({ volta: '/pet-bom/agendar' })))
     for (const t of tarefas) await t()
-    await expect(
-      confirmarCadastro({ error: null, fields: {} }, form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf(), volta: '/pet-bom/agendar' })),
-    ).rejects.toMatchObject({ to: '/pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar' })
+    await confirmarCadastro(form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: mail.codeOf() }))
+    await expect(concluirCadastro(form({ slug: 'pet-bom', volta: '/pet-bom/agendar', phone: '' }))).rejects.toMatchObject({
+      to: '/pet-bom/boas-vindas?volta=%2Fpet-bom%2Fagendar',
+    })
   })
 
   test('dados inválidos voltam por campo, sem agendar envio', async () => {
     await makeBusiness({ slug: 'pet-bom' })
-    const r = await pedirCodigo(ini, form({ slug: 'pet-bom', name: 'Ana', email: 'x', phone: '', password: 'curta' }))
-    expect(r.step).toBe('dados')
+    const r = await pedirCodigo(form(dados({ email: 'x', password: 'curta' })))
+    expect(r.ok).toBe(false)
     expect(r.fields['email']).toBeDefined()
     expect(r.fields['password']).toBeDefined()
     expect(tarefas).toHaveLength(0)
@@ -148,17 +178,18 @@ describe('/[slug]/cadastro', () => {
 
   test('código errado: erro no campo do código e sem cookie', async () => {
     await makeBusiness({ slug: 'pet-bom' })
-    await pedirCodigo(ini, form({ slug: 'pet-bom', name: 'Ana', email: 'ana@exemplo.test', phone: '', password: SENHA }))
+    await pedirCodigo(form(dados()))
     for (const t of tarefas) await t()
     const certo = mail.codeOf()
-    const r = await confirmarCadastro({ error: null, fields: {} }, form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: certo === '000000' ? '111111' : '000000' }))
+    const r = await confirmarCadastro(form({ slug: 'pet-bom', email: 'ana@exemplo.test', code: certo === '000000' ? '111111' : '000000' }))
+    expect(r.ok).toBe(false)
     expect(r.fields['code']).toBeDefined()
     expect(jar.has(APP_COOKIE)).toBe(false)
   })
 
   test('loja inexistente: erro geral', async () => {
-    const r = await pedirCodigo(ini, form({ slug: 'nao-existe', name: 'Ana', email: 'ana@exemplo.test', phone: '', password: SENHA }))
-    expect(r.step).toBe('dados')
+    const r = await pedirCodigo(form(dados({ slug: 'nao-existe' })))
+    expect(r.ok).toBe(false)
     expect(r.error).toMatch(/não está disponível/)
   })
 })

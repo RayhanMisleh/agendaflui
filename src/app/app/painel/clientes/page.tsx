@@ -9,7 +9,7 @@ import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/ui/components'
 import { um } from '@/app/_lib/params'
 import { LinkParaClientes } from '../_lib/LinkParaClientes'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { ClientesTabela } from './ClientesTabela'
 import { TERMS } from '@/shared/terms'
 
@@ -103,8 +103,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
   const params = { search: search || undefined, situacao: situacao === 'ativos' ? undefined : situacao }
 
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={plural}
       actions={
         podeEscrever ? (
@@ -137,6 +136,6 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
           <Pagination basePath="/painel/clientes" params={params} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
         </Card>
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

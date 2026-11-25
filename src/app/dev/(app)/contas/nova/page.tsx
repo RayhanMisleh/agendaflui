@@ -1,17 +1,17 @@
 import type { Metadata } from 'next'
 import { requirePlatformAdmin } from '@/server/auth/guards'
 import { RULE_LIMITS, SLOT_STEPS } from '@/server/domain/settings/scheduling-rules'
-import { DevFrame } from '../../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { EMPTY_VALUES } from './fields'
 import { Wizard } from './Wizard'
 
 export const metadata: Metadata = { title: 'Nova conta | Agenda Flui' }
 
 export default async function NovaContaPage() {
-  const admin = await requirePlatformAdmin()
+  await requirePlatformAdmin()
   return (
-    <DevFrame admin={admin} title="Nova conta">
+    <ShellPage title="Nova conta">
       <Wizard initial={{ ok: false, message: null, fields: {}, values: EMPTY_VALUES }} grades={SLOT_STEPS} limites={RULE_LIMITS} />
-    </DevFrame>
+    </ShellPage>
   )
 }

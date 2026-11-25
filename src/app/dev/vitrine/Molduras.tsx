@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { CalendarDays, ChartNoAxesColumn, House, Scissors, Settings, UserRound, Users } from 'lucide-react'
 import { Button, Card, EmptyState, StatNumber } from '@/ui/components'
 import type { CoverMaterial } from '@/ui/theme/derive'
-import { DevShell, EntryScreen, PainelShell } from '@/ui/shells'
+import { DevShell, EntryScreen, PainelShell, ShellPage } from '@/ui/shells'
 import type { NavItem } from '@/ui/shells'
 import { AGENDAFLUI_BRAND } from '@/ui/theme/default-brand'
 import { deriveTheme } from '@/ui/theme/derive'
@@ -31,19 +31,21 @@ const ESTILOS: ReadonlyArray<{ material: CoverMaterial; nome: string }> = [
 const CONTA = DEMO_ACCOUNTS.find((a) => a.id === 'patas') ?? DEMO_ACCOUNTS[0]!
 const USUARIO = { name: 'Marina Lopes', roleLabel: 'Dona', avatarUrl: null }
 
-function Conteudo() {
+function Conteudo({ title, actions }: { title: string; actions?: ReactNode }) {
   return (
-    <div className="vt-frame-body">
-      <Card variant="block" bubbles>
-        <p className="vt-body-lg">Hoje, terça, 17</p>
-      </Card>
-      <Card>
-        <StatNumber value={9} label="Atendimentos" format="int" />
-      </Card>
-      <Card>
-        <EmptyState title="Sem horários livres" description="Abra uma vaga para receber mais gente." />
-      </Card>
-    </div>
+    <ShellPage title={title} actions={actions} headingLevel={2}>
+      <div className="vt-frame-body">
+        <Card variant="block" bubbles>
+          <p className="vt-body-lg">Hoje, terça, 17</p>
+        </Card>
+        <Card>
+          <StatNumber value={9} label="Atendimentos" format="int" />
+        </Card>
+        <Card>
+          <EmptyState title="Sem horários livres" description="Abra uma vaga para receber mais gente." />
+        </Card>
+      </div>
+    </ShellPage>
   )
 }
 
@@ -77,16 +79,14 @@ export function Molduras() {
               embedded
               testId={`vt-painel-${i}`}
               contentId={`vt-painel-${i}-c`}
-              headingLevel={2}
               theme={conta(e.material)}
               brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }}
               nav={NAV_PAINEL}
               user={USUARIO}
               accountActions={acoes}
-              title="Início"
-              actions={<Button>Novo agendamento</Button>}
+              label="Início"
             >
-              <Conteudo />
+              <Conteudo title="Início" actions={<Button>Novo agendamento</Button>} />
             </PainelShell>
           </Quadro>
         ))}
@@ -97,15 +97,14 @@ export function Molduras() {
               phone
               testId="vt-painel-celular"
               contentId="vt-painel-celular-c"
-              headingLevel={2}
               theme={conta('LEATHER')}
               brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }}
               nav={NAV_PAINEL}
               user={USUARIO}
               accountActions={acoes}
-              title="Início"
+              label="Início"
             >
-              <Conteudo />
+              <Conteudo title="Início" />
             </PainelShell>
           </div>
         </Quadro>
@@ -114,16 +113,15 @@ export function Molduras() {
             embedded
             testId="vt-painel-suporte"
             contentId="vt-painel-suporte-c"
-            headingLevel={2}
             theme={conta('LEATHER')}
             brand={{ name: CONTA.name, logoUrl: null, symbolUrl: null }}
             nav={NAV_PAINEL}
             user={{ name: 'Admin Flui', roleLabel: 'Suporte', avatarUrl: null }}
             supportBanner={`Você está em modo suporte na conta ${CONTA.name}`}
             supportAction={<Button variant="secondary" size="sm">Encerrar</Button>}
-            title="Início"
+            label="Início"
           >
-            <Conteudo />
+            <Conteudo title="Início" />
           </PainelShell>
         </Quadro>
         <Quadro title="Painel dev" note="A mesma estrutura no tema noite, com a marca em negativo." wide>
@@ -131,10 +129,9 @@ export function Molduras() {
             embedded
             testId="vt-dev"
             contentId="vt-dev-c"
-            headingLevel={2}
             nav={NAV_DEV}
             admin={{ name: 'Admin Flui' }}
-            title="Visão geral"
+            label="Visão geral"
             accountActions={
               <>
                 <Button variant="secondary">Meu perfil</Button>
@@ -142,13 +139,13 @@ export function Molduras() {
               </>
             }
           >
-            <Conteudo />
+            <Conteudo title="Visão geral" />
           </DevShell>
         </Quadro>
         <Quadro title="Painel dev no celular" wide>
           <div className="vt-phone">
-            <DevShell embedded phone testId="vt-dev-celular" contentId="vt-dev-celular-c" headingLevel={2} nav={NAV_CURTA} admin={{ name: 'Admin Flui' }} title="Visão geral">
-              <Conteudo />
+            <DevShell embedded phone testId="vt-dev-celular" contentId="vt-dev-celular-c" nav={NAV_CURTA} admin={{ name: 'Admin Flui' }} label="Visão geral">
+              <Conteudo title="Visão geral" />
             </DevShell>
           </div>
         </Quadro>

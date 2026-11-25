@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { Card, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../../_lib/modulo'
 import { BannerForm } from '../BannerForm'
 
@@ -11,8 +11,7 @@ export default async function NovoBannerPage() {
   const ctx = await requireTenant('manage_banners')
   await requirePainelModule(ctx, 'banners')
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title="Novo banner"
       actions={
         <LinkButton href="/painel/banners" variant="ghost">
@@ -27,6 +26,6 @@ export default async function NovoBannerPage() {
         <p className="af-section__help">Depois de criar, você envia a imagem e ativa o banner.</p>
         <BannerForm banner={null} />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

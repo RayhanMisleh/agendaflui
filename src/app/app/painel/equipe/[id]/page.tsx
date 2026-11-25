@@ -11,7 +11,7 @@ import { Avatar, AvatarUpload, Card, EmptyState, LinkButton, NavTabs, StatusDot 
 import { weekFromMinutes } from '@/ui/week'
 import { formatPercentInput } from '@/shared/percent'
 import { um, porCodigo } from '@/app/_lib/params'
-import { PainelFrame } from '../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { AcessoGestao, BloqueioForm, BloqueiosLista, ConviteForm, DadosForm, ExpedienteForm, RemoverProfissional, ServicosForm } from '../FichaForms'
 import { TERMS } from '@/shared/terms'
 
@@ -75,8 +75,7 @@ export default async function FichaPage({
   const acesso = ficha.access
 
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={p.name}
       actions={
         ficha.fullAccess ? (
@@ -179,6 +178,6 @@ export default async function FichaPage({
           </Card>
         )}
       </div>
-    </PainelFrame>
+    </ShellPage>
   )
 }

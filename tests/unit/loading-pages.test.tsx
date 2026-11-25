@@ -41,7 +41,7 @@ const CLIENTE = [
   'loja/pedidos/[id]',
   'mais',
   'mais/excluir',
-].map((r) => `src/app/app/[slug]/${r}`.replace(/\/$/, ''))
+].map((r) => `src/app/app/[slug]/(area)/${r}`.replace(/\/$/, ''))
 
 test.each(CLIENTE)('%s tem loading.tsx com ClienteSkeleton', async (rota) => {
   const arquivo = join(RAIZ, rota, 'loading.tsx')
@@ -58,13 +58,27 @@ test.each(['dashboard', 'list', 'detail', 'planner'] as const)('ShellSkeleton %s
   expect(estado).toHaveTextContent('Carregando')
   expect(estado).not.toHaveAttribute('aria-busy')
   expect(estado.querySelector('.af-sr')).toHaveTextContent('Carregando')
-  expect(estado.querySelector('.af-shell__side')).not.toBeNull()
+  // Só o miolo: a barra lateral, a barra do topo e o menu pertencem ao layout e nunca entram no esqueleto.
+  expect(estado.querySelector('.af-shell__side, .af-shell__frame, .af-shell__nav, .af-shell__top')).toBeNull()
+  expect(estado.closest('.af-shell')).toBeNull()
+  expect(estado.querySelector('.af-shell__head')).not.toBeNull()
   expect(estado.querySelectorAll('.af-skel').length).toBeGreaterThan(2)
 })
 
-test('os layouts (app) põem o esqueleto no tema da conta e no tema noite', () => {
+test('os layouts (app) desenham a moldura no tema da conta e no tema noite, em volta do esqueleto', () => {
   const painel = readFileSync(join(RAIZ, 'src/app/app/painel/layout.tsx'), 'utf8')
   expect(painel).toContain('getPublicBrandById')
-  expect(painel).toContain('ThemeScope')
-  expect(readFileSync(join(RAIZ, 'src/app/dev/(app)/layout.tsx'), 'utf8')).toContain('NightScope')
+  expect(painel).toContain('PainelShell')
+  expect(readFileSync(join(RAIZ, 'src/app/dev/(app)/layout.tsx'), 'utf8')).toContain('DevShell')
+})
+
+test('a ficha da conta no painel dev usa o esqueleto aninhado: só o corpo, sem um segundo cabeçalho sob as abas', async () => {
+  const arquivo = join(RAIZ, 'src/app/dev/(app)/contas/[id]/loading.tsx')
+  const { default: Loading } = (await import(/* @vite-ignore */ arquivo)) as { default: () => React.JSX.Element }
+  render(<Loading />)
+  const estado = screen.getByRole('status')
+  expect(estado).toHaveTextContent('Carregando')
+  expect(estado.querySelector('.af-shell__head')).toBeNull()
+  expect(estado).not.toHaveClass('af-shell__inner')
+  expect(estado.querySelectorAll('.af-skel').length).toBeGreaterThan(2)
 })

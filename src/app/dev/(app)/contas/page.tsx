@@ -5,7 +5,7 @@ import { DomainError } from '@/server/domain/errors'
 import { listBusinesses } from '@/server/domain/platform/businesses'
 import type { BusinessStatus } from '@/server/domain/platform/businesses'
 import { Card, EmptyState, LinkButton, NavTabs, Pagination, SearchBar } from '@/ui/components'
-import { DevFrame } from '../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { um } from '@/app/_lib/params'
 import { ContasTable } from './ContasTable'
 
@@ -79,8 +79,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
   )
 
   return (
-    <DevFrame
-      admin={admin}
+    <ShellPage
       title="Contas"
       actions={
         <LinkButton href="/contas/nova" variant="primary" icon={<Plus size={18} />}>
@@ -111,6 +110,6 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
         ) : null}
         <Pagination basePath="/contas" params={params} cursor={cursor} nextCursor={pagina?.nextCursor ?? null} />
       </Card>
-    </DevFrame>
+    </ShellPage>
   )
 }

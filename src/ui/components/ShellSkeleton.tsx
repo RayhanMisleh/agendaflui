@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { SkeletonTransition } from '../shells/PageTransition'
 
 export type ShellSkeletonVariant = 'dashboard' | 'list' | 'detail' | 'planner'
 
@@ -71,35 +72,34 @@ function Corpo({ variant }: { variant: ShellSkeletonVariant }) {
 }
 
 /**
- * Esqueleto de uma tela inteira: a mesma grade da moldura (barra lateral na cor `--side-bg` do tema em volta e área
- * principal sobre `--ground`), com blocos que pulsam no lugar do conteúdo. Cada `loading.tsx` escolhe a forma da sua tela.
+ * Esqueleto do miolo de uma tela: o mesmo cabeçalho e a mesma largura da página (`ShellPage`), com blocos que pulsam no
+ * lugar do conteúdo. A moldura (barra lateral, topo e menu) mora no layout e fica viva em volta dele: o esqueleto nunca
+ * a desenha, senão o menu piscaria a cada clique. Cada `loading.tsx` escolhe a forma da sua tela.
  */
-export function ShellSkeleton({ variant }: { variant: ShellSkeletonVariant }) {
-  return (
-    <div role="status" className="af-shell af-shell--skeleton">
-      <span className="af-sr">Carregando</span>
-      <div className="af-shell__frame">
-        <div className="af-shell__side">
-          <div className="af-shell__top">
-            <Bloco w="7.5rem" h="1.5rem" className="af-skel--side" />
-          </div>
-          <div className="af-shellskel__nav">
-            {Array.from({ length: 5 }, (_, i) => (
-              <Bloco key={i} h="2.75rem" className="af-skel--side" />
-            ))}
-          </div>
+export function ShellSkeleton({ variant, nested = false }: { variant: ShellSkeletonVariant; nested?: boolean }) {
+  // Dentro de um layout que já desenha a página (`ShellPage`, como a ficha da conta no painel dev), só o corpo pulsa:
+  // repetir o cabeçalho e a largura da página aninharia um título fantasma sob as abas.
+  if (nested) {
+    return (
+      <SkeletonTransition>
+        <div role="status" className="af-shellskel__body">
+          <span className="af-sr">Carregando</span>
+          <Corpo variant={variant} />
         </div>
-        <div className="af-shell__main">
-          <div className="af-shell__inner">
-            <div className="af-shell__head">
-              <Bloco w="12rem" h="2rem" />
-            </div>
-            <div className="af-shell__body af-shellskel__body">
-              <Corpo variant={variant} />
-            </div>
-          </div>
+      </SkeletonTransition>
+    )
+  }
+  return (
+    <SkeletonTransition>
+      <div role="status" className="af-shell__inner">
+        <span className="af-sr">Carregando</span>
+        <div className="af-shell__head">
+          <Bloco w="12rem" h="2rem" />
+        </div>
+        <div className="af-shell__body af-shellskel__body">
+          <Corpo variant={variant} />
         </div>
       </div>
-    </div>
+    </SkeletonTransition>
   )
 }

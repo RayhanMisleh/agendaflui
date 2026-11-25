@@ -24,8 +24,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { cancelarHorario } from '@/app/app/[slug]/horarios/actions'
-import { listarHorarios } from '@/app/app/[slug]/horarios/_lib/listar'
+import { cancelarHorario } from '@/app/app/[slug]/(area)/horarios/actions'
+import { listarHorarios } from '@/app/app/[slug]/(area)/horarios/_lib/listar'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 import { requireCustomer } from '@/server/auth/guards'
 

@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { NovoProfissionalForm } from '../FichaForms'
 import { TERMS } from '@/shared/terms'
 
@@ -13,8 +13,7 @@ export default async function NovoProfissionalPage() {
   await getPainelContext(ctx)
   const terms = TERMS
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title={`Adicionar ${terms.professionalSingular.toLowerCase()}`}
       actions={
         <LinkButton href="/painel/equipe" variant="ghost">
@@ -25,6 +24,6 @@ export default async function NovoProfissionalPage() {
       <Card as="section" aria-label="Cadastro" className="af-profile af-profile--narrow">
         <NovoProfissionalForm singular={terms.professionalSingular} />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

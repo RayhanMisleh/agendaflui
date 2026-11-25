@@ -22,7 +22,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { diasLivres, horariosLivres, profissionaisPara, servicosDoPet } from '@/app/app/[slug]/agendar/consultas'
+import { diasLivres, horariosLivres, profissionaisPara, servicosDoPet } from '@/app/app/[slug]/(area)/agendar/consultas'
 
 let c: CenaPet
 beforeEach(async () => {

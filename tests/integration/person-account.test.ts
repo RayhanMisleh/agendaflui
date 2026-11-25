@@ -7,6 +7,7 @@ import {
   getPersonAccount,
   requestEmailChange,
   setPersonPassword,
+  setPersonPhone,
   switchStore,
   unlinkGoogle,
   updatePersonProfile,
@@ -70,6 +71,29 @@ describe('dados', () => {
     const vazio = await domainError(updatePersonProfile(u.id, { name: '  ' }))
     expect(vazio.fields).toHaveProperty('name')
     expect((await lerUser(u.id)).name).toBe('Rita')
+  })
+})
+
+describe('telefone do cadastro', () => {
+  test('grava só o telefone na pessoa e nas cópias dela, sem mexer no nome', async () => {
+    const u = await makeUser({ name: 'Rita Prado' })
+    const a = await makeBusiness()
+    const c = await makeCustomer(a.id, { userId: u.id, name: 'Rita Prado' })
+    await setPersonPhone(u.id, '(11) 91234-5678')
+    expect(await lerUser(u.id)).toMatchObject({ name: 'Rita Prado', phone: '5511912345678' })
+    expect(await prisma.customer.findUniqueOrThrow({ where: { id: c.id } })).toMatchObject({ name: 'Rita Prado', phone: '5511912345678' })
+  })
+
+  test('telefone vazio ou inválido é validação e o que havia fica', async () => {
+    const u = await makeUser({ phone: '5511912345678' })
+    expect((await domainError(setPersonPhone(u.id, '   '))).fields).toHaveProperty('phone')
+    expect((await domainError(setPersonPhone(u.id, 'abc'))).fields).toHaveProperty('phone')
+    expect((await lerUser(u.id)).phone).toBe('5511912345678')
+  })
+
+  test('pessoa que não existe: não encontrada', async () => {
+    const erro = await domainError(setPersonPhone('00000000-0000-4000-8000-000000000000', '(11) 91234-5678'))
+    expect(erro.code).toBe('not_found')
   })
 })
 

@@ -24,9 +24,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { marcarHorario, remarcarHorario } from '@/app/app/[slug]/agendar/actions'
-import { OCUPADO } from '@/app/app/[slug]/agendar/mensagens'
-import { tituloDoSucesso } from '@/app/app/[slug]/agendar/feito/[id]/Sucesso'
+import { marcarHorario, remarcarHorario } from '@/app/app/[slug]/(area)/agendar/actions'
+import { OCUPADO } from '@/app/app/[slug]/(area)/agendar/mensagens'
+import { tituloDoSucesso } from '@/app/app/[slug]/(area)/agendar/feito/[id]/Sucesso'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 
 let c: CenaPet

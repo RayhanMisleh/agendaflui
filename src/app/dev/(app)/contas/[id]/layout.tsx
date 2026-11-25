@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { DoorOpen, PawPrint } from 'lucide-react'
 import { Button, CopyButton, LinkButton, NavTabs, Card, StatusBadge, StatusDot, businessStatusDot } from '@/ui/components'
-import { DevFrame } from '../../DevFrame'
+import { ShellPage } from '@/ui/shells'
 import { carregarConta } from './_data'
 import { arquivarConta, reativarConta, suspenderConta } from './actions'
 import { StatusMenu } from './StatusMenu'
@@ -10,10 +10,9 @@ import { accountTabs } from './tabs'
 /** Cabeçalho da conta (carrega uma vez): nome, situação, "Entrar como", menu de situação e as abas. */
 export default async function ContaLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { admin, conta } = await carregarConta(id)
+  const { conta } = await carregarConta(id)
   return (
-    <DevFrame
-      admin={admin}
+    <ShellPage
       title={conta.name}
       actions={
         <LinkButton href="/contas" variant="ghost">
@@ -69,6 +68,6 @@ export default async function ContaLayout({ children, params }: { children: Reac
       </Card>
       <NavTabs label="Abas da conta" items={accountTabs(conta.id)} />
       {children}
-    </DevFrame>
+    </ShellPage>
   )
 }

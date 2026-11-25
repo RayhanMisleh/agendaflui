@@ -9,7 +9,7 @@ import { getStoreIntegrations, getStoreSettings } from '@/server/domain/store/se
 import { ATTENTION_LABELS, Card, EmptyState, LinkButton, NavTabs, orderStatusText, orderStatusTone, Pagination, SearchBar } from '@/ui/components'
 import { formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
-import { PainelFrame } from '../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../_lib/modulo'
 import { CategoriasLista, ConfiguracoesForm, ProdutosLista } from './LojaPainel'
 import { PedidosLista } from './PedidosLista'
@@ -193,11 +193,11 @@ export default async function LojaPage({ searchParams }: { searchParams: Promise
   }
 
   return (
-    <PainelFrame ctx={ctx} title="Loja" actions={acoes}>
+    <ShellPage title="Loja" actions={acoes}>
       <Card className="af-listpanel" as="section" aria-label="Loja">
         <NavTabs label="Seções da loja" items={abas} />
         {corpo}
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

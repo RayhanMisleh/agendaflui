@@ -48,7 +48,7 @@ const COLUNAS: DataColumn<ContaLinha>[] = [
     header: 'Conta',
     primary: true,
     cell: (c) => (
-      <span className="af-account">
+      <span className="af-acctcell">
         <Link href={`/contas/${c.id}`} className="af-account__name">
           {c.name}
         </Link>

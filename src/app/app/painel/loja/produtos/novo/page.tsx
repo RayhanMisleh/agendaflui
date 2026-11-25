@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { requireTenant } from '@/server/auth/guards'
 import { listCategories } from '@/server/domain/store/categories'
 import { Card, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { requirePainelModule } from '../../../_lib/modulo'
 import { ProdutoForm } from '../../ProdutoForm'
 
@@ -13,8 +13,7 @@ export default async function NovoProdutoPage() {
   await requirePainelModule(ctx, 'store')
   const categorias = await listCategories(ctx)
   return (
-    <PainelFrame
-      ctx={ctx}
+    <ShellPage
       title="Novo produto"
       actions={
         <LinkButton href="/painel/loja?aba=produtos" variant="ghost">
@@ -29,6 +28,6 @@ export default async function NovoProdutoPage() {
         <p className="af-section__help">Depois de criar, você envia as imagens do produto.</p>
         <ProdutoForm produto={null} categorias={categorias.map((c) => ({ id: c.id, name: c.name }))} />
       </Card>
-    </PainelFrame>
+    </ShellPage>
   )
 }

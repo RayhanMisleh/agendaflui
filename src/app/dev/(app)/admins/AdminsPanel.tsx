@@ -50,7 +50,7 @@ const COLUNAS: DataColumn<LinhaAdmin>[] = [
     header: 'Nome',
     primary: true,
     cell: (a) => (
-      <span className="af-account">
+      <span className="af-acctcell">
         <strong className="af-account__name">{a.name}</strong>
         {a.voce ? (
           <Link href="/perfil" className="af-link-break">

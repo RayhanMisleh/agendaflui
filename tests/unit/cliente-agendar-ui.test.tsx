@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AgendarFluxo } from '@/app/app/[slug]/agendar/AgendarFluxo'
-import type { Consultas, PetDoFluxo } from '@/app/app/[slug]/agendar/tipos'
+import { AgendarFluxo } from '@/app/app/[slug]/(area)/agendar/AgendarFluxo'
+import type { Consultas, PetDoFluxo } from '@/app/app/[slug]/(area)/agendar/tipos'
 
 const acoes = vi.hoisted(() => ({ marcar: vi.fn(), remarcar: vi.fn() }))
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }))
-vi.mock('@/app/app/[slug]/agendar/actions', () => ({ marcarHorario: acoes.marcar, remarcarHorario: acoes.remarcar }))
-vi.mock('@/app/app/[slug]/agendar/consultas', () => ({ servicosDoPet: vi.fn(), profissionaisPara: vi.fn(), diasLivres: vi.fn(), horariosLivres: vi.fn() }))
+vi.mock('@/app/app/[slug]/(area)/agendar/actions', () => ({ marcarHorario: acoes.marcar, remarcarHorario: acoes.remarcar }))
+vi.mock('@/app/app/[slug]/(area)/agendar/consultas', () => ({ servicosDoPet: vi.fn(), profissionaisPara: vi.fn(), diasLivres: vi.fn(), horariosLivres: vi.fn() }))
 
 const thor: PetDoFluxo = { id: 'thor', name: 'Thor', typeLabel: 'Cão médio', rangeLabel: '10 a 25 kg', variant: 'DOG_MEDIUM', photoUrl: null, bookable: true }
 const mel: PetDoFluxo = { id: 'mel', name: 'Mel', typeLabel: 'Gato', rangeLabel: null, variant: 'CAT', photoUrl: null, bookable: false }

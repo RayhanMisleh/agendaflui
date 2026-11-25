@@ -5,7 +5,7 @@ import { DomainError } from '@/server/domain/errors'
 import { getCustomer } from '@/server/domain/customers/customers'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { Card, EmptyState, LinkButton } from '@/ui/components'
-import { PainelFrame } from '../../../../PainelFrame'
+import { ShellPage } from '@/ui/shells'
 import { PetForm } from '../PetForm'
 
 export const metadata: Metadata = { title: 'Novo pet | Agenda Flui' }
@@ -27,7 +27,7 @@ export default async function NovoPetPage({ params }: { params: Promise<{ id: st
     </LinkButton>
   )
   return (
-    <PainelFrame ctx={ctx} title="Novo pet" actions={voltar}>
+    <ShellPage title="Novo pet" actions={voltar}>
       {cliente.archived ? (
         <Card as="section" aria-label="Cliente arquivado">
           <EmptyState title="Este cliente está arquivado" description="Restaure o cadastro antes de adicionar pets." action={voltar} />
@@ -37,6 +37,6 @@ export default async function NovoPetPage({ params }: { params: Promise<{ id: st
           <PetForm customerId={cliente.id} pet={null} servesCats={painel.niche.servesCats} />
         </Card>
       )}
-    </PainelFrame>
+    </ShellPage>
   )
 }

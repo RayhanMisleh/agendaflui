@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { fluxoReducer, iniciarFluxo, novaChave, podeAvancar, type FluxoAcao, type FluxoEstado } from '@/app/app/[slug]/agendar/fluxo'
+import { fluxoReducer, iniciarFluxo, novaChave, podeAvancar, type FluxoAcao, type FluxoEstado } from '@/app/app/[slug]/(area)/agendar/fluxo'
 
 const um = [{ id: 'thor', bookable: true }]
 const dois = [
