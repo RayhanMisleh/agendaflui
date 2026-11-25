@@ -119,7 +119,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
           <SearchBar
             action="/painel/clientes"
             label={`Buscar ${plural.toLowerCase()}`}
-            placeholder="Buscar por nome, telefone ou e-mail"
+            placeholder="Nome, telefone ou e-mail"
             query={search}
             filters={[]}
             {...(situacao !== 'ativos' ? { hidden: { situacao } } : {})}

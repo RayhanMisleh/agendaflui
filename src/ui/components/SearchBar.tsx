@@ -43,11 +43,14 @@ export function SearchBar({
       {Object.entries(hidden ?? {}).map(([k, v]) => (
         <input key={k} type="hidden" name={k} value={v} />
       ))}
-      <label className="af-searchbar__box">
-        <span className="af-sr">{label}</span>
-        <Search className="af-searchbar__icon" size={18} aria-hidden="true" />
-        <Input type="search" name={name} defaultValue={query} placeholder={placeholder} maxLength={100} autoComplete="off" spellCheck={false} className="af-searchbar__input" />
-      </label>
+      <div className="af-searchbar__row">
+        <label className="af-searchbar__box">
+          <span className="af-sr">{label}</span>
+          <Search className="af-searchbar__icon" size={18} aria-hidden="true" />
+          <Input type="search" name={name} defaultValue={query} placeholder={placeholder} maxLength={100} autoComplete="off" spellCheck={false} className="af-searchbar__input" />
+        </label>
+        <SubmitButton variant="secondary" size="md" icon={<Search size={18} />} aria-label="Buscar" className="af-searchbar__go" />
+      </div>
       {filters.map((f) => (
         <Field key={f.name} label={f.label} className="af-searchbar__filter">
           <Select name={f.name} defaultValue={f.value}>
@@ -59,16 +62,11 @@ export function SearchBar({
           </Select>
         </Field>
       ))}
-      <div className="af-searchbar__go">
-        <SubmitButton variant="secondary" icon={<Search size={18} />}>
-          Buscar
-        </SubmitButton>
-        {aplicado ? (
-          <Link href={clearHref} className="af-searchbar__clear">
-            Limpar busca
-          </Link>
-        ) : null}
-      </div>
+      {aplicado ? (
+        <Link href={clearHref} className="af-searchbar__clear">
+          Limpar busca
+        </Link>
+      ) : null}
     </Form>
   )
 }
