@@ -1,5 +1,5 @@
 import { ShellSkeleton } from '@/ui/components'
 
 export default function Loading() {
-  return <ShellSkeleton variant="detail" />
+  return <ShellSkeleton variant="detail" nested />
 }

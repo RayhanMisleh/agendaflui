@@ -142,8 +142,13 @@ export function CadastroQuiz({ slug, volta = null, abertura }: { slug: string; v
     if (confirmando.current) return
     confirmando.current = true
     iniciar(async () => {
-      const r = await confirmarCadastro(corpo({ email: email.trim(), code: valor }))
-      confirmando.current = false
+      let r: PassoCadastro
+      try {
+        r = await confirmarCadastro(corpo({ email: email.trim(), code: valor }))
+      } finally {
+        // Uma falha de rede não pode travar o campo: o próximo código digitado confere de novo.
+        confirmando.current = false
+      }
       if (!r.ok) return falhou(r, 'codigo')
       // A conta existe e a sessão começou: daqui não se volta.
       setSenha('')

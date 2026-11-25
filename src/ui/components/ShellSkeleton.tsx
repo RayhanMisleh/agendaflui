@@ -76,7 +76,19 @@ function Corpo({ variant }: { variant: ShellSkeletonVariant }) {
  * lugar do conteúdo. A moldura (barra lateral, topo e menu) mora no layout e fica viva em volta dele: o esqueleto nunca
  * a desenha, senão o menu piscaria a cada clique. Cada `loading.tsx` escolhe a forma da sua tela.
  */
-export function ShellSkeleton({ variant }: { variant: ShellSkeletonVariant }) {
+export function ShellSkeleton({ variant, nested = false }: { variant: ShellSkeletonVariant; nested?: boolean }) {
+  // Dentro de um layout que já desenha a página (`ShellPage`, como a ficha da conta no painel dev), só o corpo pulsa:
+  // repetir o cabeçalho e a largura da página aninharia um título fantasma sob as abas.
+  if (nested) {
+    return (
+      <SkeletonTransition>
+        <div role="status" className="af-shellskel__body">
+          <span className="af-sr">Carregando</span>
+          <Corpo variant={variant} />
+        </div>
+      </SkeletonTransition>
+    )
+  }
   return (
     <SkeletonTransition>
       <div role="status" className="af-shell__inner">

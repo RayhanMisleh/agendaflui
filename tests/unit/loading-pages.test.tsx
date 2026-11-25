@@ -71,3 +71,14 @@ test('os layouts (app) desenham a moldura no tema da conta e no tema noite, em v
   expect(painel).toContain('PainelShell')
   expect(readFileSync(join(RAIZ, 'src/app/dev/(app)/layout.tsx'), 'utf8')).toContain('DevShell')
 })
+
+test('a ficha da conta no painel dev usa o esqueleto aninhado: só o corpo, sem um segundo cabeçalho sob as abas', async () => {
+  const arquivo = join(RAIZ, 'src/app/dev/(app)/contas/[id]/loading.tsx')
+  const { default: Loading } = (await import(/* @vite-ignore */ arquivo)) as { default: () => React.JSX.Element }
+  render(<Loading />)
+  const estado = screen.getByRole('status')
+  expect(estado).toHaveTextContent('Carregando')
+  expect(estado.querySelector('.af-shell__head')).toBeNull()
+  expect(estado).not.toHaveClass('af-shell__inner')
+  expect(estado.querySelectorAll('.af-skel').length).toBeGreaterThan(2)
+})
