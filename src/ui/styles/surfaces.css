@@ -5,8 +5,11 @@
 @layer components {
   /* ---- Cartão ---- */
   .af-card {
+    /* Margem interna fluida: mais enxuta no celular, 20 px a partir do tablet. Quem rola até a borda do cartão (abas) a usa. */
+    --card-pad: clamp(0.875rem, 0.4rem + 2vw, 1.25rem);
+    --bleed: var(--card-pad);
     position: relative;
-    padding: 1.25rem;
+    padding: var(--card-pad);
     border: 1px solid var(--line);
     border-radius: var(--radius-card);
     background-color: var(--surface);
@@ -162,16 +165,18 @@
     }
   }
   .af-dialog__body {
+    --card-pad: 1.5rem;
     min-height: 0;
     padding: 0.25rem 1.5rem 1.5rem;
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .af-dialog__foot {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 0.75rem;
-    padding: 1rem 1.5rem 1.5rem;
+    padding: 1rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom));
     border-top: 1px solid var(--line);
   }
   @media (max-width: 40rem) {
@@ -193,6 +198,11 @@
     }
     .af-dialog__head {
       padding-top: 0.75rem;
+    }
+    /* Botões do rodapé dividem a largura: alvo grande e nenhum cortado. */
+    .af-dialog__foot > *,
+    .af-confirm__actions > * {
+      flex: 1 1 8rem;
     }
   }
 

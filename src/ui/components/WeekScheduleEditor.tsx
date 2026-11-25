@@ -39,21 +39,21 @@ export function WeekScheduleEditor({
     })
 
   return (
-    <div className="af-week">
+    <div className="af-hours">
       {WEEK_ORDER.map((dia) => {
         const faixas = week[dia]
         const nome = weekdayName(dia)
         return (
-          <fieldset key={dia} className="af-week__day" aria-label={nome}>
-            <legend className="af-week__name">{nome}</legend>
-            {faixas.length === 0 ? <p className="af-week__closed">Fechado</p> : null}
+          <fieldset key={dia} className="af-hours__day" aria-label={nome}>
+            <legend className="af-hours__name">{nome}</legend>
+            {faixas.length === 0 ? <p className="af-hours__closed">Fechado</p> : null}
             {faixas.map((r, i) => {
               const erroInicio = errors[`${dia}.${i}.start`]
               const erroFim = errors[`${dia}.${i}.end`]
               return (
-                <div key={i} className="af-week__range">
+                <div key={i} className="af-hours__range">
                   <input
-                    className="af-input af-week__time"
+                    className="af-input af-hours__time"
                     type="time"
                     step={300}
                     name={`${dia}.${i}.start`}
@@ -64,7 +64,7 @@ export function WeekScheduleEditor({
                   />
                   <span aria-hidden="true">às</span>
                   <input
-                    className="af-input af-week__time"
+                    className="af-input af-hours__time"
                     type="time"
                     step={300}
                     name={`${dia}.${i}.end`}
@@ -74,12 +74,12 @@ export function WeekScheduleEditor({
                     aria-invalid={erroFim ? true : undefined}
                   />
                   <Button size="sm" variant="ghost" icon={<Trash2 size={16} />} aria-label={`Remover faixa ${i + 1} de ${minusculo(dia)}`} onClick={() => trocar(dia, faixas.filter((_, j) => j !== i))} />
-                  {erroInicio || erroFim ? <p className="af-field__error af-week__error">{erroInicio ?? erroFim}</p> : null}
+                  {erroInicio || erroFim ? <p className="af-field__error af-hours__error">{erroInicio ?? erroFim}</p> : null}
                 </div>
               )
             })}
-            {errors[dia] ? <p className="af-field__error af-week__error">{errors[dia]}</p> : null}
-            <div className="af-week__tools">
+            {errors[dia] ? <p className="af-field__error af-hours__error">{errors[dia]}</p> : null}
+            <div className="af-hours__tools">
               <Button size="sm" variant="secondary" icon={<Plus size={16} />} aria-label={`Adicionar faixa na ${minusculo(dia)}`} onClick={() => trocar(dia, [...faixas, { ...(faixas.length > 0 ? { start: faixas[faixas.length - 1]?.end ?? NOVA_FAIXA.start, end: NOVA_FAIXA.end } : NOVA_FAIXA) }])}>
                 Adicionar faixa
               </Button>

@@ -17,6 +17,26 @@
     border: 0;
   }
 
+  /*
+   * Rede de segurança do celular: a página nunca ganha rolagem lateral (o que for largo rola dentro do próprio bloco, como a
+   * tabela e as abas), o iOS não infla o texto ao girar e o toque não pisca em cinza.
+   */
+  html,
+  body {
+    overflow-x: clip;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
   /* Títulos: Bricolage 700, espaçamento negativo e quebra equilibrada. */
   .af-display,
   .af-h1,

@@ -19,7 +19,7 @@
     color: var(--ink-muted);
     font-size: var(--text-small);
   }
-  .af-account {
+  .af-acctcell {
     display: grid;
     gap: 0.125rem;
     min-width: 0;

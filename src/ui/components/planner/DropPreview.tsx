@@ -10,8 +10,10 @@ export function DropPreview({ preview, windowStartMin, customerName }: { preview
       className="af-slip af-slip--dragging af-planner__preview"
       style={{ '--y': `${(preview.startMin - windowStartMin) * PX_PER_MIN}px`, height: `${preview.heightMin * PX_PER_MIN}px`, '--lane': '0', '--lanes': '1' } as CSSProperties}
     >
-      <span className="af-slip__name">{customerName}</span>
-      <span className="af-slip__time">{preview.label}</span>
+      <span className="af-slip__box">
+        <span className="af-slip__name">{customerName}</span>
+        <span className="af-slip__time">{preview.label}</span>
+      </span>
     </div>
   )
 }
