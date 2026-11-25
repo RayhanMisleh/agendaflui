@@ -1102,6 +1102,17 @@
     background-color: var(--brand-tint);
     color: var(--brand-text);
   }
+  /* Sem imagem, o presente é só um selo: faixa baixa, não um quadro vazio do tamanho de uma foto. */
+  .af-cl-prize__media:not(:has(img)) {
+    aspect-ratio: auto;
+    height: 4.5rem;
+  }
+  /* Um prêmio por linha (celular): a foto fica mais baixa, para caber mais de um prêmio na tela. */
+  @media (max-width: 29.98rem) {
+    .af-cl-prize__media {
+      aspect-ratio: 16 / 9;
+    }
+  }
   .af-cl-prize__media img {
     display: block;
     width: 100%;
