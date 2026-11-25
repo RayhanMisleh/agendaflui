@@ -15,6 +15,7 @@ import { BarList, Card, DateRangeField, EmptyHint, Field, NavTabs, Pagination, S
 import type { BarItem } from '@/ui/components'
 import { formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
+import { FiltrosRecolhiveis } from '../_lib/FiltrosRecolhiveis'
 import { ShellPage } from '@/ui/shells'
 import { ATALHOS, periodoDaUrl } from './periodo'
 import { Detalhe, PorProfissional, PorServico } from './RelatorioTabelas'
@@ -98,32 +99,39 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
         <Card as="section" aria-label="Período e filtros" className="af-report__filters">
           <NavTabs label="Períodos prontos" items={atalhos} />
           <Form action="/painel/relatorios" className="af-report__form">
-            <DateRangeField from={periodo.from} to={periodo.to} />
-            {todos ? (
-              <Field label={terms.professionalSingular}>
-                <Select name="profissional" defaultValue={profissional}>
-                  <option value="">Todos</option>
-                  {equipe.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            ) : null}
-            <Field label="Serviço">
-              <Select name="servico" defaultValue={servico}>
-                <option value="">Todos</option>
-                {servicos.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <SubmitButton variant="primary">
-              Ver período
-            </SubmitButton>
+            <div className="af-report__dates">
+              <DateRangeField from={periodo.from} to={periodo.to} />
+            </div>
+            <FiltrosRecolhiveis
+              ativos={(profissional ? 1 : 0) + (servico ? 1 : 0)}
+              filtros={
+                <>
+                  {todos ? (
+                    <Field label={terms.professionalSingular}>
+                      <Select name="profissional" defaultValue={profissional}>
+                        <option value="">Todos</option>
+                        {equipe.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  ) : null}
+                  <Field label="Serviço">
+                    <Select name="servico" defaultValue={servico}>
+                      <option value="">Todos</option>
+                      {servicos.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </>
+              }
+              enviar={<SubmitButton variant="primary">Ver período</SubmitButton>}
+            />
           </Form>
           <p className="af-report__note">
             {periodo.from === periodo.to ? formatLocalDate(periodo.from) : `${formatLocalDate(periodo.from)} a ${formatLocalDate(periodo.to)}`}. Contam os atendimentos que terminaram no período.

@@ -741,15 +741,98 @@
     gap: 1rem;
     min-width: 0;
   }
+  /* Celular: De e Até lado a lado; Profissional e Serviço recolhidos atrás de "Filtros". */
   .af-report__form {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem 1rem;
     align-items: end;
   }
+  .af-report__dates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .af-filtros {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-filtros__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .af-filtros__bar > :last-child {
+    flex: 1 1 auto;
+  }
+  .af-filtros__toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .af-filtros__count {
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+    font-size: var(--text-small);
+  }
+  .af-filtros__chevron {
+    transition: rotate 160ms ease-out;
+  }
+  .af-filtros[data-open] .af-filtros__chevron {
+    rotate: 180deg;
+  }
+  .af-filtros__body {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .af-filtros[data-open] .af-filtros__body {
+    display: grid;
+  }
+  @media (max-width: 22rem) {
+    .af-filtros__body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* Do tablet para cima os filtros ficam todos à vista, numa linha de campos. */
   @media (min-width: 40rem) {
     .af-report__form {
       grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    }
+    .af-report__dates,
+    .af-filtros,
+    .af-filtros__body,
+    .af-filtros[data-open] .af-filtros__body {
+      display: contents;
+    }
+    .af-filtros__bar {
+      display: contents;
+    }
+    .af-filtros__toggle {
+      display: none;
+    }
+    /* O botão de enviar fecha a linha, depois dos campos que estavam recolhidos. */
+    .af-filtros__bar > :last-child {
+      order: 1;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .af-filtros__chevron {
+      transition: none;
     }
   }
   .af-report__stats {
