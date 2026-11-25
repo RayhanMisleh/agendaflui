@@ -485,10 +485,6 @@
   .af-custlink__qrtoggle::-webkit-details-marker {
     display: none;
   }
-  .af-custlink__qrtoggle:focus-visible {
-    outline: 3px solid var(--accent);
-    outline-offset: 2px;
-  }
   .af-custlink__qrhide,
   .af-custlink__qrbox[open] .af-custlink__qrshow {
     display: none;

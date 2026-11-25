@@ -134,11 +134,6 @@
     .af-fab[data-open] .af-fab__button {
       transform: rotate(45deg);
     }
-    .af-fab__button:focus-visible,
-    .af-fab__item:focus-visible {
-      outline: 3px solid var(--accent);
-      outline-offset: 3px;
-    }
     .af-fab__menu {
       display: grid;
       gap: 0.25rem;
