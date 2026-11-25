@@ -387,7 +387,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
-    padding: 0.5rem 1rem;
+    padding: calc(0.5rem + env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) 0.5rem max(1rem, env(safe-area-inset-left));
     border-bottom: 1px solid var(--line);
     background-color: var(--surface);
   }
@@ -441,19 +441,11 @@
   .af-cl-nav--top {
     display: none;
   }
-  .af-cl-nav--skel {
-    display: flex;
-    gap: 0.5rem;
-  }
-  .af-cl-nav--skel .af-skel {
-    flex: 1 1 0;
-    --w: auto;
-  }
 
   .af-cl-main {
     flex: 1 1 auto;
     min-width: 0;
-    padding: 1.25rem 1rem calc(6.5rem + env(safe-area-inset-bottom));
+    padding: 1.25rem max(1rem, env(safe-area-inset-right)) calc(6.5rem + env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
     outline: none;
   }
   .af-cl-inner {
@@ -555,9 +547,6 @@
       padding: 0 1rem;
       font-size: 0.9375rem;
     }
-    .af-cl-nav--skel {
-      max-width: 28rem;
-    }
     .af-cl-avatar {
       margin-inline-start: auto;
     }
@@ -573,6 +562,10 @@
   .af-cl-skel__body {
     display: grid;
     gap: 1rem;
+  }
+  /* Fora da moldura (página pública da loja, visitante) o esqueleto leva o próprio respiro; dentro, é o do main. */
+  .af-cl-skel__body:not(.af-cl-main *) {
+    padding: 1.25rem 1rem;
   }
   .af-cl-skel__list,
   .af-cl-skel__choices {

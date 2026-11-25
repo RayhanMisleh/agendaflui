@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { EnderecoForm } from '@/app/app/[slug]/loja/enderecos/EnderecoForm'
-import { FinalizarForm, type OpcoesDaLoja } from '@/app/app/[slug]/loja/finalizar/FinalizarForm'
+import { EnderecoForm } from '@/app/app/[slug]/(area)/loja/enderecos/EnderecoForm'
+import { FinalizarForm, type OpcoesDaLoja } from '@/app/app/[slug]/(area)/loja/finalizar/FinalizarForm'
 import { ToastProvider } from '@/ui/components'
 
 const mocks = vi.hoisted(() => ({ cotarFrete: vi.fn(), buscarCep: vi.fn() }))
-vi.mock('@/app/app/[slug]/loja/actions', () => ({ fazerPedido: vi.fn(), salvarEndereco: vi.fn(), apagarEndereco: vi.fn() }))
-vi.mock('@/app/app/[slug]/loja/consultas', () => mocks)
+vi.mock('@/app/app/[slug]/(area)/loja/actions', () => ({ fazerPedido: vi.fn(), salvarEndereco: vi.fn(), apagarEndereco: vi.fn() }))
+vi.mock('@/app/app/[slug]/(area)/loja/consultas', () => mocks)
 
 const resumo = { linhas: [{ name: 'Shampoo', quantity: 2, totalCents: 5000 }], itemsCents: 5000 }
 const casa = { id: 'a1', label: 'Casa', recipientName: 'Maria', postalCode: '20040-020', street: 'Rua da Quitanda', number: '10', complement: null, district: 'Centro', city: 'Rio de Janeiro', state: 'RJ', isDefault: true }

@@ -33,7 +33,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { excluirConta, salvarAvisos } from '@/app/app/[slug]/mais/actions'
+import { excluirConta, salvarAvisos } from '@/app/app/[slug]/(area)/mais/actions'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 
 const SENHA = 'senha-bem-longa'

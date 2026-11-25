@@ -1,4 +1,4 @@
-import { clienteNav, maisItems } from '@/ui/shells/cliente-nav'
+import { clienteImersivo, clienteNav, maisItems } from '@/ui/shells/cliente-nav'
 
 const ativos = (path: string, pets = true) => clienteNav('a-loja', { pets }, path).filter((i) => i.active).map((i) => i.label)
 
@@ -39,5 +39,21 @@ describe('maisItems', () => {
   test('módulo ligado entra na ordem Prêmios, Loja, Minha conta', () => {
     expect(maisItems('a-loja', { loyalty: true, store: true }).map((i) => i.label)).toEqual(['Prêmios', 'Loja', 'Minha conta'])
     expect(maisItems('a-loja', { loyalty: false, store: true }).map((i) => i.label)).toEqual(['Loja', 'Minha conta'])
+  })
+})
+
+describe('clienteImersivo', () => {
+  test.each([
+    ['/a-loja/agendar', true],
+    ['/a-loja/agendar/feito/abc', true],
+    ['/a-loja/boas-vindas', true],
+    ['/a-loja/horarios/abc/remarcar', true],
+    ['/a-loja', false],
+    ['/a-loja/horarios', false],
+    ['/a-loja/horarios/abc', false],
+    ['/a-loja/pets', false],
+    ['/a-loja/agendarx', false],
+  ])('%s → %s', (path, esperado) => {
+    expect(clienteImersivo('a-loja', path)).toBe(esperado)
   })
 })

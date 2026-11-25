@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { ListaDePets } from '@/app/app/[slug]/pets/_lib/ListaDePets'
+import { ListaDePets } from '@/app/app/[slug]/(area)/pets/_lib/ListaDePets'
 import type { PetView } from '@/server/domain/pets/pets'
 import { ToastProvider } from '@/ui/components'
 
-vi.mock('@/app/app/[slug]/pets/actions', () => ({ editarPet: vi.fn(), arquivarPet: vi.fn(), restaurarPet: vi.fn() }))
+vi.mock('@/app/app/[slug]/(area)/pets/actions', () => ({ editarPet: vi.fn(), arquivarPet: vi.fn(), restaurarPet: vi.fn() }))
 
 function pet(o: Partial<PetView>): PetView {
   return {

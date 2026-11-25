@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { PremioCartao, avisoDeEstoque, type PremioDoCartao } from '@/app/app/[slug]/premios/_lib/PremioCartao'
-import { Ranking } from '@/app/app/[slug]/premios/_lib/Ranking'
-import { Saldo } from '@/app/app/[slug]/premios/_lib/Saldo'
+import { PremioCartao, avisoDeEstoque, type PremioDoCartao } from '@/app/app/[slug]/(area)/premios/_lib/PremioCartao'
+import { Ranking } from '@/app/app/[slug]/(area)/premios/_lib/Ranking'
+import { Saldo } from '@/app/app/[slug]/(area)/premios/_lib/Saldo'
 import { ToastProvider } from '@/ui/components'
 
-vi.mock('@/app/app/[slug]/premios/actions', () => ({ resgatarPremio: vi.fn(), cancelarResgate: vi.fn() }))
+vi.mock('@/app/app/[slug]/(area)/premios/actions', () => ({ resgatarPremio: vi.fn(), cancelarResgate: vi.fn() }))
 
 const premio: PremioDoCartao = { id: 'p1', name: 'Corte grátis', description: 'Um corte à escolha', imageUrl: null, costPoints: 100, stock: null }
 

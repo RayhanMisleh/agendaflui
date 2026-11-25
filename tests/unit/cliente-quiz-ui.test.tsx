@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QuizPet } from '@/app/app/[slug]/boas-vindas/QuizPet'
-import type { SalvarPetResultado } from '@/app/app/[slug]/boas-vindas/quiz'
+import { QuizPet } from '@/app/app/[slug]/(area)/boas-vindas/QuizPet'
+import type { SalvarPetResultado } from '@/app/app/[slug]/(area)/boas-vindas/quiz'
 import { ToastProvider } from '@/ui/components'
 
 const router = vi.hoisted(() => ({ push: vi.fn() }))

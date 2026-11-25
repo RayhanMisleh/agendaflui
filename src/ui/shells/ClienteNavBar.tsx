@@ -2,14 +2,16 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cx } from '../components/cx'
-import { clienteNav } from './cliente-nav'
+import { clienteImersivo, clienteNav } from './cliente-nav'
 
 /**
  * Navegação da área do cliente. A moldura monta duas (uma só aparece por vez, pelo CSS): `bottom`, a pílula flutuante do
- * celular, fora da barra do topo (que leva nome de transição); `top`, os links na barra do topo no computador.
+ * celular, fora da barra do topo (que leva nome de transição); `top`, os links na barra do topo no computador. Mora na
+ * moldura do layout: não remonta ao navegar, só o item ativo muda (vem do endereço). Em tela de fluxo a da base some.
  */
 export function ClienteNavBar({ slug, pets, placement }: { slug: string; pets: boolean; placement: 'top' | 'bottom' }) {
   const pathname = usePathname() ?? `/${slug}`
+  if (placement === 'bottom' && clienteImersivo(slug, pathname)) return null
   const itens = clienteNav(slug, { pets }, pathname)
   return (
     <nav aria-label="Principal" className={cx('af-cl-nav', `af-cl-nav--${placement}`)}>

@@ -25,7 +25,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { cancelarResgate, resgatarPremio } from '@/app/app/[slug]/premios/actions'
+import { cancelarResgate, resgatarPremio } from '@/app/app/[slug]/(area)/premios/actions'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 
 type Cena = Awaited<ReturnType<typeof montar>>

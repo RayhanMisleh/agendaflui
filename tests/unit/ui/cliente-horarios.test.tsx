@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { render, screen } from '@testing-library/react'
-import { HorarioLinha } from '@/app/app/[slug]/horarios/_lib/HorarioLinha'
-import { HorariosVazios } from '@/app/app/[slug]/horarios/_lib/HorariosVazios'
+import { HorarioLinha } from '@/app/app/[slug]/(area)/horarios/_lib/HorarioLinha'
+import { HorariosVazios } from '@/app/app/[slug]/(area)/horarios/_lib/HorariosVazios'
 import type { AppointmentView } from '@/server/domain/scheduling/appointments'
 
 function horario(o: Partial<AppointmentView> = {}): AppointmentView {

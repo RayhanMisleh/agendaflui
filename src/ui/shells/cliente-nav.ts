@@ -27,3 +27,15 @@ export function maisItems(slug: string, modules: Pick<Modules, 'loyalty' | 'stor
     { href: '/conta', label: 'Minha conta', icon: UserRound },
   ]
 }
+
+/**
+ * Telas de fluxo (agendar, boas-vindas, remarcar): sem a navegação da base, para a barra "Continuar" ocupar o lugar dela.
+ * Decidido pelo endereço, na moldura do layout, que não remonta ao navegar.
+ */
+export function clienteImersivo(slug: string, pathname: string): boolean {
+  const base = `/${slug}`
+  if (isNavActive(pathname, `${base}/agendar`) || isNavActive(pathname, `${base}/boas-vindas`)) return true
+  if (!isNavActive(pathname, `${base}/horarios`)) return false
+  const [, , id, tela] = pathname.slice(base.length).split('/')
+  return Boolean(id) && tela === 'remarcar'
+}

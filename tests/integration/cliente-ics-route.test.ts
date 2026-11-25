@@ -22,7 +22,7 @@ vi.mock('next/navigation', () => ({
 }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { GET } from '@/app/app/[slug]/horarios/[id]/agenda.ics/route'
+import { GET } from '@/app/app/[slug]/(area)/horarios/[id]/agenda.ics/route'
 
 let c: CenaPet
 beforeEach(async () => {

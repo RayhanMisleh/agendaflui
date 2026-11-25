@@ -34,10 +34,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { apagarEndereco, fazerPedido, salvarEndereco } from '@/app/app/[slug]/loja/actions'
-import { buscarCep, cotarFrete } from '@/app/app/[slug]/loja/consultas'
-import { cancelarPedido, pagarPedido } from '@/app/app/[slug]/loja/pedidos/actions'
-import { CART_COOKIE } from '@/app/app/[slug]/loja/_lib/carrinho'
+import { apagarEndereco, fazerPedido, salvarEndereco } from '@/app/app/[slug]/(area)/loja/actions'
+import { buscarCep, cotarFrete } from '@/app/app/[slug]/(area)/loja/consultas'
+import { cancelarPedido, pagarPedido } from '@/app/app/[slug]/(area)/loja/pedidos/actions'
+import { CART_COOKIE } from '@/app/app/[slug]/(area)/loja/_lib/carrinho'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 
 type Cena = CenaPagamento & { slug: string }

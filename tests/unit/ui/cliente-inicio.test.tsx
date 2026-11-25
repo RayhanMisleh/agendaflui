@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { render, screen, within } from '@testing-library/react'
-import { Inicio } from '@/app/app/[slug]/_inicio/Inicio'
-import { linkSeguro } from '@/app/app/[slug]/_inicio/Banners'
+import { Inicio } from '@/app/app/[slug]/(area)/_inicio/Inicio'
+import { linkSeguro } from '@/app/app/[slug]/(area)/_inicio/Banners'
 import type { AppointmentView } from '@/server/domain/scheduling/appointments'
 import type { CustomerHome } from '@/server/domain/scheduling/customer-home'
 import { ToastProvider } from '@/ui/components'
 import { relativeDayLabel } from '@/ui/format'
 
-vi.mock('@/app/app/[slug]/horarios/actions', () => ({ cancelarHorario: vi.fn() }))
+vi.mock('@/app/app/[slug]/(area)/horarios/actions', () => ({ cancelarHorario: vi.fn() }))
 
 const TELEFONE = { label: '(11) 99999-0000', href: 'tel:+5511999990000', whatsappHref: null }
 const loja = { phone: TELEFONE, petNiche: true }
