@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { Mail, MessageCircle, Plus } from 'lucide-react'
+import { Mail, MessageCircle, Phone, Plus } from 'lucide-react'
 import type { TenantContext } from '@/server/auth/actor'
 import { can } from '@/server/auth/capabilities'
 import { requireTenant } from '@/server/auth/guards'
@@ -14,7 +14,7 @@ import { listOrders } from '@/server/domain/store/orders'
 import { listCustomerAppointments } from '@/server/domain/scheduling/agenda'
 import type { AppointmentView } from '@/server/domain/scheduling/appointment-view'
 import { getPainelContext } from '@/server/domain/settings/painel-context'
-import { AppointmentStatusBadge, Avatar, Card, EmptyHint, EmptyState, PetCard, LinkButton, OrderStatusBadge, Pagination, PhoneLink, StatNumber, StatusDot } from '@/ui/components'
+import { AppointmentStatusBadge, Avatar, Card, EmptyHint, EmptyState, PetCard, LinkButton, OrderStatusBadge, Pagination, PhoneLink, StatNumber, StatusDot, telHref } from '@/ui/components'
 import { formatDuration, formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
 import Link from 'next/link'
@@ -124,11 +124,16 @@ export default async function ClientePage({
               {cliente.archived ? <StatusDot tone="neutral" label={removido ? 'Dados removidos' : 'Arquivado'} /> : <StatusDot tone="success" label="Ativo" {...(cliente.hasAccount ? { detail: 'Tem conta' } : {})} />}
               {clube && cliente.isClubMember ? <span>Do {clube}</span> : null}
               {cliente.origin === 'APP' ? <span>Pelo link da loja</span> : null}
+              {cliente.phone ? <PhoneLink phone={cliente.phoneLabel} /> : null}
             </div>
           </div>
           {cliente.phone || cliente.email ? (
             <div className="af-quick" aria-label={`Contato de ${cliente.name}`}>
-              {cliente.phone ? <PhoneLink phone={cliente.phoneLabel} label={`Ligar ${cliente.phoneLabel ?? ''}`.trim()} /> : null}
+              {cliente.phone ? (
+                <LinkButton href={telHref(cliente.phone)} variant="secondary" size="sm" icon={<Phone size={16} />}>
+                  Ligar
+                </LinkButton>
+              ) : null}
               {zap ? (
                 <LinkButton href={zap} variant="secondary" size="sm" icon={<MessageCircle size={16} />} external>
                   WhatsApp

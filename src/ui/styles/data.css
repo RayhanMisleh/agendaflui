@@ -38,7 +38,7 @@
     /* Cartão: duas colunas de pares rótulo/valor; o título e a barra de ações ocupam as duas. */
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.625rem 1rem;
-    padding: var(--dl-row-pad, 0.875rem 1rem);
+    padding: var(--dl-row-pad, 0.875rem 0.75rem);
     border: var(--dl-row-border, 1px solid var(--line));
     border-radius: var(--dl-row-radius, var(--radius-chip));
     background-color: var(--dl-row-bg, var(--ground));

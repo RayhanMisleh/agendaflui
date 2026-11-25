@@ -159,7 +159,8 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
                 </div>
               )}
               <p className="af-report__note">
-                {resumo.canceled} cancelados e {resumo.noShow} faltas no período.
+                {resumo.canceled} {resumo.canceled === 1 ? 'cancelado' : 'cancelados'} e {resumo.noShow}{' '}
+                {resumo.noShow === 1 ? 'falta' : 'faltas'} no período.
                 {servico ? ' Com um serviço escolhido, a receita é só a dele e a comissão não se divide por serviço.' : ''}
               </p>
             </Card>

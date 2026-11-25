@@ -72,10 +72,10 @@
   }
   /* O botão discreto não tem contorno: a folga lateral menor deixa Editar e Arquivar caberem na mesma linha. */
   .af-rowactions > .af-button--secondary:not(.af-button--iconly) {
-    padding-inline: 0.75rem;
+    padding-inline: 0.625rem;
   }
   .af-rowactions > .af-button--ghost:not(.af-button--iconly) {
-    padding-inline: 0.5rem;
+    padding-inline: 0.375rem;
   }
   .af-rowactions__move form {
     display: contents;

@@ -367,10 +367,20 @@
     align-items: center;
     color: var(--ink-muted);
   }
+  /* Contato rápido: Ligar, WhatsApp e E-mail lado a lado, do mesmo tamanho (no celular dividem a linha). */
   .af-quick {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+  .af-quick > * {
+    flex: 1 1 auto;
+    padding-inline: 0.625rem;
+  }
+  @media (min-width: 768px) {
+    .af-quick > * {
+      flex: 0 0 auto;
+    }
   }
   .af-profile__cols {
     display: grid;
