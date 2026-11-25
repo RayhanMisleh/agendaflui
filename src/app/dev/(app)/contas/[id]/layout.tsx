@@ -23,23 +23,23 @@ export default async function ContaLayout({ children, params }: { children: Reac
       <Card className="af-acct">
         <div className="af-acct__row">
           <StatusDot {...businessStatusDot(conta.status)} />
-          <span className="af-account__slug">
-            Identificador {conta.slug}. Dono: {conta.ownerName ?? 'sem dono ativo'}.
+          <span className="af-acct__row" aria-label="Nicho da conta" role="group">
+            {conta.niche === null ? (
+              <StatusBadge tone="neutral">Sem nicho</StatusBadge>
+            ) : (
+              <>
+                <span className="af-badge af-badge--neutral">
+                  <PawPrint size={14} aria-hidden="true" />
+                  Pet shop
+                </span>
+                <StatusBadge tone="neutral">{conta.servesCats ? 'Atende gatos' : 'Só cães'}</StatusBadge>
+              </>
+            )}
           </span>
         </div>
-        <div className="af-acct__row" aria-label="Nicho da conta" role="group">
-          {conta.niche === null ? (
-            <StatusBadge tone="neutral">Sem nicho</StatusBadge>
-          ) : (
-            <>
-              <span className="af-badge af-badge--neutral">
-                <PawPrint size={14} aria-hidden="true" />
-                Pet shop
-              </span>
-              <StatusBadge tone="neutral">{conta.servesCats ? 'Atende gatos' : 'Só cães'}</StatusBadge>
-            </>
-          )}
-        </div>
+        <span className="af-account__slug">
+          Identificador {conta.slug}. Dono: {conta.ownerName ?? 'sem dono ativo'}.
+        </span>
         <div className="af-entrylink">
           <span className="af-account__slug">Link para clientes:</span>
           <span className="af-entrylink__url">{conta.customerLinkUrl}</span>

@@ -50,11 +50,23 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* O título tem duas formas: completa no computador e curta no celular (cabe numa linha entre as setas). */
+  .af-agenda__title-short {
+    display: none;
+  }
+  /* O botão "+" só existe no celular. */
+  .af-fab {
+    display: none;
+  }
+
   /*
-   * Celular: título entre as setas (dois toques para mudar o dia), "Hoje" ao lado; as ações viram uma barra flutuante ao
-   * alcance do polegar, acima da navegação em pílula e da área segura do aparelho.
+   * Celular: uma linha só (seta, data, seta, Hoje); o profissional se escolhe nas pílulas do dia (a fileira de cima só
+   * aparece na semana); as ações viram o botão "+" redondo ao alcance do polegar, acima da navegação em pílula.
    */
   @media (max-width: 47.9375rem) {
+    .af-agenda__bar {
+      gap: 0.5rem;
+    }
     .af-agenda__nav {
       flex-wrap: nowrap;
       gap: 0.375rem;
@@ -63,38 +75,109 @@
       order: 2;
       flex: 1 1 0;
       min-width: 0;
-      font-size: clamp(1rem, 0.85rem + 1.2vw, 1.25rem);
+      font-size: var(--text-body);
+      line-height: var(--text-body-lh);
       text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* Setas quadradas de 44 px e "Hoje" com folga menor: a data cabe inteira entre elas mesmo a 320 px. */
+    .af-agenda__nav > .af-button:nth-child(1),
+    .af-agenda__nav > .af-button:nth-child(3) {
+      min-width: 44px;
+      padding-inline: 0;
+    }
+    .af-agenda__nav > .af-button:nth-child(2) {
+      padding-inline: 0.875rem;
+    }
+    .af-agenda__title-long {
+      display: none;
+    }
+    .af-agenda__title-short {
+      display: inline;
     }
     .af-agenda__nav > :nth-child(1) {
       order: 1;
     }
     .af-agenda__nav > :nth-child(2) {
-      order: 3;
-    }
-    .af-agenda__nav > :nth-child(3) {
       order: 4;
     }
+    .af-agenda__nav > :nth-child(3) {
+      order: 3;
+    }
+    .af-agenda__profs--dia {
+      display: none;
+    }
     .af-agenda__actions {
+      display: none;
+    }
+    /* Folga no fim da página para o botão não cobrir a última vaga. */
+    .af-agenda {
+      padding-bottom: 4.5rem;
+    }
+    .af-fab {
       position: fixed;
-      inset-inline: 0.75rem;
+      inset-inline-end: 1rem;
       bottom: calc(var(--af-nav-clearance, 5.25rem) + env(safe-area-inset-bottom));
-      z-index: 20;
-      flex-wrap: nowrap;
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 0.5rem;
+    }
+    .af-fab__button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      border: 0;
+      border-radius: 50%;
+      background-color: var(--brand);
+      color: var(--on-brand);
+      box-shadow: var(--shadow-pop);
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .af-fab[data-open] .af-fab__button {
+      transform: rotate(45deg);
+    }
+    .af-fab__menu {
+      display: grid;
+      gap: 0.25rem;
+      min-width: 14rem;
       padding: 0.375rem;
       border: 1px solid var(--line);
-      border-radius: var(--radius-pill);
+      border-radius: var(--radius-card);
       background-color: var(--surface);
       box-shadow: var(--shadow-pop);
     }
-    .af-agenda__actions > * {
-      flex: 1 1 0;
-      min-width: 0;
+    .af-fab__item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-height: 48px;
+      padding: 0 1rem;
+      border: 0;
+      border-radius: var(--radius-chip);
+      background: none;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 600;
+      text-align: start;
+      cursor: pointer;
     }
-    /* Folga no fim da página para a barra não cobrir a última vaga. */
-    .af-agenda {
-      padding-bottom: 3.5rem;
+    @media (hover: hover) {
+      .af-fab__item:hover {
+        background-color: var(--brand-tint);
+      }
+    }
+    @media (prefers-reduced-motion: no-preference) {
+      .af-fab__button {
+        transition: transform var(--af-dur-fast) var(--af-ease);
+      }
     }
   }
 

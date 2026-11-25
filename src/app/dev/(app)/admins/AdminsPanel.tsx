@@ -60,7 +60,7 @@ const COLUNAS: DataColumn<LinhaAdmin>[] = [
       </span>
     ),
   },
-  { key: 'email', header: 'E-mail', cell: (a) => a.email },
+  { key: 'email', header: 'E-mail', wide: true, cell: (a) => a.email },
   { key: 'situacao', header: 'Situação', cell: (a) => <StatusBadge tone={a.active ? 'confirmed' : 'neutral'}>{a.active ? 'Ativo' : 'Desativado'}</StatusBadge> },
   { key: 'acesso', header: 'Último acesso', nowrap: true, cell: (a) => a.ultimoAcesso ?? 'Nunca entrou' },
   { key: 'acao', header: 'Ação', cell: (a) => (a.alternar ? <Alternar a={a} alternar={a.alternar} /> : <span className="af-account__slug">Você não pode desativar o próprio acesso.</span>) },

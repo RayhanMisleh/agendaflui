@@ -494,11 +494,14 @@
     line-height: var(--text-small-lh);
   }
   .af-phone {
+    /* O número nunca quebra no meio, nem em coluna estreita de cartão. */
+    white-space: nowrap;
     color: var(--brand-text);
     font-variant-numeric: tabular-nums;
     text-underline-offset: 2px;
   }
   .af-phone--none {
+    white-space: normal;
     color: var(--ink-muted);
   }
 

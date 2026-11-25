@@ -53,10 +53,16 @@ export function BannersPainel({ banners }: { banners: BannerLinha[] }) {
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (b) => (
         <span className="af-rowactions">
-          <AcaoDeLinha action={moverBanner} campos={{ id: b.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={b.first} ariaLabel={`Subir ${b.title}`} />
-          <AcaoDeLinha action={moverBanner} campos={{ id: b.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={b.last} ariaLabel={`Descer ${b.title}`} />
+          <span className="af-rowactions__move">
+            <AcaoDeLinha action={moverBanner} campos={{ id: b.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={b.first} ariaLabel={`Subir ${b.title}`} />
+            <AcaoDeLinha action={moverBanner} campos={{ id: b.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={b.last} ariaLabel={`Descer ${b.title}`} />
+          </span>
+          <LinkButton href={`/painel/banners/${b.id}`} variant="secondary" size="sm" icon={<Pencil size={16} />} aria-label={`Editar ${b.title}`}>
+            Editar
+          </LinkButton>
           <AcaoDeLinha
             action={alternarBanner}
             campos={{ id: b.id, active: b.active ? '0' : '1' }}
@@ -65,9 +71,6 @@ export function BannersPainel({ banners }: { banners: BannerLinha[] }) {
           >
             {b.active ? 'Desativar' : 'Ativar'}
           </AcaoDeLinha>
-          <LinkButton href={`/painel/banners/${b.id}`} variant="secondary" size="sm" icon={<Pencil size={16} />} aria-label={`Editar ${b.title}`}>
-            Editar
-          </LinkButton>
           <Button size="sm" variant="ghost" icon={<Trash2 size={16} />} onClick={() => setExcluindo(b)} aria-label={`Excluir ${b.title}`}>
             Excluir
           </Button>

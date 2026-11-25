@@ -26,13 +26,14 @@ export function Button({
   type = 'button',
   ...rest
 }: ButtonProps) {
+  const iconOnly = Boolean(icon) && children == null
   return (
     <button
       {...rest}
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={cx('af-button', `af-button--${variant}`, `af-button--${size}`, className)}
+      className={cx('af-button', `af-button--${variant}`, `af-button--${size}`, iconOnly && 'af-button--iconly', className)}
     >
       {loading ? <span className="af-button__spinner" aria-hidden="true" /> : null}
       <span className="af-button__label">

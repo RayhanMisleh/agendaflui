@@ -11,7 +11,7 @@ import { getPainelContext } from '@/server/domain/settings/painel-context'
 import { listProfessionals } from '@/server/domain/team/professionals'
 import { todayIn } from '@/server/time'
 import Form from 'next/form'
-import { BarList, Card, DateRangeField, EmptyHint, Field, NavTabs, Pagination, Select, StatNumber, SubmitButton } from '@/ui/components'
+import { BarList, Card, DateRangeField, EmptyHint, Field, FiltrosRecolhiveis, NavTabs, Pagination, Select, StatNumber, SubmitButton } from '@/ui/components'
 import type { BarItem } from '@/ui/components'
 import { formatLocalDate, formatMoney } from '@/ui/format'
 import { um } from '@/app/_lib/params'
@@ -98,32 +98,39 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
         <Card as="section" aria-label="Período e filtros" className="af-report__filters">
           <NavTabs label="Períodos prontos" items={atalhos} />
           <Form action="/painel/relatorios" className="af-report__form">
-            <DateRangeField from={periodo.from} to={periodo.to} />
-            {todos ? (
-              <Field label={terms.professionalSingular}>
-                <Select name="profissional" defaultValue={profissional}>
-                  <option value="">Todos</option>
-                  {equipe.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-            ) : null}
-            <Field label="Serviço">
-              <Select name="servico" defaultValue={servico}>
-                <option value="">Todos</option>
-                {servicos.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <SubmitButton variant="primary">
-              Ver período
-            </SubmitButton>
+            <div className="af-report__dates">
+              <DateRangeField from={periodo.from} to={periodo.to} />
+            </div>
+            <FiltrosRecolhiveis
+              ativos={(profissional ? 1 : 0) + (servico ? 1 : 0)}
+              filtros={
+                <>
+                  {todos ? (
+                    <Field label={terms.professionalSingular}>
+                      <Select name="profissional" defaultValue={profissional}>
+                        <option value="">Todos</option>
+                        {equipe.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  ) : null}
+                  <Field label="Serviço">
+                    <Select name="servico" defaultValue={servico}>
+                      <option value="">Todos</option>
+                      {servicos.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </>
+              }
+              enviar={<SubmitButton variant="primary">Ver período</SubmitButton>}
+            />
           </Form>
           <p className="af-report__note">
             {periodo.from === periodo.to ? formatLocalDate(periodo.from) : `${formatLocalDate(periodo.from)} a ${formatLocalDate(periodo.to)}`}. Contam os atendimentos que terminaram no período.
@@ -151,7 +158,8 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
                 </div>
               )}
               <p className="af-report__note">
-                {resumo.canceled} cancelados e {resumo.noShow} faltas no período.
+                {resumo.canceled} {resumo.canceled === 1 ? 'cancelado' : 'cancelados'} e {resumo.noShow}{' '}
+                {resumo.noShow === 1 ? 'falta' : 'faltas'} no período.
                 {servico ? ' Com um serviço escolhido, a receita é só a dele e a comissão não se divide por serviço.' : ''}
               </p>
             </Card>

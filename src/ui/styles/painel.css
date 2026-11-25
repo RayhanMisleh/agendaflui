@@ -367,10 +367,20 @@
     align-items: center;
     color: var(--ink-muted);
   }
+  /* Contato rápido: Ligar, WhatsApp e E-mail lado a lado, do mesmo tamanho (no celular dividem a linha). */
   .af-quick {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+  }
+  .af-quick > * {
+    flex: 1 1 auto;
+    padding-inline: 0.625rem;
+  }
+  @media (min-width: 768px) {
+    .af-quick > * {
+      flex: 0 0 auto;
+    }
   }
   .af-profile__cols {
     display: grid;
@@ -432,13 +442,7 @@
   }
   .af-custlink {
     display: grid;
-    gap: 1.25rem;
-    align-items: center;
-    min-width: 0;
-  }
-  .af-custlink__main {
-    display: grid;
-    gap: 0.75rem;
+    gap: 0.5rem;
     min-width: 0;
   }
   .af-custlink__title {
@@ -447,26 +451,62 @@
     font-family: var(--font-display);
     font-size: var(--text-h3);
     font-weight: 700;
+    line-height: var(--text-h3-lh);
   }
   .af-custlink__help {
     margin: 0;
     color: var(--ink-muted);
     font-size: var(--text-small);
   }
-  .af-custlink__url {
-    min-width: 0;
-    width: 100%;
-  }
-  .af-custlink__actions {
+  /* Link e botões na mesma linha quando cabem; no celular os botões descem, lado a lado. */
+  .af-custlink__row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.5rem;
   }
-  .af-custlink__qrbox {
-    display: grid;
-    justify-items: center;
+  .af-custlink__url {
+    flex: 1 1 10rem;
+    min-width: 0;
+    text-overflow: ellipsis;
+  }
+  .af-custlink__actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
     gap: 0.5rem;
+  }
+  .af-custlink__qrbox {
+    min-width: 0;
+  }
+  .af-custlink__qrtoggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding-inline: 0.25rem;
+    border-radius: var(--radius-pill);
+    color: var(--brand-text);
+    font-size: var(--text-small);
+    font-weight: 600;
+    list-style: none;
+    cursor: pointer;
+  }
+  .af-custlink__qrtoggle::-webkit-details-marker {
+    display: none;
+  }
+  .af-custlink__qrhide,
+  .af-custlink__qrbox[open] .af-custlink__qrshow {
+    display: none;
+  }
+  .af-custlink__qrbox[open] .af-custlink__qrhide {
+    display: inline;
+  }
+  .af-custlink__qrbody {
+    display: grid;
+    justify-items: start;
+    gap: 0.5rem;
+    padding-block: 0.25rem 0.5rem;
   }
   .af-custlink__qr {
     width: 9rem;
@@ -480,9 +520,16 @@
     width: 100%;
     height: auto;
   }
-  @media (min-width: 40rem) {
-    .af-custlink {
-      grid-template-columns: minmax(0, 1fr) auto;
+  /* No celular o bloco "Hoje" vem primeiro; o começo e o link para clientes vêm logo depois, antes do resto do dia. */
+  @media (max-width: 47.9375rem) {
+    .af-custlink__help {
+      display: none;
+    }
+    .af-home > .af-home__top {
+      order: -2;
+    }
+    .af-home > .af-onb-check {
+      order: -1;
     }
   }
   .af-careful {
@@ -652,7 +699,7 @@
     display: grid;
     gap: 0.5rem;
     margin: 0;
-    padding: 0.75rem 1rem;
+    padding: 0.75rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-chip);
     min-width: 0;
@@ -665,20 +712,31 @@
     margin: 0;
     color: var(--ink-muted);
   }
+  /* Uma faixa numa linha só (início às fim, lixeira), mesmo a 320 px: os campos encolhem até caber, com teto de 8 rem. */
   .af-hours__range {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 8rem) auto minmax(0, 8rem) auto;
+    justify-content: start;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.375rem;
   }
   .af-hours__time {
-    flex: 0 1 8rem;
-    width: 8rem;
+    width: 100%;
     min-width: 0;
+    padding-inline: 0.5rem;
     font-variant-numeric: tabular-nums;
   }
+  .af-hours__time::-webkit-calendar-picker-indicator {
+    margin-inline-start: 0.125rem;
+  }
+  /* Tela muito estreita: sem o relógio do seletor (o horário se digita ou se escolhe no teclado do aparelho). */
+  @media (max-width: 22.5rem) {
+    .af-hours__time::-webkit-calendar-picker-indicator {
+      display: none;
+    }
+  }
   .af-hours__error {
-    flex: 1 1 100%;
+    grid-column: 1 / -1;
     margin: 0;
   }
   .af-hours__tools {
@@ -700,15 +758,99 @@
     gap: 1rem;
     min-width: 0;
   }
+  /* Celular: De e Até lado a lado; Profissional e Serviço recolhidos atrás de "Filtros". */
   .af-report__form {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem 1rem;
     align-items: end;
   }
+  .af-report__dates {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .af-filtros {
+    display: grid;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+  .af-filtros__bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .af-filtros__bar > :last-child {
+    flex: 1 1 auto;
+  }
+  .af-filtros__toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 44px;
+    padding: 0 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .af-filtros__count {
+    padding: 0.125rem 0.5rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--brand-tint);
+    color: var(--brand-text);
+    font-size: var(--text-small);
+  }
+  .af-filtros[data-open] .af-filtros__chevron {
+    transform: rotate(180deg);
+  }
+  .af-filtros__body {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .af-filtros[data-open] .af-filtros__body {
+    display: grid;
+  }
+  /* Campos de texto com dica longa (auditoria): um por linha mesmo recolhidos. */
+  .af-report__form--stack .af-filtros__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  @media (max-width: 22rem) {
+    .af-filtros__body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+  /* Do tablet para cima os filtros ficam todos à vista, numa linha de campos. */
   @media (min-width: 40rem) {
     .af-report__form {
       grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    }
+    .af-report__dates,
+    .af-filtros,
+    .af-filtros__body,
+    .af-filtros[data-open] .af-filtros__body {
+      display: contents;
+    }
+    .af-filtros__bar {
+      display: contents;
+    }
+    .af-filtros__toggle {
+      display: none;
+    }
+    /* O botão de enviar fecha a linha, depois dos campos que estavam recolhidos. */
+    .af-filtros__bar > :last-child {
+      order: 1;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-filtros__chevron {
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
   }
   .af-report__stats {

@@ -155,7 +155,7 @@ export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Mem
       header: 'Pessoa',
       primary: true,
       cell: (m) => (
-        <span className="af-account">
+        <span className="af-acctcell">
           <span className="af-account__name">{m.name}</span>
           <span className="af-account__slug">{m.email}</span>
         </span>
@@ -183,6 +183,7 @@ export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Mem
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (m) => (
         <span className="af-rowactions">
           <Acesso acoes={acoes} m={m} />

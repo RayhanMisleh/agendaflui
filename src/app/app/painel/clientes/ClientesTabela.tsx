@@ -20,7 +20,7 @@ export function ClientesTabela({ clientes, vazio, clube }: { clientes: ClienteLi
   const colunas: DataColumn<ClienteLinha>[] = [
     { key: 'nome', header: 'Nome', primary: true, cell: (c) => c.name },
     { key: 'telefone', header: 'Telefone', nowrap: true, cell: (c) => <PhoneLink phone={c.phone} label={c.phoneLabel ?? undefined} /> },
-    { key: 'email', header: 'E-mail', cell: (c) => c.email ?? 'Sem e-mail' },
+    { key: 'email', header: 'E-mail', wide: true, cell: (c) => c.email ?? 'Sem e-mail' },
     {
       key: 'situacao',
       header: 'Situação',

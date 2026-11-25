@@ -1,7 +1,7 @@
 import { cx } from './cx'
 
 /** Só os dígitos, com `+` e DDI: 10 ou 11 dígitos sem DDI são do Brasil. */
-function telHref(phone: string): string {
+export function telHref(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   const international = phone.trim().startsWith('+') || digits.length > 11
   return `tel:+${international ? digits : `55${digits}`}`

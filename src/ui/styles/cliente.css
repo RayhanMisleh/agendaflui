@@ -291,7 +291,8 @@
   @keyframes af-cl-step-in {
     from {
       opacity: 0;
-      transform: translateX(calc(var(--dir) * 24px)) scale(0.98);
+      /* 12 px cabem na margem lateral da página (16 px): o cartão que entra nunca passa da borda da tela nem cria rolagem lateral. */
+      transform: translateX(calc(var(--dir) * 12px)) scale(0.98);
     }
   }
 
@@ -1100,6 +1101,17 @@
     border-radius: var(--radius-chip);
     background-color: var(--brand-tint);
     color: var(--brand-text);
+  }
+  /* Sem imagem, o presente é só um selo: faixa baixa, não um quadro vazio do tamanho de uma foto. */
+  .af-cl-prize__media:not(:has(img)) {
+    aspect-ratio: auto;
+    height: 4.5rem;
+  }
+  /* Um prêmio por linha (celular): a foto fica mais baixa, para caber mais de um prêmio na tela. */
+  @media (max-width: 29.98rem) {
+    .af-cl-prize__media {
+      aspect-ratio: 16 / 9;
+    }
   }
   .af-cl-prize__media img {
     display: block;

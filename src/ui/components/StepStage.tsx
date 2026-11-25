@@ -2,7 +2,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 
 /**
- * Palco de uma etapa (pergunta do quiz, passo do Agendar). Trocar `stepKey` remonta o conteúdo com a entrada deslizando 24 px
+ * Palco de uma etapa (pergunta do quiz, passo do Agendar). Trocar `stepKey` remonta o conteúdo com a entrada deslizando 12 px
  * no sentido de `direction` (1 avança, -1 volta) e a leve escala; e leva o foco ao título da etapa nova, para quem usa teclado
  * ou leitor de tela saber que mudou. A primeira etapa não rouba o foco ao abrir a página.
  */

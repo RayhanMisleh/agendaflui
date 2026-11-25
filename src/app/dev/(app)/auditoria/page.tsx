@@ -4,7 +4,7 @@ import { requirePlatformAdmin } from '@/server/auth/guards'
 import { DomainError } from '@/server/domain/errors'
 import { listAudit } from '@/server/domain/platform/audit-log'
 import { findBusinessByRef } from '@/server/domain/platform/businesses'
-import { Button, EmptyState, Field, Input, LinkButton, Pagination, Card, Select } from '@/ui/components'
+import { Button, EmptyState, Field, FiltrosRecolhiveis, Input, LinkButton, Pagination, Card, Select } from '@/ui/components'
 import { ShellPage } from '@/ui/shells'
 import { HorariosNota } from '../_lib/HorariosNota'
 import { quando } from '../_lib/format'
@@ -58,40 +58,55 @@ export default async function AuditoriaPage({ searchParams }: { searchParams: Pr
   return (
     <ShellPage title="Auditoria">
       <Card className="af-listpanel">
-        <form method="get" action="/auditoria" className="af-filters" role="search" aria-label="Filtros da auditoria">
-          <Field label="Conta" hint={contaNome ? `Conta: ${contaNome}.` : 'Identificador da conta, como estudio-sol. Em branco, todas.'}>
-            <Input name="conta" defaultValue={values.conta} maxLength={100} autoComplete="off" spellCheck={false} />
-          </Field>
-          <Field label="Ação" hint="Nome exato, como business.status_changed.">
-            <Input name="acao" defaultValue={values.acao} maxLength={100} autoComplete="off" spellCheck={false} />
-          </Field>
-          <Field label="Quem agiu">
-            <Select name="ator" defaultValue={values.ator}>
-              <option value="">Todos</option>
-              {TIPOS_DE_ATOR.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="De" hint="Padrão: últimos 30 dias.">
-            <Input type="date" name="de" defaultValue={values.de} />
-          </Field>
-          <Field label="Até" hint="O dia inteiro entra. Máximo de 92 dias.">
-            <Input type="date" name="ate" defaultValue={values.ate} />
-          </Field>
-          <div className="af-filters__go">
-            <Button type="submit" variant="secondary">
-              Filtrar
-            </Button>
-            {filtrado ? (
+        <form method="get" action="/auditoria" className="af-report__form af-report__form--stack" role="search" aria-label="Filtros da auditoria">
+          <div className="af-report__dates">
+            <Field label="De">
+              <Input type="date" name="de" defaultValue={values.de} />
+            </Field>
+            <Field label="Até">
+              <Input type="date" name="ate" defaultValue={values.ate} />
+            </Field>
+          </div>
+          <FiltrosRecolhiveis
+            ativos={(values.conta !== '' ? 1 : 0) + (values.acao !== '' ? 1 : 0) + (values.ator !== '' ? 1 : 0)}
+            filtros={
+              <>
+                <Field label="Conta" hint={contaNome ? `Conta: ${contaNome}.` : 'Identificador, como estudio-sol. Em branco, todas.'}>
+                  <Input name="conta" defaultValue={values.conta} maxLength={100} autoComplete="off" spellCheck={false} />
+                </Field>
+                <Field label="Ação" hint="Nome exato, como business.status_changed.">
+                  <Input name="acao" defaultValue={values.acao} maxLength={100} autoComplete="off" spellCheck={false} />
+                </Field>
+                <Field label="Quem agiu">
+                  <Select name="ator" defaultValue={values.ator}>
+                    <option value="">Todos</option>
+                    {TIPOS_DE_ATOR.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </>
+            }
+            enviar={
+              <Button type="submit" variant="primary">
+                Filtrar
+              </Button>
+            }
+          />
+        </form>
+        <p className="af-section__help">
+          Sem datas, valem os últimos 30 dias. O dia de Até entra inteiro; no máximo 92 dias.
+          {filtrado ? (
+            <>
+              {' '}
               <Link href="/auditoria" className="af-searchbar__clear">
                 Limpar filtros
               </Link>
-            ) : null}
-          </div>
-        </form>
+            </>
+          ) : null}
+        </p>
         <HorariosNota />
         {aviso ? (
           <p role="alert" className="af-global__msg">

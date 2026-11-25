@@ -7,7 +7,7 @@ export type LinhaAuditoria = { id: string; at: string; actor: string; action: st
 const COLUNAS: DataColumn<LinhaAuditoria>[] = [
   { key: 'quando', header: 'Quando', primary: true, nowrap: true, cell: (l) => l.at },
   { key: 'quem', header: 'Quem', cell: (l) => l.actor },
-  { key: 'acao', header: 'Ação', cell: (l) => <code>{l.action}</code> },
+  { key: 'acao', header: 'Ação', wide: true, cell: (l) => <code>{l.action}</code> },
   { key: 'alvo', header: 'Alvo', cell: (l) => l.target ?? 'Sem alvo' },
   {
     key: 'detalhe',

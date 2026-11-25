@@ -32,6 +32,15 @@
   .af-button--md {
     min-height: 44px;
   }
+  /* Só ícone (subir, descer, fechar): quadrado, sem a folga lateral do botão com texto. */
+  .af-button--iconly {
+    min-width: 36px;
+    padding: 0;
+  }
+  .af-button--iconly.af-button--md {
+    min-width: 44px;
+    min-height: 44px;
+  }
   .af-button--lg {
     min-height: 52px;
     padding: 0 1.75rem;
@@ -208,13 +217,28 @@
 
   /* ---- Busca e filtros (GET): a busca é uma pílula com lupa ---- */
   .af-searchbar {
-    display: grid;
-    gap: 0.75rem;
+    display: flex;
+    flex-wrap: wrap;
     align-items: end;
+    gap: 0.75rem 1rem;
+  }
+  /* Campo e botão de busca (só ícone) na mesma linha, em qualquer largura. */
+  .af-searchbar__row {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
   }
   .af-searchbar__box {
     position: relative;
     display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .af-searchbar__go {
+    flex: none;
+    border-radius: 50%;
   }
   .af-searchbar__icon {
     position: absolute;
@@ -228,11 +252,9 @@
     padding-left: 2.75rem;
     border-radius: var(--radius-pill);
   }
-  .af-searchbar__go {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1rem;
+  .af-searchbar__filter {
+    flex: 1 1 9rem;
+    min-width: 0;
   }
   .af-searchbar__clear {
     display: inline-flex;
@@ -243,8 +265,11 @@
     text-underline-offset: 3px;
   }
   @media (min-width: 900px) {
-    .af-searchbar {
-      grid-template-columns: minmax(14rem, 1fr) minmax(9rem, 12rem) auto;
+    .af-searchbar__row {
+      flex: 1 1 14rem;
+    }
+    .af-searchbar__filter {
+      flex: 0 1 12rem;
     }
   }
 
@@ -593,6 +618,9 @@
   @media (pointer: coarse) {
     .af-button--sm {
       min-height: 44px;
+    }
+    .af-button--iconly {
+      min-width: 44px;
     }
     .af-input,
     .af-select__control,

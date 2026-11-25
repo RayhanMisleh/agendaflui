@@ -1,4 +1,5 @@
 'use client'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cx } from './cx'
@@ -11,8 +12,17 @@ export type NavTabItem = { id: string; label: string; href: string; /** Só a ro
  */
 export function NavTabs({ items, label, className }: { items: NavTabItem[]; label: string; className?: string }) {
   const pathname = usePathname()
+  const nav = useRef<HTMLElement>(null)
+  // Na fileira que rola (celular), a aba atual vem para o centro: quem abre "Bloqueios" não a encontra cortada na borda.
+  const chaveAtual = items.map((i) => (i.active ?? (pathname === i.href || (!i.exact && pathname.startsWith(`${i.href}/`))) ? i.id : '')).join('')
+  useEffect(() => {
+    const barra = nav.current
+    const atual = barra?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!barra || !atual || barra.scrollWidth <= barra.clientWidth) return
+    barra.scrollLeft = atual.offsetLeft - (barra.clientWidth - atual.offsetWidth) / 2
+  }, [chaveAtual])
   return (
-    <nav aria-label={label} className={cx('af-tabs af-navtabs', className)}>
+    <nav ref={nav} aria-label={label} className={cx('af-tabs af-navtabs', className)}>
       {items.map((item) => {
         const ativa = item.active ?? (pathname === item.href || (!item.exact && pathname.startsWith(`${item.href}/`)))
         return (

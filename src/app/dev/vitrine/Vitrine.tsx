@@ -414,7 +414,7 @@ function Componentes({ account }: { account: (typeof DEMO_ACCOUNTS)[number] }) {
           </Spec>
           <Spec title="Busca e filtro" note="A busca é uma pílula com lupa; o filtro de situação são abas que levam à lista já filtrada." wide>
             <Card>
-              <SearchBar action="/dev/vitrine" label="Buscar contas" placeholder="Buscar por nome, identificador ou e-mail" query="" filters={[]} hidden={{ status: 'ACTIVE' }} clearHref="/dev/vitrine" />
+              <SearchBar action="/dev/vitrine" label="Buscar contas" placeholder="Nome, identificador ou e-mail" query="" filters={[]} hidden={{ status: 'ACTIVE' }} clearHref="/dev/vitrine" />
               <NavTabs
                 label="Situação das contas"
                 items={[

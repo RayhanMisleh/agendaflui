@@ -10,8 +10,12 @@ export type DataColumn<T> = {
   primary?: boolean
   /** Célula e cabeçalho numa linha só (telefone, data, valor). */
   nowrap?: boolean
-  /** Alinhamento na tabela; `end` para números. */
+  /** Alinhamento na tabela; `end` para números. Em cartão tudo alinha à esquerda. */
   align?: 'start' | 'end'
+  /** Coluna de botões (Editar, Arquivar, ordem): em cartão vai para a barra de ações no pé, sem rótulo. */
+  actions?: boolean
+  /** Em cartão a célula ocupa a largura toda (texto longo); sem isso, duas células lado a lado. */
+  wide?: boolean
 }
 
 /** Verdadeiro quando o cabeçalho tem texto para ler: vazio e ícone sozinho (sem texto dentro) não têm. */
@@ -99,9 +103,11 @@ export function DataList<T>({
                   key={c.key}
                   role="cell"
                   data-primary={i === primaryIdx ? '' : undefined}
+                  data-actions={c.actions ? '' : undefined}
+                  data-wide={c.wide ? '' : undefined}
                   className={cx(colClass(c), onRowClick && i === primaryIdx && 'af-cell-hit') || undefined}
                 >
-                  {i === primaryIdx || !temTexto(c.header) ? null : (
+                  {i === primaryIdx || c.actions || !temTexto(c.header) ? null : (
                     <span className="af-datalist__label">{c.header}</span>
                   )}
                   {onRowClick && i === primaryIdx ? (

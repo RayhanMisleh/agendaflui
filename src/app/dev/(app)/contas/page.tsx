@@ -91,7 +91,7 @@ export default async function ContasPage({ searchParams }: { searchParams: Promi
         <SearchBar
           action="/contas"
           label="Buscar contas"
-          placeholder="Buscar por nome, identificador ou e-mail"
+          placeholder="Nome, identificador ou e-mail"
           query={search}
           filters={[]}
           {...(status ? { hidden: { status } } : {})}
