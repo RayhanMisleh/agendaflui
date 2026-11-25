@@ -38,7 +38,7 @@ export function EquipeTabela({ linhas, vazio }: { linhas: EquipeLinha[]; vazio: 
         </span>
       ),
     },
-    { key: 'servicos', header: 'Serviços', cell: (p) => <span className="af-clamp">{p.servicos.length > 0 ? p.servicos.join(', ') : 'Nenhum serviço marcado'}</span> },
+    { key: 'servicos', header: 'Serviços', wide: true, cell: (p) => <span className="af-clamp">{p.servicos.length > 0 ? p.servicos.join(', ') : 'Nenhum serviço marcado'}</span> },
     { key: 'situacao', header: 'Situação', nowrap: true, cell: (p) => (p.ativo ? <StatusDot tone="success" label="Disponível" /> : <StatusDot tone="warning" label="Fora de uso" detail="Não aparece para marcar" />) },
     {
       key: 'acesso',

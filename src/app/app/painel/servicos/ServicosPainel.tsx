@@ -238,6 +238,7 @@ export function ServicosPainel({ servicos, arquivados, ctx }: { servicos: Servic
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (s) =>
         s.archived ? (
           <span className="af-rowactions">
@@ -247,8 +248,10 @@ export function ServicosPainel({ servicos, arquivados, ctx }: { servicos: Servic
           </span>
         ) : (
           <span className="af-rowactions">
-            <AcaoDeLinha action={moverServico} campos={{ id: s.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={s.first} ariaLabel={`Subir ${s.name}`} />
-            <AcaoDeLinha action={moverServico} campos={{ id: s.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={s.last} ariaLabel={`Descer ${s.name}`} />
+            <span className="af-rowactions__move">
+              <AcaoDeLinha action={moverServico} campos={{ id: s.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={s.first} ariaLabel={`Subir ${s.name}`} />
+              <AcaoDeLinha action={moverServico} campos={{ id: s.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={s.last} ariaLabel={`Descer ${s.name}`} />
+            </span>
             <Button size="sm" variant="secondary" icon={<Pencil size={16} />} onClick={() => setFolha(s)} aria-label={`Editar ${s.name}`}>
               Editar
             </Button>

@@ -231,9 +231,10 @@
     padding: 0;
     list-style: none;
   }
+  /* Cada destino ocupa o que o rótulo pede ("Profissionais" é mais largo que "Mais") e divide a sobra por igual. */
   .af-nav__item {
     display: flex;
-    flex: 1 1 0;
+    flex: 1 1 auto;
     min-width: 0;
   }
   .af-nav__item--overflow {
@@ -264,6 +265,15 @@
   }
   .af-navlink__icon {
     display: inline-flex;
+  }
+  @media (max-width: 22rem) {
+    .af-shell__nav .af-navlink {
+      padding-inline: 0.125rem;
+      font-size: 0.6875rem;
+    }
+    .af-shell__nav .af-nav {
+      gap: 0.125rem;
+    }
   }
   .af-navlink__label {
     display: block;

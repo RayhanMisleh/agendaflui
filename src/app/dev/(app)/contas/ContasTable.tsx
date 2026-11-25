@@ -61,6 +61,7 @@ const COLUNAS: DataColumn<ContaLinha>[] = [
   {
     key: 'acoes',
     header: <span className="af-sr">Ações</span>,
+    actions: true,
     cell: (c) => (
       <span className="af-rowactions">
         <LinkButton href={`/contas/${c.id}`} size="sm" variant="secondary" icon={<ArrowRight size={16} />}>

@@ -114,10 +114,13 @@ export function PremiosLista({ premios, termos }: { premios: PremioLinha[]; term
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (p) => (
         <span className="af-rowactions">
-          <AcaoDeLinha action={moverPremio} campos={{ id: p.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={p.first} ariaLabel={`Subir ${p.name}`} />
-          <AcaoDeLinha action={moverPremio} campos={{ id: p.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={p.last} ariaLabel={`Descer ${p.name}`} />
+          <span className="af-rowactions__move">
+            <AcaoDeLinha action={moverPremio} campos={{ id: p.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={p.first} ariaLabel={`Subir ${p.name}`} />
+            <AcaoDeLinha action={moverPremio} campos={{ id: p.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={p.last} ariaLabel={`Descer ${p.name}`} />
+          </span>
           <LinkButton href={`/painel/fidelidade/premios/${p.id}`} variant="secondary" size="sm" icon={<Pencil size={16} />} aria-label={`Editar ${p.name}`}>
             Editar
           </LinkButton>
@@ -212,6 +215,7 @@ export function ResgatesLista({ resgates, termos }: { resgates: ResgateLinha[]; 
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (r) =>
         r.status === 'PENDING' ? (
           <span className="af-rowactions">
@@ -258,6 +262,7 @@ export function ClubeLista({ membros, termos }: { membros: ClubeLinha[]; termos:
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (m) => (
         <LinkButton href={`/painel/clientes/${m.id}`} variant="secondary" size="sm" aria-label={`Abrir a ficha de ${m.name}`}>
           Abrir ficha

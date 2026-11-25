@@ -32,6 +32,14 @@
   .af-button--md {
     min-height: 44px;
   }
+  /* Só ícone (subir, descer, fechar): quadrado, sem a folga lateral do botão com texto. */
+  .af-button--iconly {
+    min-width: 36px;
+    padding: 0;
+  }
+  .af-button--iconly.af-button--md {
+    min-width: 44px;
+  }
   .af-button--lg {
     min-height: 52px;
     padding: 0 1.75rem;
@@ -593,6 +601,9 @@
   @media (pointer: coarse) {
     .af-button--sm {
       min-height: 44px;
+    }
+    .af-button--iconly {
+      min-width: 44px;
     }
     .af-input,
     .af-select__control,

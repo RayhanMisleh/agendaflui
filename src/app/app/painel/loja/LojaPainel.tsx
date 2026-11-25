@@ -123,6 +123,7 @@ export function ProdutosLista({ produtos, vazio }: { produtos: ProdutoLinha[]; v
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (p) =>
         p.archived ? null : (
           <span className="af-rowactions">
@@ -169,10 +170,13 @@ export function CategoriasLista({ categorias }: { categorias: CategoriaLinha[] }
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (c) => (
         <span className="af-rowactions">
-          <AcaoDeLinha action={moverCategoria} campos={{ id: c.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={c.first} ariaLabel={`Subir ${c.name}`} />
-          <AcaoDeLinha action={moverCategoria} campos={{ id: c.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={c.last} ariaLabel={`Descer ${c.name}`} />
+          <span className="af-rowactions__move">
+            <AcaoDeLinha action={moverCategoria} campos={{ id: c.id, direction: 'up' }} icon={<ArrowUp size={16} />} disabled={c.first} ariaLabel={`Subir ${c.name}`} />
+            <AcaoDeLinha action={moverCategoria} campos={{ id: c.id, direction: 'down' }} icon={<ArrowDown size={16} />} disabled={c.last} ariaLabel={`Descer ${c.name}`} />
+          </span>
           <Button size="sm" variant="secondary" icon={<Pencil size={16} />} onClick={() => setRenomeando(c)} aria-label={`Renomear ${c.name}`}>
             Renomear
           </Button>

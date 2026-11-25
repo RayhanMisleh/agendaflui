@@ -56,8 +56,29 @@
   .af-rowactions {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-start;
-    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.375rem;
+  }
+  /* Setas de ordem juntas, à esquerda da barra; as ações vão para a direita. */
+  .af-rowactions__move {
+    display: inline-flex;
+    gap: 0.25rem;
+    margin-inline-end: auto;
+  }
+  /* Em cartão as ações dividem a linha; a que não couber desce e ocupa a largura toda. */
+  .af-rowactions > :not(.af-rowactions__move) {
+    flex: 1 1 auto;
+  }
+  /* O botão discreto não tem contorno: a folga lateral menor deixa Editar e Arquivar caberem na mesma linha. */
+  .af-rowactions > .af-button--secondary:not(.af-button--iconly) {
+    padding-inline: 0.75rem;
+  }
+  .af-rowactions > .af-button--ghost:not(.af-button--iconly) {
+    padding-inline: 0.5rem;
+  }
+  .af-rowactions__move form {
+    display: contents;
   }
   .af-rowactions form {
     display: contents;

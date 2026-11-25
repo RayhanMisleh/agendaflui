@@ -7,6 +7,7 @@ import type { AgendaPage } from '@/server/domain/scheduling/agenda-page'
 import { Button, Card, EmptyState, LinkButton, NavTabs, PlannerDay, PlannerWeek, ToastProvider } from '@/ui/components'
 import { labelOfMinute } from '@/ui/components'
 import { formatLocalDate, shortDate, weekdayName } from '@/ui/format'
+import { AgendaFab } from './AgendaFab'
 import { AppointmentSheet } from './AppointmentSheet'
 import { BlockSheet } from './BlockSheet'
 import { BookingSheet } from './BookingSheet'
@@ -68,6 +69,7 @@ export function AgendaPainel({
   }
 
   const tituloDia = page.view === 'dia' ? `${weekdayName(page.weekday)}, ${formatLocalDate(page.date)}` : `Semana de ${shortDate(page.week?.[0]?.date ?? page.date)} a ${shortDate(page.week?.[6]?.date ?? page.date)}`
+  const tituloCurto = page.view === 'dia' ? `${weekdayName(page.weekday).slice(0, 3)}., ${shortDate(page.date)}` : `${shortDate(page.week?.[0]?.date ?? page.date)} a ${shortDate(page.week?.[6]?.date ?? page.date)}`
   const detalhe = aberta?.tipo === 'ficha' ? (page.details[aberta.id] ?? null) : null
   const resumo = page.day?.summary
 
@@ -89,7 +91,10 @@ export function AgendaPainel({
               <ChevronRight size={18} aria-hidden="true" />
             </span>
           </Link>
-          <h2 className="af-agenda__title">{tituloDia}</h2>
+          <h2 className="af-agenda__title" aria-label={tituloDia}>
+            <span className="af-agenda__title-long" aria-hidden="true">{tituloDia}</span>
+            <span className="af-agenda__title-short" aria-hidden="true">{tituloCurto}</span>
+          </h2>
         </div>
         <NavTabs
           label="Visão da agenda"
@@ -100,6 +105,7 @@ export function AgendaPainel({
         />
         {page.scope === 'all' && page.professionals.length > 1 ? (
           <NavTabs
+            className={page.view === 'dia' ? 'af-agenda__profs--dia' : undefined}
             label={termos.professionalPlural}
             items={[
               { id: 'todos', label: 'Todos', href: href({ profissional: 'todos' }), active: page.filter === 'todos' },
@@ -118,6 +124,8 @@ export function AgendaPainel({
           ) : null}
         </div>
       </Card>
+
+      <AgendaFab onMarcar={() => setAberta({ tipo: 'marcar', prefill: prefillBase })} onBloquear={podeBloquear ? () => setAberta({ tipo: 'bloquear' }) : undefined} />
 
       {page.view === 'dia' && page.day ? (
         <Card as="section" aria-label="Agenda do dia" className="af-agenda__card">

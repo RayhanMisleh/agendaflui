@@ -183,6 +183,7 @@ export function TeamPanel({ acoes, membros }: { acoes: AcoesEquipe; membros: Mem
     {
       key: 'acoes',
       header: <span className="af-sr">Ações</span>,
+      actions: true,
       cell: (m) => (
         <span className="af-rowactions">
           <Acesso acoes={acoes} m={m} />

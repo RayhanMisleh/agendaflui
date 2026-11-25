@@ -12,6 +12,8 @@
     min-width: 0;
     /* Último recurso: se uma coluna que não quebra linha não couber, a tabela rola por dentro do cartão. */
     overflow-x: auto;
+    /* A entrada animada (translate) não pode criar barra vertical por dentro. */
+    overflow-y: hidden;
   }
   /*
    * As duas aparências saem das mesmas regras: cada consulta de contêiner só troca as variáveis `--dl-*` da tabela
@@ -33,7 +35,9 @@
   .af-datalist__table tr {
     position: relative;
     display: var(--dl-row, grid);
-    gap: 0.5rem;
+    /* Cartão: duas colunas de pares rótulo/valor; o título e a barra de ações ocupam as duas. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 1rem;
     padding: var(--dl-row-pad, 0.875rem 1rem);
     border: var(--dl-row-border, 1px solid var(--line));
     border-radius: var(--dl-row-radius, var(--radius-chip));
@@ -41,9 +45,11 @@
   }
   .af-datalist__table td {
     display: var(--dl-cell, grid);
-    grid-template-columns: minmax(5.5rem, 38%) minmax(0, 1fr);
-    gap: 0.5rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.125rem;
+    align-content: start;
     align-items: start;
+    text-align: start;
     vertical-align: middle;
     min-width: 0;
     color: var(--ink);
@@ -57,8 +63,18 @@
   }
   .af-datalist__table td[data-primary] {
     display: var(--dl-cell, block);
+    grid-column: 1 / -1;
     font-weight: 700;
     min-width: var(--dl-primary-min, 0);
+  }
+  .af-datalist__table td[data-wide] {
+    grid-column: 1 / -1;
+  }
+  /* Barra de ações no pé do cartão: em linha, ordem à esquerda e ações à direita; na tabela é só uma coluna. */
+  .af-datalist__table td[data-actions] {
+    grid-column: 1 / -1;
+    padding-block-start: var(--dl-act-pt, 0.75rem);
+    border-block-start: var(--dl-act-border, 1px solid var(--line));
   }
   /* Texto longo de célula (descrição, lista de serviços): no máximo duas linhas, com reticências. */
   .af-clamp {
@@ -75,6 +91,7 @@
     font-weight: 400;
     line-height: var(--text-small-lh);
   }
+  /* Rótulo e valor ficam juntos; valor em tabela em linha só vale na tabela. */
   .af-datalist__value {
     min-width: 0;
   }
@@ -96,11 +113,12 @@
     position: relative;
     z-index: 1;
   }
+  /* Nowrap e alinhamento à direita só valem em tabela; em cartão o valor quebra e alinha à esquerda, junto do rótulo. */
   .af-col--nowrap {
-    white-space: nowrap;
+    white-space: var(--dl-nowrap, normal);
   }
   .af-col--end {
-    text-align: end;
+    text-align: var(--dl-end, start);
   }
 
   /* Tabela: a partir do limite de cada lista (sm 28 rem, md 36 rem, lg 48 rem). */
@@ -117,6 +135,10 @@
       --dl-row-border: 0;
       --dl-row-radius: 0;
       --dl-row-bg: transparent;
+      --dl-nowrap: nowrap;
+      --dl-end: end;
+      --dl-act-border: 0;
+      --dl-act-pt: var(--cell-py);
       --dl-col-min: 7rem;
       --dl-primary-min: 13rem;
       --cell-px: 0.875rem;
@@ -137,6 +159,10 @@
       --dl-row-border: 0;
       --dl-row-radius: 0;
       --dl-row-bg: transparent;
+      --dl-nowrap: nowrap;
+      --dl-end: end;
+      --dl-act-border: 0;
+      --dl-act-pt: var(--cell-py);
       --dl-col-min: 7rem;
       --dl-primary-min: 13rem;
       --cell-px: 0.875rem;
@@ -157,6 +183,10 @@
       --dl-row-border: 0;
       --dl-row-radius: 0;
       --dl-row-bg: transparent;
+      --dl-nowrap: nowrap;
+      --dl-end: end;
+      --dl-act-border: 0;
+      --dl-act-pt: var(--cell-py);
       --dl-col-min: 7rem;
       --dl-primary-min: 13rem;
       --cell-px: 0.875rem;
