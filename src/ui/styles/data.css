@@ -67,6 +67,14 @@
     font-weight: 700;
     min-width: var(--dl-primary-min, 0);
   }
+  /* Tabela: a coluna de botões tem largura para duas linhas deles (setas e Editar, depois Arquivar). */
+  .af-datalist__table td[data-actions] {
+    min-width: var(--dl-act-min, 0);
+  }
+  /* Coluna de valor curto (preço, data, situação): a largura é a do próprio texto, sem o mínimo das colunas de texto. */
+  .af-datalist__table td.af-col--nowrap {
+    min-width: var(--dl-nowrap-min, 0);
+  }
   .af-datalist__table td[data-wide] {
     grid-column: 1 / -1;
   }
@@ -139,9 +147,12 @@
       --dl-end: end;
       --dl-act-border: 0;
       --dl-act-pt: var(--cell-py);
+      --dl-act-min: 14rem;
+      --dl-nowrap-min: 0;
+      --dl-act-flex: 0 1 auto;
       --dl-col-min: 7rem;
-      --dl-primary-min: 13rem;
-      --cell-px: 0.875rem;
+      --dl-primary-min: 11rem;
+      --cell-px: 0.625rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
     }
@@ -163,9 +174,12 @@
       --dl-end: end;
       --dl-act-border: 0;
       --dl-act-pt: var(--cell-py);
+      --dl-act-min: 14rem;
+      --dl-nowrap-min: 0;
+      --dl-act-flex: 0 1 auto;
       --dl-col-min: 7rem;
-      --dl-primary-min: 13rem;
-      --cell-px: 0.875rem;
+      --dl-primary-min: 11rem;
+      --cell-px: 0.625rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
     }
@@ -187,9 +201,12 @@
       --dl-end: end;
       --dl-act-border: 0;
       --dl-act-pt: var(--cell-py);
+      --dl-act-min: 14rem;
+      --dl-nowrap-min: 0;
+      --dl-act-flex: 0 1 auto;
       --dl-col-min: 7rem;
-      --dl-primary-min: 13rem;
-      --cell-px: 0.875rem;
+      --dl-primary-min: 11rem;
+      --cell-px: 0.625rem;
       --cell-py: 0.75rem;
       --cell-border: 1px solid var(--line);
     }

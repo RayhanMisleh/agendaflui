@@ -66,9 +66,9 @@
     gap: 0.25rem;
     margin-inline-end: auto;
   }
-  /* Em cartão as ações dividem a linha; a que não couber desce e ocupa a largura toda. */
+  /* Em cartão as ações dividem a linha; a que não couber desce e ocupa a largura toda. Na tabela ficam do tamanho do texto. */
   .af-rowactions > :not(.af-rowactions__move) {
-    flex: 1 1 auto;
+    flex: var(--dl-act-flex, 1 1 auto);
   }
   /* O botão discreto não tem contorno: a folga lateral menor deixa Editar e Arquivar caberem na mesma linha. */
   .af-rowactions > .af-button--secondary:not(.af-button--iconly) {
