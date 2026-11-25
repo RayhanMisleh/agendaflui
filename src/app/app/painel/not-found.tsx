@@ -4,7 +4,7 @@ import { ShellPage } from '@/ui/shells'
 
 /** Rota que não existe, registro removido ou módulo desligado nesta loja: a moldura do painel continua no lugar. */
 export default async function PainelNaoEncontrado() {
-  const ctx = await requireTenant()
+  await requireTenant()
   return (
     <ShellPage title="Não encontrado">
       <Card>

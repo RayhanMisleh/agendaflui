@@ -10,7 +10,7 @@ import { accountTabs } from './tabs'
 /** Cabeçalho da conta (carrega uma vez): nome, situação, "Entrar como", menu de situação e as abas. */
 export default async function ContaLayout({ children, params }: { children: ReactNode; params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { admin, conta } = await carregarConta(id)
+  const { conta } = await carregarConta(id)
   return (
     <ShellPage
       title={conta.name}

@@ -8,7 +8,7 @@ import { Wizard } from './Wizard'
 export const metadata: Metadata = { title: 'Nova conta | Agenda Flui' }
 
 export default async function NovaContaPage() {
-  const admin = await requirePlatformAdmin()
+  await requirePlatformAdmin()
   return (
     <ShellPage title="Nova conta">
       <Wizard initial={{ ok: false, message: null, fields: {}, values: EMPTY_VALUES }} grades={SLOT_STEPS} limites={RULE_LIMITS} />

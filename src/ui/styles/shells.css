@@ -10,6 +10,11 @@
     --side-w: 264px;
     /* Altura da faixa de suporte: 0 sem faixa. A barra lateral e a barra do topo começam abaixo dela. */
     --support-h: 0px;
+    /*
+     * Espaço que a pílula de navegação ocupa na base do celular (pílula de ~4 rem + margem de 0,75 rem + folga). As barras
+     * presas do miolo (Salvar do formulário, ações da agenda) e os avisos param acima dela; a área segura soma à parte.
+     */
+    --af-nav-clearance: 5.25rem;
     position: relative;
     display: flex;
     flex-direction: column;
