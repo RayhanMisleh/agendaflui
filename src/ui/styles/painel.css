@@ -785,11 +785,8 @@
     color: var(--brand-text);
     font-size: var(--text-small);
   }
-  .af-filtros__chevron {
-    transition: rotate 160ms ease-out;
-  }
   .af-filtros[data-open] .af-filtros__chevron {
-    rotate: 180deg;
+    transform: rotate(180deg);
   }
   .af-filtros__body {
     display: none;
@@ -826,9 +823,9 @@
       order: 1;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
+  @media (prefers-reduced-motion: no-preference) {
     .af-filtros__chevron {
-      transition: none;
+      transition: transform var(--af-dur-fast) var(--af-ease);
     }
   }
   .af-report__stats {
