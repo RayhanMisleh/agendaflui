@@ -1,4 +1,4 @@
-import { parseCartCookie } from '@/app/app/[slug]/loja/_lib/carrinho'
+import { parseCartCookie } from '@/app/app/[slug]/(area)/loja/_lib/carrinho'
 
 const A = '0b6e66aa-0000-4000-8000-00000000000a'
 const B = '0b6e66aa-0000-4000-8000-00000000000b'

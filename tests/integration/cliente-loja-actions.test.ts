@@ -31,8 +31,8 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { mudarQuantidade, porNoCarrinho, tirarDoCarrinho } from '@/app/app/[slug]/loja/actions'
-import { CART_COOKIE } from '@/app/app/[slug]/loja/_lib/carrinho'
+import { mudarQuantidade, porNoCarrinho, tirarDoCarrinho } from '@/app/app/[slug]/(area)/loja/actions'
+import { CART_COOKIE } from '@/app/app/[slug]/(area)/loja/_lib/carrinho'
 import { ESTADO_VAZIO } from '@/app/app/[slug]/_lib/estado'
 
 async function montar(o: { modulo?: boolean } = {}) {

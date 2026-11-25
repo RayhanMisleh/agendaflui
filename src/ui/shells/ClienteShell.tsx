@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
 import { Avatar } from '../components/Avatar'
 import { BrandMark } from './BrandMark'
+import { ClienteMain } from './ClienteMain'
 import { ClienteNavBar } from './ClienteNavBar'
 import { PageTransition } from './PageTransition'
 import { cx } from '../components/cx'
@@ -35,21 +36,15 @@ export function LojaMarca({ store }: { store: { name: string; logoUrl: string | 
 }
 
 /**
- * Moldura da área do cliente, dentro do tema da loja. Celular: barra do topo (logo ou nome da loja e o avatar, que leva a
- * "Mais") e navegação flutuante na base. Computador (≥ 960 px): a navegação sobe para a barra do topo e o conteúdo fica em
- * até 72 rem, alinhado à esquerda. O título da página é o único `h1`; `hideTitle` o deixa só para o leitor de tela (quando a
- * própria tela abre com um destaque).
+ * Moldura da área do cliente, dentro do tema da loja: mora no layout e NÃO remonta ao navegar, só o miolo troca. Celular:
+ * barra do topo (logo ou nome da loja e o avatar, que leva a "Mais") e navegação flutuante na base. Computador (≥ 960 px):
+ * a navegação sobe para a barra do topo e o conteúdo fica em até 72 rem, alinhado à esquerda. Cada tela desenha o seu miolo
+ * com `ClientePagina`.
  */
 export function ClienteShell(p: {
   store: { name: string; logoUrl: string | null; symbolUrl: string | null; slug: string }
   pets: boolean
   person: { name: string; avatarUrl?: string | null } | null
-  title: string
-  hideTitle?: boolean
-  back?: { href: string; label: string }
-  actions?: ReactNode
-  /** Tela de fluxo (quiz): sem a navegação flutuante da base, para a barra "Continuar" ocupar o lugar dela. */
-  immersive?: boolean
   children: ReactNode
   testId?: string
 }) {
@@ -67,25 +62,39 @@ export function ClienteShell(p: {
           </Link>
         ) : null}
       </header>
-      <main id="conteudo" tabIndex={-1} className={cx('af-cl-main', p.immersive && 'af-cl-main--immersive')}>
-        <PageTransition>
-          <div className="af-cl-inner">
-            {p.back ? (
-              <Link href={p.back.href} className="af-cl-back">
-                <ChevronLeft size={18} aria-hidden="true" />
-                {p.back.label}
-              </Link>
-            ) : null}
-            <div className={cx('af-cl-head', p.hideTitle && 'af-cl-head--hidden')}>
-              <h1 className={cx('af-cl-title', p.hideTitle && 'af-sr')}>{p.title}</h1>
-              {p.actions ? <div className="af-cl-head__actions">{p.actions}</div> : null}
-            </div>
-            <div className="af-cl-body">{p.children}</div>
-            <FeitoCom />
-          </div>
-        </PageTransition>
-      </main>
-      {p.immersive ? null : <ClienteNavBar slug={p.store.slug} pets={p.pets} placement="bottom" />}
+      <ClienteMain slug={p.store.slug}>{p.children}</ClienteMain>
+      <ClienteNavBar slug={p.store.slug} pets={p.pets} placement="bottom" />
     </div>
+  )
+}
+
+/**
+ * O miolo de uma tela do cliente: voltar, título (o único `h1`; `hideTitle` o deixa só para o leitor de tela quando a própria
+ * tela abre com um destaque), ações e o corpo, dentro da transição de página. A moldura (barra e navegação) fica no layout.
+ */
+export function ClientePagina(p: {
+  title: string
+  hideTitle?: boolean
+  back?: { href: string; label: string }
+  actions?: ReactNode
+  children: ReactNode
+}) {
+  return (
+    <PageTransition>
+      <div className="af-cl-inner">
+        {p.back ? (
+          <Link href={p.back.href} className="af-cl-back">
+            <ChevronLeft size={18} aria-hidden="true" />
+            {p.back.label}
+          </Link>
+        ) : null}
+        <div className={cx('af-cl-head', p.hideTitle && 'af-cl-head--hidden')}>
+          <h1 className={cx('af-cl-title', p.hideTitle && 'af-sr')}>{p.title}</h1>
+          {p.actions ? <div className="af-cl-head__actions">{p.actions}</div> : null}
+        </div>
+        <div className="af-cl-body">{p.children}</div>
+        <FeitoCom />
+      </div>
+    </PageTransition>
   )
 }

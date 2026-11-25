@@ -9,7 +9,7 @@ import {
   toPetInput,
   type QuizAction,
   type QuizState,
-} from '@/app/app/[slug]/boas-vindas/quiz'
+} from '@/app/app/[slug]/(area)/boas-vindas/quiz'
 
 const rodar = (s: QuizState, ...acoes: QuizAction[]) => acoes.reduce(quizReducer, s)
 const passo = (s: QuizState) => s.steps[s.index]

@@ -25,7 +25,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { salvarPetDoQuiz } from '@/app/app/[slug]/boas-vindas/actions'
+import { salvarPetDoQuiz } from '@/app/app/[slug]/(area)/boas-vindas/actions'
 
 async function montar(o: { servesCats?: boolean } = {}) {
   const b = await makeBusiness({ niche: 'PET' })

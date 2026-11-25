@@ -41,7 +41,7 @@ const CLIENTE = [
   'loja/pedidos/[id]',
   'mais',
   'mais/excluir',
-].map((r) => `src/app/app/[slug]/${r}`.replace(/\/$/, ''))
+].map((r) => `src/app/app/[slug]/(area)/${r}`.replace(/\/$/, ''))
 
 test.each(CLIENTE)('%s tem loading.tsx com ClienteSkeleton', async (rota) => {
   const arquivo = join(RAIZ, rota, 'loading.tsx')

@@ -23,7 +23,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/server/auth/request-info', () => ({ requestInfo: async () => ({ ip: '203.0.113.7', userAgent: 'teste' }) }))
 
-import { POST } from '@/app/app/[slug]/pets/[petId]/foto/route'
+import { POST } from '@/app/app/[slug]/(area)/pets/[petId]/foto/route'
 
 const OK = { host: 'app.localhost:3000', origin: 'http://app.localhost:3000' }
 // PNG 1x1 válido
@@ -53,7 +53,7 @@ beforeEach(async () => {
 
 describe('rota de foto do pet do cliente', () => {
   test('só aceita POST', async () => {
-    const rota = await import('@/app/app/[slug]/pets/[petId]/foto/route')
+    const rota = await import('@/app/app/[slug]/(area)/pets/[petId]/foto/route')
     expect(Object.keys(rota)).toEqual(['POST'])
   })
 
