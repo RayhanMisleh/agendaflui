@@ -1,6 +1,6 @@
 # AgendaFlui
 
-Sistema de agendamento para vários negócios (pet shops, barbearias, clínicas). Cada negócio é uma
+Sistema de agendamento web para negócios de serviço, hoje só para pet shops. Cada negócio é uma
 conta com marca e módulos próprios. Dois endereços: o painel dev (quem administra a plataforma) e o
 Agenda Flui (`APP_HOST`): entrada, painel da loja, área do cliente e Minha conta, com uma conta por
 pessoa (senha e/ou Google).
@@ -30,7 +30,7 @@ O seed de demonstração não roda em produção, a menos que `SEED_ALLOW_PRODUC
 avisar que os dados de demonstração ficaram incompletos, rode `npm run db:reset` e inicie de novo.
 
 Os e-mails e as senhas de demonstração estão no `.env.example` (copiados para o seu `.env`).
-Duas contas de exemplo: Patas & Cia (pet shop) e Navalha de Ouro (barbearia). Todos entram pelo mesmo
+Duas contas de exemplo: Patas & Cia e Navalha de Ouro. Para uma loja pet completa, use `npm run demo:create`. Todos entram pelo mesmo
 endereço: `app.localhost:3000/entrar`. A área do cliente de cada loja fica em `app.localhost:3000/<identificador>`.
 A vitrine de componentes fica em `dev.localhost:3000/vitrine` (só para admin logado).
 
@@ -86,6 +86,7 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 | `npm run db:seed` | Cria os dados de demonstração (pode repetir sem duplicar) |
 | `npm run db:reset` | Apaga o banco local e recria vazio |
 | `npm run admin:create` | Cria um administrador da plataforma |
+| `npm run demo:create` | Cria a conta de demonstração "Focinho Feliz Pet Shop" (também em produção) |
 | `npm run smoke` | Fumaça por HTTP das telas do painel dev e do app (só em banco local) |
 | `npm run typecheck` / `npm run lint` | Tipos e estilo |
 | `npm test` / `npm run test:tz` | Testes unitários e de integração; datas em vários fusos |
@@ -104,9 +105,9 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 
 ## Documentação
 
-- `docs/ARQUITETURA.md` camadas, endereços, isolamento entre contas, pessoa e acesso, Google, travas, fila de e-mails
+- `docs/PRODUTO.md` o produto: públicos, rotas, contas, Google, agenda, nicho pet, módulos, avisos
+- `docs/ARQUITETURA.md` camadas, endereços, isolamento entre contas, pessoa e acesso, travas, fila, Google Agenda, interface
 - `docs/TEMPO.md` regras de tempo e fuso, horário de verão
-- `docs/PUBLICACAO.md` publicação em produção (Docker, Coolify, variáveis, backup)
-- `docs/superpowers/specs/` spec do produto e direção de design
-- `docs/superpowers/pendencias-proximas-fases.md` o que continua pendente
+- `docs/PUBLICACAO.md` publicação em produção (Docker, Coolify, variáveis, Google Cloud, backup)
+- `docs/PENDENCIAS.md` o que está aberto
 - `AGENTS.md` regras curtas para quem edita (pessoa ou IA)

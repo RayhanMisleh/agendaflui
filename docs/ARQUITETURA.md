@@ -1,7 +1,7 @@
 # Arquitetura
 
-Um projeto Next.js 16 (TypeScript estrito, Prisma 7, PostgreSQL) que serve dois endereços. A spec do produto atual está em
-`docs/superpowers/specs/2026-11-23-app-unico-pet-design.md` (a base de agenda, em `2026-11-13-agendaflui-design.md`); as regras de tempo, em `docs/TEMPO.md`.
+Um projeto Next.js 16 (TypeScript estrito, Prisma 7, PostgreSQL) que serve dois endereços. O produto está em
+`docs/PRODUTO.md`; as regras de tempo, em `docs/TEMPO.md`.
 
 ## Hosts
 
@@ -42,14 +42,24 @@ proxy do servidor precisa preservar o `Host`; as rotas POST do painel dev confer
 - `src/app/` rotas e telas (Server Components e Server Actions). Fina: autentica, valida a entrada e chama o domínio.
   `_lib/` guarda o apoio das telas; `healthz/` e `arquivos/` (imagens enviadas) atendem em todos os hosts.
 - `src/server/domain/` toda a regra de negócio, por assunto: `scheduling`, `catalog`, `customers`, `team`, `settings`,
-  `reports`, `notifications` (fila), `loyalty`, `banners`, `store`, `platform` (painel dev) e `account`.
+  `reports`, `notifications` (fila), `calendar` (fila do Google Agenda), `onboarding`, `pets`, `storefront`, `loyalty`, `banners`,
+  `store` e `platform` (painel dev). Minha conta mora em `auth/person-account.ts`.
   Cada função recebe `ctx` (conta, ator, `ctx.db`, `ctx.clock()`); nunca usa o cliente Prisma cru nem `new Date()`.
   Erros são `DomainError` (`domain/errors.ts`), que também exporta o `z` usado nos esquemas.
 - `src/server/auth/` a pessoa e a sessão, senhas, papéis e capacidades (`capabilities.ts`), Google (`google/`), Minha conta, limites de taxa, suporte.
 - `src/server/db/` cliente Prisma, `tenantDb` (`tenant.ts`), classificação dos modelos (`models.ts`), retenção, saúde.
 - `src/server/{time,integrations,notifications,storage}/` tempo, provedores externos (Mercado Pago, Frenet, ViaCEP e Google), fila de e-mails e arquivos.
 - `src/ui/` design system (componentes, molduras, temas, estilos); `src/shared/` código sem servidor (módulos, tema).
-  A marca vem do repositório `branding/`; os tokens ficam em `src/ui/theme` e `src/shared/theme`.
+  A marca vem do repositório `branding/` (pasta irmã `../branding`); os tokens ficam em `src/ui/theme` e `src/shared/theme`.
+
+## Interface
+
+- A moldura (topo, menu, barra do celular) mora no `layout.tsx` de cada área: `PainelShell` (`/painel`), `ClienteShell`
+  (`/<slug>/(area)`, só para o cliente logado), `AccountShell` (`/conta`), `DevShell` (painel dev). Ao navegar, ela não remonta.
+- Cada página desenha só o miolo: `ShellPage` (painel e dev), `AccountPage` (conta) ou `ClientePagina` (área do cliente), que envolvem o
+  conteúdo em `PageTransition` (`ViewTransition` do React). O `loading.tsx` de cada rota é só o esqueleto do miolo.
+- Listas usam `DataList`: tabela no desktop, cartões no celular. Movimento só com `transform` e `opacity`, respeitando
+  `prefers-reduced-motion`.
 
 O ESLint impõe as fronteiras: cliente Prisma cru só em `src/server/db`, `auth`, `notifications`, `domain/platform`, `prisma`, `scripts` e
 `tests`; rotas não importam `tenantDb`; `new Date(texto)` e os métodos locais de data são proibidos fora de `src/server/time/`.
@@ -99,7 +109,7 @@ de conta opcional, de plataforma ou o próprio registro da conta).
   são gravadas só pelo admin (`domain/platform/google-settings.ts`, cifradas) e lidas em texto só pelo leitor restrito
   `domain/platform/google-secrets.ts`, que só `src/server/auth/google/**` importa (o embrulho `auth/google/config.ts` também é importado por `src/server/calendar/**`; ESLint e `tests/unit/google-secrets-imports.test.ts`).
 - **Suporte** ("entrar como", `support-session.ts`): o admin troca um token de passagem (60 s, uso único) por uma sessão de
-  60 minutos fixos no painel do negócio, com poderes de dono, exceto gerir acessos da equipe. Admin ou conta inativos derrubam a
+  60 minutos fixos no painel do negócio, com poderes de dono, menos redefinir senha de alguém, Minha conta e ver segredos. Admin ou conta inativos derrubam a
   sessão na requisição seguinte. As ações ficam na auditoria.
 - Limites de taxa por IP e por e-mail ficam no banco (`rate-limit-db.ts`).
 

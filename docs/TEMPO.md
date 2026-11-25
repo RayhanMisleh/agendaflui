@@ -1,6 +1,6 @@
 # Tempo e fuso horário
 
-Regras da seção 7 da spec, como estão implementadas. Todo o código de conversão fica em `src/server/time/index.ts`
+Regras de tempo como estão implementadas. Todo o código de conversão fica em `src/server/time/index.ts`
 (Temporal, via `temporal-polyfill`). Leia isto antes de mexer em agenda, relatórios ou métricas.
 
 ## Regras

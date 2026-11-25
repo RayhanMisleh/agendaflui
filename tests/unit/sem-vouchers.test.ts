@@ -13,6 +13,8 @@ const PASTAS = [
   'README.md',
   'docs/ARQUITETURA.md',
   'docs/PUBLICACAO.md',
+  'docs/PRODUTO.md',
+  'docs/PENDENCIAS.md',
 ]
 const EXCETO = [
   'src/server/db/generated',

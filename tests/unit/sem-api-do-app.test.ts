@@ -7,7 +7,7 @@ const RE =
 test('nenhum rastro da API do app em código, scripts, docs e ambiente', () => {
   const achados = arquivosCom(
     RE,
-    ['src', 'scripts', 'prisma', 'docs/ARQUITETURA.md', 'docs/PUBLICACAO.md', 'README.md', 'AGENTS.md', '.env.example', 'Dockerfile'],
+    ['src', 'scripts', 'prisma', 'docs/ARQUITETURA.md', 'docs/PUBLICACAO.md', 'docs/PRODUTO.md', 'docs/PENDENCIAS.md', 'README.md', 'AGENTS.md', '.env.example', 'Dockerfile'],
     ['src/server/db/generated', 'prisma/migrations'],
   )
   expect(achados).toEqual([])

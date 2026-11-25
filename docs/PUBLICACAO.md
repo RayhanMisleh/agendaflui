@@ -1,6 +1,15 @@
 # Publicação
 
-Um contêiner Docker (`Dockerfile` na raiz), porta 3000, atrás de um proxy com TLS (Coolify/Traefik).
+Um contêiner Docker (`Dockerfile` na raiz), porta 3000, no Coolify do dono (proxy Traefik com TLS), com Postgres gerenciado.
+Domínios de produção: `app.agendaflui.com.br` (`APP_HOST`) e `dev.agendaflui.com.br` (`DEV_HOST`).
+
+## Como publicar
+
+1. `npm run typecheck && npm run lint && npm test && npm run build` (e, com o banco local, `npm run smoke`).
+2. Push na `main`.
+3. No Coolify, reimplantar a aplicação. A partida aplica as migrações novas antes de servir.
+
+A landing page não mora aqui: é um site estático em outro repositório, publicado na Hostinger pelo dono (zip da pasta `out/`).
 
 ## Requisitos
 
@@ -44,8 +53,7 @@ O servidor sempre usa HTTPS nos links e cookies `Secure` em produção: sem TLS 
 Prisma usa trava consultiva do Postgres) e inicia o Next, repassando `SIGTERM`. `MIGRATE_ON_START=false` pula a migração.
 
 Se uma migração falhar, a partida para e as seguintes dão `P3009`. Corrija a causa (os dados que a migração recusou),
-rode `prisma migrate resolve --rolled-back <nome-da-migração>` e suba de novo. As migrações de 2026-11-23 (remoção da
-venda antiga e `um_vinculo_ativo`) rodam em transação: ao falhar, o banco volta ao estado anterior.
+rode `prisma migrate resolve --rolled-back <nome-da-migração>` e suba de novo.
 
 ## Retenção
 
@@ -82,10 +90,6 @@ têm e-mails `@demo.agendaflui.com.br` com senhas que ninguém conhece, e os avi
 - Arquivos: copie `/data/storage` (`tar czf storage.tgz -C /data storage`).
 - Restaurar: banco vazio, `pg_restore --no-owner -d "$DATABASE_URL" agendaflui.dump`, e `tar xzf storage.tgz -C /data`.
 
-## Atualização
-
-Novo deploy: a partida aplica as migrações novas antes de servir.
-
 ## Não faça
 
 - Rodar o seed de demonstração (recusa em produção sem `SEED_ALLOW_PRODUCTION=1`; não use).
@@ -93,22 +97,27 @@ Novo deploy: a partida aplica as migrações novas antes de servir.
 
 ## Coolify
 
-Build por Dockerfile; porta 3000; os domínios no mesmo recurso: `dev.` (painel dev) e `app.` (serve tudo: entrada, painel, clientes e webhook); `painel.` só se `LEGACY_PAINEL_HOST` estiver definido (redireciona o endereço antigo); o domínio `api.` sai; armazenamento
+Build por Dockerfile; porta 3000; os domínios no mesmo recurso: `dev.` (painel dev) e `app.` (serve tudo: entrada, painel, clientes e webhook); `painel.` só se `LEGACY_PAINEL_HOST` estiver definido (redireciona o endereço antigo); armazenamento
 persistente em `/data/storage`; variáveis acima; verificação de saúde em `/healthz` (o Coolify roda `curl` dentro do
 contêiner; a imagem já o traz). O Coolify injeta as variáveis da aplicação também no build: o Dockerfile já conta
 com isso. Ao acrescentar um domínio depois de criada a aplicação, confira em General > Container > Labels se há
 uma regra `Host(...)` para ele; se faltar, use "Reset To Defaults" e reimplante (sem isso o proxy responde 503).
 
-## Entrar com Google
+## Google (login e Google Agenda)
 
-1. No Google Cloud Console, crie um cliente OAuth do tipo "Aplicativo da Web".
-2. Em URIs de redirecionamento autorizados, ponha `https://<APP_HOST>/google/retorno`.
-3. Em APIs e serviços, ative a **Google Calendar API** no mesmo projeto. Sem isso, toda gravação na agenda do dono volta 403 (`accessNotConfigured`) e os agendamentos não chegam ao Google Agenda.
-4. Na tela de consentimento, escolha o tipo de usuário "Externo", peça os escopos `openid`, `email`, `profile` e `https://www.googleapis.com/auth/calendar.events` (a agenda só recebe eventos; nunca é lida) e preencha os links de política de privacidade e termos de uso com páginas publicadas por vocês (o app ainda não tem `/privacidade` nem `/termos`; use endereços externos, por exemplo os do site).
-5. Ainda na tela de consentimento, mude o status de publicação para **Em produção**. Em "Testando", o Google expira o token de renovação em 7 dias e as conexões viram "Desligada — ligue de novo".
-6. No painel dev, em Sistema → Google, cole o ID do cliente e a chave secreta e salve. Sem as duas chaves o botão do Google não aparece.
+Projeto no Google Cloud: `agenda-flui`.
 
-Enquanto o Google não verificar o app (mesmo em produção), o escopo da agenda é sensível: quem ligar o Google Agenda vê o aviso "app não verificado" (precisa clicar em Avançado → continuar) e o app fica limitado a 100 usuários. Para abrir ao público, peça a verificação do app ao Google (política de privacidade publicada e justificativa do escopo `calendar.events`); o processo leva dias ou semanas, então comece antes do lançamento.
+1. Cliente OAuth do tipo "Aplicativo da Web", com URI de redirecionamento `https://<APP_HOST>/google/retorno`.
+2. **Google Calendar API** ativada no mesmo projeto (sem ela, o envio à agenda volta 403 `accessNotConfigured`).
+3. Tela de consentimento: usuário "Externo", escopos `openid`, `email`, `profile` e
+   `https://www.googleapis.com/auth/calendar.events` (a agenda só recebe eventos; nunca é lida). Status **Em produção**
+   (em "Testando" o token de renovação vence em 7 dias).
+4. No painel dev, Sistema → Google: cole o ID do cliente e a chave secreta. Sem as duas, os botões do Google não aparecem.
+
+Verificação: a marca está em revisão no Google. O escopo `calendar.events` não está verificado, por decisão do dono: quem
+liga o Google Agenda vê o aviso de app não verificado (Avançado → continuar) e o app fica limitado a 100 usuários nesse
+escopo. O login (só `openid email profile`) não é afetado. O app ainda não tem `/privacidade` nem `/termos`; os links da tela
+de consentimento apontam para páginas do site.
 
 ## Integrações (Mercado Pago)
 
@@ -122,13 +131,6 @@ Enquanto o Google não verificar o app (mesmo em produção), o escopo da agenda
 - Prazo mínimo para pagar: 30 minutos (o Pix exige). A preferência vence em `max(prazo do pedido, agora + 30 min)`; um
   pagamento que chegar depois do prazo do pedido segue a regra "pago depois de vencer".
 - A varredura do agendador confere os pedidos vencidos com o Mercado Pago por até 60 s por rodada.
-
-### Virada do endereço antigo do webhook
-
-O webhook antigo (`https://api.<domínio>/v1/webhooks/mercadopago/{chave}`) deixou de existir junto com o domínio `api.`.
-Ao publicar: troque no painel do Mercado Pago qualquer webhook colado à mão para `https://<APP_HOST>/webhooks/mercadopago/{chave}`
-(o endereço novo aparece na aba Integrações da conta). Preferências criadas antes da virada ainda apontam para o endereço
-antigo: um pedido pago depois da virada fica aguardando pagamento até a varredura do agendador conferi-lo no Mercado Pago.
 
 ### Teste no sandbox antes de abrir a loja
 

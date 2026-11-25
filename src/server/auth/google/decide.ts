@@ -4,7 +4,7 @@ import type { GoogleIntent } from './flow'
 import type { GoogleIdentity } from './id-token'
 
 /*
- * As regras do Google (spec "Login com Google — regras (sem exceção)"), numa função PURA: recebe a intenção do fluxo e os
+ * As regras do Google (`docs/PRODUTO.md`, "Regras do Google"), numa função PURA: recebe a intenção do fluxo e os
  * fatos já lidos do banco e devolve a decisão. Nada de banco, relógio ou rede aqui. `callback.ts` lê os fatos sob a trava
  * da pessoa, chama esta função e só então escreve; por isso a decisão vale para o estado que será gravado.
  */
