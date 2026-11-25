@@ -11,3 +11,4 @@ export { ClientePagina, ClienteShell, FeitoCom, LojaMarca, SITE_AGENDA_FLUI } fr
 export { ClienteSkeleton } from './ClienteSkeleton'
 export type { ClienteSkeletonVariant } from './ClienteSkeleton'
 export { clienteImersivo, clienteNav, maisItems } from './cliente-nav'
+export { EntryBody, EntryBodySkeleton, EntryFrame } from './EntryScreen'

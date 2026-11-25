@@ -96,6 +96,14 @@
     padding: 1.5rem;
     box-shadow: var(--shadow-pop);
   }
+  /* O palco acompanha a altura do conteúdo (animada por script). A folga de 4 px deixa o anel de foco (3 px) inteiro. */
+  .af-entry__stage {
+    margin: -4px;
+    overflow: hidden;
+  }
+  .af-entry__inner {
+    padding: 4px;
+  }
   .af-entry__card--wide {
     max-width: 34rem;
   }
@@ -215,13 +223,6 @@
     opacity: 0.35;
   }
 
-  /* Abas de entrada da loja (Entrar | Criar conta) logo abaixo do título. */
-  .af-entry__tabs {
-    margin-top: 1rem;
-  }
-  .af-entry__tabs + .af-entry__form {
-    margin-top: 1rem;
-  }
   .af-entry__or {
     display: flex;
     align-items: center;
@@ -239,9 +240,6 @@
   }
   .af-google__form + .af-entry__or + .af-entry__form,
   .af-entry__or + .af-entry__form {
-    margin-top: 1rem;
-  }
-  .af-entry__tabs + .af-google__form {
     margin-top: 1rem;
   }
   .af-entry__actions {
@@ -274,6 +272,164 @@
   .af-entry__link:disabled {
     cursor: default;
     opacity: 0.6;
+  }
+
+  /* ---- Abas Entrar | Criar conta: o indicador desliza entre as duas ---- */
+  .af-entry__seg {
+    --seg: 0;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 4px;
+    border-radius: var(--radius-pill);
+    background-color: var(--ground);
+    margin-bottom: 1.5rem;
+  }
+  .af-entry__seg-thumb {
+    position: absolute;
+    inset-block: 4px;
+    inset-inline-start: 4px;
+    width: calc((100% - 8px) / 2);
+    border-radius: var(--radius-pill);
+    background-color: var(--surface);
+    box-shadow: 0 0 0 1px var(--line);
+    transform: translateX(calc(var(--seg) * 100%));
+  }
+  .af-entry__seg-tab {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    border-radius: var(--radius-pill);
+    color: var(--ink-muted);
+    font-size: var(--text-body);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .af-entry__seg-tab--active {
+    color: var(--brand-text);
+    font-weight: 700;
+  }
+  /* No quiz, depois do primeiro passo as abas saem do caminho. */
+  .af-entry__inner:has([data-entry-deep]) > .af-entry__seg {
+    display: none;
+  }
+
+  /* ---- Troca de tela: o conteúdo novo chega com um movimento curto ---- */
+  .af-entry__body {
+    --entry-dx: 0px;
+    --entry-dy: 6px;
+  }
+  .af-entry__body--wait {
+    min-height: 12rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .af-entry__body:not(.af-entry__body--wait) {
+      animation: af-entry-in var(--af-dur, 200ms) var(--af-ease, ease-out) backwards;
+    }
+    .af-entry__seg-thumb {
+      transition: transform var(--af-dur, 200ms) var(--af-ease, ease-out);
+    }
+    .af-quiz__fill {
+      transition: transform var(--af-dur, 200ms) var(--af-ease, ease-out);
+    }
+    .af-quiz__step {
+      animation: af-entry-in var(--af-dur, 200ms) var(--af-ease, ease-out) backwards;
+      --entry-dx: 14px;
+      --entry-dy: 0px;
+    }
+    .af-quiz__step[data-direcao='-1'] {
+      --entry-dx: -14px;
+    }
+    /* O quiz anima os passos, não a entrada da página inteira. */
+    .af-quiz.af-entry__body {
+      animation: none;
+    }
+  }
+  @keyframes af-entry-in {
+    from {
+      opacity: 0;
+      transform: translate(var(--entry-dx, 0), var(--entry-dy, 6px));
+    }
+  }
+
+  /* ---- Quiz de cadastro ---- */
+  .af-quiz__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .af-quiz__back {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin-inline-start: -0.5rem;
+    border: 0;
+    border-radius: var(--radius-pill);
+    background: none;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  @media (hover: hover) {
+    .af-quiz__back:hover {
+      background-color: var(--brand-tint);
+    }
+  }
+  .af-quiz__bar {
+    flex: 1;
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    background-color: var(--line);
+  }
+  .af-quiz__fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background-color: var(--brand);
+    transform-origin: left center;
+  }
+  .af-quiz__count {
+    flex: none;
+    color: var(--ink-muted);
+    font-size: var(--text-small);
+    font-variant-numeric: tabular-nums;
+  }
+  .af-quiz__step > .af-entry__notice {
+    margin-top: 1rem;
+  }
+  .af-quiz__step > .af-entry__notice + .af-entry__message {
+    margin-top: 0.75rem;
+  }
+  .af-quiz__step > .af-google__form {
+    margin-top: 1.25rem;
+  }
+
+  /* ---- Campo de senha com "Mostrar" ---- */
+  .af-pass {
+    position: relative;
+  }
+  .af-pass__input {
+    padding-inline-end: 3rem;
+  }
+  .af-pass__toggle {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    border: 0;
+    border-radius: var(--radius-chip);
+    background: none;
+    color: var(--ink-muted);
+    cursor: pointer;
   }
 
   .af-link-break {
