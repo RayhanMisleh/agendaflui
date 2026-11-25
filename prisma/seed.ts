@@ -163,9 +163,25 @@ async function dominio() {
 
 type Dominio = Awaited<ReturnType<typeof dominio>>
 
-/** Imagem sólida na cor da marca: o banner só vai ao ar com imagem. */
+/**
+ * Arte simples na cor da marca (duas bolhas e uma faixa, sem texto: não depende de fontes do sistema). O banner só vai ao ar
+ * com imagem, e uma imagem lisa aparecia na área do cliente como um bloco verde vazio.
+ */
 async function imagemDaMarca(cor: string): Promise<{ bytes: Uint8Array }> {
-  return { bytes: new Uint8Array(await sharp({ create: { width: 1200, height: 500, channels: 3, background: cor } }).png().toBuffer()) }
+  const largura = 1200
+  const altura = 500
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${largura}" height="${altura}">
+    <circle cx="${largura * 0.18}" cy="${altura * 0.7}" r="170" fill="white" fill-opacity="0.22"/>
+    <circle cx="${largura * 0.82}" cy="${altura * 0.3}" r="120" fill="white" fill-opacity="0.18"/>
+    <circle cx="${largura * 0.64}" cy="${altura * 0.78}" r="64" fill="white" fill-opacity="0.3"/>
+    <rect x="${largura * 0.3}" y="${altura * 0.4}" width="${largura * 0.4}" height="${altura * 0.1}" rx="26" fill="white" fill-opacity="0.45"/>
+    <rect x="${largura * 0.3}" y="${altura * 0.56}" width="${largura * 0.26}" height="${altura * 0.06}" rx="18" fill="white" fill-opacity="0.3"/>
+  </svg>`
+  const png = await sharp({ create: { width: largura, height: altura, channels: 3, background: cor } })
+    .composite([{ input: Buffer.from(svg) }])
+    .png()
+    .toBuffer()
+  return { bytes: new Uint8Array(png) }
 }
 
 /**
