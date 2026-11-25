@@ -50,7 +50,7 @@ proxy do servidor precisa preservar o `Host`; as rotas POST do painel dev confer
 - `src/server/db/` cliente Prisma, `tenantDb` (`tenant.ts`), classificação dos modelos (`models.ts`), retenção, saúde.
 - `src/server/{time,integrations,notifications,storage}/` tempo, provedores externos (Mercado Pago, Frenet, ViaCEP e Google), fila de e-mails e arquivos.
 - `src/ui/` design system (componentes, molduras, temas, estilos); `src/shared/` código sem servidor (módulos, tema).
-  A marca vem do repositório `branding/` (pasta irmã `../branding`); os tokens ficam em `src/ui/theme` e `src/shared/theme`.
+  A marca vem do repositório `branding/` (pasta irmã `../branding`); os tokens ficam em `src/ui/styles/tokens.css`; o tema por conta (cores da loja) em `src/shared/theme` e `src/ui/theme`.
 
 ## Interface
 
