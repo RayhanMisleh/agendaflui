@@ -1,5 +1,5 @@
 'use client'
-import { Download, Share2 } from 'lucide-react'
+import { Download, QrCode, Share2 } from 'lucide-react'
 import { Button, Card, CopyButton, Input, useHydrated } from '@/ui/components'
 import type { CustomerLink } from '@/server/domain/settings/customer-link'
 
@@ -9,8 +9,9 @@ function slugDoLink(url: string): string {
 }
 
 /**
- * "Link para clientes": o endereço do app dentro desta loja, para copiar ou compartilhar, e o QR code para imprimir ou
- * baixar. O SVG do QR nasce no servidor a partir do link da própria loja (nada digitado entra nele).
+ * "Link para clientes": o endereço do app dentro desta loja, compacto (link, Copiar e, onde o aparelho tem, Compartilhar).
+ * O QR code para imprimir ou baixar fica recolhido atrás de "Mostrar QR code". O SVG do QR nasce no servidor a partir do
+ * link da própria loja (nada digitado entra nele).
  */
 export function LinkParaClientes({ link }: { link: CustomerLink }) {
   const hidratado = useHydrated()
@@ -18,11 +19,11 @@ export function LinkParaClientes({ link }: { link: CustomerLink }) {
   const arquivo = `link-clientes-${slugDoLink(link.url)}.svg`
   return (
     <Card as="section" aria-labelledby="link-clientes-titulo" className="af-custlink">
-      <div className="af-custlink__main">
-        <h2 id="link-clientes-titulo" className="af-custlink__title">
-          Link para clientes
-        </h2>
-        <p className="af-custlink__help">Ponha na bio ou mande ao cliente. Quem entra por aqui fica sempre na sua loja.</p>
+      <h2 id="link-clientes-titulo" className="af-custlink__title">
+        Link para clientes
+      </h2>
+      <p className="af-custlink__help">Ponha na bio ou mande ao cliente. Quem entra por aqui fica sempre na sua loja.</p>
+      <div className="af-custlink__row">
         <Input readOnly value={link.url} aria-label="Link para clientes" onFocus={(e) => e.currentTarget.select()} className="af-custlink__url" />
         <div className="af-custlink__actions">
           <CopyButton text={link.url} label="Copiar link para clientes" variant="secondary" />
@@ -33,21 +34,24 @@ export function LinkParaClientes({ link }: { link: CustomerLink }) {
           ) : null}
         </div>
       </div>
-      <div className="af-custlink__qrbox">
-        <div className="af-custlink__qr" role="img" aria-label="QR code do link para clientes" dangerouslySetInnerHTML={{ __html: link.qrSvg }} />
-        <a
-          className="af-button af-button--ghost af-button--sm"
-          href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(link.qrSvg)}`}
-          download={arquivo}
-        >
-          <span className="af-button__label">
-            <span className="af-button__icon" aria-hidden="true">
-              <Download size={16} />
+      <details className="af-custlink__qrbox">
+        <summary className="af-custlink__qrtoggle">
+          <QrCode size={16} aria-hidden="true" />
+          <span className="af-custlink__qrshow">Mostrar QR code</span>
+          <span className="af-custlink__qrhide">Esconder QR code</span>
+        </summary>
+        <div className="af-custlink__qrbody">
+          <div className="af-custlink__qr" role="img" aria-label="QR code do link para clientes" dangerouslySetInnerHTML={{ __html: link.qrSvg }} />
+          <a className="af-button af-button--ghost af-button--sm" href={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(link.qrSvg)}`} download={arquivo}>
+            <span className="af-button__label">
+              <span className="af-button__icon" aria-hidden="true">
+                <Download size={16} />
+              </span>
+              Baixar QR code
             </span>
-            Baixar QR code
-          </span>
-        </a>
-      </div>
+          </a>
+        </div>
+      </details>
     </Card>
   )
 }
