@@ -33,7 +33,6 @@ Só o que está aberto hoje. Tirar daqui o que for resolvido.
 ## Técnicas
 
 - Segurança: CSP completa com nonce (hoje só `frame-ancestors`) e cookies com prefixo `__Host-`.
-- Várias instâncias exigem `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` fixa (a partida avisa).
 - Medir com tráfego real: limite geral por IP, tamanho do pool, espera da trava por profissional (até 15 s).
 - PgBouncer em modo transação pode ignorar `-c timezone=UTC` (a partida confere e recusa).
 - Telefone estrangeiro sem `+` com 10 ou 11 dígitos é tratado como brasileiro.
@@ -44,7 +43,6 @@ Só o que está aberto hoje. Tirar daqui o que for resolvido.
 - Agenda no celular com uma coluna: seta do teclado pode mover a prévia para coluna oculta (`use-drag-reschedule.ts`).
 - `Tabs` com `href` sem `aria-current`; `Dialog` intercepta Esc de filhos.
 - Falha de disco na rota `/arquivos` vira 404 sem registro.
-- Migrações: gerar sempre pelo diff de schema para schema (índices parciais e FKs compostas não saem do schema Prisma).
 
 ## Desenvolvimento local
 

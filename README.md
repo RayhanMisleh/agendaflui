@@ -93,16 +93,6 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 | `npm run worker:once` | Uma rodada de envio de avisos |
 | `npm run build` | Build de produção |
 
-## Pastas
-
-- `src/app/` rotas: `dev/` (painel dev), `app/` (entrada, `painel/`, `[slug]/`, `conta/`), `arquivos/` (imagens enviadas)
-- `src/server/` regra de negócio, dados, acesso e horários (`time/`)
-- `src/ui/` design system, molduras e temas
-- `prisma/` esquema, migrações e seed
-- `scripts/` banco local, `npm run dev` e criação de administrador
-- `tests/` unit e integration
-- `docs/` documentação (abaixo)
-
 ## Documentação
 
 - `docs/PRODUTO.md` o produto: públicos, rotas, contas, Google, agenda, nicho pet, módulos, avisos
@@ -110,4 +100,4 @@ Publicação em produção (imagem Docker, Coolify): `docs/PUBLICACAO.md`.
 - `docs/TEMPO.md` regras de tempo e fuso, horário de verão
 - `docs/PUBLICACAO.md` publicação em produção (Docker, Coolify, variáveis, Google Cloud, backup)
 - `docs/PENDENCIAS.md` o que está aberto
-- `AGENTS.md` regras curtas para quem edita (pessoa ou IA)
+- `AGENTS.md` regras curtas e mapa de pastas para quem edita (pessoa ou IA)

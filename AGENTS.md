@@ -43,6 +43,7 @@ usado por nós, os admins) e `APP_HOST` (o Agenda Flui de donos, equipes e clien
 - Tabela nova: classifique o modelo em `src/server/db/models.ts`. Se for de conta, ela tem coluna
   `business_id` e FK composta com `business_id` para as outras tabelas de conta; o teste estrutural
   (`tests/integration/schema.test.ts`) confere.
+- Migração nova: gere pelo diff de schema para schema (índices parciais e FKs compostas não saem do schema Prisma).
 - Interface: a moldura fica no `layout.tsx`; a página desenha só o miolo (`ShellPage`, `AccountPage` ou `ClientePagina`) e o
   `loading.tsx`, só o esqueleto do miolo. Componentes em `src/ui/components` (exportados por `index.ts`).
 - Docs só com o estado atual: sem histórico, fases nem planos. Mudou o comportamento, atualize o doc correspondente.
