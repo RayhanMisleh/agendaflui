@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, render, screen } from '@testing-library/react'
-import { FiltrosRecolhiveis } from '@/app/app/painel/_lib/FiltrosRecolhiveis'
+import { FiltrosRecolhiveis } from '@/ui/components'
 
 const campos = <label>Serviço<select name="servico"><option value="">Todos</option></select></label>
 

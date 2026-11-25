@@ -811,6 +811,10 @@
   .af-filtros[data-open] .af-filtros__body {
     display: grid;
   }
+  /* Campos de texto com dica longa (auditoria): um por linha mesmo recolhidos. */
+  .af-report__form--stack .af-filtros__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
   @media (max-width: 22rem) {
     .af-filtros__body {
       grid-template-columns: minmax(0, 1fr);

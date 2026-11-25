@@ -26,6 +26,29 @@
   .af-acct__actions form {
     margin: 0;
   }
+  /* No celular: Entrar como ocupa a linha; Suspender/Reativar e Arquivar dividem a de baixo em partes iguais. */
+  @media (max-width: 767.98px) {
+    .af-acct {
+      gap: 0.625rem;
+    }
+    .af-acct__actions {
+      gap: 0.5rem;
+    }
+    .af-acct__actions > form,
+    .af-acct__actions > .af-button,
+    .af-acct__actions > .af-statusmenu {
+      flex: 1 1 100%;
+    }
+    .af-acct__actions > form > .af-button {
+      width: 100%;
+    }
+    .af-acct__actions .af-statusmenu > * {
+      flex: 1 1 0;
+    }
+    .af-acct__actions .af-statusmenu > * > .af-button {
+      width: 100%;
+    }
+  }
   .af-statusmenu {
     display: flex;
     flex-wrap: wrap;
@@ -50,6 +73,10 @@
     max-width: 40rem;
     color: var(--ink-muted);
     line-height: var(--text-body-lh);
+  }
+  /* Nota de fuso solta na página: não encosta no cartão de baixo. */
+  .af-tznote {
+    margin: 0 0 0.75rem;
   }
 
   /* ---- Números ---- */
